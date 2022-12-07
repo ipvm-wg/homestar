@@ -1,0 +1,61 @@
+name: ☂ Code Coverage
+
+on:
+  push:
+    branches: [ main ]
+
+  pull_request:
+    branches: [ '*' ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Install Rust Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          override: true
+          toolchain: nightly
+          components: llvm-tools-preview
+          profile: minimal
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+
+      - name: Generate Code coverage
+        env:
+          CARGO_INCREMENTAL: '0'
+          LLVM_PROFILE_FILE: "ipvm-%p-%m.profraw"
+          RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+        run: cargo test --all-features
+
+      - name: Install grcov
+        run: "curl -L https://github.com/mozilla/grcov/releases/download/v0.8.12/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -"
+
+      - name: Run grcov
+        run: "./grcov . --llvm --binary-path target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore '/*' -o lcov.info"
+
+      - name: Install covfix
+        uses: actions-rs/install@v0.1
+        with:
+          crate: rust-covfix
+          use-tool-cache: true
+
+      - name: Run covfix
+        run: rust-covfix lcov.info -o lcov.info --verbose
+
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+          files: lcov.info
