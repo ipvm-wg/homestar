@@ -1,0 +1,18 @@
+name: 🛡 Audit-Check
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Run Audit-Check
+        uses: rustsec/audit-check@v0.1.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
