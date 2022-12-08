@@ -34,6 +34,8 @@
         nixpkgs-fmt
       ];
 
+      macos = if pkgs.stdenv.isDarwin then [ pkgs.darwin.apple_sdk.frameworks.Foundation ] else [];
+
       cargo-installs = with pkgs; [
         cargo-deny
         cargo-expand
@@ -53,9 +55,10 @@
           nightly-rustfmt
           rust-toolchain
           pre-commit
+          protobuf
           direnv
           self.packages.${system}.irust
-        ] ++ format-pkgs ++ cargo-installs;
+        ] ++ format-pkgs ++ cargo-installs ++ macos;
 
       shellHook = ''
         [ -e .git/hooks/pre-commit ] || pre-commit install --install-hooks && pre-commit install --hook-type commit-msg
