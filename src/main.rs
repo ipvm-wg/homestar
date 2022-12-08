@@ -52,6 +52,24 @@ struct Args {
 
     #[arg(short, long)]
     listen_address: Option<Multiaddr>,
+
+    #[clap(subcommand)]
+    argument: CliArgument,
+}
+
+#[derive(Debug, Parser)]
+enum CliArgument {
+    Provide {
+        #[clap(long)]
+        path: PathBuf,
+
+        #[clap(long)]
+        name: String,
+    },
+    Get {
+        #[clap(long)]
+        name: String,
+    },
 }
 
 // #[derive(Debug, Clone, Sized)]
@@ -149,16 +167,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .map(|v| v.to_string())
         .collect();
 
+    let res_copy = res.clone().into_bytes();
+
     println!("Result value: {}", res.to_string());
 
     let res_cursor = Cursor::new(res);
-    let output = match ipfs.add(res_cursor).await.expect("Shoudl be a CID now") {
+    let output = match ipfs.add(res_cursor).await.expect("a CID") {
         AddResponse { hash, .. } => hash,
     };
 
     println!("Result CID: {}", output);
-
-    /////////////////////////////////////////
 
     let (mut network_client, mut network_events, network_event_loop) =
         network::new(vals.secret_key_seed).await?;
@@ -179,36 +197,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .expect("Listening not to fail."),
     };
 
-    // In case the user provided an address of a peer on the CLI, dial it.
-    if let Some(addr) = vals.peer {
-        let peer_id = match addr.iter().last() {
-            Some(Protocol::P2p(hash)) => PeerId::from_multihash(hash).expect("Valid hash."),
-            _ => return Err("Expect peer multiaddr to contain peer ID.".into()),
-        };
-        network_client
-            .dial(peer_id, addr)
-            .await
-            .expect("Dial to succeed");
-    }
-
     // FIXME shove the stuff to provide in here
-
-    loop {
-        match network_events.next().await {
-            // Reply with the content of the file on incoming requests.
-            Some(network::Event::InboundRequest { request, channel }) => {
-                panic!("at the disco");
-                if request == vals.my_name {
-                    network_client
-                        .respond_file(std::fs::read(&vals.path)?, channel)
-                        .await;
-                }
-            }
-            e => {
-                panic!("OH YEAH");
-            } // todo!("{:?}", e),
-        }
-    }
 
     /////////////////////////////////////////
 
@@ -248,6 +237,63 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //            }))
     //        ])
     //    }
+
+    // In case the user provided an address of a peer on the CLI, dial it.
+    if let Some(addr) = vals.peer {
+        let peer_id = match addr.iter().last() {
+            Some(Protocol::P2p(hash)) => PeerId::from_multihash(hash).expect("Valid hash."),
+            _ => return Err("Expect peer multiaddr to contain peer ID.".into()),
+        };
+        network_client
+            .dial(peer_id, addr)
+            .await
+            .expect("Dial to succeed");
+    }
+
+    match vals.argument {
+        // Providing a file.
+        CliArgument::Provide { path, name } => {
+            // Advertise oneself as a provider of the file on the DHT.
+            network_client.start_providing(name.clone()).await;
+
+            loop {
+                match network_events.next().await {
+                    // Reply with the content of the file on incoming requests.
+                    Some(network::Event::InboundRequest { request, channel }) => {
+                        if request == name {
+                            network_client.respond_file(res_copy.clone(), channel).await;
+                        }
+                    }
+                    e => todo!("{:?}", e),
+                }
+            }
+        }
+        // Locating and getting a file.
+        CliArgument::Get { name } => {
+            // Locate all nodes providing the file.
+            let providers = network_client.get_providers(name.clone()).await;
+            if providers.is_empty() {
+                return Err(format!("Could not find provider for file {name}.").into());
+            }
+
+            // Request the content of the file from each node.
+            let requests = providers.into_iter().map(|p| {
+                let mut network_client = network_client.clone();
+                let name = name.clone();
+                async move { network_client.request_file(p, name).await }.boxed()
+            });
+
+            // Await the requests, ignore the remaining once a single one succeeds.
+            let file_content = futures::future::select_ok(requests)
+                .await
+                .map_err(|_| "None of the providers returned file.")?
+                .0;
+
+            std::io::stdout().write_all(&file_content)?;
+        }
+    }
+
+    Ok(())
 }
 
 /// The network module, encapsulating all network related logic.
