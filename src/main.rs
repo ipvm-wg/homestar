@@ -9,14 +9,10 @@ mod network;
 
 use async_std::task::spawn;
 use clap::Parser;
-use cli::{Args, CliArgument};
+use cli::{Args, Argument};
 use futures::{prelude::*, Stream, TryStreamExt};
 use ipfs_api::{response::AddResponse, IpfsApi, IpfsClient};
-use libp2p::{
-    core::{either::EitherError, PeerId},
-    multiaddr::Protocol,
-    swarm::{ConnectionHandlerUpgrErr, SwarmEvent},
-};
+use libp2p::{core::PeerId, multiaddr::Protocol};
 use std::{
     error::Error,
     io,
@@ -31,13 +27,24 @@ use wasmer::{imports, Function, Instance, Module, Store, Type, Value};
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    let vals = Args::parse();
-
     let (mut network_client, mut network_events, network_event_loop) = network::new(None).await?;
 
     spawn(network_event_loop.run());
 
-    match vals.listen_address {
+    let opts = Args::parse();
+
+    if let Some(addr) = opts.peer {
+        let peer_id = match addr.iter().last() {
+            Some(Protocol::P2p(hash)) => PeerId::from_multihash(hash).expect("Valid hash."),
+            _ => return Err("Expect peer multiaddr to contain peer ID.".into()),
+        };
+        network_client
+            .dial(peer_id, addr)
+            .await
+            .expect("Dial to succeed");
+    }
+
+    match opts.listen_address {
         Some(addr) => network_client
             .start_listening(addr)
             .await
@@ -49,27 +56,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .expect("Listening not to fail."),
     };
 
-    // FIXME shove the stuff to provide in here
-
-    if let Some(addr) = vals.peer {
-        let peer_id = match addr.iter().last() {
-            Some(Protocol::P2p(hash)) => PeerId::from_multihash(hash).expect("Valid hash."),
-            _ => return Err("Expect peer multiaddr to contain peer ID.".into()),
-        };
-        network_client
-            .dial(peer_id, addr)
-            .await
-            .expect("Dial to succeed");
-    }
-
-    match vals.argument {
-        CliArgument::Get { name } => request(name, &mut network_client).await,
-        CliArgument::Provide { name } => {
+    match opts.argument {
+        Argument::Get { name } => request(name, &mut network_client).await,
+        Argument::Provide {
+            name,
+            wasm,
+            fun,
+            args,
+        } => {
             provide(
                 name,
-                vals.wasm,
-                vals.fun,
-                vals.args,
+                wasm,
+                fun,
+                args,
                 &mut network_client,
                 &mut network_events,
             )

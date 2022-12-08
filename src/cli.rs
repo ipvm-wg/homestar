@@ -4,15 +4,6 @@ use libp2p::core::Multiaddr;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
-    #[arg(short, long)]
-    pub wasm: String,
-
-    #[arg(short, long)]
-    pub fun: String,
-
-    #[arg(short, long)]
-    pub args: String,
-
     #[arg(long)]
     pub peer: Option<Multiaddr>,
 
@@ -20,14 +11,23 @@ pub struct Args {
     pub listen_address: Option<Multiaddr>,
 
     #[clap(subcommand)]
-    pub argument: CliArgument,
+    pub argument: Argument,
 }
 
 #[derive(Debug, Parser)]
-pub enum CliArgument {
+pub enum Argument {
     Provide {
         #[clap(long)]
         name: String,
+
+        #[arg(short, long)]
+        wasm: String,
+
+        #[arg(short, long)]
+        fun: String,
+
+        #[arg(short, long)]
+        args: String,
     },
     Get {
         #[clap(long)]
