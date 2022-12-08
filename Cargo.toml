@@ -40,14 +40,18 @@ env_logger = "0.9.3"
 futures = "0.3.25"
 ipfs-api = "0.16.0"
 ipfs-api-backend-hyper = "0.5"
+json = "0.12.4"
 libp2p = { version = "0.50.0", features = ["full"] } # ["async-std", "kad", "macros", "request-response", "serde", "tcp"]}
 multihash = "0.17.0"
 proptest = { version = "1.0", optional = true }
 semver = "1.0.14"
 serde_ipld_dagcbor = "0.2.2"
+signature = "1.6.4"
 tokio = { version = "1.22.0", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
+ucan = "0.1.0"
+url = "2.3.1"
 wasmer = "3.0"
 
 [dev-dependencies]
