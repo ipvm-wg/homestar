@@ -385,7 +385,7 @@ struct ComposedBehaviour {
 }
 
 #[derive(Debug)]
-enum ComposedEvent {
+pub enum ComposedEvent {
     RequestResponse(RequestResponseEvent<FileRequest, FileResponse>),
     Kademlia(KademliaEvent),
 }
@@ -403,7 +403,7 @@ impl From<KademliaEvent> for ComposedEvent {
 }
 
 #[derive(Debug)]
-enum Command {
+pub enum Command {
     StartListening {
         addr: Multiaddr,
         sender: oneshot::Sender<Result<(), Box<dyn Error + Send>>>,
@@ -444,10 +444,13 @@ pub enum Event {
 
 #[derive(Debug, Clone)]
 struct FileExchangeProtocol();
+
 #[derive(Clone)]
 struct FileExchangeCodec();
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FileRequest(String);
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileResponse(Vec<u8>);
 
