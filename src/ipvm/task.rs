@@ -1,5 +1,5 @@
 use cid::Cid;
-use json::JsonValue;
+use core::ops::ControlFlow;
 use libipld::{cid::multibase::Base, Ipld, Link};
 use signature::Signature;
 use std::{collections::btree_map::BTreeMap, result::Result};
@@ -69,14 +69,75 @@ impl TryFrom<Ipld> for Action {
 pub struct Task {
     pub closure: Closure,
     pub resources: Resources,
-    pub metadata: JsonValue,
+    pub metadata: Ipld,
     pub secret: Option<bool>,
+}
+
+impl TryFrom<Ipld> for Task {
+    type Error = ();
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Map(ref assoc) => {
+                let res = match assoc.get("resources") {
+                    Some(v) => v.clone(),
+                    _ => Ipld::Map(BTreeMap::new()),
+                };
+
+                let fuel: Option<u32> =
+                    res.get("fuel")
+                        .map_err(|_| ())
+                        .and_then(|ipld_fuel| match ipld_fuel {
+                            Ipld::Integer(int) => Ok(u32::try_from(*int).ok()),
+                            _ => Err(()),
+                        })?;
+
+                let time: Option<u32> =
+                    res.get("time")
+                        .map_err(|_| ())
+                        .and_then(|ipld_fuel| match ipld_fuel {
+                            Ipld::Integer(int) => Ok(u32::try_from(*int).ok()),
+                            _ => Err(()),
+                        })?;
+
+                let metadata: Ipld = match assoc.get("meta") {
+                    Some(ipld) => ipld.clone(),
+                    None => Ipld::Null,
+                };
+
+                // Is it secret? Is it safe?!
+                let secret: Option<bool> =
+                    assoc.get("secret").ok_or(()).and_then(|ipld| match ipld {
+                        Ipld::Bool(b) => Ok(Some(*b)),
+                        Ipld::Null => Ok(None),
+                        _ => Err(()),
+                    })?;
+
+                Ok(Task {
+                    closure: Closure::try_from(ipld)?,
+                    resources: Resources { time, fuel },
+                    metadata,
+                    secret,
+                })
+            }
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Resources {
     pub fuel: Option<u32>,
     pub time: Option<u32>,
+}
+
+impl Resources {
+    pub fn new() -> Self {
+        Resources {
+            fuel: None,
+            time: None,
+        }
+    }
 }
 
 impl TryFrom<Ipld> for Resources {
@@ -105,30 +166,63 @@ impl TryFrom<Ipld> for Resources {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Batch(BTreeMap<TaskLabel, Task>);
 
-//impl TryFrom<Ipld> for Batch {
-//    type Error = ();
-//
-//    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-//        match ipld {
-//            Ipld::Map(map) => {
-//                let batch = BTreeMap::new();
-//                for (key, value) in map.iter() {
-//                  let label = TaskLabel::try_from(key)?;
-//                  let task = Task::try_from(value)?;
-//                  batch.insert(label, task);
-//                }
-//                Ok(Batch(batch))
-//            },
-//            _ => Err(())
-//    }
-//}
+impl TryFrom<Ipld> for Batch {
+    type Error = ();
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Map(assoc) => {
+                let mut batch = BTreeMap::new();
+
+                let flow =
+                    assoc
+                        .iter()
+                        .try_for_each(|(key, value)| match Task::try_from(value.clone()) {
+                            Ok(task) => {
+                                batch.insert(TaskLabel(key.to_string()), task);
+                                ControlFlow::Continue(())
+                            }
+                            _ => ControlFlow::Break(()),
+                        });
+
+                match flow {
+                    ControlFlow::Continue(_) => Ok(Batch(batch)),
+                    _ => Err(()),
+                }
+            }
+            _ => Err(()),
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Invocation<Sig: Signature> {
+pub struct Invocation {
     pub run: Batch,
-    pub sig: Sig,
+    // pub sig: Sig,
     pub meta: Ipld,
-    pub prf: Vec<Link<Ucan>>,
+    // pub prf: Vec<Link<Ucan>>,
+}
+
+impl TryFrom<Ipld> for Invocation {
+    type Error = ();
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Map(assoc) => {
+                let run: Batch = match assoc.get("run") {
+                    Some(ipld) => Batch::try_from(ipld.clone()),
+                    _ => Err(()),
+                }?;
+
+                let meta = match assoc.get("meta") {
+                    Some(ipld) => ipld.clone(),
+                    None => Ipld::Null,
+                };
+
+                Ok(Invocation { run, meta })
+            }
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -142,12 +236,12 @@ impl TryFrom<Ipld> for Promise {
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         match ipld {
-            Ipld::Map(map) => {
-                if map.len() != 1 {
+            Ipld::Map(assoc) => {
+                if assoc.len() != 1 {
                     return Err(());
                 }
 
-                let (key, value) = map.iter().next().unwrap();
+                let (key, value) = assoc.iter().next().unwrap();
                 let invoked_task = InvokedTaskPointer::try_from(value.clone())?;
 
                 let branch_selector = match key.as_str() {
@@ -265,7 +359,7 @@ impl From<Ipld> for Input {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TaskLabel(String);
 
 impl TryFrom<Ipld> for TaskLabel {
