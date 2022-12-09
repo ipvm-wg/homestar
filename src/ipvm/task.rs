@@ -1,9 +1,7 @@
 use cid::Cid;
 use core::ops::ControlFlow;
 use libipld::{cid::multibase::Base, Ipld, Link};
-use signature::Signature;
-use std::{collections::btree_map::BTreeMap, result::Result};
-use ucan::ucan::Ucan;
+use std::collections::BTreeMap;
 use url::Url;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -52,7 +50,61 @@ impl TryFrom<Ipld> for Closure {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum Input {
+    IpldData { ipld: Ipld },
+    Deferred { promise: Promise },
+}
+
+impl Into<Ipld> for Input {
+    fn into(self) -> Ipld {
+        match self {
+            Input::IpldData { ipld } => ipld,
+            Input::Deferred { promise } => Promise::into(promise),
+        }
+    }
+}
+
+impl From<Ipld> for Input {
+    fn from(ipld: Ipld) -> Input {
+        match ipld {
+            Ipld::Map(ref map) => {
+                if map.len() != 1 {
+                    return Input::IpldData { ipld };
+                }
+                match map.get("ucan/ok") {
+                    Some(Ipld::List(pointer)) => {
+                        if let Ok(invoked_task) =
+                            InvokedTaskPointer::try_from(Ipld::List(pointer.clone()))
+                        {
+                            Input::Deferred {
+                                promise: Promise {
+                                    branch_selector: Some(Status::Success),
+                                    invoked_task,
+                                },
+                            }
+                        } else {
+                            Input::IpldData { ipld }
+                        }
+                    }
+
+                    _ => Input::IpldData { ipld },
+                }
+            }
+            _ => Input::IpldData { ipld },
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Action(String);
+
+impl Into<Ipld> for Action {
+    fn into(self) -> Ipld {
+        match self {
+            Action(string) => Ipld::String(string),
+        }
+    }
+}
 
 impl TryFrom<Ipld> for Action {
     type Error = ();
@@ -166,6 +218,19 @@ impl TryFrom<Ipld> for Resources {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Batch(BTreeMap<TaskLabel, Task>);
 
+impl Into<Ipld> for Batch {
+    fn into(self) -> Ipld {
+        match self {
+            Batch(assoc) => {
+                let mut batch = BTreeMap::new();
+                assoc.iter().for_each(|(TaskLabel(label), task)| {
+                    batch.insert(label, todo!());
+                })
+            }
+        }
+    }
+}
+
 impl TryFrom<Ipld> for Batch {
     type Error = ();
 
@@ -203,8 +268,19 @@ pub struct Invocation {
     // pub prf: Vec<Link<Ucan>>,
 }
 
+impl Into<Ipld> for Invocation {
+    fn into(self) -> Ipld {
+        match self {
+            Invocation { run, meta } => {
+                Ipld::Map(BTreeMap::from([("run", run.into()), ("meta", meta)]))
+            }
+        }
+    }
+}
+
 impl TryFrom<Ipld> for Invocation {
     type Error = ();
+
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         match ipld {
             Ipld::Map(assoc) => {
@@ -229,6 +305,25 @@ impl TryFrom<Ipld> for Invocation {
 pub struct Promise {
     pub invoked_task: InvokedTaskPointer,
     pub branch_selector: Option<Status>,
+}
+
+impl Into<Ipld> for Promise {
+    fn into(self) -> Ipld {
+        match self {
+            Promise {
+                invoked_task,
+                branch_selector,
+            } => {
+                let key: String = match branch_selector {
+                    Some(Success) => "ucan/ok".to_string(),
+                    Some(Failure) => "ucan/err".to_string(),
+                    None => "ucan/promise".to_string(),
+                };
+
+                Ipld::Map(BTreeMap::from([(key, invoked_task.into())]))
+            }
+        }
+    }
 }
 
 impl TryFrom<Ipld> for Promise {
@@ -273,6 +368,15 @@ pub enum InvocationPointer {
     Local,
 }
 
+impl Into<Ipld> for InvocationPointer {
+    fn into(self) -> Ipld {
+        match self {
+            InvocationPointer::Local => Ipld::String("/".to_string()),
+            InvocationPointer::Remote(cid) => Ipld::Link(cid),
+        }
+    }
+}
+
 impl TryFrom<Ipld> for InvocationPointer {
     type Error = ();
 
@@ -294,6 +398,16 @@ impl TryFrom<Ipld> for InvocationPointer {
 pub struct InvokedTaskPointer {
     pub invocation: InvocationPointer,
     pub label: TaskLabel,
+}
+
+impl Into<Ipld> for InvokedTaskPointer {
+    fn into(self) -> Ipld {
+        match self {
+            InvokedTaskPointer { invocation, label } => {
+                Ipld::List(vec![invocation.into(), label.into()])
+            }
+        }
+    }
 }
 
 impl TryFrom<Ipld> for InvokedTaskPointer {
@@ -322,45 +436,16 @@ impl TryFrom<Ipld> for InvokedTaskPointer {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Input {
-    IpldData { ipld: Ipld },
-    Deferred { promise: Promise },
-}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TaskLabel(String);
 
-impl From<Ipld> for Input {
-    fn from(ipld: Ipld) -> Input {
-        match ipld {
-            Ipld::Map(ref map) => {
-                if map.len() != 1 {
-                    return Input::IpldData { ipld };
-                }
-                match map.get("ucan/ok") {
-                    Some(Ipld::List(pointer)) => {
-                        if let Ok(invoked_task) =
-                            InvokedTaskPointer::try_from(Ipld::List(pointer.clone()))
-                        {
-                            Input::Deferred {
-                                promise: Promise {
-                                    branch_selector: Some(Status::Success),
-                                    invoked_task,
-                                },
-                            }
-                        } else {
-                            Input::IpldData { ipld }
-                        }
-                    }
-
-                    _ => Input::IpldData { ipld },
-                }
-            }
-            _ => Input::IpldData { ipld },
+impl Into<Ipld> for TaskLabel {
+    fn into(self) -> Ipld {
+        match self {
+            TaskLabel(txt) => Ipld::String(txt.to_string()),
         }
     }
 }
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TaskLabel(String);
 
 impl TryFrom<Ipld> for TaskLabel {
     type Error = ();
@@ -373,41 +458,41 @@ impl TryFrom<Ipld> for TaskLabel {
     }
 }
 
-/////////////////////////////////////////
+//////////////////////////////////////
 
-// Now for a DAG and some light type checking ;)
-
-//    const Sha3_256: u64 = 0x16;
-//    let digest_bytes = [
-//        0x16, 0x20, 0x64, 0x4b, 0xcc, 0x7e, 0x56, 0x43, 0x73, 0x04, 0x09, 0x99, 0xaa, 0xc8, 0x9e,
-//        0x76, 0x22, 0xf3, 0xca, 0x71, 0xfb, 0xa1, 0xd9, 0x72, 0xfd, 0x94, 0xa3, 0x1c, 0x3b, 0xfb,
-//        0xf2, 0x4e, 0x39, 0x38
-//    ];
-
-//    let multihash = Multihash::from_bytes(&digest_bytes).unwrap();
-
-//    Job {
-//        tasks: BTreeMap::from([
-//            (TaskLabel("left"), PureTask(Pure{
-//                wasm: Cid.new_v0(...),
-//                inputs: [
-//                    WasmParam(Value::I32(1)),
-//                    WasmParam(Value::I32(2))
-//                ]
-//            })),
-//            (TaskLabel("right"), PureTask(Pure{
-//                wasm: Cid.new_v0(...),
-//                inputs: [
-//                    Absolute(Cid.new_v0(multihash))
-//                ]
-//            })),
-//            (TaskLabel("end"), PureTask(Pure{
-//                wasm: Cid.new_v0(...),
-//                inputs: [
-//                    Relative(TaskLabel("left")),
-//                    WasmParam(Value::I32(42)),
-//                    Relative(TaskLabel("right"))
-//                ]
-//            }))
-//        ])
-//    }
+//Now for a DAG and some light type checking ;)
+//
+//   const Sha3_256: u64 = 0x16;
+//   let digest_bytes = [
+//       0x16, 0x20, 0x64, 0x4b, 0xcc, 0x7e, 0x56, 0x43, 0x73, 0x04, 0x09, 0x99, 0xaa, 0xc8, 0x9e,
+//       0x76, 0x22, 0xf3, 0xca, 0x71, 0xfb, 0xa1, 0xd9, 0x72, 0xfd, 0x94, 0xa3, 0x1c, 0x3b, 0xfb,
+//       0xf2, 0x4e, 0x39, 0x38
+//   ];
+//
+//   let multihash = Multihash::from_bytes(&digest_bytes).unwrap();
+//
+//   Job {
+//       tasks: BTreeMap::from([
+//           (TaskLabel("left"), PureTask(Pure{
+//               wasm: Cid.new_v0(...),
+//               inputs: [
+//                   WasmParam(Value::I32(1)),
+//                   WasmParam(Value::I32(2))
+//               ]
+//           })),
+//           (TaskLabel("right"), PureTask(Pure{
+//               wasm: Cid.new_v0(...),
+//               inputs: [
+//                   Absolute(Cid.new_v0(multihash))
+//               ]
+//           })),
+//           (TaskLabel("end"), PureTask(Pure{
+//               wasm: Cid.new_v0(...),
+//               inputs: [
+//                   Relative(TaskLabel("left")),
+//                   WasmParam(Value::I32(42)),
+//                   Relative(TaskLabel("right"))
+//               ]
+//           }))
+//       ])
+//   }
