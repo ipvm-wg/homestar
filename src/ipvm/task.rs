@@ -1,6 +1,6 @@
 use cid::Cid;
 use json::JsonValue;
-use libipld::{Ipld, Link};
+use libipld::{cid::multibase::Base, Ipld, Link};
 use signature::Signature;
 use std::{collections::btree_map::BTreeMap, result::Result};
 use ucan::ucan::Ucan;
@@ -9,8 +9,59 @@ use url::Url;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Closure {
     pub resource: Url,
-    pub action: String,
+    pub action: Action,
     pub inputs: Input,
+}
+
+impl TryFrom<Ipld> for Closure {
+    type Error = ();
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Map(assoc) => assoc
+                .get("with")
+                .and_then(|res_ipld| match res_ipld {
+                    Ipld::Link(cid) => match cid.to_string_of_base(Base::Base32HexLower) {
+                        Ok(txt) => {
+                            let ipfs_url: String = format!("{}{}", "ipfs://", txt);
+                            Url::parse(ipfs_url.as_str()).ok()
+                        }
+                        _ => None,
+                    },
+                    Ipld::String(txt) => Url::parse(txt.as_str()).ok(),
+                })
+                .and_then(|resource| {
+                    assoc.get("do").and_then(|ipld| {
+                        Action::try_from(ipld.clone()).ok().and_then(|action| {
+                            assoc.get("inputs").and_then(|ipld| {
+                                Some(Closure {
+                                    resource,
+                                    action,
+                                    inputs: Input::from(ipld.clone()),
+                                })
+                            })
+                        })
+                    })
+                })
+                .ok_or(()),
+
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Action(String);
+
+impl TryFrom<Ipld> for Action {
+    type Error = ();
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::String(txt) => Ok(Action(txt)),
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -23,12 +74,53 @@ pub struct Task {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Resources {
-    pub fuel: u32,
-    pub time: u32,
+    pub fuel: Option<u32>,
+    pub time: Option<u32>,
+}
+
+impl TryFrom<Ipld> for Resources {
+    type Error = ();
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Map(map) => {
+                let fuel: Option<u32> = match map.get("fuel") {
+                    Some(Ipld::Integer(int)) => u32::try_from(*int).ok(),
+                    _ => None,
+                };
+
+                let time: Option<u32> = match map.get("time") {
+                    Some(Ipld::Integer(int)) => u32::try_from(*int).ok(),
+                    _ => None,
+                };
+
+                Ok(Resources { fuel, time })
+            }
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Batch(BTreeMap<TaskLabel, Task>);
+
+//impl TryFrom<Ipld> for Batch {
+//    type Error = ();
+//
+//    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+//        match ipld {
+//            Ipld::Map(map) => {
+//                let batch = BTreeMap::new();
+//                for (key, value) in map.iter() {
+//                  let label = TaskLabel::try_from(key)?;
+//                  let task = Task::try_from(value)?;
+//                  batch.insert(label, task);
+//                }
+//                Ok(Batch(batch))
+//            },
+//            _ => Err(())
+//    }
+//}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Invocation<Sig: Signature> {
