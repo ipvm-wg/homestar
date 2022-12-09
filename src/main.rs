@@ -15,7 +15,6 @@ use ipfs_api::{response::AddResponse, IpfsApi, IpfsClient};
 use libp2p::{core::PeerId, multiaddr::Protocol};
 use std::{
     error::Error,
-    io,
     io::{Cursor, Write},
     marker::Unpin,
     str::FromStr,
