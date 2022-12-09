@@ -29,6 +29,7 @@ impl TryFrom<Ipld> for Closure {
                         _ => None,
                     },
                     Ipld::String(txt) => Url::parse(txt.as_str()).ok(),
+                    _ => None,
                 })
                 .and_then(|resource| {
                     assoc.get("do").and_then(|ipld| {
