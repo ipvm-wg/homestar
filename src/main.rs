@@ -99,7 +99,8 @@ async fn request(name: String, network_client: &mut network::Client) -> () {
         Err(y) => panic!("no file {}", y),
     };
 
-    std::io::stdout().write_all(&file_content);
+    let _ = std::io::stdout().write_all(&file_content);
+    return;
 }
 
 async fn provide(

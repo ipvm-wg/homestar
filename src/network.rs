@@ -385,7 +385,7 @@ struct ComposedBehaviour {
 }
 
 #[derive(Debug)]
-pub enum ComposedEvent {
+enum ComposedEvent {
     RequestResponse(RequestResponseEvent<FileRequest, FileResponse>),
     Kademlia(KademliaEvent),
 }
