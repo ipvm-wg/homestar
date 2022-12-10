@@ -1,6 +1,6 @@
 use cid::Cid;
 use core::ops::ControlFlow;
-use libipld::{cid::multibase::Base, Ipld, Link};
+use libipld::{cid::multibase::Base, Ipld};
 use std::collections::BTreeMap;
 use url::Url;
 
@@ -125,6 +125,26 @@ pub struct Task {
     pub secret: Option<bool>,
 }
 
+impl Into<Ipld> for Task {
+    fn into(self) -> Ipld {
+        let secret_flag = match self.secret {
+            None => Ipld::Null,
+            Some(b) => Ipld::Bool(b),
+        };
+
+        Ipld::Map(BTreeMap::from([
+            (
+                "with".to_string(),
+                Ipld::String(self.closure.resource.into()),
+            ),
+            ("do".to_string(), self.closure.action.into()),
+            ("inputs".to_string(), self.closure.inputs.into()),
+            ("resources".to_string(), self.resources.into()),
+            ("secret".to_string(), secret_flag),
+        ]))
+    }
+}
+
 impl TryFrom<Ipld> for Task {
     type Error = ();
 
@@ -192,6 +212,25 @@ impl Resources {
     }
 }
 
+impl Into<Ipld> for Resources {
+    fn into(self) -> Ipld {
+        let fuel_ipld = match self.fuel {
+            None => Ipld::Null,
+            Some(int) => Ipld::from(int),
+        };
+
+        let time_ipld = match self.time {
+            None => Ipld::Null,
+            Some(int) => Ipld::from(int),
+        };
+
+        Ipld::Map(BTreeMap::from([
+            ("fuel".to_string(), fuel_ipld),
+            ("time".to_string(), time_ipld),
+        ]))
+    }
+}
+
 impl TryFrom<Ipld> for Resources {
     type Error = ();
 
@@ -223,9 +262,12 @@ impl Into<Ipld> for Batch {
         match self {
             Batch(assoc) => {
                 let mut batch = BTreeMap::new();
+
                 assoc.iter().for_each(|(TaskLabel(label), task)| {
-                    batch.insert(label, todo!());
-                })
+                    batch.insert(label.clone(), task.clone().into());
+                });
+
+                Ipld::Map(batch)
             }
         }
     }
@@ -270,11 +312,10 @@ pub struct Invocation {
 
 impl Into<Ipld> for Invocation {
     fn into(self) -> Ipld {
-        match self {
-            Invocation { run, meta } => {
-                Ipld::Map(BTreeMap::from([("run", run.into()), ("meta", meta)]))
-            }
-        }
+        Ipld::Map(BTreeMap::from([
+            ("run".to_string(), self.run.clone().into()),
+            ("meta".to_string(), self.meta),
+        ]))
     }
 }
 
@@ -309,20 +350,13 @@ pub struct Promise {
 
 impl Into<Ipld> for Promise {
     fn into(self) -> Ipld {
-        match self {
-            Promise {
-                invoked_task,
-                branch_selector,
-            } => {
-                let key: String = match branch_selector {
-                    Some(Success) => "ucan/ok".to_string(),
-                    Some(Failure) => "ucan/err".to_string(),
-                    None => "ucan/promise".to_string(),
-                };
+        let key: String = match self.branch_selector {
+            Some(Status::Success) => "ucan/ok".to_string(),
+            Some(Status::Failure) => "ucan/err".to_string(),
+            None => "ucan/promise".to_string(),
+        };
 
-                Ipld::Map(BTreeMap::from([(key, invoked_task.into())]))
-            }
-        }
+        Ipld::Map(BTreeMap::from([(key, self.invoked_task.into())]))
     }
 }
 
@@ -402,11 +436,7 @@ pub struct InvokedTaskPointer {
 
 impl Into<Ipld> for InvokedTaskPointer {
     fn into(self) -> Ipld {
-        match self {
-            InvokedTaskPointer { invocation, label } => {
-                Ipld::List(vec![invocation.into(), label.into()])
-            }
-        }
+        Ipld::List(vec![self.invocation.into(), self.label.into()])
     }
 }
 
