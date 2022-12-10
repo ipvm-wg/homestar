@@ -4,21 +4,15 @@
 
 //! ipvm
 mod cli;
-mod ipvm;
 mod network;
+mod workflow;
 
-use crate::ipvm::task;
 use async_std::task::spawn;
 use clap::Parser;
 use cli::{Args, Argument};
 use futures::{prelude::*, Stream, TryStreamExt};
 use ipfs_api::{response::AddResponse, IpfsApi, IpfsClient};
-use libipld::{
-    cbor::DagCborCodec,
-    cid::{CidGeneric, Version},
-    prelude::{Codec, Encode},
-    Cid, Ipld,
-};
+use libipld::{cbor::DagCborCodec, cid::Version, prelude::Encode, Cid, Ipld};
 use libp2p::{core::PeerId, multiaddr::Protocol};
 use multihash::{Code, MultihashDigest};
 use std::{
@@ -52,7 +46,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .expect("Dial to succeed");
     }
 
-    match opts.listen_address {
+    match opts.listen {
         Some(addr) => network_client
             .start_listening(addr)
             .await
@@ -66,21 +60,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match opts.argument {
         Argument::Get { name } => request(name, &mut network_client).await,
-        Argument::Provide {
-            name,
-            wasm,
-            fun,
-            args,
-        } => {
-            provide(
-                name,
-                wasm,
-                fun,
-                args,
-                &mut network_client,
-                &mut network_events,
-            )
-            .await
+        Argument::Provide { wasm, fun, args } => {
+            provide(wasm, fun, args, &mut network_client, &mut network_events).await
         }
     }
 
@@ -113,7 +94,6 @@ async fn request(name: String, network_client: &mut network::Client) -> () {
 }
 
 async fn provide(
-    name: String,
     wasm: String,
     fun: String,
     args: String,
@@ -178,15 +158,17 @@ async fn provide(
         _ => panic!("Unexpected args (this will get generalized)"),
     };
 
-    let closure_ipld: Ipld = task::Closure {
+    let closure_ipld: Ipld = workflow::closure::Closure {
         resource,
-        action: task::Action("wasm/run".to_string()),
-        inputs: task::Input::IpldData { ipld: ipld_arg },
+        action: workflow::closure::Action("wasm/run".to_string()),
+        inputs: workflow::closure::Input::IpldData { ipld: ipld_arg },
     }
     .into();
 
     let mut closure_bytes = Vec::new();
-    closure_ipld.encode(DagCborCodec, &mut closure_bytes);
+    closure_ipld
+        .encode(DagCborCodec, &mut closure_bytes)
+        .expect("CBOR Serialization");
 
     let closure_cid: Cid = Cid::new(
         Version::V1,
