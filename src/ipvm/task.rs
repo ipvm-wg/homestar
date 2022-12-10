@@ -1,6 +1,6 @@
 use cid::Cid;
 use core::ops::ControlFlow;
-use libipld::{cid::multibase::Base, Ipld};
+use libipld::{cid::multibase::Base, DagCbor, Ipld};
 use std::collections::BTreeMap;
 use url::Url;
 
@@ -9,6 +9,16 @@ pub struct Closure {
     pub resource: Url,
     pub action: Action,
     pub inputs: Input,
+}
+
+impl Into<Ipld> for Closure {
+    fn into(self) -> Ipld {
+        Ipld::Map(BTreeMap::from([
+            ("with".to_string(), Ipld::String(self.resource.into())),
+            ("do".to_string(), self.action.into()),
+            ("inputs".to_string(), self.inputs.into()),
+        ]))
+    }
 }
 
 impl TryFrom<Ipld> for Closure {
@@ -95,8 +105,8 @@ impl From<Ipld> for Input {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Action(String);
+#[derive(Clone, Debug, PartialEq, DagCbor)]
+pub struct Action(pub String);
 
 impl Into<Ipld> for Action {
     fn into(self) -> Ipld {

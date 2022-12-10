@@ -7,18 +7,27 @@ mod cli;
 mod ipvm;
 mod network;
 
+use crate::ipvm::task;
 use async_std::task::spawn;
 use clap::Parser;
 use cli::{Args, Argument};
 use futures::{prelude::*, Stream, TryStreamExt};
 use ipfs_api::{response::AddResponse, IpfsApi, IpfsClient};
+use libipld::{
+    cbor::DagCborCodec,
+    cid::{CidGeneric, Version},
+    prelude::{Codec, Encode},
+    Cid, Ipld,
+};
 use libp2p::{core::PeerId, multiaddr::Protocol};
+use multihash::{Code, MultihashDigest};
 use std::{
     error::Error,
     io::{Cursor, Write},
     marker::Unpin,
     str::FromStr,
 };
+use url::Url;
 use wasmer::{imports, Function, Instance, Module, Store, Type, Value};
 
 /// Main entry point.
@@ -163,8 +172,32 @@ async fn provide(
         .map(|v| v.to_string())
         .collect();
 
+    let resource = Url::parse(format!("ipfs://{}", wasm).as_str()).expect("IPFS URL");
+    let ipld_arg = match wasm_args {
+        [Value::I32(i)] => Ipld::List([Ipld::from(i)].to_vec()),
+        _ => panic!("Unexpected args (this will get generalized)"),
+    };
+
+    let closure_ipld: Ipld = task::Closure {
+        resource,
+        action: task::Action("wasm/run".to_string()),
+        inputs: task::Input::IpldData { ipld: ipld_arg },
+    }
+    .into();
+
+    let mut closure_bytes = Vec::new();
+    closure_ipld.encode(DagCborCodec, &mut closure_bytes);
+
+    let closure_cid: Cid = Cid::new(
+        Version::V1,
+        DagCborCodec.into(),
+        Code::Sha3_256.digest(&closure_bytes),
+    )
+    .expect("CID");
+
     let res_copy = res.clone().into_bytes();
 
+    println!("Wasm CID: {}", closure_cid.to_string());
     println!("Result value: {}", res.to_string());
 
     let res_cursor = Cursor::new(res);
@@ -174,12 +207,14 @@ async fn provide(
 
     println!("Result CID: {}", output);
 
-    network_client.start_providing(name.clone()).await;
+    network_client
+        .start_providing(closure_cid.to_string())
+        .await;
 
     loop {
         match network_events.next().await {
             Some(network::Event::InboundRequest { request, channel }) => {
-                if request == name {
+                if request == closure_cid.to_string() {
                     network_client.respond_file(res_copy.clone(), channel).await;
                 }
             }
