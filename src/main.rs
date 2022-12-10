@@ -96,11 +96,13 @@ async fn request(name: String, network_client: &mut network::Client) -> () {
 async fn provide(
     wasm: String,
     fun: String,
-    args: String,
+    args: Vec<String>,
     network_client: &mut network::Client,
     network_events: &mut (impl Stream<Item = network::Event> + Unpin),
 ) {
     let ipfs = IpfsClient::default();
+
+    // Pull Wasm *out* of IPFS
     let wasm_bytes: String = match ipfs
         .cat(&wasm.as_str())
         .map_ok(|chunk| chunk.to_vec())
@@ -114,18 +116,20 @@ async fn provide(
         Err(err) => panic!("Couldn't format Wasm. Error: {}", err),
     };
 
-    let _args = match ipfs
-        .cat(&args.as_str())
-        .map_ok(|chunk| chunk.to_vec())
-        .try_concat()
-        .await
-    {
-        Ok(yay) => match String::from_utf8(yay) {
-            Ok(str) => str,
-            Err(err) => panic!("Couldn't convert args from UTF8. Error: {}", err),
-        },
-        Err(err) => panic!("Couldn't format args. Error: {}", err),
-    };
+    let wasm_args: Vec<Value> = future::try_join_all(args.iter().map(|arg| async {
+        // Pull arg *out* of IPFS
+        let vec: Vec<u8> = ipfs
+            .cat(arg.as_str())
+            .map_ok(|chunk| chunk.to_vec())
+            .try_concat()
+            .await
+            .expect("to convert from utf8");
+
+        i32::from_str(std::str::from_utf8(&vec).expect("to be valid WAsm value"))
+            .map(|i| wasmer::Value::I32(i))
+    }))
+    .await
+    .expect("args to resolve from IPFS");
 
     let mut store = Store::default();
     let module = Module::new(&store, wasm_bytes).expect("Module to export");
@@ -139,11 +143,9 @@ async fn provide(
         .expect("Should be a Wasm function");
     let _types: &[Type] = _function.ty(&store).params();
 
-    let wasm_args = [Value::I32(
-        i32::from_str(_args.as_str()).expect("to be an i32"),
-    )]; // [Value::I32(1)]; FIXME I guess it's all ints for now!
+    // FIXME write Wasm::Value -> Ipld converter
     let boxed_results: Box<[Value]> = _function
-        .call(&mut store, &wasm_args)
+        .call(&mut store, wasm_args.as_slice())
         .expect("tried to call function");
 
     let res: String = boxed_results
@@ -153,15 +155,21 @@ async fn provide(
         .collect();
 
     let resource = Url::parse(format!("ipfs://{}", wasm).as_str()).expect("IPFS URL");
-    let ipld_arg = match wasm_args {
-        [Value::I32(i)] => Ipld::List([Ipld::from(i)].to_vec()),
-        _ => panic!("Unexpected args (this will get generalized)"),
-    };
+
+    let ipld_args: Ipld = Ipld::List(
+        wasm_args
+            .iter()
+            .map(|a| match a {
+                Value::I32(i) => Ipld::from(*i),
+                _ => todo!(),
+            })
+            .collect(),
+    );
 
     let closure_ipld: Ipld = workflow::closure::Closure {
         resource,
         action: workflow::closure::Action("wasm/run".to_string()),
-        inputs: workflow::closure::Input::IpldData { ipld: ipld_arg },
+        inputs: workflow::closure::Input::IpldData { ipld: ipld_args },
     }
     .into();
 

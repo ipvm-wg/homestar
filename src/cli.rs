@@ -23,8 +23,8 @@ pub enum Argument {
         #[arg(short, long)]
         fun: String,
 
-        #[arg(short, long)]
-        args: String,
+        #[arg(short, long, num_args(0..))]
+        args: Vec<String>,
     },
     Get {
         #[clap(long)]
