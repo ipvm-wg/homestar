@@ -25,33 +25,21 @@ impl TryFrom<Ipld> for Closure {
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         match ipld {
-            Ipld::Map(assoc) => assoc
-                .get("with")
-                .and_then(|res_ipld| match res_ipld {
+            Ipld::Map(assoc) => Ok(Closure {
+                action: Action::try_from(assoc.get("do").ok_or(())?.clone()).or(Err(()))?,
+                inputs: Input::from(assoc.get("inputs").ok_or(())?.clone()),
+                resource: match assoc.get("with").ok_or(())? {
                     Ipld::Link(cid) => match cid.to_string_of_base(Base::Base32HexLower) {
                         Ok(txt) => {
                             let ipfs_url: String = format!("{}{}", "ipfs://", txt);
-                            Url::parse(ipfs_url.as_str()).ok()
+                            Url::parse(ipfs_url.as_str()).or(Err(()))
                         }
-                        _ => None,
+                        _ => Err(()),
                     },
-                    Ipld::String(txt) => Url::parse(txt.as_str()).ok(),
-                    _ => None,
-                })
-                .and_then(|resource| {
-                    assoc.get("do").and_then(|ipld| {
-                        Action::try_from(ipld.clone()).ok().and_then(|action| {
-                            assoc.get("inputs").and_then(|ipld| {
-                                Some(Closure {
-                                    resource,
-                                    action,
-                                    inputs: Input::from(ipld.clone()),
-                                })
-                            })
-                        })
-                    })
-                })
-                .ok_or(()),
+                    Ipld::String(txt) => Url::parse(txt.as_str()).or(Err(())),
+                    _ => Err(()),
+                }?,
+            }),
 
             _ => Err(()),
         }
