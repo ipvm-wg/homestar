@@ -2,14 +2,22 @@
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 // #![deny(unreachable_pub, private_in_public)]
 
-//! ipvm
+#[macro_use]
+extern crate diesel;
+extern crate dotenvy;
+
 mod cli;
+mod db;
 mod network;
+mod wasm;
 mod workflow;
 
+use crate::{models::Receipt, workflow::closure::Closure};
 use async_std::task::spawn;
 use clap::Parser;
 use cli::{Args, Argument};
+use db::*;
+use diesel::SqliteConnection;
 use futures::{prelude::*, Stream, TryStreamExt};
 use ipfs_api::{response::AddResponse, IpfsApi, IpfsClient};
 use libipld::{cbor::DagCborCodec, cid::Version, prelude::Encode, Cid, Ipld};
@@ -168,8 +176,8 @@ async fn provide(
 
     let closure_ipld: Ipld = workflow::closure::Closure {
         resource,
-        action: workflow::closure::Action("wasm/run".to_string()),
-        inputs: workflow::closure::Input::IpldData { ipld: ipld_args },
+        action: workflow::closure::Action::from("wasm/run"),
+        inputs: workflow::closure::Input::IpldData(ipld_args),
     }
     .into();
 
@@ -211,4 +219,18 @@ async fn provide(
             e => todo!("{:?}", e),
         }
     }
+}
+
+// FIXME move to db modules
+fn insert_local_receipt(conn: &mut SqliteConnection, closure: Closure, out: Ipld) -> Receipt {
+    todo!("canonicalize clsoure");
+    todo!("take closure CID");
+    todo!("take output CID");
+    todo!("construct receipt");
+    todo!("dump into DB");
+    todo!()
+}
+
+fn advertise_receipt() {
+    todo!()
 }

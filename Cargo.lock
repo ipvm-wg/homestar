@@ -1387,6 +1387,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "diesel"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68c186a7418a2aac330bb76cde82f16c36b03a66fb91db32d20214311f9f6545"
+dependencies = [
+ "diesel_derives",
+ "libsqlite3-sys",
+]
+
+[[package]]
+name = "diesel_derives"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "143b758c91dbc3fe1fdcb0dba5bd13276c6a66422f2ef5795b58488248a310aa"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "digest"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1442,6 +1464,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "dotenvy"
+version = "0.15.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03d8c417d7a8cb362e0c37e5d815f5eb7c37f79ff93707329d5a194e42e54ca0"
 
 [[package]]
 name = "dtoa"
@@ -2299,6 +2327,8 @@ dependencies = [
  "cid 0.9.0",
  "clap 4.0.29",
  "criterion",
+ "diesel",
+ "dotenvy",
  "env_logger",
  "futures",
  "ipfs-api",
@@ -3158,6 +3188,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3db8d6ba2cec9eacc40e6e8ccc98931840301f1006e95647ceb2dd5c3aa06f7c"
 dependencies = [
  "libsecp256k1-core",
+]
+
+[[package]]
+name = "libsqlite3-sys"
+version = "0.25.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29f835d03d717946d28b1d1ed632eb6f0e24a299388ee623d0c23118d3e8a7fa"
+dependencies = [
+ "pkg-config",
+ "vcpkg",
 ]
 
 [[package]]

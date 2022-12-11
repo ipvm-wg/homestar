@@ -2,7 +2,10 @@
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![deny(unreachable_pub, private_in_public)]
 
-//! ipvm
+//! IPVM is a determistic Wasm runtime and effectful job system intended to embed inside IPFS.
+//! You can find a more complete description [here](https://github.com/ipvm-wg/spec).
+
+pub mod workflow;
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]

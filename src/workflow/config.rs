@@ -1,6 +1,8 @@
+/// This is the config module
 use libipld::Ipld;
 use std::collections::BTreeMap;
 
+/// This is the config resources struct
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Resources {
     pub fuel: Option<u32>,

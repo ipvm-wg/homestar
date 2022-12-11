@@ -56,6 +56,8 @@
           rust-toolchain
           pre-commit
           protobuf
+          sqlite
+          diesel-cli
           direnv
           self.packages.${system}.irust
         ] ++ format-pkgs ++ cargo-installs ++ macos;

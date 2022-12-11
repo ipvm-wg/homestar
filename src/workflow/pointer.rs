@@ -1,10 +1,16 @@
+//! Pointers to workflow types
 use cid::Cid;
 use libipld::Ipld;
 use std::{collections::btree_map::BTreeMap, result::Result};
 
+/// A pointer to an unresolved `Invocation` and `Task`,
+/// optionally including the `Success` or `Failure` branch.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Promise {
+    /// Reference to an unresolved [Task] inside a specific [Invocation]
     pub invoked_task: InvokedTaskPointer,
+
+    /// An optional narrowing to a particular [Status] branch.
     pub branch_selector: Option<Status>,
 }
 
@@ -50,6 +56,7 @@ impl TryFrom<Ipld> for Promise {
     }
 }
 
+/// The [Promise] result branch
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Status {
     Success,
@@ -128,6 +135,18 @@ impl TryFrom<Ipld> for InvokedTaskPointer {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TaskLabel(pub String);
+
+impl From<String> for TaskLabel {
+    fn from(s: String) -> Self {
+        TaskLabel(s)
+    }
+}
+
+impl Into<String> for TaskLabel {
+    fn into(self) -> String {
+        self.0
+    }
+}
 
 impl Into<Ipld> for TaskLabel {
     fn into(self) -> Ipld {

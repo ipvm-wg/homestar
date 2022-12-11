@@ -1,13 +1,49 @@
+//! A [Closure] wrapped with [Config]uration, metadata, and so on.
 use crate::workflow::{closure::Closure, config::Resources};
 use libipld::Ipld;
 use std::collections::BTreeMap;
 
+/// A [Task] is a [Closure] subtype, enriching it with information beyond
+/// the meaning of the program like resource limits and visibility.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Task {
+    /// Description of the computation to run
     pub closure: Closure,
+
+    /// Resource limits
     pub resources: Resources,
+
+    /// User-writable metadata
     pub metadata: Ipld,
+
+    /// Whether the results should be hidden from the network.
+    ///
+    /// # Some
+    /// In the case that a [Some] is set, then this [Task] overrides the
+    /// secrecy of the preceeding scope.
+    ///
+    /// # None
+    /// If [None], the [Task] inherits the secrecy of its scope:
+    /// If any [Promise] in the [Closure] references a secret [Task],
+    /// this [Task] will default to secret as well.
+    ///
+    /// If the enclosing [Invocation] is set to secret, then this [Task]
+    /// is also set to secret, unless a [Task] in one of its [Promise]s is secret.
     pub secret: Option<bool>,
+}
+
+impl From<Closure> for Task {
+    fn from(closure: Closure) -> Self {
+        Task {
+            closure,
+            metadata: Ipld::Null,
+            resources: Resources {
+                fuel: None,
+                time: None,
+            },
+            secret: None,
+        }
+    }
 }
 
 impl Into<Ipld> for Task {
