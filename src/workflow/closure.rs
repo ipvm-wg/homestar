@@ -1,13 +1,12 @@
 //! The smallest unit of work in IPVM
+
 use crate::workflow::pointer::{InvokedTaskPointer, Promise, Status};
+use anyhow::anyhow;
 use libipld::{
-    cbor::DagCborCodec,
-    cid::{multibase::Base, Version},
-    prelude::Encode,
-    Cid, Ipld, Link,
+    cbor::DagCborCodec, cid::multibase::Base, prelude::Encode, serde as ipld_serde, Cid, Ipld, Link,
 };
 use multihash::{Code, MultihashDigest};
-use std::{collections::btree_map::BTreeMap, result::Result};
+use std::{collections::btree_map::BTreeMap, convert::TryFrom, fmt};
 use url::Url;
 
 /// The suspended representation of the smallest unit of work in IPVM
@@ -61,26 +60,28 @@ impl Into<Ipld> for Closure {
 }
 
 impl TryFrom<Ipld> for Closure {
-    type Error = ();
+    type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         match ipld {
             Ipld::Map(assoc) => Ok(Closure {
-                action: Action::try_from(assoc.get("do").ok_or(())?.clone()).or(Err(()))?,
-                inputs: Input::from(assoc.get("inputs").ok_or(())?.clone()),
-                resource: match assoc.get("with").ok_or(())? {
+                action: Action::try_from(assoc.get("do").ok_or(anyhow!("Bad"))?.clone())
+                    .or_else(|_| Err(anyhow!("Bad")))?,
+                inputs: Input::from(assoc.get("inputs").ok_or(anyhow!("Bad"))?.clone()),
+                resource: match assoc.get("with").ok_or(anyhow!("Bad"))? {
                     Ipld::Link(cid) => cid
                         .to_string_of_base(Base::Base32HexLower)
-                        .or(Err(()))
+                        .or(Err(anyhow!("Bad")))
                         .and_then(|txt| {
-                            Url::parse(format!("{}{}", "ipfs://", txt).as_str()).or(Err(()))
+                            Url::parse(format!("{}{}", "ipfs://", txt).as_str())
+                                .or(Err(anyhow!("Bad")))
                         }),
-                    Ipld::String(txt) => Url::parse(txt.as_str()).or(Err(())),
-                    _ => Err(()),
+                    Ipld::String(txt) => Url::parse(txt.as_str()).or(Err(anyhow!("Bad"))),
+                    _ => Err(anyhow!("Bad")),
                 }?,
             }),
 
-            _ => Err(()),
+            _ => Err(anyhow!("Bad")),
         }
     }
 }
@@ -141,14 +142,17 @@ impl From<Ipld> for Input {
     }
 }
 
-/// A newtype wrapper for [String]s.
+/// A newtype wrapper for `do` Strings.
 ///
-/// The precise format is left open-ended, but by convention is namespaced with a single slash.
+/// The precise format is left open-ended, but by convention is namespaced with
+/// a single slash.
+///
+/// # Example
 ///
 /// ```
 /// use ipvm::workflow::closure::Action;
 ///
-/// Action::from("msg/send");
+/// Action::from("msg/sen");
 /// Action::from("crud/update");
 /// ```
 ///
@@ -157,48 +161,41 @@ impl From<Ipld> for Input {
 /// ```
 /// use ipvm::workflow::closure::Action;
 ///
-/// let action = Action::from("eXaMpLe/tEsT".to_string());
-/// let canonicalized: String = action.into();
-///
-/// assert_eq!(canonicalized, "example/test".to_string());
+/// let action = Action::from("eXaMpLe/tEsT");
+/// assert_eq!(action.to_string(), "example/test".to_string());
 /// ```
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Action(String);
 
-impl From<&str> for Action {
-    fn from(s: &str) -> Self {
-        Action::from(s.to_string())
+impl fmt::Display for Action {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl<'a> From<&'a str> for Action {
+    fn from(action: &'a str) -> Action {
+        Action(action.trim().to_lowercase())
     }
 }
 
 impl From<String> for Action {
-    fn from(s: String) -> Self {
-        // Canonicalizes the wrapped string
-        Action(s.trim().to_lowercase())
+    fn from(action: String) -> Action {
+        Action::from(action.as_str())
     }
 }
 
-impl Into<String> for Action {
-    fn into(self) -> String {
-        self.0
-    }
-}
-
-impl Into<Ipld> for Action {
-    fn into(self) -> Ipld {
-        match self {
-            Action(string) => Ipld::String(string),
-        }
+impl From<Action> for Ipld {
+    fn from(action: Action) -> Ipld {
+        Ipld::String(action.0)
     }
 }
 
 impl TryFrom<Ipld> for Action {
-    type Error = ();
+    type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        match ipld {
-            Ipld::String(txt) => Ok(Action(txt)),
-            _ => Err(()),
-        }
+        let action = ipld_serde::from_ipld::<String>(ipld)?;
+        Ok(Action::from(action))
     }
 }

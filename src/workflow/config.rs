@@ -1,61 +1,80 @@
-/// This is the config module
-use libipld::Ipld;
-use std::collections::BTreeMap;
+//! Configuration module
 
-/// This is the config resources struct
-#[derive(Clone, Debug, PartialEq, Eq)]
+use libipld::{serde as ipld_serde, Ipld};
+use std::{collections::BTreeMap, default::Default, time::Duration};
+
+const FUEL_KEY: &str = "fuel";
+const TIMEOUT_KEY: &str = "time";
+
+/// IPVM resource configuration for defining fuel quotas, timeouts, etc.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Resources {
-    pub fuel: Option<u32>,
-    pub time: Option<u32>,
+    fuel: Option<u64>,
+    time: Option<Duration>,
 }
 
 impl Resources {
-    pub fn new() -> Self {
-        Resources {
-            fuel: None,
-            time: None,
+    pub fn new(fuel: u64, time: Duration) -> Self {
+        Self {
+            fuel: Some(fuel),
+            time: Some(time),
         }
+    }
+
+    /// Get fuel limit.
+    pub fn fuel(&self) -> Option<u64> {
+        self.fuel
+    }
+
+    /// Set fuel limit.
+    pub fn set_fuel(&mut self, fuel: u64) {
+        self.fuel = Some(fuel)
+    }
+
+    /// Get timeout.
+    pub fn time(&self) -> Option<Duration> {
+        self.time
+    }
+
+    /// Set timeout.
+    pub fn set_time(&mut self, time: Duration) {
+        self.time = Some(time)
     }
 }
 
-impl Into<Ipld> for Resources {
-    fn into(self) -> Ipld {
-        let fuel_ipld = match self.fuel {
-            None => Ipld::Null,
-            Some(int) => Ipld::from(int),
-        };
-
-        let time_ipld = match self.time {
-            None => Ipld::Null,
-            Some(int) => Ipld::from(int),
-        };
-
+impl From<Resources> for Ipld {
+    fn from(resources: Resources) -> Ipld {
         Ipld::Map(BTreeMap::from([
-            ("fuel".to_string(), fuel_ipld),
-            ("time".to_string(), time_ipld),
+            (
+                FUEL_KEY.into(),
+                resources.fuel().map(Ipld::from).unwrap_or(Ipld::Null),
+            ),
+            (
+                TIMEOUT_KEY.into(),
+                resources
+                    .time()
+                    .map(|t| Ipld::from(t.as_millis() as i128))
+                    .unwrap_or(Ipld::Null),
+            ),
         ]))
     }
 }
 
+impl<'a> TryFrom<&'a Ipld> for Resources {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+        Resources::try_from(ipld.to_owned())
+    }
+}
+
 impl TryFrom<Ipld> for Resources {
-    type Error = ();
+    type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        match ipld {
-            Ipld::Map(map) => {
-                let fuel: Option<u32> = match map.get("fuel") {
-                    Some(Ipld::Integer(int)) => u32::try_from(*int).ok(),
-                    _ => None,
-                };
+        let fuel = ipld_serde::from_ipld(ipld.get(FUEL_KEY)?.to_owned())?;
+        let time = ipld_serde::from_ipld(ipld.take(TIMEOUT_KEY)?)?;
 
-                let time: Option<u32> = match map.get("time") {
-                    Some(Ipld::Integer(int)) => u32::try_from(*int).ok(),
-                    _ => None,
-                };
-
-                Ok(Resources { fuel, time })
-            }
-            _ => Err(()),
-        }
+        Ok(Resources { fuel, time })
     }
 }
