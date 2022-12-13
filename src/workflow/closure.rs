@@ -1,6 +1,12 @@
 //! The smallest unit of work in IPVM
 use crate::workflow::pointer::{InvokedTaskPointer, Promise, Status};
-use libipld::{cid::multibase::Base, Ipld};
+use libipld::{
+    cbor::DagCborCodec,
+    cid::{multibase::Base, Version},
+    prelude::Encode,
+    Cid, Ipld, Link,
+};
+use multihash::{Code, MultihashDigest};
 use std::{collections::btree_map::BTreeMap, result::Result};
 use url::Url;
 
@@ -30,6 +36,18 @@ pub struct Closure {
 
     /// Some IPLD to pass to the action. The exact details will vary from action to action.
     pub inputs: Input,
+}
+
+impl Into<Link<Closure>> for Closure {
+    fn into(self) -> Link<Closure> {
+        let mut closure_bytes = Vec::new();
+        <Closure as Into<Ipld>>::into(self).encode(DagCborCodec, &mut closure_bytes);
+
+        Link::new(Cid::new_v1(
+            DagCborCodec.into(),
+            Code::Sha3_256.digest(&closure_bytes),
+        ))
+    }
 }
 
 impl Into<Ipld> for Closure {

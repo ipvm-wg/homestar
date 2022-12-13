@@ -12,18 +12,31 @@ mod network;
 mod wasm;
 mod workflow;
 
-use crate::{models::Receipt, workflow::closure::Closure};
+use crate::{
+    db::*,
+    schema::{receipts, receipts::dsl::*},
+    workflow::{
+        closure::Closure,
+        receipt::{NewReceipt, Receipt},
+    },
+};
 use async_std::task::spawn;
 use clap::Parser;
 use cli::{Args, Argument};
-use db::*;
-use diesel::SqliteConnection;
+use diesel::{prelude::*, SqliteConnection};
+use dotenvy::dotenv;
 use futures::{prelude::*, Stream, TryStreamExt};
 use ipfs_api::{response::AddResponse, IpfsApi, IpfsClient};
-use libipld::{cbor::DagCborCodec, cid::Version, prelude::Encode, Cid, Ipld};
+use libipld::{
+    cbor::DagCborCodec,
+    cid::{multibase::Base, Version},
+    prelude::Encode,
+    Cid, Ipld, Link,
+};
 use libp2p::{core::PeerId, multiaddr::Protocol};
 use multihash::{Code, MultihashDigest};
 use std::{
+    env,
     error::Error,
     io::{Cursor, Write},
     marker::Unpin,
@@ -140,15 +153,15 @@ async fn provide(
     .expect("args to resolve from IPFS");
 
     let mut store = Store::default();
-    let module = Module::new(&store, wasm_bytes).expect("Module to export");
+    let module = Module::new(&store, wasm_bytes).expect("Wasm module to export");
 
     let imports = imports! {};
-    let instance = Instance::new(&mut store, &module, &imports).expect("Instance to be here");
+    let instance = Instance::new(&mut store, &module, &imports).expect("Wasm instance to be here");
 
     let _function = instance
         .exports
         .get::<Function>(&fun.as_str())
-        .expect("Should be a Wasm function");
+        .expect("a Wasm function");
     let _types: &[Type] = _function.ty(&store).params();
 
     // FIXME write Wasm::Value -> Ipld converter
@@ -174,28 +187,40 @@ async fn provide(
             .collect(),
     );
 
-    let closure_ipld: Ipld = workflow::closure::Closure {
+    let closure = workflow::closure::Closure {
         resource,
         action: workflow::closure::Action::from("wasm/run"),
         inputs: workflow::closure::Input::IpldData(ipld_args),
-    }
-    .into();
+    };
+
+    let closure_ipld: Ipld = closure.clone().into();
 
     let mut closure_bytes = Vec::new();
     closure_ipld
         .encode(DagCborCodec, &mut closure_bytes)
         .expect("CBOR Serialization");
 
-    let closure_cid: Cid = Cid::new(
-        Version::V1,
-        DagCborCodec.into(),
-        Code::Sha3_256.digest(&closure_bytes),
-    )
-    .expect("CID");
+    let closure_cid2: String = <Closure as Into<Link<Closure>>>::into(closure.clone())
+        .to_string_of_base(Base::Base32HexLower)
+        .expect("string CID");
+
+    let mut conn = establish_connection();
+
+    let new_receipt = NewReceipt {
+        val: res.parse::<i32>().expect("i32"), // FIXME!
+        closure_cid: closure_cid2,             // WHYYYYYYY
+    };
+
+    diesel::insert_into(receipts::table)
+        .values(&new_receipt)
+        .execute(&mut conn)
+        .expect("Error saving new post");
+
+    todo!("advertise receipt");
 
     let res_copy = res.clone().into_bytes();
 
-    println!("Wasm CID: {}", closure_cid.to_string());
+    println!("Wasm CID: {}", closure_cid2);
     println!("Result value: {}", res.to_string());
 
     let res_cursor = Cursor::new(res);
@@ -205,32 +230,16 @@ async fn provide(
 
     println!("Result CID: {}", output);
 
-    network_client
-        .start_providing(closure_cid.to_string())
-        .await;
+    network_client.start_providing(closure_cid2).await;
 
     loop {
         match network_events.next().await {
             Some(network::Event::InboundRequest { request, channel }) => {
-                if request == closure_cid.to_string() {
+                if request == closure_cid2 {
                     network_client.respond_file(res_copy.clone(), channel).await;
                 }
             }
             e => todo!("{:?}", e),
         }
     }
-}
-
-// FIXME move to db modules
-fn insert_local_receipt(conn: &mut SqliteConnection, closure: Closure, out: Ipld) -> Receipt {
-    todo!("canonicalize clsoure");
-    todo!("take closure CID");
-    todo!("take output CID");
-    todo!("construct receipt");
-    todo!("dump into DB");
-    todo!()
-}
-
-fn advertise_receipt() {
-    todo!()
 }

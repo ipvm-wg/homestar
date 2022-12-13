@@ -1,4 +1,5 @@
-use super::schema::receipts;
+use crate::db::schema::receipts;
+use diesel::prelude::*;
 use libipld::{Cid, Ipld};
 
 #[derive(Queryable, Debug)]

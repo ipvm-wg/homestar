@@ -1,7 +1,70 @@
 use crate::workflow::{pointer::TaskLabel, task::Task};
 use core::ops::ControlFlow;
-use libipld::Ipld;
+use libipld::{Ipld, Link};
 use std::collections::BTreeMap;
+use ucan::ipld::UcanIpld;
+
+#[derive(Clone, PartialEq)]
+pub struct Invocation {
+    pub run: Batch,
+    // pub sig: Sig,
+    pub meta: Ipld,
+    pub prf: Vec<Link<UcanIpld>>,
+}
+
+impl Into<Ipld> for Invocation {
+    fn into(self) -> Ipld {
+        Ipld::Map(BTreeMap::from([
+            ("run".to_string(), self.run.clone().into()),
+            ("meta".to_string(), self.meta),
+            (
+                "prf".to_string(),
+                Ipld::List(
+                    self.prf
+                        .iter()
+                        .map(|link| Ipld::Link(*link.cid()))
+                        .collect(),
+                ),
+            ),
+        ]))
+    }
+}
+
+impl TryFrom<Ipld> for Invocation {
+    type Error = ();
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Map(assoc) => {
+                let run: Batch = match assoc.get("run") {
+                    Some(ipld) => Batch::try_from(ipld.clone()),
+                    _ => Err(()),
+                }?;
+
+                let meta = match assoc.get("meta") {
+                    Some(ipld) => ipld.clone(),
+                    None => Ipld::Null,
+                };
+
+                let prf = match assoc.get("prf") {
+                    Some(Ipld::List(vec)) => {
+                        vec.iter().try_fold(Vec::new(), |mut acc, ipld| match ipld {
+                            Ipld::Link(cid) => {
+                                acc.push(Link::new(*cid));
+                                Ok(acc)
+                            }
+                            _ => Err(()),
+                        })
+                    }
+                    _ => Err(()),
+                }?;
+
+                Ok(Invocation { meta, prf, run })
+            }
+            _ => Err(()),
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Batch(BTreeMap<TaskLabel, Task>);
@@ -45,46 +108,6 @@ impl TryFrom<Ipld> for Batch {
                     ControlFlow::Continue(_) => Ok(Batch(batch)),
                     _ => Err(()),
                 }
-            }
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Invocation {
-    pub run: Batch,
-    // pub sig: Sig,
-    pub meta: Ipld,
-    // pub prf: Vec<Link<Ucan>>,
-}
-
-impl Into<Ipld> for Invocation {
-    fn into(self) -> Ipld {
-        Ipld::Map(BTreeMap::from([
-            ("run".to_string(), self.run.clone().into()),
-            ("meta".to_string(), self.meta),
-        ]))
-    }
-}
-
-impl TryFrom<Ipld> for Invocation {
-    type Error = ();
-
-    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        match ipld {
-            Ipld::Map(assoc) => {
-                let run: Batch = match assoc.get("run") {
-                    Some(ipld) => Batch::try_from(ipld.clone()),
-                    _ => Err(()),
-                }?;
-
-                let meta = match assoc.get("meta") {
-                    Some(ipld) => ipld.clone(),
-                    None => Ipld::Null,
-                };
-
-                Ok(Invocation { run, meta })
             }
             _ => Err(()),
         }

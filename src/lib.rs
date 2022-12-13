@@ -5,6 +5,7 @@
 //! IPVM is a determistic Wasm runtime and effectful job system intended to embed inside IPFS.
 //! You can find a more complete description [here](https://github.com/ipvm-wg/spec).
 
+pub mod db;
 pub mod workflow;
 
 /// Test utilities.
