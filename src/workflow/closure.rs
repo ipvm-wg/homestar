@@ -69,13 +69,12 @@ impl TryFrom<Ipld> for Closure {
                 action: Action::try_from(assoc.get("do").ok_or(())?.clone()).or(Err(()))?,
                 inputs: Input::from(assoc.get("inputs").ok_or(())?.clone()),
                 resource: match assoc.get("with").ok_or(())? {
-                    Ipld::Link(cid) => match cid.to_string_of_base(Base::Base32HexLower) {
-                        Ok(txt) => {
-                            let ipfs_url: String = format!("{}{}", "ipfs://", txt);
-                            Url::parse(ipfs_url.as_str()).or(Err(()))
-                        }
-                        _ => Err(()),
-                    },
+                    Ipld::Link(cid) => cid
+                        .to_string_of_base(Base::Base32HexLower)
+                        .or(Err(()))
+                        .and_then(|txt| {
+                            Url::parse(format!("{}{}", "ipfs://", txt).as_str()).or(Err(()))
+                        }),
                     Ipld::String(txt) => Url::parse(txt.as_str()).or(Err(())),
                     _ => Err(()),
                 }?,
@@ -85,6 +84,7 @@ impl TryFrom<Ipld> for Closure {
         }
     }
 }
+
 /// IPVM-flavoured inputs to a [Closure].
 ///
 /// An `Input` is either [Ipld] or a deferred IPVM [Promise].
