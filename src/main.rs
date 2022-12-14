@@ -16,7 +16,7 @@ use libipld::{
     cbor::DagCborCodec,
     cid::{multibase::Base, Cid},
     prelude::Encode,
-    Ipld, Link,
+    Ipld,
 };
 use libp2p::{
     core::PeerId,
@@ -118,16 +118,6 @@ async fn main() -> Result<()> {
             let metering_middleware = Arc::new(Metering::new(10, operator::to_cost));
 
             let mut basic_compiler = Singlepass::new();
-            let compiler_config = basic_compiler.canonicalize_nans(true);
-            compiler_config.push_middleware(metering_middleware);
-
-            let mut store = Store::new(EngineBuilder::new(compiler_config.to_owned()));
-
-            let module = Module::new(&store, wasm_bytes).expect("Wasm module to export");
-
-            let metering_middleware = Arc::new(Metering::new(10, cost_function));
-
-            let mut basic_compiler = Cranelift::new();
             let compiler_config = basic_compiler.canonicalize_nans(true);
             compiler_config.push_middleware(metering_middleware);
 
