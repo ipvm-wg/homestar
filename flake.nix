@@ -54,6 +54,7 @@
           # because native build inputs are added to $PATH in the order they're listed here.
           nightly-rustfmt
           rust-toolchain
+          rust-analyzer
           pre-commit
           protobuf
           sqlite
