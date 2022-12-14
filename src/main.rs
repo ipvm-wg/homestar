@@ -15,7 +15,7 @@ use libipld::{
     cbor::DagCborCodec,
     cid::{multibase::Base, Cid},
     prelude::Encode,
-    Ipld,
+    Ipld, Link,
 };
 use libp2p::{
     core::PeerId,
@@ -26,9 +26,14 @@ use libp2p::{
 use std::{
     io::{self, Cursor, Write},
     str::{self, FromStr},
+    sync::Arc,
 };
 use url::Url;
-use wasmer::{imports, Function, Instance, Module, Store, Type, Value};
+use wasmer::{
+    imports, wasmparser::Operator, CompilerConfig, Cranelift, EngineBuilder, Function, Instance,
+    Module, Store, Type, Value,
+};
+use wasmer_middlewares::Metering;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -37,7 +42,7 @@ async fn main() -> Result<()> {
     let opts = Args::parse();
     let keypair = Keypair::generate_ed25519();
     let swarm = swarm::build_swarm(keypair).await?;
-    let (mut client, mut events, event_loop) = Client::new(swarm).await?;
+    let (mut client, mut _events, event_loop) = Client::new(swarm).await?;
 
     tokio::spawn(event_loop.run());
 
@@ -82,9 +87,8 @@ async fn main() -> Result<()> {
                 .0;
 
             io::stdout().write_all(&file_content)?
-
-            //
         }
+
         Argument::Provide { wasm, fun, args } => {
             let ipfs = IpfsClient::default();
 
@@ -110,12 +114,23 @@ async fn main() -> Result<()> {
             }))
             .await?;
 
-            let mut store = Store::default();
-            let module = Module::new(&store, wasm_bytes).expect("Wasm module to export");
+            let cost_function = |operator: &Operator| -> u64 {
+                match operator {
+                    Operator::LocalGet { .. } | Operator::I32Const { .. } => 1,
+                    Operator::I32Add { .. } => 2,
+                    _ => 0,
+                }
+            };
 
-            let imports = imports! {};
-            let instance =
-                Instance::new(&mut store, &module, &imports).expect("Wasm instance to be here");
+            let metering_middleware = Arc::new(Metering::new(10, cost_function));
+
+            let mut basic_compiler = Cranelift::new();
+            let compiler_config = basic_compiler.canonicalize_nans(true);
+            compiler_config.push_middleware(metering_middleware);
+
+            let mut store = Store::new(EngineBuilder::new(compiler_config.to_owned()));
+
+            let module = Module::new(&store, wasm_bytes).expect("Wasm module to export");
 
             let _function = instance
                 .exports
