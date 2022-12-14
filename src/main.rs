@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     let opts = Args::parse();
     let keypair = Keypair::generate_ed25519();
     let swarm = swarm::build_swarm(keypair).await?;
-    let (mut client, mut _events, event_loop) = Client::new(swarm).await?;
+    let (mut client, mut events, event_loop) = Client::new(swarm).await?;
 
     tokio::spawn(event_loop.run());
 
@@ -134,6 +134,10 @@ async fn main() -> Result<()> {
             let mut store = Store::new(EngineBuilder::new(compiler_config.to_owned()));
 
             let module = Module::new(&store, wasm_bytes).expect("Wasm module to export");
+
+            let imports = imports! {};
+            let instance =
+                Instance::new(&mut store, &module, &imports).expect("Wasm instance to be here");
 
             let _function = instance
                 .exports
