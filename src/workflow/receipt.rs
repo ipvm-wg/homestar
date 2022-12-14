@@ -1,6 +1,5 @@
 use crate::db::schema::receipts;
 use diesel::{Insertable, Queryable};
-use libipld::{Cid, Ipld};
 
 #[derive(Queryable, Debug)]
 pub struct Receipt {

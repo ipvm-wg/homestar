@@ -37,15 +37,16 @@ pub struct Closure {
     pub inputs: Input,
 }
 
-impl Into<Link<Closure>> for Closure {
-    fn into(self) -> Link<Closure> {
-        let mut closure_bytes = Vec::new();
-        <Closure as Into<Ipld>>::into(self).encode(DagCborCodec, &mut closure_bytes);
+impl TryInto<Link<Closure>> for Closure {
+    type Error = anyhow::Error;
 
-        Link::new(Cid::new_v1(
+    fn try_into(self) -> Result<Link<Closure>, Self::Error> {
+        let mut closure_bytes = Vec::new();
+        <Closure as Into<Ipld>>::into(self).encode(DagCborCodec, &mut closure_bytes)?;
+        Ok(Link::new(Cid::new_v1(
             DagCborCodec.into(),
             Code::Sha3_256.digest(&closure_bytes),
-        ))
+        )))
     }
 }
 

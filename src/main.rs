@@ -15,7 +15,7 @@ use libipld::{
     cbor::DagCborCodec,
     cid::{multibase::Base, Cid},
     prelude::Encode,
-    Ipld, Link,
+    Ipld,
 };
 use libp2p::{
     core::PeerId,
@@ -114,15 +114,13 @@ async fn main() -> Result<()> {
             }))
             .await?;
 
-            let cost_function = |operator: &Operator| -> u64 {
+            let metering_middleware = Arc::new(Metering::new(10, |operator: &Operator| -> u64 {
                 match operator {
                     Operator::LocalGet { .. } | Operator::I32Const { .. } => 1,
                     Operator::I32Add { .. } => 2,
                     _ => 0,
                 }
-            };
-
-            let metering_middleware = Arc::new(Metering::new(10, cost_function));
+            }));
 
             let mut basic_compiler = Cranelift::new();
             let compiler_config = basic_compiler.canonicalize_nans(true);
