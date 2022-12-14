@@ -32,29 +32,29 @@ required-features = ["test_utils"]
 
 [dependencies]
 anyhow = "1.0"
-async-std = "1.12.0"
-async-trait = "0.1.58"
-cid = "0.9.0"
-clap = { version = "4.0.26", features = ["derive"] }
-diesel = { version = "2.0.2", features = ["sqlite"] }
-dotenvy = "0.15.6"
-env_logger = "0.9.3"
-futures = "0.3.25"
-ipfs-api = "0.16.0"
+async-trait = "0.1"
+cid = "0.9"
+clap = { version = "4.0", features = ["derive"] }
+diesel = { version = "2.0", features = ["sqlite"] }
+dotenvy = "0.15"
+env_logger = "0.9"
+ipfs-api = "0.16"
 ipfs-api-backend-hyper = "0.5"
-json = "0.12.4"
-libipld = "0.15.0"
-libp2p = { version = "0.50.0", features = ["full"] }
-multihash = "0.17.0"
+json = "0.12"
+libipld = "0.15"
+libipld-core = { version = "0.15", features = ["serde-codec", "serde"] }
+libp2p = { version = "0.50", features = ["full"] }
+multihash = "0.17"
 proptest = { version = "1.0", optional = true }
-semver = "1.0.14"
-serde_ipld_dagcbor = "0.2.2"
-signature = "1.6.4"
-tokio = { version = "1.22.0", features = ["full"] }
+semver = "1.0"
+serde_ipld_dagcbor = "0.2"
+signature = "1.6"
+thiserror = "1.0"
+tokio = { version = "1.22", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
-ucan = "0.1.0"
-url = "2.3.1"
+ucan = "0.1"
+url = "2.3"
 wasmer = "3.0"
 
 [dev-dependencies]
