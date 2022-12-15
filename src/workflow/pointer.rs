@@ -50,7 +50,7 @@ impl TryFrom<Ipld> for Promise {
                 Ok(Promise {
                     invoked_task,
                     branch_selector,
-                });
+                })
             }
             _ => Err(()),
         }
