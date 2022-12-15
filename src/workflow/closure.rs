@@ -68,6 +68,7 @@ impl TryFrom<Ipld> for Closure {
             Ipld::Map(assoc) => Ok(Closure {
                 action: Action::try_from(assoc.get("do").ok_or(anyhow!("Bad"))?.clone())
                     .or_else(|_| Err(anyhow!("Bad")))?,
+
                 inputs: Input::from(assoc.get("inputs").ok_or(anyhow!("Bad"))?.clone()),
                 resource: match assoc.get("with").ok_or(anyhow!("Bad"))? {
                     Ipld::Link(cid) => cid
