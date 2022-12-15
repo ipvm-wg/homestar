@@ -1,5 +1,6 @@
 //! Pointers to workflow types
 use cid::Cid;
+use derive_more::Into;
 use libipld::Ipld;
 use std::{collections::btree_map::BTreeMap, result::Result};
 
@@ -14,15 +15,15 @@ pub struct Promise {
     pub branch_selector: Option<Status>,
 }
 
-impl Into<Ipld> for Promise {
-    fn into(self) -> Ipld {
-        let key: String = match self.branch_selector {
+impl From<Promise> for Ipld {
+    fn from(promise: Promise) -> Self {
+        let key: String = match promise.branch_selector {
             Some(Status::Success) => "ucan/ok".to_string(),
             Some(Status::Failure) => "ucan/err".to_string(),
             None => "ucan/promise".to_string(),
         };
 
-        Ipld::Map(BTreeMap::from([(key, self.invoked_task.into())]))
+        Ipld::Map(BTreeMap::from([(key, promise.invoked_task.into())]))
     }
 }
 
@@ -69,9 +70,9 @@ pub enum InvocationPointer {
     Local,
 }
 
-impl Into<Ipld> for InvocationPointer {
-    fn into(self) -> Ipld {
-        match self {
+impl From<InvocationPointer> for Ipld {
+    fn from(ptr: InvocationPointer) -> Self {
+        match ptr {
             InvocationPointer::Local => Ipld::String("/".to_string()),
             InvocationPointer::Remote(cid) => Ipld::Link(cid),
         }
@@ -101,9 +102,9 @@ pub struct InvokedTaskPointer {
     pub label: TaskLabel,
 }
 
-impl Into<Ipld> for InvokedTaskPointer {
-    fn into(self) -> Ipld {
-        Ipld::List(vec![self.invocation.into(), self.label.into()])
+impl From<InvokedTaskPointer> for Ipld {
+    fn from(ptr: InvokedTaskPointer) -> Self {
+        Ipld::List(vec![ptr.invocation.into(), ptr.label.into()])
     }
 }
 
@@ -133,26 +134,12 @@ impl TryFrom<Ipld> for InvokedTaskPointer {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Into)]
 pub struct TaskLabel(pub String);
 
-impl From<String> for TaskLabel {
-    fn from(s: String) -> Self {
-        TaskLabel(s)
-    }
-}
-
-impl Into<String> for TaskLabel {
-    fn into(self) -> String {
-        self.0
-    }
-}
-
-impl Into<Ipld> for TaskLabel {
-    fn into(self) -> Ipld {
-        match self {
-            TaskLabel(txt) => Ipld::String(txt.to_string()),
-        }
+impl From<TaskLabel> for Ipld {
+    fn from(label: TaskLabel) -> Self {
+        Ipld::String(label.0.to_string())
     }
 }
 

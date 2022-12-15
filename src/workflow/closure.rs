@@ -37,12 +37,12 @@ pub struct Closure {
     pub inputs: Input,
 }
 
-impl TryInto<Link<Closure>> for Closure {
+impl TryFrom<Closure> for Link<Closure> {
     type Error = anyhow::Error;
 
-    fn try_into(self) -> Result<Link<Closure>, Self::Error> {
+    fn try_from(closure: Closure) -> Result<Link<Closure>, Self::Error> {
         let mut closure_bytes = Vec::new();
-        <Closure as Into<Ipld>>::into(self).encode(DagCborCodec, &mut closure_bytes)?;
+        <Closure as Into<Ipld>>::into(closure).encode(DagCborCodec, &mut closure_bytes)?;
         Ok(Link::new(Cid::new_v1(
             DagCborCodec.into(),
             Code::Sha3_256.digest(&closure_bytes),
@@ -50,12 +50,12 @@ impl TryInto<Link<Closure>> for Closure {
     }
 }
 
-impl Into<Ipld> for Closure {
-    fn into(self) -> Ipld {
+impl From<Closure> for Ipld {
+    fn from(closure: Closure) -> Self {
         Ipld::Map(BTreeMap::from([
-            ("with".to_string(), Ipld::String(self.resource.into())),
-            ("do".to_string(), self.action.into()),
-            ("inputs".to_string(), self.inputs.into()),
+            ("with".to_string(), Ipld::String(closure.resource.into())),
+            ("do ".to_string(), closure.action.into()),
+            ("inputs".to_string(), closure.inputs.into()),
         ]))
     }
 }
@@ -99,9 +99,9 @@ pub enum Input {
     Deferred(Promise),
 }
 
-impl Into<Ipld> for Input {
-    fn into(self) -> Ipld {
-        match self {
+impl From<Input> for Ipld {
+    fn from(input: Input) -> Self {
+        match input {
             Input::IpldData(ipld) => ipld,
             Input::Deferred(promise) => Promise::into(promise),
         }

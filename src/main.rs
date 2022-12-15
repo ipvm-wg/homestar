@@ -6,6 +6,7 @@ use ipvm::{
     cli::{Args, Argument},
     db::{self, schema},
     network::{client::Client, eventloop::Event, swarm},
+    wasm::operator,
     workflow::{
         closure::{Action, Closure, Input},
         receipt::NewReceipt,
@@ -30,9 +31,9 @@ use std::{
 };
 use url::Url;
 use wasmer::{
-    imports, wasmparser::Operator, CompilerConfig, Cranelift, EngineBuilder, Function, Instance,
-    Module, Store, Type, Value,
+    imports, CompilerConfig, EngineBuilder, Function, Instance, Module, Store, Type, Value,
 };
+use wasmer_compiler_singlepass::Singlepass;
 use wasmer_middlewares::Metering;
 
 #[tokio::main]
@@ -114,15 +115,9 @@ async fn main() -> Result<()> {
             }))
             .await?;
 
-            let metering_middleware = Arc::new(Metering::new(10, |operator: &Operator| -> u64 {
-                match operator {
-                    Operator::LocalGet { .. } | Operator::I32Const { .. } => 1,
-                    Operator::I32Add { .. } => 2,
-                    _ => 0,
-                }
-            }));
+            let metering_middleware = Arc::new(Metering::new(10, operator::to_cost));
 
-            let mut basic_compiler = Cranelift::new();
+            let mut basic_compiler = Singlepass::new();
             let compiler_config = basic_compiler.canonicalize_nans(true);
             compiler_config.push_middleware(metering_middleware);
 
@@ -148,7 +143,7 @@ async fn main() -> Result<()> {
             let res: String = boxed_results
                 .into_vec()
                 .iter()
-                .map(|v| v.to_string())
+                .map(ToString::to_string)
                 .collect();
 
             let resource = Url::parse(format!("ipfs://{}", wasm).as_str()).expect("IPFS URL");

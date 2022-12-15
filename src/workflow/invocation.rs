@@ -1,5 +1,6 @@
 use crate::workflow::{pointer::TaskLabel, task::Task};
 use core::ops::ControlFlow;
+use derive_more::{Into, IntoIterator};
 use libipld::{Ipld, Link};
 use std::collections::BTreeMap;
 use ucan::ipld::UcanIpld;
@@ -12,15 +13,16 @@ pub struct Invocation {
     pub prf: Vec<Link<UcanIpld>>,
 }
 
-impl Into<Ipld> for Invocation {
-    fn into(self) -> Ipld {
+impl From<Invocation> for Ipld {
+    fn from(invocation: Invocation) -> Self {
         Ipld::Map(BTreeMap::from([
-            ("run".to_string(), self.run.clone().into()),
-            ("meta".to_string(), self.meta),
+            ("run".to_string(), invocation.run.clone().into()),
+            ("meta".to_string(), invocation.meta),
             (
                 "prf".to_string(),
                 Ipld::List(
-                    self.prf
+                    invocation
+                        .prf
                         .iter()
                         .map(|link| Ipld::Link(*link.cid()))
                         .collect(),
@@ -66,22 +68,18 @@ impl TryFrom<Ipld> for Invocation {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, IntoIterator, Into)]
 pub struct Batch(BTreeMap<TaskLabel, Task>);
 
-impl Into<Ipld> for Batch {
-    fn into(self) -> Ipld {
-        match self {
-            Batch(assoc) => {
-                let mut batch = BTreeMap::new();
+impl From<Batch> for Ipld {
+    fn from(batch: Batch) -> Self {
+        let mut assoc = BTreeMap::new();
 
-                assoc.iter().for_each(|(TaskLabel(label), task)| {
-                    batch.insert(label.clone(), task.clone().into());
-                });
+        batch.0.iter().for_each(|(TaskLabel(label), task)| {
+            assoc.insert(label.clone(), task.clone().into());
+        });
 
-                Ipld::Map(batch)
-            }
-        }
+        Ipld::Map(assoc)
     }
 }
 
