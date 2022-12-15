@@ -126,7 +126,7 @@ impl TryFrom<Ipld> for InvokedTaskPointer {
                     label: TaskLabel(label.to_string()),
                 }),
 
-                _ => bail!("unexpected number of segmnets in IPLD tuple"),
+                _ => bail!("Unexpected number of segments in IPLD tuple"),
             },
             _ => bail!("InvokedTaskPointer must be a List"),
         }
