@@ -47,6 +47,11 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created || github.event.inputs.force-publish }}
 
     steps:
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Checkout Repository
         uses: actions/checkout@v3
 

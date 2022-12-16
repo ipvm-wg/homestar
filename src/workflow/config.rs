@@ -1,6 +1,7 @@
 //! Configuration module
 
-use libipld::{serde as ipld_serde, Ipld};
+use anyhow::anyhow;
+use libipld::{serde::from_ipld, Ipld};
 use std::{collections::BTreeMap, default::Default, time::Duration};
 
 const FUEL_KEY: &str = "fuel";
@@ -72,8 +73,18 @@ impl TryFrom<Ipld> for Resources {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        let fuel = ipld_serde::from_ipld(ipld.get(FUEL_KEY)?.to_owned())?;
-        let time = ipld_serde::from_ipld(ipld.take(TIMEOUT_KEY)?)?;
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+        let fuel = from_ipld(
+            map.get(FUEL_KEY)
+                .ok_or_else(|| anyhow!("No fuel set."))?
+                .to_owned(),
+        )?;
+
+        let time = from_ipld(
+            map.get(TIMEOUT_KEY)
+                .ok_or_else(|| anyhow!("No timeout set."))?
+                .to_owned(),
+        )?;
 
         Ok(Resources { fuel, time })
     }

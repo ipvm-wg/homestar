@@ -1,10 +1,13 @@
 use crate::workflow::{pointer::TaskLabel, task::Task};
-use anyhow::{anyhow, bail};
-use core::ops::ControlFlow;
+use anyhow::anyhow;
 use derive_more::{Into, IntoIterator};
-use libipld::{Ipld, Link};
+use libipld::{cid::Cid, serde::from_ipld, Ipld, Link};
 use std::collections::BTreeMap;
 use ucan::ipld::UcanIpld;
+
+const RUN_KEY: &str = "run";
+const METADATA_KEY: &str = "meta";
+const PROOF_KEY: &str = "prf";
 
 #[derive(Clone, PartialEq)]
 pub struct Invocation {
@@ -17,10 +20,10 @@ pub struct Invocation {
 impl From<Invocation> for Ipld {
     fn from(invocation: Invocation) -> Self {
         Ipld::Map(BTreeMap::from([
-            ("run".to_string(), invocation.run.clone().into()),
-            ("meta".to_string(), invocation.meta),
+            (RUN_KEY.into(), invocation.run.clone().into()),
+            (METADATA_KEY.into(), invocation.meta),
             (
-                "prf".to_string(),
+                PROOF_KEY.into(),
                 Ipld::List(
                     invocation
                         .prf
@@ -37,29 +40,30 @@ impl TryFrom<Ipld> for Invocation {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        match ipld {
-            Ipld::Map(assoc) => Ok(Invocation {
-                meta: assoc.get("meta").map(Clone::clone).unwrap_or(Ipld::Null),
-                run: assoc
-                    .get("run")
-                    .ok_or(anyhow!("run field is empty"))
-                    .and_then(Batch::try_from)
-                    .unwrap(),
-                prf: match assoc.get("prf") {
-                    Some(Ipld::List(vec)) => {
-                        vec.iter().try_fold(Vec::new(), |mut acc, ipld| match ipld {
-                            Ipld::Link(cid) => {
-                                acc.push(Link::new(*cid));
-                                Ok(acc)
-                            }
-                            _ => bail!("Not a link"),
-                        })
-                    }
-                    other => bail!("Expected a List, but got something else: {:?}", other),
-                }?,
-            }),
-            other => bail!("Expected an IPLD map, but got {:?}", other),
-        }
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+        let run = Batch::try_from(
+            map.get(RUN_KEY)
+                .ok_or_else(|| anyhow!("No run/batch set."))?
+                .to_owned(),
+        )?;
+
+        let meta = map
+            .get(METADATA_KEY)
+            .ok_or_else(|| anyhow!("No metadata set."))?
+            .to_owned();
+
+        let prf = map
+            .get(PROOF_KEY)
+            .ok_or_else(|| anyhow!("No proof set."))?
+            .to_owned()
+            .iter()
+            .try_fold(vec![], |mut acc, ipld| {
+                let cid = from_ipld::<Cid>(ipld.clone())?;
+                acc.push(Link::new(cid));
+                Ok::<_, anyhow::Error>(acc)
+            })?;
+
+        Ok(Invocation { meta, prf, run })
     }
 }
 
@@ -68,13 +72,15 @@ pub struct Batch(BTreeMap<TaskLabel, Task>);
 
 impl From<Batch> for Ipld {
     fn from(batch: Batch) -> Self {
-        let mut assoc = BTreeMap::new();
+        let new_batch = batch
+            .0
+            .iter()
+            .fold(BTreeMap::new(), |mut acc, (task_label, task)| {
+                acc.insert(task_label.label().into(), task.clone().into());
+                acc
+            });
 
-        batch.0.iter().for_each(|(TaskLabel(label), task)| {
-            assoc.insert(label.clone(), task.clone().into());
-        });
-
-        Ipld::Map(assoc)
+        Ipld::Map(new_batch)
     }
 }
 
@@ -90,26 +96,15 @@ impl TryFrom<Ipld> for Batch {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        match ipld {
-            Ipld::Map(assoc) => {
-                let mut batch = BTreeMap::new();
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+        let flow = map
+            .iter()
+            .try_fold(BTreeMap::new(), |mut acc, (key, value)| {
+                let task = Task::try_from(value)?;
+                acc.insert(TaskLabel::new(key.to_string()), task);
+                Ok::<_, anyhow::Error>(acc)
+            })?;
 
-                let flow = assoc
-                    .iter()
-                    .try_for_each(|(key, value)| match Task::try_from(value) {
-                        Ok(task) => {
-                            batch.insert(TaskLabel(key.to_string()), task);
-                            ControlFlow::Continue(())
-                        }
-                        _ => ControlFlow::Break("invalid IPLD Task"),
-                    });
-
-                match flow {
-                    ControlFlow::Continue(_) => Ok(Batch(batch)),
-                    ControlFlow::Break(reason) => bail!(reason),
-                }
-            }
-            _ => bail!("Can only convert from a map"),
-        }
+        Ok(Batch(flow))
     }
 }

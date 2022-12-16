@@ -1,7 +1,7 @@
 //! A [Closure] wrapped with Configuration, metadata, and optional secret.
 
 use crate::workflow::{closure::Closure, config::Resources};
-use libipld::{serde as ipld_serde, Ipld};
+use libipld::{serde::from_ipld, Ipld};
 use std::collections::BTreeMap;
 
 const RESOURCES_KEY: &str = "resources";
@@ -78,7 +78,7 @@ impl TryFrom<Ipld> for Task {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        let map = ipld_serde::from_ipld::<BTreeMap<String, Ipld>>(ipld.clone())?;
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld.clone())?;
 
         let resources = map
             .get(RESOURCES_KEY)
@@ -90,7 +90,7 @@ impl TryFrom<Ipld> for Task {
             metadata: map.get(META_KEY).unwrap_or(&Ipld::Null).to_owned(),
             secret: map
                 .get(SECRETS_KEY)
-                .map(|ipld| ipld_serde::from_ipld(ipld.to_owned()).unwrap_or(false)),
+                .map(|ipld| from_ipld(ipld.to_owned()).unwrap_or(false)),
         })
     }
 }
