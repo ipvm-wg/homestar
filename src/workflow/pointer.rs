@@ -1,5 +1,7 @@
 //! Pointers to workflow types
+use anyhow::{anyhow, bail, ensure};
 use cid::Cid;
+use derive_more::Into;
 use libipld::Ipld;
 use std::{collections::btree_map::BTreeMap, result::Result};
 
@@ -14,27 +16,25 @@ pub struct Promise {
     pub branch_selector: Option<Status>,
 }
 
-impl Into<Ipld> for Promise {
-    fn into(self) -> Ipld {
-        let key: String = match self.branch_selector {
+impl From<Promise> for Ipld {
+    fn from(promise: Promise) -> Self {
+        let key: String = match promise.branch_selector {
             Some(Status::Success) => "ucan/ok".to_string(),
             Some(Status::Failure) => "ucan/err".to_string(),
             None => "ucan/promise".to_string(),
         };
 
-        Ipld::Map(BTreeMap::from([(key, self.invoked_task.into())]))
+        Ipld::Map(BTreeMap::from([(key, promise.invoked_task.into())]))
     }
 }
 
 impl TryFrom<Ipld> for Promise {
-    type Error = ();
+    type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         match ipld {
             Ipld::Map(assoc) => {
-                if assoc.len() != 1 {
-                    return Err(());
-                }
+                ensure!(assoc.len() == 1, "Unexpected keys in Promise");
 
                 let (key, value) = assoc.iter().next().unwrap();
                 let invoked_task = InvokedTaskPointer::try_from(value.clone())?;
@@ -43,15 +43,15 @@ impl TryFrom<Ipld> for Promise {
                     "ucan/ok" => Ok(Some(Status::Success)),
                     "ucan/err" => Ok(Some(Status::Failure)),
                     "ucan/promise" => Ok(None),
-                    _ => Err(()),
+                    other => Err(anyhow!("Unexpected Promise branch selector: {}", other)),
                 }?;
 
-                return Ok(Promise {
+                Ok(Promise {
                     invoked_task,
                     branch_selector,
-                });
+                })
             }
-            _ => Err(()),
+            other => bail!("Promises must be a maps: {:?}", other),
         }
     }
 }
@@ -69,9 +69,9 @@ pub enum InvocationPointer {
     Local,
 }
 
-impl Into<Ipld> for InvocationPointer {
-    fn into(self) -> Ipld {
-        match self {
+impl From<InvocationPointer> for Ipld {
+    fn from(ptr: InvocationPointer) -> Self {
+        match ptr {
             InvocationPointer::Local => Ipld::String("/".to_string()),
             InvocationPointer::Remote(cid) => Ipld::Link(cid),
         }
@@ -79,7 +79,7 @@ impl Into<Ipld> for InvocationPointer {
 }
 
 impl TryFrom<Ipld> for InvocationPointer {
-    type Error = ();
+    type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         match ipld {
@@ -87,10 +87,10 @@ impl TryFrom<Ipld> for InvocationPointer {
                 "/" => Ok(InvocationPointer::Local),
                 other => match Cid::try_from(other) {
                     Ok(cid) => Ok(InvocationPointer::Remote(cid)),
-                    Err(_) => Err(()),
+                    Err(_) => bail!("Not an InvocationPointer: {:?}", other),
                 },
             },
-            _ => Err(()),
+            _ => bail!("InvocationPointer must be a string"),
         }
     }
 }
@@ -101,14 +101,14 @@ pub struct InvokedTaskPointer {
     pub label: TaskLabel,
 }
 
-impl Into<Ipld> for InvokedTaskPointer {
-    fn into(self) -> Ipld {
-        Ipld::List(vec![self.invocation.into(), self.label.into()])
+impl From<InvokedTaskPointer> for Ipld {
+    fn from(ptr: InvokedTaskPointer) -> Self {
+        Ipld::List(vec![ptr.invocation.into(), ptr.label.into()])
     }
 }
 
 impl TryFrom<Ipld> for InvokedTaskPointer {
-    type Error = ();
+    type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         match ipld {
@@ -118,7 +118,7 @@ impl TryFrom<Ipld> for InvokedTaskPointer {
                         invocation: InvocationPointer::Local,
                         label: TaskLabel(label.to_string()),
                     }),
-                    _ => Err(()),
+                    _ => bail!("Unexpected format for local InvokedTaskPointer"),
                 },
 
                 [Ipld::Link(ptr), Ipld::String(label)] => Ok(InvokedTaskPointer {
@@ -126,43 +126,29 @@ impl TryFrom<Ipld> for InvokedTaskPointer {
                     label: TaskLabel(label.to_string()),
                 }),
 
-                _ => Err(()),
+                _ => bail!("Unexpected number of segments in IPLD tuple"),
             },
-            _ => Err(()),
+            _ => bail!("InvokedTaskPointer must be a List"),
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Into)]
 pub struct TaskLabel(pub String);
 
-impl From<String> for TaskLabel {
-    fn from(s: String) -> Self {
-        TaskLabel(s)
-    }
-}
-
-impl Into<String> for TaskLabel {
-    fn into(self) -> String {
-        self.0
-    }
-}
-
-impl Into<Ipld> for TaskLabel {
-    fn into(self) -> Ipld {
-        match self {
-            TaskLabel(txt) => Ipld::String(txt.to_string()),
-        }
+impl From<TaskLabel> for Ipld {
+    fn from(label: TaskLabel) -> Self {
+        Ipld::String(label.0.to_string())
     }
 }
 
 impl TryFrom<Ipld> for TaskLabel {
-    type Error = ();
+    type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         match ipld {
             Ipld::String(label) => Ok(TaskLabel(label)),
-            _ => Err(()),
+            _ => bail!("TaskLabel must be a string"),
         }
     }
 }

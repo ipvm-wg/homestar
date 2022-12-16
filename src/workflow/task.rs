@@ -66,6 +66,14 @@ impl From<Task> for Ipld {
     }
 }
 
+impl TryFrom<&Ipld> for Task {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+        TryFrom::try_from(ipld.to_owned())
+    }
+}
+
 impl TryFrom<Ipld> for Task {
     type Error = anyhow::Error;
 

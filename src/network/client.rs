@@ -3,11 +3,7 @@ use crate::network::{
     swarm::ComposedBehaviour,
 };
 use anyhow::Result;
-use libp2p::{
-    identity::{ed25519, Keypair},
-    request_response::ResponseChannel,
-    Multiaddr, PeerId, Swarm,
-};
+use libp2p::{identity::Keypair, request_response::ResponseChannel, Multiaddr, PeerId, Swarm};
 use std::collections::HashSet;
 use tokio::sync::{mpsc, oneshot};
 

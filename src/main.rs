@@ -6,6 +6,7 @@ use ipvm::{
     cli::{Args, Argument},
     db::{self, schema},
     network::{client::Client, eventloop::Event, swarm},
+    wasm::operator,
     workflow::{
         closure::{Action, Closure, Input},
         receipt::NewReceipt,
@@ -26,9 +27,14 @@ use libp2p::{
 use std::{
     io::{self, Cursor, Write},
     str::{self, FromStr},
+    sync::Arc,
 };
 use url::Url;
-use wasmer::{imports, Function, Instance, Module, Store, Type, Value};
+use wasmer::{
+    imports, CompilerConfig, EngineBuilder, Function, Instance, Module, Store, Type, Value,
+};
+use wasmer_compiler_singlepass::Singlepass;
+use wasmer_middlewares::Metering;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -82,9 +88,8 @@ async fn main() -> Result<()> {
                 .0;
 
             io::stdout().write_all(&file_content)?
-
-            //
         }
+
         Argument::Provide { wasm, fun, args } => {
             let ipfs = IpfsClient::default();
 
@@ -110,7 +115,14 @@ async fn main() -> Result<()> {
             }))
             .await?;
 
-            let mut store = Store::default();
+            let metering_middleware = Arc::new(Metering::new(10, operator::to_cost));
+
+            let mut basic_compiler = Singlepass::new();
+            let compiler_config = basic_compiler.canonicalize_nans(true);
+            compiler_config.push_middleware(metering_middleware);
+
+            let mut store = Store::new(EngineBuilder::new(compiler_config.to_owned()));
+
             let module = Module::new(&store, wasm_bytes).expect("Wasm module to export");
 
             let imports = imports! {};
@@ -131,7 +143,7 @@ async fn main() -> Result<()> {
             let res: String = boxed_results
                 .into_vec()
                 .iter()
-                .map(|v| v.to_string())
+                .map(ToString::to_string)
                 .collect();
 
             let resource = Url::parse(format!("ipfs://{}", wasm).as_str()).expect("IPFS URL");

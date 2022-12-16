@@ -37,24 +37,25 @@ pub struct Closure {
     pub inputs: Input,
 }
 
-impl Into<Link<Closure>> for Closure {
-    fn into(self) -> Link<Closure> {
-        let mut closure_bytes = Vec::new();
-        <Closure as Into<Ipld>>::into(self).encode(DagCborCodec, &mut closure_bytes);
+impl TryFrom<Closure> for Link<Closure> {
+    type Error = anyhow::Error;
 
-        Link::new(Cid::new_v1(
+    fn try_from(closure: Closure) -> Result<Link<Closure>, Self::Error> {
+        let mut closure_bytes = Vec::new();
+        <Closure as Into<Ipld>>::into(closure).encode(DagCborCodec, &mut closure_bytes)?;
+        Ok(Link::new(Cid::new_v1(
             DagCborCodec.into(),
             Code::Sha3_256.digest(&closure_bytes),
-        ))
+        )))
     }
 }
 
-impl Into<Ipld> for Closure {
-    fn into(self) -> Ipld {
+impl From<Closure> for Ipld {
+    fn from(closure: Closure) -> Self {
         Ipld::Map(BTreeMap::from([
-            ("with".to_string(), Ipld::String(self.resource.into())),
-            ("do".to_string(), self.action.into()),
-            ("inputs".to_string(), self.inputs.into()),
+            ("with".to_string(), Ipld::String(closure.resource.into())),
+            ("do ".to_string(), closure.action.into()),
+            ("inputs".to_string(), closure.inputs.into()),
         ]))
     }
 }
@@ -67,6 +68,7 @@ impl TryFrom<Ipld> for Closure {
             Ipld::Map(assoc) => Ok(Closure {
                 action: Action::try_from(assoc.get("do").ok_or(anyhow!("Bad"))?.clone())
                     .or_else(|_| Err(anyhow!("Bad")))?,
+
                 inputs: Input::from(assoc.get("inputs").ok_or(anyhow!("Bad"))?.clone()),
                 resource: match assoc.get("with").ok_or(anyhow!("Bad"))? {
                     Ipld::Link(cid) => cid
@@ -98,9 +100,9 @@ pub enum Input {
     Deferred(Promise),
 }
 
-impl Into<Ipld> for Input {
-    fn into(self) -> Ipld {
-        match self {
+impl From<Input> for Ipld {
+    fn from(input: Input) -> Self {
+        match input {
             Input::IpldData(ipld) => ipld,
             Input::Deferred(promise) => Promise::into(promise),
         }
