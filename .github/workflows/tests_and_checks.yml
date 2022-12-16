@@ -21,7 +21,7 @@ jobs:
           - stable
           - nightly
           # minimum version
-          - 1.64
+          - 1.65
     steps:
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
@@ -88,6 +88,11 @@ jobs:
           - stable
           - nightly
     steps:
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Checkout Repository
         uses: actions/checkout@v3
 

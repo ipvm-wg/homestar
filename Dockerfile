@@ -11,6 +11,8 @@ FROM builder-$TARGETARCH as builder
 
 RUN adduser --disabled-password --disabled-login --gecos "" --no-create-home ipvm
 
+RUN apt update && apt install -y protobuf-compiler sqlite
+
 RUN cargo init
 
 # touch lib.rs as we combine both

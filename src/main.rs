@@ -146,7 +146,7 @@ async fn main() -> Result<()> {
                 .map(ToString::to_string)
                 .collect();
 
-            let resource = Url::parse(format!("ipfs://{}", wasm).as_str()).expect("IPFS URL");
+            let resource = Url::parse(format!("ipfs://{wasm}").as_str()).expect("IPFS URL");
 
             let ipld_args: Ipld = Ipld::List(
                 wasm_args
@@ -195,7 +195,7 @@ async fn main() -> Result<()> {
             let res_cursor = Cursor::new(res);
             let AddResponse { hash, .. } = ipfs.add(res_cursor).await.expect("a CID");
 
-            println!("Result CID: {}", hash);
+            println!("Result CID: {hash}");
 
             let _ = client.start_providing(closure_cid.clone()).await;
 
