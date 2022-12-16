@@ -17,7 +17,7 @@ authors = ["Brooklyn Zelenka <hello@brooklynzelenka.com>"]
 [lib]
 path = "src/lib.rs"
 bench = false
-doctest = false
+doctest = true
 
 [[bin]]
 name = "ipvm"
@@ -33,7 +33,6 @@ required-features = ["test_utils"]
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
-cid = "0.9"
 clap = { version = "4.0", features = ["derive"] }
 derive_more = "0.99.17"
 diesel = { version = "2.0", features = ["sqlite"] }
@@ -58,7 +57,7 @@ ucan = "0.1"
 url = "2.3"
 wasmer = { version = "3.1", features = ["compiler"] }
 wasmer-compiler-singlepass = "3.1.0"
-wasmer-middlewares = "3.1.0"
+wasmer-middlewares = "3.1"
 
 [dev-dependencies]
 criterion = "0.4"

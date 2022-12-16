@@ -3,14 +3,13 @@ use crate::network::{
     swarm::ComposedBehaviour,
 };
 use anyhow::Result;
-use libp2p::{identity::Keypair, request_response::ResponseChannel, Multiaddr, PeerId, Swarm};
+use libp2p::{request_response::ResponseChannel, Multiaddr, PeerId, Swarm};
 use std::collections::HashSet;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone)]
 pub struct Client {
     sender: mpsc::Sender<Command>,
-    peer_id: PeerId,
 }
 
 impl Client {
@@ -20,13 +19,10 @@ impl Client {
     ) -> Result<(Self, mpsc::Receiver<Event>, EventLoop)> {
         let (command_sender, command_receiver) = mpsc::channel(1);
         let (event_sender, event_receiver) = mpsc::channel(1);
-        let keypair = Keypair::generate_ed25519();
-        let peer_id = keypair.public().to_peer_id();
 
         Ok((
             Client {
                 sender: command_sender,
-                peer_id,
             },
             event_receiver,
             EventLoop::new(swarm, command_receiver, event_sender),

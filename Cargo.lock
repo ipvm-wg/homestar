@@ -2381,7 +2381,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "cid 0.9.0",
  "clap 4.0.29",
  "criterion",
  "derive_more",

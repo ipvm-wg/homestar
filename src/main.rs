@@ -187,8 +187,6 @@ async fn main() -> Result<()> {
                 .execute(&mut conn)
                 .expect("Error saving new post");
 
-            //todo!("advertise receipt");
-
             let res_copy = res.clone().into_bytes();
 
             println!("Wasm CID: {closure_cid}");

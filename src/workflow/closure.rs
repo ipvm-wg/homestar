@@ -1,15 +1,21 @@
 //! The smallest unit of work in IPVM
 
-use crate::workflow::pointer::{InvokedTaskPointer, Promise, Status};
+use crate::workflow::pointer::{InvokedTaskPointer, Promise, Status, OK_BRANCH};
 use anyhow::anyhow;
 use libipld::{
-    cbor::DagCborCodec, cid::multibase::Base, prelude::Encode, serde as ipld_serde, Cid, Ipld, Link,
+    cbor::DagCborCodec, cid::multibase::Base, codec::Codec, serde::from_ipld, Cid, Ipld, Link,
 };
 use multihash::{Code, MultihashDigest};
 use std::{collections::btree_map::BTreeMap, convert::TryFrom, fmt};
 use url::Url;
 
+const WITH_KEY: &str = "with";
+const DO_KEY: &str = "do";
+const INPUTS_KEY: &str = "inputs";
+
 /// The suspended representation of the smallest unit of work in IPVM
+///
+/// # Example
 ///
 /// ```
 /// use libipld::Ipld;
@@ -19,7 +25,7 @@ use url::Url;
 /// Closure {
 ///     resource: Url::parse("ipfs://bafkreihf37goitzzlatlhwgiadb2wxkmn4k2edremzfjsm7qhnoxwlfstm").expect("IPFS URL"),
 ///     action: Action::from("wasm/run"),
-///     inputs: Input::from(Ipld::Null),
+///     inputs: Input::try_from(Ipld::Null).unwrap(),
 /// };
 /// ```
 #[derive(Clone, Debug, PartialEq)]
@@ -41,11 +47,11 @@ impl TryFrom<Closure> for Link<Closure> {
     type Error = anyhow::Error;
 
     fn try_from(closure: Closure) -> Result<Link<Closure>, Self::Error> {
-        let mut closure_bytes = Vec::new();
-        <Closure as Into<Ipld>>::into(closure).encode(DagCborCodec, &mut closure_bytes)?;
+        let ipld: Ipld = closure.into();
+        let bytes = DagCborCodec.encode(&ipld)?;
         Ok(Link::new(Cid::new_v1(
             DagCborCodec.into(),
-            Code::Sha3_256.digest(&closure_bytes),
+            Code::Sha3_256.digest(&bytes),
         )))
     }
 }
@@ -53,9 +59,9 @@ impl TryFrom<Closure> for Link<Closure> {
 impl From<Closure> for Ipld {
     fn from(closure: Closure) -> Self {
         Ipld::Map(BTreeMap::from([
-            ("with".to_string(), Ipld::String(closure.resource.into())),
-            ("do ".to_string(), closure.action.into()),
-            ("inputs".to_string(), closure.inputs.into()),
+            (WITH_KEY.into(), Ipld::String(closure.resource.into())),
+            (DO_KEY.into(), closure.action.into()),
+            (INPUTS_KEY.into(), closure.inputs.into()),
         ]))
     }
 }
@@ -64,27 +70,37 @@ impl TryFrom<Ipld> for Closure {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        match ipld {
-            Ipld::Map(assoc) => Ok(Closure {
-                action: Action::try_from(assoc.get("do").ok_or(anyhow!("Bad"))?.clone())
-                    .or_else(|_| Err(anyhow!("Bad")))?,
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+        let action = Action::try_from(
+            map.get(DO_KEY)
+                .ok_or_else(|| anyhow!("No do action set."))?
+                .to_owned(),
+        )?;
+        let inputs = Input::try_from(
+            map.get(INPUTS_KEY)
+                .ok_or_else(|| anyhow!("No inputs key set."))?
+                .to_owned(),
+        )?;
 
-                inputs: Input::from(assoc.get("inputs").ok_or(anyhow!("Bad"))?.clone()),
-                resource: match assoc.get("with").ok_or(anyhow!("Bad"))? {
-                    Ipld::Link(cid) => cid
-                        .to_string_of_base(Base::Base32HexLower)
-                        .or(Err(anyhow!("Bad")))
-                        .and_then(|txt| {
-                            Url::parse(format!("{}{}", "ipfs://", txt).as_str())
-                                .or(Err(anyhow!("Bad")))
-                        }),
-                    Ipld::String(txt) => Url::parse(txt.as_str()).or(Err(anyhow!("Bad"))),
-                    _ => Err(anyhow!("Bad")),
-                }?,
-            }),
+        let resource = match map.get(WITH_KEY) {
+            Some(Ipld::Link(cid)) => cid
+                .to_string_of_base(Base::Base32HexLower)
+                .map_err(|e| anyhow!("Failed to encode CID into multibase string: {e}"))
+                .and_then(|txt| {
+                    Url::parse(format!("{}{}", "ipfs://", txt).as_str())
+                        .map_err(|e| anyhow!("Failed to parse URL: {e}"))
+                }),
+            Some(Ipld::String(txt)) => {
+                Url::parse(txt.as_str()).map_err(|e| anyhow!("Failed to parse URL: {e}"))
+            }
+            _ => Err(anyhow!("No resource/with set.")),
+        }?;
 
-            _ => Err(anyhow!("Bad")),
-        }
+        Ok(Closure {
+            resource,
+            action,
+            inputs,
+        })
     }
 }
 
@@ -115,31 +131,26 @@ impl From<Promise> for Input {
     }
 }
 
-impl From<Ipld> for Input {
-    fn from(ipld: Ipld) -> Input {
-        match ipld {
-            Ipld::Map(ref map) => {
-                if map.len() != 1 {
-                    return Input::IpldData(ipld);
-                }
-                match map.get("ucan/ok") {
-                    Some(Ipld::List(pointer)) => {
-                        if let Ok(invoked_task) =
-                            InvokedTaskPointer::try_from(Ipld::List(pointer.clone()))
-                        {
-                            Input::Deferred(Promise {
-                                branch_selector: Some(Status::Success),
-                                invoked_task,
-                            })
-                        } else {
-                            Input::IpldData(ipld)
-                        }
-                    }
+impl TryFrom<Ipld> for Input {
+    type Error = anyhow::Error;
 
-                    _ => Input::IpldData(ipld),
-                }
-            }
-            _ => Input::IpldData(ipld),
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let Ok(map) = from_ipld::<BTreeMap<String, Ipld>>(ipld.clone()) else {
+            return Ok(Input::IpldData(ipld))
+        };
+
+        if map.len() > 1 {
+            map.get(OK_BRANCH)
+                .map_or(Ok(Input::IpldData(ipld)), |ipld| {
+                    let pointer = from_ipld(ipld.clone())?;
+                    let invoked_task = InvokedTaskPointer::try_from(Ipld::List(pointer))?;
+                    Ok(Input::Deferred(Promise {
+                        result: Some(Status::Success),
+                        invoked_task,
+                    }))
+                })
+        } else {
+            Ok(Input::IpldData(ipld))
         }
     }
 }
@@ -197,7 +208,7 @@ impl TryFrom<Ipld> for Action {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        let action = ipld_serde::from_ipld::<String>(ipld)?;
+        let action = from_ipld::<String>(ipld)?;
         Ok(Action::from(action))
     }
 }
