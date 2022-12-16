@@ -130,7 +130,7 @@ impl TryFrom<Ipld> for InvokedTaskPointer {
                         label: TaskLabel(label.to_string()),
                     })
                 } else {
-                    Err(anyhow!("Unexpected format for local InvokedTaskPointer"))
+                    Err(anyhow!("Unexpected format for local InvokedTaskPointer."))
                 }
             }
             [Ipld::Link(ptr), Ipld::String(label)] => Ok(InvokedTaskPointer {
@@ -138,7 +138,7 @@ impl TryFrom<Ipld> for InvokedTaskPointer {
                 label: TaskLabel(label.to_string()),
             }),
 
-            _ => Err(anyhow!("Unexpected number of segments in IPLD tuple")),
+            _ => Err(anyhow!("Unexpected number of segments in IPLD tuple.")),
         }
     }
 }
