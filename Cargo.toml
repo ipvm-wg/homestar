@@ -5,14 +5,14 @@ description = ""
 keywords = []
 categories = []
 
-include = ["/src", "/benches", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
-license = "Apache-2.0 or MIT"
+include = ["/src", "/benches", "README.md", "LICENSE"]
+license = "Apache"
 readme = "README.md"
 edition = "2021"
 rust-version = "1.64"
 documentation = "https://docs.rs/ipvm"
 repository = "https://github.com/ipvm-wg/ipvm"
-authors = ["Brooklyn Zelenka <hello@brooklynzelenka.com>"]
+authors = ["Brooklyn Zelenka <hello@brooklynzelenka.com>", "Zeeshan Lakhani <zeeshan@fission.codes>"]
 
 [lib]
 path = "src/lib.rs"
