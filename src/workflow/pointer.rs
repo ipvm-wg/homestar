@@ -22,13 +22,16 @@ pub struct Promise {
 
 impl From<Promise> for Ipld {
     fn from(promise: Promise) -> Self {
-        let key: String = match promise.result {
-            Some(Status::Success) => OK_BRANCH.to_string(),
-            Some(Status::Failure) => ERR_BRANCH.to_string(),
-            None => PTR_BRANCH.to_string(),
+        let key = match promise.result {
+            Some(Status::Success) => OK_BRANCH,
+            Some(Status::Failure) => ERR_BRANCH,
+            None => PTR_BRANCH,
         };
 
-        Ipld::Map(BTreeMap::from([(key, promise.invoked_task.into())]))
+        Ipld::Map(BTreeMap::from([(
+            key.to_string(),
+            promise.invoked_task.into(),
+        )]))
     }
 }
 
