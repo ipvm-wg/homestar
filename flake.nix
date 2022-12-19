@@ -34,6 +34,8 @@
         nixpkgs-fmt
       ];
 
+      macos = if pkgs.stdenv.isDarwin then [ pkgs.darwin.apple_sdk.frameworks.Foundation ] else [];
+
       cargo-installs = with pkgs; [
         cargo-deny
         cargo-expand
@@ -52,10 +54,14 @@
           # because native build inputs are added to $PATH in the order they're listed here.
           nightly-rustfmt
           rust-toolchain
+          rust-analyzer
           pre-commit
+          protobuf
+          sqlite
+          diesel-cli
           direnv
           self.packages.${system}.irust
-        ] ++ format-pkgs ++ cargo-installs;
+        ] ++ format-pkgs ++ cargo-installs ++ macos;
 
       shellHook = ''
         [ -e .git/hooks/pre-commit ] || pre-commit install --install-hooks && pre-commit install --hook-type commit-msg

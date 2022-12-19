@@ -12,6 +12,7 @@
 # Other files + dirs
 private
 *.temp
+*.db
 *.tmp
 .history
 .DS_Store

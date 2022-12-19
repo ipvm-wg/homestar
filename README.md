@@ -15,11 +15,8 @@
     <a href="https://github.com/ipvm-wg/ipvm/actions?query=">
       <img src="https://github.com/ipvm-wg/ipvm/actions/workflows/tests_and_checks.yml/badge.svg" alt="Build Status">
     </a>
-    <a href="https://github.com/ipvm-wg/ipvm/blob/main/LICENSE-APACHE">
-      <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License-Apache">
-    </a>
-    <a href="https://github.com/ipvm-wg/ipvm/blob/main/LICENSE-MIT">
-      <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License-MIT">
+    <a href="https://github.com/ipvm-wg/ipvm/blob/main/LICENSE">
+      <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
     </a>
     <a href="https://docs.rs/ipvm">
       <img src="https://img.shields.io/static/v1?label=Docs&message=docs.rs&color=blue" alt="Docs">
@@ -170,12 +167,8 @@ These are references to specifications, talks and presentations, etc.
 
 ## License
 
-This project is licensed under either of
-
-- Apache License, Version 2.0, ([LICENSE-APACHE](./LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](./LICENSE-MIT) or http://opensource.org/licenses/MIT)
-
-at your option.
+This project is licensed under the [Apache License 2.0](./LICENSE), or
+[http://www.apache.org/licenses/LICENSE-2.0][apache].
 
 ### Contribution
 
