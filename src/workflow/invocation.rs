@@ -92,14 +92,6 @@ impl TryFrom<&Ipld> for Batch {
     }
 }
 
-impl TryFrom<&Ipld> for Batch {
-    type Error = anyhow::Error;
-
-    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
-        TryFrom::try_from(ipld.to_owned())
-    }
-}
-
 impl TryFrom<Ipld> for Batch {
     type Error = anyhow::Error;
 
