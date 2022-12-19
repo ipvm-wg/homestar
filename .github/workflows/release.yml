@@ -20,7 +20,10 @@ concurrency:
 jobs:
   release-please:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.repository_owner == 'ipvm-wg'
+    if: >
+      github.ref == 'refs/heads/main' &&
+      github.repository_owner == 'ipvm-wg' &&
+      github.event.workflow_run.conclusion == 'success'
 
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -34,7 +37,7 @@ jobs:
           default-branch: main
           command: manifest
           extra-files: |
-            Cargo.toml
+            README.md
 
   publish-release:
     runs-on: ubuntu-latest
