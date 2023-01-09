@@ -39,7 +39,7 @@ diesel = { version = "2.0", features = ["sqlite"] }
 dotenvy = "0.15"
 env_logger = "0.10"
 ipfs-api = "0.16"
-ipfs-api-backend-hyper = "0.5"
+ipfs-api-backend-hyper = "0.6"
 json = "0.12"
 libipld = "0.15"
 libipld-core = { version = "0.15", features = ["serde-codec", "serde"] }

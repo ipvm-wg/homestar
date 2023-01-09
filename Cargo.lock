@@ -2324,7 +2324,7 @@ version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d4854b5cde0a7e935ee4246c5b6c67fbf4961e303963537f10e184a4830bd17"
 dependencies = [
- "ipfs-api-backend-hyper",
+ "ipfs-api-backend-hyper 0.5.0",
 ]
 
 [[package]]
@@ -2339,7 +2339,24 @@ dependencies = [
  "http",
  "hyper",
  "hyper-multipart-rfc7578",
- "ipfs-api-prelude",
+ "ipfs-api-prelude 0.5.0",
+ "thiserror",
+]
+
+[[package]]
+name = "ipfs-api-backend-hyper"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a9d131b408b4caafe1e7c00d410a09ad3eb7e3ab68690cf668e86904b2176b4"
+dependencies = [
+ "async-trait",
+ "base64",
+ "bytes",
+ "futures",
+ "http",
+ "hyper",
+ "hyper-multipart-rfc7578",
+ "ipfs-api-prelude 0.6.0",
  "thiserror",
 ]
 
@@ -2370,6 +2387,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "ipfs-api-prelude"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b74065805db266ba2c6edbd670b23c4714824a955628472b2e46cc9f3a869cb"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "cfg-if",
+ "common-multipart-rfc7578",
+ "dirs",
+ "futures",
+ "http",
+ "multiaddr 0.17.0",
+ "multibase",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "thiserror",
+ "tokio",
+ "tokio-util 0.7.4",
+ "tracing",
+ "walkdir",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2388,7 +2430,7 @@ dependencies = [
  "dotenvy",
  "env_logger",
  "ipfs-api",
- "ipfs-api-backend-hyper",
+ "ipfs-api-backend-hyper 0.6.0",
  "json",
  "libipld",
  "libipld-core",
@@ -2621,7 +2663,7 @@ dependencies = [
  "libp2p-webrtc",
  "libp2p-websocket",
  "libp2p-yamux",
- "multiaddr",
+ "multiaddr 0.16.0",
  "parking_lot 0.12.1",
  "pin-project",
  "smallvec",
@@ -2662,7 +2704,7 @@ dependencies = [
  "instant",
  "libsecp256k1",
  "log",
- "multiaddr",
+ "multiaddr 0.16.0",
  "multihash 0.16.3",
  "multistream-select",
  "once_cell",
@@ -3450,6 +3492,24 @@ dependencies = [
  "data-encoding",
  "multibase",
  "multihash 0.16.3",
+ "percent-encoding",
+ "serde",
+ "static_assertions",
+ "unsigned-varint 0.7.1",
+ "url",
+]
+
+[[package]]
+name = "multiaddr"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b53e0cc5907a5c216ba6584bf74be8ab47d6d6289f72793b2dddbf15dc3bf8c"
+dependencies = [
+ "arrayref",
+ "byteorder",
+ "data-encoding",
+ "multibase",
+ "multihash 0.17.0",
  "percent-encoding",
  "serde",
  "static_assertions",
