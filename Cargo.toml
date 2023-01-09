@@ -38,7 +38,7 @@ derive_more = "0.99.17"
 diesel = { version = "2.0", features = ["sqlite"] }
 dotenvy = "0.15"
 env_logger = "0.10"
-ipfs-api = "0.16"
+ipfs-api = "0.17"
 ipfs-api-backend-hyper = "0.6"
 json = "0.12"
 libipld = "0.15"
