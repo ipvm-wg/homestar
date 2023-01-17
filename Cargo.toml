@@ -33,7 +33,7 @@ required-features = ["test_utils"]
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
-clap = { version = "4.0", features = ["derive"] }
+clap = { version = "4.1", features = ["derive"] }
 derive_more = "0.99.17"
 diesel = { version = "2.0", features = ["sqlite"] }
 dotenvy = "0.15"
