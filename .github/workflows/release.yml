@@ -23,7 +23,7 @@ jobs:
     if: >
       github.ref == 'refs/heads/main' &&
       github.repository_owner == 'ipvm-wg' &&
-      github.event.workflow_run.conclusion == 'success'
+      github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
 
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}

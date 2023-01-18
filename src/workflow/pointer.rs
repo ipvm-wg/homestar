@@ -4,16 +4,26 @@ use anyhow::{anyhow, ensure};
 use libipld::{cid::Cid, serde::from_ipld, Ipld};
 use std::{collections::btree_map::BTreeMap, result::Result};
 
-/// Successful Promise result.
+/// Successful [Promise] result.
+///
+/// [Promise]: super::pointer::Promise
 pub const OK_BRANCH: &str = "ucan/ok";
 const ERR_BRANCH: &str = "ucan/err";
 const PTR_BRANCH: &str = "ucan/ptr";
 
-/// A pointer to an unresolved `Invocation` and `Task`,
-/// optionally including the `Success` or `Failure` branch.
+/// A pointer to an unresolved [Invocation] and
+/// [Task], optionally including the [Status::Success] or
+/// [Status::Failure] branch.
+///
+/// [Invocation]: super::invocation::Invocation
+/// [Task]: super::task::Task
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Promise {
-    /// Reference to an unresolved [Task] inside a specific [Invocation]
+    /// Reference to an unresolved [Task] inside a specific [Invocation].
+    ///
+    /// [Invocation]: super::invocation::Invocation
+    /// [Task]: super::task::Task
     pub invoked_task: InvokedTaskPointer,
 
     /// An optional narrowing to a particular [Status] branch.

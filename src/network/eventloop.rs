@@ -1,14 +1,21 @@
-use crate::network::{
-    client::{Command, FileRequest, FileResponse},
-    swarm::{ComposedBehaviour, ComposedEvent},
+use crate::{
+    network::{
+        client::{Command, FileRequest, FileResponse},
+        swarm::{ComposedBehaviour, ComposedEvent},
+    },
+    workflow::receipt::Receipt,
 };
 use anyhow::{anyhow, Result};
+use either::Either;
 use libp2p::{
-    core::{either::EitherError, PeerId},
+    core::PeerId,
+    floodsub::{protocol::CodecError, FloodsubEvent},
     futures::StreamExt,
+    gossipsub::{error::GossipsubHandlerError, GossipsubEvent},
     kad::{GetProvidersOk, KademliaEvent, QueryId, QueryResult},
+    mdns,
     multiaddr::Protocol,
-    request_response::{RequestId, RequestResponseEvent, RequestResponseMessage, ResponseChannel},
+    request_response::{self, RequestId, ResponseChannel},
     swarm::{ConnectionHandlerUpgrErr, Swarm, SwarmEvent},
 };
 use std::{
@@ -16,6 +23,17 @@ use std::{
     io,
 };
 use tokio::sync::{mpsc, oneshot};
+use void::Void;
+
+type HandlerErr = Either<
+    Either<
+        Either<Either<GossipsubHandlerError, ConnectionHandlerUpgrErr<CodecError>>, io::Error>,
+        Void,
+    >,
+    ConnectionHandlerUpgrErr<io::Error>,
+>;
+
+pub const RECEIPTS_TOPIC: &str = "receipts";
 
 pub struct EventLoop {
     swarm: Swarm<ComposedBehaviour>,
@@ -44,27 +62,50 @@ impl EventLoop {
         }
     }
 
-    pub async fn run(mut self) {
+    /// Loop and select over swarm and pubsub [events] and client [commands].
+    ///
+    /// [events]: SwarmEvent
+    /// [commands]: Command
+    pub async fn run(mut self) -> Result<()> {
         loop {
             tokio::select! {
-                event = self.swarm.next() => self.handle_event(event.expect("Swarm stream to be infinite.")).await  ,
-                command = self.command_receiver.recv() => match command {
-                    Some(c) => self.handle_command(c).await,
-                    // Command channel closed, thus shutting down the network event loop.
-                    None=>  return,
-                },
+                event = self.swarm.select_next_some() => self.handle_event(event).await,
+                command = self.command_receiver.recv() => if let Some(c) = command {self.handle_command(c).await}
             }
         }
     }
 
-    async fn handle_event(
-        &mut self,
-        event: SwarmEvent<
-            ComposedEvent,
-            EitherError<ConnectionHandlerUpgrErr<io::Error>, io::Error>,
-        >,
-    ) {
+    async fn handle_event(&mut self, event: SwarmEvent<ComposedEvent, HandlerErr>) {
         match event {
+            SwarmEvent::Behaviour(ComposedEvent::Floodsub(FloodsubEvent::Message(message))) => {
+                let decoded: Receipt = bincode::deserialize(&message.data).unwrap();
+                println!("Got message: '{:?}'", decoded)
+            }
+            SwarmEvent::Behaviour(ComposedEvent::Floodsub(FloodsubEvent::Subscribed {
+                peer_id,
+                topic,
+            })) => {
+                println!("{peer_id} subscribed to topic {} over pubsub.", topic.id())
+            }
+            SwarmEvent::Behaviour(ComposedEvent::Floodsub(_)) => {}
+            SwarmEvent::Behaviour(ComposedEvent::Gossipsub(GossipsubEvent::Message {
+                message,
+                propagation_source,
+                message_id,
+            })) => {
+                let decoded: Receipt = bincode::deserialize(&message.data).unwrap();
+                println!(
+                    "Got message: '{:?}' from {propagation_source} with message id: {message_id}",
+                    decoded
+                )
+            }
+            SwarmEvent::Behaviour(ComposedEvent::Gossipsub(GossipsubEvent::Subscribed {
+                peer_id,
+                topic,
+            })) => {
+                println!("{peer_id} subscribed to topic {} over gossipsub.", topic)
+            }
+            SwarmEvent::Behaviour(ComposedEvent::Gossipsub(_)) => {}
             SwarmEvent::Behaviour(ComposedEvent::Kademlia(
                 KademliaEvent::OutboundQueryProgressed {
                     id,
@@ -95,10 +136,39 @@ impl EventLoop {
                     .send(Ok(providers));
             }
             SwarmEvent::Behaviour(ComposedEvent::Kademlia(_)) => {}
+            SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Discovered(list))) => {
+                for (peer_id, _multiaddr) in list {
+                    println!("mDNS discovered a new peer: {peer_id}");
+                    self.swarm
+                        .behaviour_mut()
+                        .floodsub
+                        .add_node_to_partial_view(peer_id);
+
+                    self.swarm
+                        .behaviour_mut()
+                        .gossipsub
+                        .add_explicit_peer(&peer_id);
+                }
+            }
+            SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Expired(list))) => {
+                for (peer_id, _multiaddr) in list {
+                    println!("mDNS discover peer has expired: {peer_id}");
+
+                    self.swarm
+                        .behaviour_mut()
+                        .floodsub
+                        .remove_node_from_partial_view(&peer_id);
+
+                    self.swarm
+                        .behaviour_mut()
+                        .gossipsub
+                        .remove_explicit_peer(&peer_id);
+                }
+            }
             SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
-                RequestResponseEvent::Message { message, .. },
+                request_response::Event::Message { message, .. },
             )) => match message {
-                RequestResponseMessage::Request {
+                request_response::Message::Request {
                     request, channel, ..
                 } => {
                     self.event_sender
@@ -109,7 +179,7 @@ impl EventLoop {
                         .await
                         .expect("Event receiver not to be dropped.");
                 }
-                RequestResponseMessage::Response {
+                request_response::Message::Response {
                     request_id,
                     response,
                 } => {
@@ -121,7 +191,7 @@ impl EventLoop {
                 }
             },
             SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
-                RequestResponseEvent::OutboundFailure {
+                request_response::Event::OutboundFailure {
                     request_id, error, ..
                 },
             )) => {
@@ -132,11 +202,11 @@ impl EventLoop {
                     .send(Err(anyhow!(error)));
             }
             SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
-                RequestResponseEvent::ResponseSent { .. },
+                request_response::Event::ResponseSent { .. },
             )) => {}
             SwarmEvent::NewListenAddr { address, .. } => {
                 let local_peer_id = *self.swarm.local_peer_id();
-                eprintln!(
+                println!(
                     "Local node is listening on {:?}",
                     address.with(Protocol::P2p(local_peer_id.into()))
                 );
@@ -160,13 +230,23 @@ impl EventLoop {
                 }
             }
             SwarmEvent::IncomingConnectionError { .. } => {}
-            SwarmEvent::Dialing(peer_id) => eprintln!("Dialing {peer_id}"),
+            SwarmEvent::Dialing(peer_id) => println!("Dialing {peer_id}"),
             e => panic!("{e:?}"),
         }
     }
 
     async fn handle_command(&mut self, command: Command) {
         match command {
+            Command::PublishMessage { topic, msg, sender } => {
+                let _ = match self
+                    .swarm
+                    .behaviour_mut()
+                    .gossip_publish(topic.as_str(), msg)
+                {
+                    Ok(_) => sender.send(Ok(())),
+                    Err(e) => sender.send(Err(anyhow!(e))),
+                };
+            }
             Command::StartListening { addr, sender } => {
                 let _ = match self.swarm.listen_on(addr) {
                     Ok(_) => sender.send(Ok(())),

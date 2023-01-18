@@ -31,12 +31,15 @@ pub struct Task {
     /// secrecy of the preceeding scope.
     ///
     /// If unset, [Task] inherits the secrecy of its scope, e.g.:
-    /// If any [crate::workflow::Promise] in the [Closure] references a secret
+    /// If any [Promise] in the [Closure] references a secret
     /// [Task], this [Task] will default to secret as well.
     ///
-    /// If the enclosing [crate::workflow::Invocation] is set to secret, then
+    /// If the enclosing [Invocation] is set to secret, then
     /// this [Task] is also set to secret, unless a [Task] in one of its
-    /// [crate::workflow::Promise]s is secret.
+    /// [Promise]'s is secret.
+    ///
+    /// [Invocation]: super::invocation::Invocation
+    /// [Promise]: super::pointer::Promise
     pub secret: Option<bool>,
 }
 

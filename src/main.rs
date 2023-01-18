@@ -5,19 +5,18 @@ use ipfs_api::{response::AddResponse, IpfsApi, IpfsClient};
 use ipvm::{
     cli::{Args, Argument},
     db::{self, schema},
-    network::{client::Client, eventloop::Event, swarm},
+    network::{
+        client::Client,
+        eventloop::{Event, RECEIPTS_TOPIC},
+        swarm::{self, TopicMessage},
+    },
     wasm::operator,
     workflow::{
         closure::{Action, Closure, Input},
-        receipt::NewReceipt,
+        receipt::Receipt,
     },
 };
-use libipld::{
-    cbor::DagCborCodec,
-    cid::{multibase::Base, Cid},
-    prelude::Encode,
-    Ipld,
-};
+use libipld::{cbor::DagCborCodec, cid::multibase::Base, prelude::Encode, Ipld, Link};
 use libp2p::{
     core::PeerId,
     futures::{future, FutureExt, TryStreamExt},
@@ -30,9 +29,8 @@ use std::{
     sync::Arc,
 };
 use url::Url;
-use wasmer::{
-    imports, CompilerConfig, EngineBuilder, Function, Instance, Module, Store, Type, Value,
-};
+use uuid::Uuid;
+use wasmer::{imports, CompilerConfig, EngineBuilder, Function, Instance, Module, Store, Value};
 use wasmer_compiler_singlepass::Singlepass;
 use wasmer_middlewares::Metering;
 
@@ -42,7 +40,12 @@ async fn main() -> Result<()> {
 
     let opts = Args::parse();
     let keypair = Keypair::generate_ed25519();
-    let swarm = swarm::build_swarm(keypair).await?;
+
+    let mut swarm = swarm::new(keypair).await?;
+
+    // subscribe to `receipts` topic
+    swarm.behaviour_mut().gossip_subscribe(RECEIPTS_TOPIC)?;
+
     let (mut client, mut events, event_loop) = Client::new(swarm).await?;
 
     tokio::spawn(event_loop.run());
@@ -71,10 +74,10 @@ async fn main() -> Result<()> {
     match opts.argument {
         Argument::Get { name } => {
             let providers = client.get_providers(name.clone()).await?;
-            let providers = providers
-                .is_empty()
-                .then_some(providers)
-                .ok_or_else(|| anyhow!("Could not find provider for file {name}."))?;
+
+            if providers.is_empty() {
+                Err(anyhow!("Could not find provider for file {name}."))?;
+            }
 
             let requests = providers.into_iter().map(|p| {
                 let name = name.clone();
@@ -129,14 +132,13 @@ async fn main() -> Result<()> {
             let instance =
                 Instance::new(&mut store, &module, &imports).expect("Wasm instance to be here");
 
-            let _function = instance
+            let function = instance
                 .exports
                 .get::<Function>(fun.as_str())
                 .expect("a Wasm function");
-            let _types: &[Type] = _function.ty(&store).params();
 
-            // FIXME write Wasm::Value -> Ipld converter
-            let boxed_results: Box<[Value]> = _function
+            // FIXME write Wasmer::Value -> Ipld converter
+            let boxed_results: Box<[Value]> = function
                 .call(&mut store, wasm_args.as_slice())
                 .expect("tried to call function");
 
@@ -164,33 +166,46 @@ async fn main() -> Result<()> {
                 inputs: Input::IpldData(ipld_args),
             };
 
-            let closure_ipld: Ipld = closure.into();
+            let closure_ipld: Ipld = closure.clone().into();
 
             let mut closure_bytes = Vec::new();
             closure_ipld
                 .encode(DagCborCodec, &mut closure_bytes)
                 .expect("CBOR Serialization");
 
-            let closure_cid = Cid::try_from(closure_bytes)?
+            let link: Link<Closure> = Closure::try_into(closure)?;
+            let closure_cid = link
                 .to_string_of_base(Base::Base32HexLower)
                 .expect("string CID");
 
             let mut conn = db::establish_connection();
 
-            let new_receipt = NewReceipt {
+            let new_receipt = Receipt {
+                id: Uuid::new_v4().to_string(),
                 val: res.parse::<i32>().expect("i32"), // FIXME!
                 closure_cid: closure_cid.clone(),
             };
 
+            // TODO: insert (or upsert via event handling when subscribed)
             diesel::insert_into(schema::receipts::table)
                 .values(&new_receipt)
                 .execute(&mut conn)
                 .expect("Error saving new post");
 
-            let res_copy = res.clone().into_bytes();
+            println!("{new_receipt:?}");
 
-            println!("Wasm CID: {closure_cid}");
-            println!("Result value: {res}");
+            // TODO: Cleanup around pubsub execution.
+            let async_client = client.clone();
+            // We delay messages to make sure peers are within the mesh.
+            tokio::spawn(async move {
+                // TODO: make this configurable
+                tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+                let _ = async_client
+                    .publish_message(RECEIPTS_TOPIC, TopicMessage::Receipt(new_receipt.clone()))
+                    .await;
+            });
+
+            let res_copy = res.clone().into_bytes();
 
             let res_cursor = Cursor::new(res);
             let AddResponse { hash, .. } = ipfs.add(res_cursor).await.expect("a CID");

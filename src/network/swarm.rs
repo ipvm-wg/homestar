@@ -1,26 +1,49 @@
-use crate::network::client::{FileRequest, FileResponse};
-use anyhow::Result;
+use crate::{
+    network::{
+        client::{FileRequest, FileResponse},
+        pubsub,
+    },
+    workflow::receipt::Receipt,
+};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use libp2p::{
-    core::upgrade::{read_length_prefixed, write_length_prefixed, ProtocolName},
+    core::upgrade::{self, read_length_prefixed, write_length_prefixed, ProtocolName},
+    floodsub::{self, Floodsub, FloodsubEvent},
     futures::{AsyncRead, AsyncWrite, AsyncWriteExt},
+    gossipsub::{self, error::SubscriptionError, Gossipsub, GossipsubEvent, MessageId, TopicHash},
     identity::Keypair,
     kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
-    request_response::{
-        ProtocolSupport, RequestResponse, RequestResponseCodec, RequestResponseEvent,
-    },
+    mdns, noise,
+    request_response::{self, ProtocolSupport},
     swarm::{NetworkBehaviour, Swarm},
+    tcp,
+    yamux::YamuxConfig,
+    Transport,
 };
 use std::{io, iter};
 
-pub async fn build_swarm(keypair: Keypair) -> Result<Swarm<ComposedBehaviour>> {
+/// Build a new [Swarm] with a given transport and a tokio executor.
+pub async fn new(keypair: Keypair) -> Result<Swarm<ComposedBehaviour>> {
     let peer_id = keypair.public().to_peer_id();
 
-    Ok(Swarm::with_threadpool_executor(
-        libp2p::development_transport(keypair).await?,
+    let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
+        .upgrade(upgrade::Version::V1)
+        .authenticate(
+            noise::NoiseAuthenticated::xx(&keypair)
+                .expect("Signing libp2p-noise static DH keypair failed."),
+        )
+        .multiplex(YamuxConfig::default())
+        .boxed();
+
+    Ok(Swarm::with_tokio_executor(
+        transport,
         ComposedBehaviour {
+            floodsub: pubsub::new_floodsub(peer_id),
+            gossipsub: pubsub::new_gossipsub(keypair)?,
             kademlia: Kademlia::new(peer_id, MemoryStore::new(peer_id)),
-            request_response: RequestResponse::new(
+            mdns: mdns::Behaviour::new(mdns::Config::default(), peer_id)?,
+            request_response: request_response::Behaviour::new(
                 FileExchangeCodec(),
                 iter::once((FileExchangeProtocol(), ProtocolSupport::Full)),
                 Default::default(),
@@ -32,26 +55,104 @@ pub async fn build_swarm(keypair: Keypair) -> Result<Swarm<ComposedBehaviour>> {
 
 #[derive(Debug)]
 pub enum ComposedEvent {
-    RequestResponse(RequestResponseEvent<FileRequest, FileResponse>),
+    Gossipsub(GossipsubEvent),
+    Floodsub(FloodsubEvent),
     Kademlia(KademliaEvent),
+    Mdns(mdns::Event),
+    RequestResponse(request_response::Event<FileRequest, FileResponse>),
+}
+
+#[derive(Debug)]
+pub enum TopicMessage {
+    Receipt(Receipt),
 }
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "ComposedEvent")]
 pub struct ComposedBehaviour {
-    pub request_response: RequestResponse<FileExchangeCodec>,
+    pub gossipsub: Gossipsub,
+    pub floodsub: Floodsub,
     pub kademlia: Kademlia<MemoryStore>,
+    pub mdns: mdns::tokio::Behaviour,
+    pub request_response: request_response::Behaviour<FileExchangeCodec>,
 }
 
-impl From<RequestResponseEvent<FileRequest, FileResponse>> for ComposedEvent {
-    fn from(event: RequestResponseEvent<FileRequest, FileResponse>) -> Self {
-        ComposedEvent::RequestResponse(event)
+impl ComposedBehaviour {
+    /// Subscribe to [Floodsub] topic.
+    pub fn subscribe(&mut self, topic: &str) -> bool {
+        let topic = floodsub::Topic::new(topic);
+        self.floodsub.subscribe(topic)
+    }
+
+    /// Serialize [TopicMessage] and publish to [Floodsub] topic.
+    pub fn publish(&mut self, topic: &str, msg: TopicMessage) -> Result<()> {
+        let id_topic = floodsub::Topic::new(topic);
+        // Make this an or msg to match on other topics.
+        let TopicMessage::Receipt(receipt) = msg;
+        let msg_bytes = bincode::serialize(&receipt)
+            .map_err(|e| anyhow!("Failed to serialize receipt: {e}."))?;
+
+        self.floodsub.publish(id_topic, msg_bytes);
+        Ok(())
+    }
+
+    /// Subscribe to [Gossipsub] topic.
+    pub fn gossip_subscribe(&mut self, topic: &str) -> Result<bool, SubscriptionError> {
+        let topic = gossipsub::IdentTopic::new(topic);
+        self.gossipsub.subscribe(&topic)
+    }
+
+    /// Serialize [TopicMessage] and publish to [Gossipsub] topic.
+    pub fn gossip_publish(&mut self, topic: &str, msg: TopicMessage) -> Result<MessageId> {
+        let id_topic = gossipsub::IdentTopic::new(topic);
+        // Make this an or msg to match on other topics.
+        let TopicMessage::Receipt(receipt) = msg;
+        let msg_bytes = bincode::serialize(&receipt)
+            .map_err(|e| anyhow!("Failed to serialize receipt: {e}."))?;
+        if self
+            .gossipsub
+            .mesh_peers(&TopicHash::from_raw(topic))
+            .peekable()
+            .peek()
+            .is_some()
+        {
+            let msg_id = self.gossipsub.publish(id_topic, msg_bytes)?;
+            Ok(msg_id)
+        } else {
+            Err(anyhow!(
+                "Insufficient peers subscribed to topic {topic} for publishing."
+            ))
+        }
+    }
+}
+
+impl From<GossipsubEvent> for ComposedEvent {
+    fn from(event: GossipsubEvent) -> Self {
+        ComposedEvent::Gossipsub(event)
+    }
+}
+
+impl From<FloodsubEvent> for ComposedEvent {
+    fn from(event: FloodsubEvent) -> Self {
+        ComposedEvent::Floodsub(event)
     }
 }
 
 impl From<KademliaEvent> for ComposedEvent {
     fn from(event: KademliaEvent) -> Self {
         ComposedEvent::Kademlia(event)
+    }
+}
+
+impl From<mdns::Event> for ComposedEvent {
+    fn from(event: mdns::Event) -> Self {
+        ComposedEvent::Mdns(event)
+    }
+}
+
+impl From<request_response::Event<FileRequest, FileResponse>> for ComposedEvent {
+    fn from(event: request_response::Event<FileRequest, FileResponse>) -> Self {
+        ComposedEvent::RequestResponse(event)
     }
 }
 
@@ -68,7 +169,7 @@ impl ProtocolName for FileExchangeProtocol {
 }
 
 #[async_trait]
-impl RequestResponseCodec for FileExchangeCodec {
+impl request_response::codec::Codec for FileExchangeCodec {
     type Protocol = FileExchangeProtocol;
     type Request = FileRequest;
     type Response = FileResponse;

@@ -1,16 +1,10 @@
 use crate::db::schema::receipts;
-use diesel::{Insertable, Queryable};
+use diesel::prelude::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Queryable, Debug)]
+#[derive(Debug, Clone, Queryable, Insertable, Serialize, Deserialize)]
 pub struct Receipt {
     pub id: String,
     pub closure_cid: String, // FIXME Cid,
     pub val: i32,            // FIXME Ipld,
-}
-
-#[derive(Insertable, Debug)]
-#[diesel(table_name = receipts)]
-pub struct NewReceipt {
-    pub closure_cid: String, // FIXME Cid,
-    pub val: i32,            //FIXME Ipld,
 }

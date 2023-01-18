@@ -39,6 +39,7 @@
       cargo-installs = with pkgs; [
         cargo-deny
         cargo-expand
+        cargo-outdated
         cargo-sort
         cargo-udeps
         cargo-watch
@@ -70,7 +71,7 @@
 
       packages.irust = pkgs.rustPlatform.buildRustPackage rec {
         pname = "irust";
-        version = "1.65.1";
+        version = "1.66.0";
         src = pkgs.fetchFromGitHub {
           owner = "sigmaSd";
           repo = "IRust";
@@ -79,7 +80,7 @@
         };
 
         doCheck = false;
-        cargoSha256 = "sha256-A24O3p85mCRVZfDyyjQcQosj/4COGNnqiQK2a7nCP6I=";
+        cargoSha256 = "sha256-fAwuAn7xAU5pCBFvQTimX+/ya/9Q328ZBaVJsPga7lo=";
       };
     }
   );
