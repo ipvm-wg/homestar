@@ -3,12 +3,15 @@ use crate::network::{
     swarm::{ComposedBehaviour, ComposedEvent},
 };
 use anyhow::{anyhow, Result};
+use either::Either;
 use libp2p::{
-    core::{either::EitherError, PeerId},
+    core::PeerId,
     futures::StreamExt,
+    gossipsub::{error::GossipsubHandlerError, GossipsubEvent},
     kad::{GetProvidersOk, KademliaEvent, QueryId, QueryResult},
+    mdns,
     multiaddr::Protocol,
-    request_response::{RequestId, RequestResponseEvent, RequestResponseMessage, ResponseChannel},
+    request_response::{self, RequestId, ResponseChannel},
     swarm::{ConnectionHandlerUpgrErr, Swarm, SwarmEvent},
 };
 use std::{
@@ -16,6 +19,14 @@ use std::{
     io,
 };
 use tokio::sync::{mpsc, oneshot};
+use void::Void;
+
+type HandlerErr = Either<
+    Either<Either<GossipsubHandlerError, io::Error>, Void>,
+    ConnectionHandlerUpgrErr<io::Error>,
+>;
+
+pub const RECEIPTS_TOPIC: &str = "receipts";
 
 pub struct EventLoop {
     swarm: Swarm<ComposedBehaviour>,
@@ -44,27 +55,24 @@ impl EventLoop {
         }
     }
 
-    pub async fn run(mut self) {
+    pub async fn run(mut self) -> Result<()> {
         loop {
             tokio::select! {
-                event = self.swarm.next() => self.handle_event(event.expect("Swarm stream to be infinite.")).await  ,
-                command = self.command_receiver.recv() => match command {
-                    Some(c) => self.handle_command(c).await,
-                    // Command channel closed, thus shutting down the network event loop.
-                    None=>  return,
-                },
+                event = self.swarm.select_next_some() => self.handle_event(event).await  ,
+                command = self.command_receiver.recv() =>if let Some(c) = command {self.handle_command(c).await}
             }
         }
     }
 
-    async fn handle_event(
-        &mut self,
-        event: SwarmEvent<
-            ComposedEvent,
-            EitherError<ConnectionHandlerUpgrErr<io::Error>, io::Error>,
-        >,
-    ) {
+    async fn handle_event(&mut self, event: SwarmEvent<ComposedEvent, HandlerErr>) {
         match event {
+            SwarmEvent::Behaviour(ComposedEvent::PubSub(GossipsubEvent::Message {
+                message,
+                ..
+            })) => {
+                eprintln!("Got message: '{}'", String::from_utf8_lossy(&message.data),)
+            }
+            SwarmEvent::Behaviour(ComposedEvent::PubSub(_)) => {}
             SwarmEvent::Behaviour(ComposedEvent::Kademlia(
                 KademliaEvent::OutboundQueryProgressed {
                     id,
@@ -95,10 +103,46 @@ impl EventLoop {
                     .send(Ok(providers));
             }
             SwarmEvent::Behaviour(ComposedEvent::Kademlia(_)) => {}
+            SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Discovered(list))) => {
+                for (peer_id, multiaddr) in list {
+                    eprintln!("mDNS discovered a new peer: {peer_id}");
+                    // self.swarm
+                    //     .behaviour_mut()
+                    //     .pubsub
+                    //     .add_node_to_partial_view(peer_id);
+                    self.swarm
+                        .behaviour_mut()
+                        .pubsub
+                        .add_explicit_peer(&peer_id);
+
+                    self.swarm
+                        .behaviour_mut()
+                        .kademlia
+                        .add_address(&peer_id, multiaddr);
+                }
+            }
+            SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Expired(list))) => {
+                for (peer_id, multiaddr) in list {
+                    eprintln!("mDNS discover peer has expired: {peer_id}");
+                    // self.swarm
+                    //     .behaviour_mut()
+                    //     .pubsub
+                    //     .remove_node_from_partial_view(&peer_id);
+                    self.swarm
+                        .behaviour_mut()
+                        .pubsub
+                        .remove_explicit_peer(&peer_id);
+
+                    self.swarm
+                        .behaviour_mut()
+                        .kademlia
+                        .remove_address(&peer_id, &multiaddr);
+                }
+            }
             SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
-                RequestResponseEvent::Message { message, .. },
+                request_response::Event::Message { message, .. },
             )) => match message {
-                RequestResponseMessage::Request {
+                request_response::Message::Request {
                     request, channel, ..
                 } => {
                     self.event_sender
@@ -109,7 +153,7 @@ impl EventLoop {
                         .await
                         .expect("Event receiver not to be dropped.");
                 }
-                RequestResponseMessage::Response {
+                request_response::Message::Response {
                     request_id,
                     response,
                 } => {
@@ -121,7 +165,7 @@ impl EventLoop {
                 }
             },
             SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
-                RequestResponseEvent::OutboundFailure {
+                request_response::Event::OutboundFailure {
                     request_id, error, ..
                 },
             )) => {
@@ -132,7 +176,7 @@ impl EventLoop {
                     .send(Err(anyhow!(error)));
             }
             SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
-                RequestResponseEvent::ResponseSent { .. },
+                request_response::Event::ResponseSent { .. },
             )) => {}
             SwarmEvent::NewListenAddr { address, .. } => {
                 let local_peer_id = *self.swarm.local_peer_id();
@@ -167,6 +211,12 @@ impl EventLoop {
 
     async fn handle_command(&mut self, command: Command) {
         match command {
+            Command::SendMessage { message, sender } => {
+                let _ = self.swarm.behaviour_mut().publish(RECEIPTS_TOPIC, message);
+                let millis = std::time::Duration::from_millis(1000);
+                let _ = sender.send(Ok(()));
+                std::thread::sleep(millis);
+            }
             Command::StartListening { addr, sender } => {
                 let _ = match self.swarm.listen_on(addr) {
                     Ok(_) => sender.send(Ok(())),

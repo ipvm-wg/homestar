@@ -3,9 +3,13 @@
 use crate::workflow::pointer::{InvokedTaskPointer, Promise, Status, OK_BRANCH};
 use anyhow::anyhow;
 use libipld::{
-    cbor::DagCborCodec, cid::multibase::Base, codec::Codec, serde::from_ipld, Cid, Ipld, Link,
+    cbor::DagCborCodec,
+    cid::multibase::Base,
+    codec::Codec,
+    multihash::{Code, MultihashDigest},
+    serde::from_ipld,
+    Cid, Ipld, Link,
 };
-use multihash::{Code, MultihashDigest};
 use std::{collections::btree_map::BTreeMap, convert::TryFrom, fmt};
 use url::Url;
 
@@ -165,7 +169,7 @@ impl TryFrom<Ipld> for Input {
 /// ```
 /// use ipvm::workflow::closure::Action;
 ///
-/// Action::from("msg/sen");
+/// Action::from("msg/send");
 /// Action::from("crud/update");
 /// ```
 ///

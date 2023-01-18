@@ -129,4 +129,8 @@ pub enum Command {
         file: Vec<u8>,
         channel: ResponseChannel<FileResponse>,
     },
+    SendMessage {
+        message: String,
+        sender: oneshot::Sender<Result<()>>,
+    },
 }

@@ -39,6 +39,7 @@
       cargo-installs = with pkgs; [
         cargo-deny
         cargo-expand
+        cargo-outdated
         cargo-sort
         cargo-udeps
         cargo-watch
