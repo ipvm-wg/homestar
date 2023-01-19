@@ -79,7 +79,7 @@ impl EventLoop {
         match event {
             SwarmEvent::Behaviour(ComposedEvent::Floodsub(FloodsubEvent::Message(message))) => {
                 let decoded: Receipt = bincode::deserialize(&message.data).unwrap();
-                println!("Got message: '{:?}'", decoded)
+                println!("Got message: '{decoded:?}'")
             }
             SwarmEvent::Behaviour(ComposedEvent::Floodsub(FloodsubEvent::Subscribed {
                 peer_id,
@@ -95,15 +95,14 @@ impl EventLoop {
             })) => {
                 let decoded: Receipt = bincode::deserialize(&message.data).unwrap();
                 println!(
-                    "Got message: '{:?}' from {propagation_source} with message id: {message_id}",
-                    decoded
+                    "Got message: '{decoded:?}' from {propagation_source} with message id: {message_id}"
                 )
             }
             SwarmEvent::Behaviour(ComposedEvent::Gossipsub(GossipsubEvent::Subscribed {
                 peer_id,
                 topic,
             })) => {
-                println!("{peer_id} subscribed to topic {} over gossipsub.", topic)
+                println!("{peer_id} subscribed to topic {topic} over gossipsub.")
             }
             SwarmEvent::Behaviour(ComposedEvent::Gossipsub(_)) => {}
             SwarmEvent::Behaviour(ComposedEvent::Kademlia(
