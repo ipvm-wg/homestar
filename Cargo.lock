@@ -313,9 +313,9 @@ dependencies = [
 
 [[package]]
 name = "async-recursion"
-version = "1.0.0"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cda8f4bcc10624c4e85bc66b3f452cca98cfa5ca002dc83a16aad2367641bea"
+checksum = "3b015a331cc64ebd1774ba119538573603427eaace0a1950c423ab971f903796"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2313,7 +2313,6 @@ dependencies = [
  "ucan",
  "url",
  "uuid",
- "void",
  "wasmer",
  "wasmer-compiler-singlepass",
  "wasmer-middlewares",
@@ -4227,9 +4226,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.36.6"
+version = "0.36.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4feacf7db682c6c329c4ede12649cd36ecab0f3be5b7d74e6a20304725db4549"
+checksum = "d4fdebc4b395b7fbb9ab11e462e20ed9051e7b16e42d24042c776eca0ac81b03"
 dependencies = [
  "bitflags",
  "errno",
@@ -5186,9 +5185,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-bidi"
-version = "0.3.8"
+version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "099b7128301d285f79ddd55b9a83d5e6b9e97c92e0ea0daebee7263e932de992"
+checksum = "0046be40136ef78dc325e0edefccf84ccddacd0afcc1ca54103fa3c61bbdab1d"
 
 [[package]]
 name = "unicode-ident"

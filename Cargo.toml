@@ -59,7 +59,6 @@ tracing-subscriber = "0.3"
 ucan = "0.1"
 url = "2.3"
 uuid = { version = "1.2", features = ["v4","fast-rng","macro-diagnostics"] }
-void = "1.0"
 wasmer = { version = "3.1", features = ["compiler"] }
 wasmer-compiler-singlepass = "3.1.0"
 wasmer-middlewares = "3.1"

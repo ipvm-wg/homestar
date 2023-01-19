@@ -6,32 +6,27 @@ use crate::{
     workflow::receipt::Receipt,
 };
 use anyhow::{anyhow, Result};
-use either::Either;
 use libp2p::{
     core::PeerId,
-    floodsub::{protocol::CodecError, FloodsubEvent},
+    floodsub::FloodsubEvent,
     futures::StreamExt,
-    gossipsub::{error::GossipsubHandlerError, GossipsubEvent},
+    gossipsub::GossipsubEvent,
     kad::{GetProvidersOk, KademliaEvent, QueryId, QueryResult},
     mdns,
     multiaddr::Protocol,
     request_response::{self, RequestId, ResponseChannel},
-    swarm::{ConnectionHandlerUpgrErr, Swarm, SwarmEvent},
+    swarm::{Swarm, SwarmEvent},
 };
-use std::{
-    collections::{hash_map, HashMap, HashSet},
-    io,
-};
+use std::collections::{hash_map, HashMap, HashSet};
 use tokio::sync::{mpsc, oneshot};
-use void::Void;
 
-type HandlerErr = Either<
-    Either<
-        Either<Either<GossipsubHandlerError, ConnectionHandlerUpgrErr<CodecError>>, io::Error>,
-        Void,
-    >,
-    ConnectionHandlerUpgrErr<io::Error>,
->;
+// type HandlerErr = Either<
+//     Either<
+//         Either<Either<GossipsubHandlerError, ConnectionHandlerUpgrErr<CodecError>>, io::Error>,
+//         Void,
+//     >,
+//     ConnectionHandlerUpgrErr<io::Error>,
+// >;
 
 pub const RECEIPTS_TOPIC: &str = "receipts";
 
@@ -75,7 +70,10 @@ impl EventLoop {
         }
     }
 
-    async fn handle_event(&mut self, event: SwarmEvent<ComposedEvent, HandlerErr>) {
+    async fn handle_event<THandlerErr: std::fmt::Debug>(
+        &mut self,
+        event: SwarmEvent<ComposedEvent, THandlerErr>,
+    ) {
         match event {
             SwarmEvent::Behaviour(ComposedEvent::Floodsub(FloodsubEvent::Message(message))) => {
                 let decoded: Receipt = bincode::deserialize(&message.data).unwrap();

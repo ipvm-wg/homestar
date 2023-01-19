@@ -76,11 +76,11 @@
           owner = "sigmaSd";
           repo = "IRust";
           rev = "v${version}";
-          sha256 = "sha256-AMOND5q1XzNhN5smVJp+2sGl/OqbxkGPGuPBCE48Hik=";
+          sha256 = "sha256-tqNTh8ojTT80kl9jDCMq289jSfPz82gQ37UFAmnfsOw=";
         };
 
         doCheck = false;
-        cargoSha256 = "sha256-fAwuAn7xAU5pCBFvQTimX+/ya/9Q328ZBaVJsPga7lo=";
+        cargoSha256 = "sha256-LXBQkiNU4vP6PIW+5iaEzonNGrpwnTMeVaosqLJoGCg=";
       };
     }
   );

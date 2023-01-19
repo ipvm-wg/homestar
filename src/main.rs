@@ -198,8 +198,8 @@ async fn main() -> Result<()> {
             let async_client = client.clone();
             // We delay messages to make sure peers are within the mesh.
             tokio::spawn(async move {
-                // TODO: make this configurable
-                tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+                // TODO: make this configurable, but currently matching heartbeat.
+                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
                 let _ = async_client
                     .publish_message(RECEIPTS_TOPIC, TopicMessage::Receipt(new_receipt.clone()))
                     .await;
