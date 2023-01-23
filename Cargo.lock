@@ -732,6 +732,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "cid"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd94671561e36e4e7de75f753f577edafb0e7c05d6e4547229fdf7938fbcd2c3"
+dependencies = [
+ "core2",
+ "multibase",
+ "multihash 0.18.0",
+ "serde",
+ "serde_bytes",
+ "unsigned-varint",
+]
+
+[[package]]
 name = "cipher"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2298,7 +2312,7 @@ dependencies = [
  "ipfs-api-backend-hyper",
  "json",
  "libipld",
- "libipld-core",
+ "libipld-core 0.16.0",
  "libp2p",
  "multihash 0.18.0",
  "proptest",
@@ -2405,7 +2419,7 @@ dependencies = [
  "fnv",
  "libipld-cbor",
  "libipld-cbor-derive",
- "libipld-core",
+ "libipld-core 0.15.0",
  "libipld-json",
  "libipld-macro",
  "libipld-pb",
@@ -2421,7 +2435,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b75370e27e0745910a9991c83f365cdae58027acf0502aa7987ac538a8a4744"
 dependencies = [
  "byteorder",
- "libipld-core",
+ "libipld-core 0.15.0",
  "thiserror",
 ]
 
@@ -2454,12 +2468,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "libipld-core"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5acd707e8d8b092e967b2af978ed84709eaded82b75effe6cb6f6cc797ef8158"
+dependencies = [
+ "anyhow",
+ "cid 0.10.1",
+ "core2",
+ "multibase",
+ "multihash 0.18.0",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "libipld-json"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc549d7c70f9a401031fcb6d3bf7eccfe91bcad938f7485f71ee8ba9f79c1e79"
 dependencies = [
- "libipld-core",
+ "libipld-core 0.15.0",
  "multihash 0.17.0",
  "serde",
  "serde_json",
@@ -2471,7 +2500,7 @@ version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4c7ccd89e54f2796cf3f99aabeea7a7751d418df504926544f28348d3c890c7"
 dependencies = [
- "libipld-core",
+ "libipld-core 0.15.0",
 ]
 
 [[package]]
@@ -2480,7 +2509,7 @@ version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd84ee8b7e283c81b28ecf46e07c31a524a2cd35ec4e87833733a18218c17ccb"
 dependencies = [
- "libipld-core",
+ "libipld-core 0.15.0",
  "prost",
  "thiserror",
 ]
@@ -3137,6 +3166,8 @@ dependencies = [
  "core2",
  "digest 0.10.6",
  "multihash-derive",
+ "serde",
+ "serde-big-array",
  "sha2 0.10.6",
  "sha3",
  "unsigned-varint",
@@ -5150,7 +5181,7 @@ dependencies = [
  "futures",
  "getrandom 0.2.8",
  "instant",
- "libipld-core",
+ "libipld-core 0.15.0",
  "libipld-json",
  "log",
  "rand 0.8.5",
