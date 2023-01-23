@@ -1,6 +1,6 @@
 use crate::network::{
     eventloop::{Event, EventLoop},
-    swarm::ComposedBehaviour,
+    swarm::{ComposedBehaviour, TopicMessage},
 };
 use anyhow::Result;
 use libp2p::{request_response::ResponseChannel, Multiaddr, PeerId, Swarm};
@@ -13,7 +13,7 @@ pub struct Client {
 }
 
 impl Client {
-    /// Initialize a client with an event receiver and event loop.
+    /// Initialize a client with an event [mpsc::Receiver] and [EventLoop].
     pub async fn new(
         swarm: Swarm<ComposedBehaviour>,
     ) -> Result<(Self, mpsc::Receiver<Event>, EventLoop)> {
@@ -27,6 +27,21 @@ impl Client {
             event_receiver,
             EventLoop::new(swarm, command_receiver, event_sender),
         ))
+    }
+
+    /// Publish a [message] to a topic on a running pubsub protocol.
+    ///
+    /// [message]: TopicMessage
+    pub async fn publish_message(&self, topic: &str, msg: TopicMessage) -> Result<()> {
+        let (sender, receiver) = oneshot::channel();
+        self.sender
+            .send(Command::PublishMessage {
+                msg,
+                sender,
+                topic: topic.to_string(),
+            })
+            .await?;
+        receiver.await?
     }
 
     /// Listen for incoming connections on the given address.
@@ -128,5 +143,10 @@ pub enum Command {
     RespondFile {
         file: Vec<u8>,
         channel: ResponseChannel<FileResponse>,
+    },
+    PublishMessage {
+        topic: String,
+        msg: TopicMessage,
+        sender: oneshot::Sender<Result<()>>,
     },
 }

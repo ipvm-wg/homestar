@@ -21,7 +21,7 @@ jobs:
           - stable
           - nightly
           # minimum version
-          - 1.65
+          - 1.66
     steps:
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
