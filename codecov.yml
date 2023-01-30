@@ -1,6 +1,7 @@
 ignore:
-  - "tests"
-  - "benches"
+  - "ipvm/tests"
+  - "ipvm/src/test_utils"
+  - "ipvm-guest-wasm"
 
 comment:
   layout: "reach, diff, flags, files"

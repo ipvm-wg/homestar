@@ -7,7 +7,16 @@ version: 2
 
 updates:
   - package-ecosystem: "cargo"
-    directory: "/"
+    directory: "/ipvm"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "cargo"
+    directory: "/wit-ipld"
     commit-message:
       prefix: "chore"
       include: "scope"

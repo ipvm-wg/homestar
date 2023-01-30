@@ -1,0 +1,4 @@
+default world ipvm {
+  export add-one: func(a: s32) -> s32
+  export append-string: func(a: string) -> string
+}
