@@ -11,7 +11,7 @@ use libp2p::{
     core::upgrade::{self, read_length_prefixed, write_length_prefixed, ProtocolName},
     floodsub::{self, Floodsub, FloodsubEvent},
     futures::{AsyncRead, AsyncWrite, AsyncWriteExt},
-    gossipsub::{self, error::SubscriptionError, Gossipsub, GossipsubEvent, MessageId, TopicHash},
+    gossipsub::{self, error::SubscriptionError, MessageId, TopicHash},
     identity::Keypair,
     kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
     mdns, noise,
@@ -55,7 +55,7 @@ pub async fn new(keypair: Keypair) -> Result<Swarm<ComposedBehaviour>> {
 
 #[derive(Debug)]
 pub enum ComposedEvent {
-    Gossipsub(GossipsubEvent),
+    Gossipsub(gossipsub::Event),
     Floodsub(FloodsubEvent),
     Kademlia(KademliaEvent),
     Mdns(mdns::Event),
@@ -70,7 +70,7 @@ pub enum TopicMessage {
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "ComposedEvent")]
 pub struct ComposedBehaviour {
-    pub gossipsub: Gossipsub,
+    pub gossipsub: gossipsub::Behaviour,
     pub floodsub: Floodsub,
     pub kademlia: Kademlia<MemoryStore>,
     pub mdns: mdns::tokio::Behaviour,
@@ -126,8 +126,8 @@ impl ComposedBehaviour {
     }
 }
 
-impl From<GossipsubEvent> for ComposedEvent {
-    fn from(event: GossipsubEvent) -> Self {
+impl From<gossipsub::Event> for ComposedEvent {
+    fn from(event: gossipsub::Event) -> Self {
         ComposedEvent::Gossipsub(event)
     }
 }

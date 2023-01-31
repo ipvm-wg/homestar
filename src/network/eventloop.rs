@@ -10,7 +10,7 @@ use libp2p::{
     core::PeerId,
     floodsub::FloodsubEvent,
     futures::StreamExt,
-    gossipsub::GossipsubEvent,
+    gossipsub,
     kad::{GetProvidersOk, KademliaEvent, QueryId, QueryResult},
     mdns,
     multiaddr::Protocol,
@@ -86,7 +86,7 @@ impl EventLoop {
                 println!("{peer_id} subscribed to topic {} over pubsub.", topic.id())
             }
             SwarmEvent::Behaviour(ComposedEvent::Floodsub(_)) => {}
-            SwarmEvent::Behaviour(ComposedEvent::Gossipsub(GossipsubEvent::Message {
+            SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossipsub::Event::Message {
                 message,
                 propagation_source,
                 message_id,
@@ -96,7 +96,7 @@ impl EventLoop {
                     "Got message: '{decoded:?}' from {propagation_source} with message id: {message_id}"
                 )
             }
-            SwarmEvent::Behaviour(ComposedEvent::Gossipsub(GossipsubEvent::Subscribed {
+            SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossipsub::Event::Subscribed {
                 peer_id,
                 topic,
             })) => {
