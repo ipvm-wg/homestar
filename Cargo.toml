@@ -43,8 +43,8 @@ env_logger = "0.10"
 ipfs-api = "0.17"
 ipfs-api-backend-hyper = "0.6"
 json = "0.12"
-libipld = "0.15"
-libipld-core = { version = "0.15", features = ["serde-codec", "serde"] }
+libipld = "0.16"
+libipld-core = { version = "0.16", features = ["serde-codec", "serde"] }
 libp2p = { git = "https://github.com/libp2p/rust-libp2p", features = ["kad", "request-response", "macros", "identify", "mdns", "floodsub", "gossipsub", "tokio", "dns", "tcp", "noise", "yamux", "websocket"] }
 multihash = "0.18"
 proptest = { version = "1.0", optional = true }

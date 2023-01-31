@@ -1,10 +1,7 @@
 use anyhow::Result;
 use libp2p::{
     floodsub::Floodsub,
-    gossipsub::{
-        Gossipsub, GossipsubConfigBuilder, GossipsubMessage, MessageAuthenticity, MessageId,
-        ValidationMode,
-    },
+    gossipsub::{self, ConfigBuilder, Message, MessageAuthenticity, MessageId, ValidationMode},
     identity::Keypair,
     PeerId,
 };
@@ -20,16 +17,16 @@ pub fn new_floodsub(peer_id: PeerId) -> Floodsub {
 }
 
 /// Setup [Gossipsub] mesh protocol with default configuration.
-pub fn new_gossipsub(keypair: Keypair) -> Result<Gossipsub> {
+pub fn new_gossipsub(keypair: Keypair) -> Result<gossipsub::Behaviour> {
     // To content-address message, we can take the hash of message and use it as an ID.
-    let message_id_fn = |message: &GossipsubMessage| {
+    let message_id_fn = |message: &Message| {
         let mut s = DefaultHasher::new();
         message.data.hash(&mut s);
         MessageId::from(s.finish().to_string())
     };
 
     // TODO: Make configurable
-    let gossipsub_config = GossipsubConfigBuilder::default()
+    let gossipsub_config = ConfigBuilder::default()
         .heartbeat_interval(Duration::from_secs(10))
         // This sets the kind of message validation. The default is Strict (enforce message signing).
         .validation_mode(ValidationMode::Strict)
@@ -41,6 +38,6 @@ pub fn new_gossipsub(keypair: Keypair) -> Result<Gossipsub> {
         .build()
         .map_err(anyhow::Error::msg)?;
 
-    Gossipsub::new(MessageAuthenticity::Signed(keypair), gossipsub_config)
+    gossipsub::Behaviour::new(MessageAuthenticity::Signed(keypair), gossipsub_config)
         .map_err(anyhow::Error::msg)
 }

@@ -27,6 +27,12 @@ repos:
         args: ["--", "-D", "warnings"]
         types: [rust]
         pass_filenames: false
+      - id: alejandra
+        name: alejandra
+        description: Format nix files.
+        entry: alejandra
+        files: \.nix$
+        language: system
 
   - repo: https://github.com/DevinR528/cargo-sort
     rev: v1.0.9
