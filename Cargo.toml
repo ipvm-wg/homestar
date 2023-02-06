@@ -47,7 +47,7 @@ libipld = "0.16"
 libipld-core = { version = "0.16", features = ["serde-codec", "serde"] }
 libp2p = { git = "https://github.com/libp2p/rust-libp2p", features = ["kad", "request-response", "macros", "identify", "mdns", "floodsub", "gossipsub", "tokio", "dns", "tcp", "noise", "yamux", "websocket"] }
 multihash = "0.18"
-proptest = { version = "1.0", optional = true }
+proptest = { version = "1.1", optional = true }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_ipld_dagcbor = "0.2"
