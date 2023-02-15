@@ -2,7 +2,7 @@
 
 use crate::network::{
     eventloop::{Event, EventLoop},
-    swarm::{ComposedBehaviour, TopicMessage},
+    swarm::{ComposedBehaviour, Topic, TopicMessage},
 };
 use anyhow::Result;
 use libp2p::{request_response::ResponseChannel, Multiaddr, PeerId, Swarm};
@@ -35,14 +35,10 @@ impl Client {
     /// Publish a [message] to a topic on a running pubsub protocol.
     ///
     /// [message]: TopicMessage
-    pub async fn publish_message(&self, topic: &str, msg: TopicMessage) -> Result<()> {
+    pub async fn publish_message(&self, topic: Topic, msg: TopicMessage) -> Result<()> {
         let (sender, receiver) = oneshot::channel();
         self.sender
-            .send(Command::PublishMessage {
-                msg,
-                sender,
-                topic: topic.to_string(),
-            })
+            .send(Command::PublishMessage { msg, sender, topic })
             .await?;
         receiver.await?
     }
@@ -155,6 +151,7 @@ pub enum Command {
         sender: oneshot::Sender<Result<HashSet<PeerId>>>,
     },
     /// Request file from peer.
+    /// TODO: File type(s)?
     RequestFile {
         /// File.
         file_name: String,
@@ -173,7 +170,7 @@ pub enum Command {
     /// Publish message on the topic name.
     PublishMessage {
         /// Pubsub (i.e. [libp2p::gossipsub]) topic.
-        topic: String,
+        topic: Topic,
         /// [TopicMessage].
         msg: TopicMessage,
         /// Channel to send on.

@@ -260,7 +260,7 @@ impl EventLoop {
                 let _ = match self
                     .swarm
                     .behaviour_mut()
-                    .gossip_publish(topic.as_str(), msg)
+                    .gossip_publish(&topic.to_string(), msg)
                 {
                     Ok(_) => sender.send(Ok(())),
                     Err(e) => sender.send(Err(anyhow!(e))),

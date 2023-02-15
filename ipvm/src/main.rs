@@ -8,7 +8,7 @@ use ipvm::{
     network::{
         client::Client,
         eventloop::{Event, RECEIPTS_TOPIC},
-        swarm::{self, TopicMessage},
+        swarm::{self, Topic, TopicMessage},
     },
     wasm::wasmtime::shim,
     workflow::{
@@ -146,10 +146,8 @@ async fn main() -> Result<()> {
             config.wasm_component_model(true);
             config.async_support(true);
             config.cranelift_nan_canonicalization(true);
-            config.consume_fuel(true);
 
             let engine = Engine::new(&config)?;
-
             let linker = Linker::new(&engine);
             let mut store = Store::new(&engine, ());
 
@@ -190,7 +188,10 @@ async fn main() -> Result<()> {
                 // TODO: make this configurable, but currently matching heartbeat.
 
                 let _ = async_client
-                    .publish_message(RECEIPTS_TOPIC, TopicMessage::Receipt(receipt.clone()))
+                    .publish_message(
+                        Topic::new(RECEIPTS_TOPIC.to_string()),
+                        TopicMessage::Receipt(receipt.clone()),
+                    )
                     .await;
             });
 

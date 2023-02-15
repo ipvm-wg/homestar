@@ -24,7 +24,7 @@ use libp2p::{
     yamux::YamuxConfig,
     Transport,
 };
-use std::{io, iter};
+use std::{fmt, io, iter};
 
 /// Build a new [Swarm] with a given transport and a tokio executor.
 pub async fn new(keypair: Keypair) -> Result<Swarm<ComposedBehaviour>> {
@@ -69,6 +69,23 @@ pub enum ComposedEvent {
     Mdns(mdns::Event),
     /// [request_response::Event] event.
     RequestResponse(request_response::Event<FileRequest, FileResponse>),
+}
+
+/// Message topic.
+#[derive(Debug)]
+pub struct Topic(String);
+
+impl fmt::Display for Topic {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Topic {
+    /// Make a [Topic] from a [String].
+    pub fn new(s: String) -> Self {
+        Topic(s)
+    }
 }
 
 /// Message types to deliver on a topic.
