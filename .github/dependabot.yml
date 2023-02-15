@@ -16,7 +16,7 @@ updates:
       interval: "weekly"
 
   - package-ecosystem: "cargo"
-    directory: "/wit-ipld"
+    directory: "/ipvm-guest-wasm"
     commit-message:
       prefix: "chore"
       include: "scope"

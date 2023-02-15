@@ -117,7 +117,6 @@ impl Wasmtime {
         let result_typs = self.func().results(&store);
 
         let params: Vec<component::Val> = iter::zip(param_typs.iter(), args.into_iter())
-            .into_iter()
             .map(|(typ, arg)| RuntimeVal::try_from(arg, InterfaceType::from(typ)))
             .fold_ok(vec![], |mut acc, v| {
                 acc.push(v.into_inner());

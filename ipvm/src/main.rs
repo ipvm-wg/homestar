@@ -196,7 +196,7 @@ async fn main() -> Result<()> {
                 match events.recv().await {
                     Some(Event::InboundRequest { request, channel }) => {
                         if request.eq(&closure_cid) {
-                            let output = format!("{:?}", receipt_val);
+                            let output = format!("{receipt_val:?}");
                             client.respond_file(output.into_bytes(), channel).await?;
                         }
                     }
