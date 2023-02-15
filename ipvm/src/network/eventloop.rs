@@ -303,7 +303,7 @@ impl EventLoop {
                     .behaviour_mut()
                     .kademlia
                     .start_providing(file_name.into_bytes().into())
-                    .expect("No store error.");
+                    .expect("No store error");
                 self.pending_start_providing.insert(query_id, sender);
             }
             Command::GetProviders { file_name, sender } => {

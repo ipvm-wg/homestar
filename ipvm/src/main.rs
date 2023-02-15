@@ -142,8 +142,12 @@ async fn main() -> Result<()> {
                 })?;
 
             let mut config = Config::new();
+            config.strategy(wasmtime::Strategy::Cranelift);
             config.wasm_component_model(true);
             config.async_support(true);
+            config.cranelift_nan_canonicalization(true);
+            config.consume_fuel(true);
+
             let engine = Engine::new(&config)?;
 
             let linker = Linker::new(&engine);
