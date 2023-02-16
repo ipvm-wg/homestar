@@ -26,7 +26,7 @@ jobs:
       github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
 
     outputs:
-      releases_created: ${{ steps.release.outputs" }}['ipvm--release_created'] }}
+      releases_created: ${{ steps.release.outputs['ipvm--release_created'] }}
 
     steps:
       - name: Run release-please
