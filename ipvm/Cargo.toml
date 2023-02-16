@@ -62,7 +62,7 @@ wasmparser = "0.100"
 wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", features = ["async", "component-model", "default"] }
 wasmtime-component-util = { git = "https://github.com/bytecodealliance/wasmtime" }
 wat = "1.0"
-wit-component = "0.6"
+wit-component = "0.7"
 xid = "1.0"
 
 [dev-dependencies]
