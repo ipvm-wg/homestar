@@ -58,7 +58,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 ucan = "0.1"
 url = "2.3"
-wasmparser = "0.100"
+wasmparser = "0.101"
 wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", features = ["async", "component-model", "default"] }
 wasmtime-component-util = { git = "https://github.com/bytecodealliance/wasmtime" }
 wat = "1.0"
