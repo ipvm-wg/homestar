@@ -6,7 +6,7 @@ use crate::{
         client::{Command, FileRequest, FileResponse},
         swarm::{ComposedBehaviour, ComposedEvent},
     },
-    workflow::receipt::{Receipt, SharedReceipt},
+    workflow::receipt::Receipt,
 };
 use anyhow::{anyhow, Result};
 use libp2p::{
@@ -76,16 +76,12 @@ impl EventLoop {
         event: SwarmEvent<ComposedEvent, THandlerErr>,
     ) {
         match event {
-            SwarmEvent::Behaviour(ComposedEvent::Floodsub(FloodsubEvent::Message(message))) => {
-                match bincode::deserialize::<SharedReceipt>(&message.data)
-                    .map_err(|e| anyhow!("deserialization error: {e}"))
-                    .and_then(Receipt::try_from)
-                {
+            SwarmEvent::Behaviour(ComposedEvent::Floodsub(FloodsubEvent::Message(message))) =>
+                match Receipt::try_from(message.data) {
                     Ok(receipt) => println!("got message: {receipt}"),
 
                     Err(err) => println!("cannot handle_message: {err}"),
-                }
-            }
+                },
             SwarmEvent::Behaviour(ComposedEvent::Floodsub(FloodsubEvent::Subscribed {
                 peer_id,
                 topic,
@@ -97,11 +93,7 @@ impl EventLoop {
                 message,
                 propagation_source,
                 message_id,
-            })) => {
-                match bincode::deserialize::<SharedReceipt>(&message.data)
-                    .map_err(|e| anyhow!("deserialization error: {e}"))
-                    .and_then(Receipt::try_from)
-                {
+            })) => match Receipt::try_from(message.data) {
                     Ok(receipt) => println!(
                         "got message: {receipt} from {propagation_source} with message id: {message_id}"
                     ),
@@ -109,8 +101,7 @@ impl EventLoop {
                     Err(err) => println!(
                         "cannot handle_message: {err}"
                     )
-                }
-            }
+            },
             SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossipsub::Event::Subscribed {
                 peer_id,
                 topic,

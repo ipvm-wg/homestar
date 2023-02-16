@@ -165,6 +165,7 @@ impl TryFrom<RuntimeVal> for Ipld {
             Cid::try_from(s)
         }
         let ipld = match val {
+            RuntimeVal(Val::Char(c)) => Ipld::String(c.to_string()),
             RuntimeVal(Val::String(v)) => match v.to_string() {
                 s if s.eq("null") => Ipld::Null,
                 s => {
@@ -178,6 +179,10 @@ impl TryFrom<RuntimeVal> for Ipld {
                 }
             },
             RuntimeVal(Val::Bool(v)) => Ipld::Bool(v),
+            RuntimeVal(Val::U8(v)) => Ipld::Integer(v.into()),
+            RuntimeVal(Val::U16(v)) => Ipld::Integer(v.into()),
+            RuntimeVal(Val::U32(v)) => Ipld::Integer(v.into()),
+            RuntimeVal(Val::U64(v)) => Ipld::Integer(v.into()),
             RuntimeVal(Val::S8(v)) => Ipld::Integer(v.into()),
             RuntimeVal(Val::S16(v)) => Ipld::Integer(v.into()),
             RuntimeVal(Val::S32(v)) => Ipld::Integer(v.into()),
@@ -229,7 +234,8 @@ impl TryFrom<RuntimeVal> for Ipld {
 
                 Ipld::List(inner)
             }
-            _ => Ipld::Null,
+            // Rest of Wit types are unhandled going to Ipld.
+            v => Err(anyhow!("no compatible Ipld type for {:?}", v))?,
         };
 
         Ok(ipld)

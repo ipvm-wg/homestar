@@ -1,6 +1,7 @@
 //! Output of an invocation, referenced by its invocation pointer.
 
 use crate::{db::schema::receipts, workflow::closure::Closure};
+use anyhow::anyhow;
 use diesel::{
     backend::RawValue,
     deserialize::{self, FromSql},
@@ -11,35 +12,56 @@ use diesel::{
 };
 use libipld::{
     cbor::DagCborCodec,
-    cid::{multibase::Base, Cid},
+    cid::{
+        multibase::Base,
+        multihash::{Code, MultihashDigest},
+        Cid,
+    },
     prelude::Codec,
+    serde::from_ipld,
     Ipld, Link,
 };
 use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
-use uuid::Uuid;
+use std::{collections::BTreeMap, fmt, str::FromStr};
+
+const CID_KEY: &str = "cid";
+const CLOSURE_CID_KEY: &str = "closure_cid";
+const NONCE_KEY: &str = "nonce";
+const OUT_KEY: &str = "out";
 
 /// Receipt for closure invocation.
 #[derive(Debug, Clone, PartialEq, Queryable, Insertable, Serialize, Deserialize)]
 pub struct Receipt {
-    id: String,
+    cid: LocalCid,
     closure_cid: LocalCid,
-    val: LocalIpld,
+    nonce: String,
+    out: LocalIpld,
+}
+
+impl fmt::Display for Receipt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Receipt: [cid: {}, closure_cid: {}, nonce: {}, output: {:?}]",
+            self.cid, self.closure_cid, self.nonce, self.out.0
+        )
+    }
 }
 
 impl Receipt {
     /// Generate a receipt.
-    pub fn new(link: Link<Closure>, result: Ipld) -> Self {
-        Receipt {
-            id: Uuid::new_v4().to_string(),
-            closure_cid: LocalCid(*link),
-            val: LocalIpld(result),
+    pub fn new(cid: Cid, local: LocalReceipt) -> Self {
+        Self {
+            cid: LocalCid(cid),
+            closure_cid: LocalCid(local.closure_cid),
+            nonce: local.nonce,
+            out: LocalIpld(local.out),
         }
     }
 
     /// Get unique identifier of receipt.
-    pub fn id(&self) -> String {
-        self.id.to_string()
+    pub fn cid(&self) -> String {
+        self.cid.to_string()
     }
 
     /// Get closure [Cid] in [Receipt] as a [String].
@@ -48,23 +70,133 @@ impl Receipt {
     }
 
     /// Get closure executed result/value in [Receipt] as [Ipld].
-    pub fn value(&self) -> Ipld {
-        self.val.0.to_owned()
+    pub fn output(&self) -> Ipld {
+        self.out.0.to_owned()
     }
 
     /// Get closure executed result/value in [Receipt] as encoded Cbor.
-    pub fn value_encoded(&self) -> anyhow::Result<Vec<u8>> {
-        DagCborCodec.encode(&self.val.0)
+    pub fn output_encoded(&self) -> anyhow::Result<Vec<u8>> {
+        DagCborCodec.encode(&self.out.0)
     }
 }
 
-impl fmt::Display for Receipt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Receipt: [id: {}, closure_cid: {}, val: {:?}]",
-            self.id, self.closure_cid, self.val.0
-        )
+impl TryFrom<Receipt> for Vec<u8> {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: Receipt) -> Result<Self, Self::Error> {
+        let receipt_ipld = Ipld::from(receipt);
+        DagCborCodec.encode(&receipt_ipld)
+    }
+}
+
+impl TryFrom<Vec<u8>> for Receipt {
+    type Error = anyhow::Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        let ipld: Ipld = DagCborCodec.decode(&bytes)?;
+        Receipt::try_from(ipld)
+    }
+}
+
+impl From<Receipt> for Ipld {
+    fn from(receipt: Receipt) -> Self {
+        Ipld::Map(BTreeMap::from([
+            (CID_KEY.into(), Ipld::Link(receipt.cid.0)),
+            (CLOSURE_CID_KEY.into(), Ipld::Link(receipt.closure_cid.0)),
+            (NONCE_KEY.into(), Ipld::String(receipt.nonce)),
+            (OUT_KEY.into(), receipt.out.0),
+        ]))
+    }
+}
+
+impl TryFrom<Ipld> for Receipt {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+        let cid_ipld = map
+            .get(CID_KEY)
+            .ok_or_else(|| anyhow!("Missing {CID_KEY}"))?;
+        let cid = from_ipld(cid_ipld.to_owned())?;
+
+        let closure_cid_ipld = map
+            .get(CLOSURE_CID_KEY)
+            .ok_or_else(|| anyhow!("Missing {CLOSURE_CID_KEY}"))?;
+        let closure_cid = from_ipld(closure_cid_ipld.to_owned())?;
+
+        let nonce_ipld = map
+            .get(NONCE_KEY)
+            .ok_or_else(|| anyhow!("Missing {NONCE_KEY}"))?;
+        let nonce = from_ipld(nonce_ipld.to_owned())?;
+        let out = map
+            .get(OUT_KEY)
+            .ok_or_else(|| anyhow!("Missing {OUT_KEY}"))?
+            .to_owned();
+
+        Ok(Receipt {
+            cid: LocalCid(cid),
+            closure_cid: LocalCid(closure_cid),
+            nonce,
+            out: LocalIpld(out),
+        })
+    }
+}
+
+/// Local version of [Receipt] to generate [Cid].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LocalReceipt {
+    closure_cid: Cid,
+    nonce: String,
+    out: Ipld,
+}
+
+impl LocalReceipt {
+    /// Generate a *local* receipt.
+    pub fn new(link: Link<Closure>, result: Ipld) -> Self {
+        Self {
+            closure_cid: *link,
+            nonce: xid::new().to_string(),
+            out: result,
+        }
+    }
+}
+
+impl TryFrom<LocalReceipt> for Receipt {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: LocalReceipt) -> Result<Self, Self::Error> {
+        let cid = Cid::try_from(receipt.clone())?;
+        Ok(Receipt::new(cid, receipt))
+    }
+}
+
+impl TryFrom<LocalReceipt> for Vec<u8> {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: LocalReceipt) -> Result<Self, Self::Error> {
+        let receipt_ipld = Ipld::from(receipt);
+        DagCborCodec.encode(&receipt_ipld)
+    }
+}
+
+impl TryFrom<LocalReceipt> for Cid {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: LocalReceipt) -> Result<Self, Self::Error> {
+        let ipld = Ipld::from(receipt);
+        let bytes = DagCborCodec.encode(&ipld)?;
+        let hash = Code::Sha2_256.digest(&bytes);
+        Ok(Cid::new_v1(0x71, hash))
+    }
+}
+
+impl From<LocalReceipt> for Ipld {
+    fn from(receipt: LocalReceipt) -> Self {
+        Ipld::Map(BTreeMap::from([
+            (CLOSURE_CID_KEY.into(), Ipld::Link(receipt.closure_cid)),
+            (NONCE_KEY.into(), Ipld::String(receipt.nonce)),
+            (OUT_KEY.into(), receipt.out),
+        ]))
     }
 }
 
@@ -89,10 +221,7 @@ impl fmt::Display for LocalCid {
 #[diesel(sql_type = Binary)]
 pub struct LocalIpld(pub Ipld);
 
-impl<'a> ToSql<Text, Sqlite> for LocalCid
-where
-    &'a str: ToSql<Text, Sqlite>,
-{
+impl ToSql<Text, Sqlite> for LocalCid {
     fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
         out.set_value(self.0.to_string_of_base(Base::Base32Lower)?);
         Ok(IsNull::No)
@@ -123,72 +252,5 @@ impl FromSql<Binary, Sqlite> for LocalIpld {
         let raw_bytes: &[u8] = unsafe { &*raw_bytes };
         let decoded = DagCborCodec.decode(raw_bytes)?;
         Ok(LocalIpld(decoded))
-    }
-}
-
-/// Receipt-wrapper sharing over PubSub.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SharedReceipt {
-    id: String,
-    closure_cid: String,
-    val: Vec<u8>,
-}
-
-impl TryFrom<SharedReceipt> for Receipt {
-    type Error = anyhow::Error;
-
-    fn try_from(shared_receipt: SharedReceipt) -> Result<Self, Self::Error> {
-        Ok(Self {
-            id: shared_receipt.id,
-            closure_cid: LocalCid(Cid::try_from(shared_receipt.closure_cid)?),
-            val: LocalIpld(DagCborCodec.decode(&shared_receipt.val)?),
-        })
-    }
-}
-
-impl TryFrom<Receipt> for SharedReceipt {
-    type Error = anyhow::Error;
-
-    fn try_from(receipt: Receipt) -> Result<Self, Self::Error> {
-        let id = receipt.id();
-        let cid = receipt.closure_cid();
-        let value = receipt.value_encoded()?;
-
-        Ok(Self {
-            id,
-            closure_cid: cid,
-            val: value,
-        })
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::workflow::closure::{Action, Input};
-    use url::Url;
-
-    #[test]
-    fn receipt_shared_roundtrip() {
-        let closure = Closure {
-            resource: Url::parse(
-                "ipfs://bafkreiemaanh3kxqchhcdx3yckeb3xvmboztptlgtmnu5jp63bvymxtlva",
-            )
-            .unwrap(),
-            action: Action::try_from("wasm/run").unwrap(),
-            inputs: Input::IpldData(Ipld::List(vec![Ipld::Integer(5)])),
-        };
-
-        let link: Link<Closure> = Closure::try_into(closure).unwrap();
-        let receipt = Receipt::new(link, Ipld::List(vec![Ipld::Integer(42)]));
-
-        let shared = SharedReceipt::try_from(receipt.clone()).unwrap();
-        let receipt_shared = Receipt::try_from(shared.clone()).unwrap();
-
-        assert_eq!(receipt, receipt_shared);
-
-        let msg_bytes = bincode::serialize(&shared).unwrap();
-        let decoded: SharedReceipt = bincode::deserialize(&msg_bytes).unwrap();
-        assert_eq!(shared, decoded);
     }
 }

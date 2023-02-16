@@ -1,9 +1,10 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    receipts (id) {
-        id -> Text,
+    receipts (cid) {
+        cid -> Text,
         closure_cid -> Text,
-        val -> Binary,
+        nonce -> Text,
+        out -> Binary,
     }
 }

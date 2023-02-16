@@ -6,7 +6,7 @@ use crate::{
         client::{FileRequest, FileResponse},
         pubsub,
     },
-    workflow::receipt::{Receipt, SharedReceipt},
+    workflow::receipt::Receipt,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -142,8 +142,7 @@ impl ComposedBehaviour {
         let id_topic = gossipsub::IdentTopic::new(topic);
         // Make this an or msg to match on other topics.
         let TopicMessage::Receipt(receipt) = msg;
-        let msg_bytes = bincode::serialize(&SharedReceipt::try_from(receipt)?)
-            .map_err(|e| anyhow!("failed to serialize receipt: {e}"))?;
+        let msg_bytes: Vec<u8> = receipt.try_into()?;
         if self
             .gossipsub
             .mesh_peers(&TopicHash::from_raw(topic))

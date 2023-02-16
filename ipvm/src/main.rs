@@ -1,7 +1,11 @@
 use anyhow::{anyhow, bail, Result};
 use clap::Parser;
 use diesel::RunQueryDsl;
-use ipfs_api::{response::AddResponse, IpfsApi, IpfsClient};
+use ipfs_api::{
+    request::{DagCodec, DagPut},
+    response::DagPutResponse,
+    IpfsApi, IpfsClient,
+};
 use ipvm::{
     cli::{Args, Argument},
     db::{self, schema},
@@ -13,14 +17,12 @@ use ipvm::{
     wasm::wasmtime::shim,
     workflow::{
         closure::{Action, Closure, Input},
-        receipt::Receipt,
+        receipt::{LocalReceipt, Receipt},
     },
 };
 use itertools::Itertools;
 use libipld::{
-    cbor::DagCborCodec,
     cid::{multibase::Base, Cid},
-    prelude::Codec,
     Ipld, Link,
 };
 use libp2p::{
@@ -165,23 +167,30 @@ async fn main() -> Result<()> {
             };
 
             let link: Link<Closure> = Closure::try_into(closure)?;
+            let receipt = LocalReceipt::new(link, res);
+            let receipt_bytes: Vec<u8> = receipt.clone().try_into()?;
+
+            let dag_builder = DagPut::builder().input_codec(DagCodec::Cbor).build();
+            let DagPutResponse { cid } = ipfs
+                .dag_put_with_options(Cursor::new(receipt_bytes.clone()), dag_builder)
+                .await
+                .expect("a CID");
+
+            let receipt: Receipt = receipt.try_into()?;
+
+            // Test for now
+            assert_eq!(cid.cid_string, receipt.cid());
+
             let mut conn = db::establish_connection();
-
-            let receipt = Receipt::new(link, res);
-
             // TODO: insert (or upsert via event handling when subscribed)
             diesel::insert_into(schema::receipts::table)
                 .values(&receipt)
                 .execute(&mut conn)
                 .expect("Error saving new receipt");
-
-            println!("{receipt}");
-
-            let receipt_val = receipt.value();
-            let encoded = DagCborCodec.encode(&receipt_val)?;
-            let AddResponse { hash: _, .. } = ipfs.add(Cursor::new(encoded)).await.expect("a CID");
+            println!("stored: {receipt}");
 
             let closure_cid = receipt.closure_cid();
+            let output = receipt.output();
             let async_client = client.clone();
             // We delay messages to make sure peers are within the mesh.
             tokio::spawn(async move {
@@ -201,7 +210,7 @@ async fn main() -> Result<()> {
                 match events.recv().await {
                     Some(Event::InboundRequest { request, channel }) => {
                         if request.eq(&closure_cid) {
-                            let output = format!("{receipt_val:?}");
+                            let output = format!("{:?}", output);
                             client.respond_file(output.into_bytes(), channel).await?;
                         }
                     }
