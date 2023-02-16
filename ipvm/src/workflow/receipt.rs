@@ -1,0 +1,256 @@
+//! Output of an invocation, referenced by its invocation pointer.
+
+use crate::{db::schema::receipts, workflow::closure::Closure};
+use anyhow::anyhow;
+use diesel::{
+    backend::RawValue,
+    deserialize::{self, FromSql},
+    serialize::{self, IsNull, Output, ToSql},
+    sql_types::{Binary, Text},
+    sqlite::Sqlite,
+    AsExpression, FromSqlRow, Insertable, Queryable,
+};
+use libipld::{
+    cbor::DagCborCodec,
+    cid::{
+        multibase::Base,
+        multihash::{Code, MultihashDigest},
+        Cid,
+    },
+    prelude::Codec,
+    serde::from_ipld,
+    Ipld, Link,
+};
+use serde::{Deserialize, Serialize};
+use std::{collections::BTreeMap, fmt, str::FromStr};
+
+const CID_KEY: &str = "cid";
+const CLOSURE_CID_KEY: &str = "closure_cid";
+const NONCE_KEY: &str = "nonce";
+const OUT_KEY: &str = "out";
+
+/// Receipt for closure invocation.
+#[derive(Debug, Clone, PartialEq, Queryable, Insertable, Serialize, Deserialize)]
+pub struct Receipt {
+    cid: LocalCid,
+    closure_cid: LocalCid,
+    nonce: String,
+    out: LocalIpld,
+}
+
+impl fmt::Display for Receipt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Receipt: [cid: {}, closure_cid: {}, nonce: {}, output: {:?}]",
+            self.cid, self.closure_cid, self.nonce, self.out.0
+        )
+    }
+}
+
+impl Receipt {
+    /// Generate a receipt.
+    pub fn new(cid: Cid, local: LocalReceipt) -> Self {
+        Self {
+            cid: LocalCid(cid),
+            closure_cid: LocalCid(local.closure_cid),
+            nonce: local.nonce,
+            out: LocalIpld(local.out),
+        }
+    }
+
+    /// Get unique identifier of receipt.
+    pub fn cid(&self) -> String {
+        self.cid.to_string()
+    }
+
+    /// Get closure [Cid] in [Receipt] as a [String].
+    pub fn closure_cid(&self) -> String {
+        self.closure_cid.to_string()
+    }
+
+    /// Get closure executed result/value in [Receipt] as [Ipld].
+    pub fn output(&self) -> Ipld {
+        self.out.0.to_owned()
+    }
+
+    /// Get closure executed result/value in [Receipt] as encoded Cbor.
+    pub fn output_encoded(&self) -> anyhow::Result<Vec<u8>> {
+        DagCborCodec.encode(&self.out.0)
+    }
+}
+
+impl TryFrom<Receipt> for Vec<u8> {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: Receipt) -> Result<Self, Self::Error> {
+        let receipt_ipld = Ipld::from(receipt);
+        DagCborCodec.encode(&receipt_ipld)
+    }
+}
+
+impl TryFrom<Vec<u8>> for Receipt {
+    type Error = anyhow::Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        let ipld: Ipld = DagCborCodec.decode(&bytes)?;
+        Receipt::try_from(ipld)
+    }
+}
+
+impl From<Receipt> for Ipld {
+    fn from(receipt: Receipt) -> Self {
+        Ipld::Map(BTreeMap::from([
+            (CID_KEY.into(), Ipld::Link(receipt.cid.0)),
+            (CLOSURE_CID_KEY.into(), Ipld::Link(receipt.closure_cid.0)),
+            (NONCE_KEY.into(), Ipld::String(receipt.nonce)),
+            (OUT_KEY.into(), receipt.out.0),
+        ]))
+    }
+}
+
+impl TryFrom<Ipld> for Receipt {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+        let cid_ipld = map
+            .get(CID_KEY)
+            .ok_or_else(|| anyhow!("Missing {CID_KEY}"))?;
+        let cid = from_ipld(cid_ipld.to_owned())?;
+
+        let closure_cid_ipld = map
+            .get(CLOSURE_CID_KEY)
+            .ok_or_else(|| anyhow!("Missing {CLOSURE_CID_KEY}"))?;
+        let closure_cid = from_ipld(closure_cid_ipld.to_owned())?;
+
+        let nonce_ipld = map
+            .get(NONCE_KEY)
+            .ok_or_else(|| anyhow!("Missing {NONCE_KEY}"))?;
+        let nonce = from_ipld(nonce_ipld.to_owned())?;
+        let out = map
+            .get(OUT_KEY)
+            .ok_or_else(|| anyhow!("Missing {OUT_KEY}"))?
+            .to_owned();
+
+        Ok(Receipt {
+            cid: LocalCid(cid),
+            closure_cid: LocalCid(closure_cid),
+            nonce,
+            out: LocalIpld(out),
+        })
+    }
+}
+
+/// Local version of [Receipt] to generate [Cid].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LocalReceipt {
+    closure_cid: Cid,
+    nonce: String,
+    out: Ipld,
+}
+
+impl LocalReceipt {
+    /// Generate a *local* receipt.
+    pub fn new(link: Link<Closure>, result: Ipld) -> Self {
+        Self {
+            closure_cid: *link,
+            nonce: xid::new().to_string(),
+            out: result,
+        }
+    }
+}
+
+impl TryFrom<LocalReceipt> for Receipt {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: LocalReceipt) -> Result<Self, Self::Error> {
+        let cid = Cid::try_from(receipt.clone())?;
+        Ok(Receipt::new(cid, receipt))
+    }
+}
+
+impl TryFrom<LocalReceipt> for Vec<u8> {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: LocalReceipt) -> Result<Self, Self::Error> {
+        let receipt_ipld = Ipld::from(receipt);
+        DagCborCodec.encode(&receipt_ipld)
+    }
+}
+
+impl TryFrom<LocalReceipt> for Cid {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: LocalReceipt) -> Result<Self, Self::Error> {
+        let ipld = Ipld::from(receipt);
+        let bytes = DagCborCodec.encode(&ipld)?;
+        let hash = Code::Sha2_256.digest(&bytes);
+        Ok(Cid::new_v1(0x71, hash))
+    }
+}
+
+impl From<LocalReceipt> for Ipld {
+    fn from(receipt: LocalReceipt) -> Self {
+        Ipld::Map(BTreeMap::from([
+            (CLOSURE_CID_KEY.into(), Ipld::Link(receipt.closure_cid)),
+            (NONCE_KEY.into(), Ipld::String(receipt.nonce)),
+            (OUT_KEY.into(), receipt.out),
+        ]))
+    }
+}
+
+/// Wrapper-type for [Cid] in order integrate to/from for local storage/db.
+#[derive(Clone, Debug, AsExpression, FromSqlRow, PartialEq, Serialize, Deserialize)]
+#[diesel(sql_type = Text)]
+pub struct LocalCid(pub Cid);
+
+impl fmt::Display for LocalCid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let cid_as_string = self
+            .0
+            .to_string_of_base(Base::Base32Lower)
+            .map_err(|_| fmt::Error)?;
+
+        write!(f, "{cid_as_string}")
+    }
+}
+
+/// /// Wrapper-type for [Ipld] in order integrate to/from for local storage/db.
+#[derive(Clone, Debug, AsExpression, FromSqlRow, PartialEq, Serialize, Deserialize)]
+#[diesel(sql_type = Binary)]
+pub struct LocalIpld(pub Ipld);
+
+impl ToSql<Text, Sqlite> for LocalCid {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
+        out.set_value(self.0.to_string_of_base(Base::Base32Lower)?);
+        Ok(IsNull::No)
+    }
+}
+
+impl FromSql<Text, Sqlite> for LocalCid {
+    fn from_sql(bytes: RawValue<'_, Sqlite>) -> deserialize::Result<Self> {
+        let s = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
+        // Will decode appropo base.
+        Ok(LocalCid(Cid::from_str(&s)?))
+    }
+}
+
+impl ToSql<Binary, Sqlite> for LocalIpld
+where
+    [u8]: ToSql<Binary, Sqlite>,
+{
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
+        out.set_value(DagCborCodec.encode(&self.0)?);
+        Ok(IsNull::No)
+    }
+}
+
+impl FromSql<Binary, Sqlite> for LocalIpld {
+    fn from_sql(bytes: RawValue<'_, Sqlite>) -> deserialize::Result<Self> {
+        let raw_bytes = <*const [u8] as FromSql<Binary, Sqlite>>::from_sql(bytes)?;
+        let raw_bytes: &[u8] = unsafe { &*raw_bytes };
+        let decoded = DagCborCodec.decode(raw_bytes)?;
+        Ok(LocalIpld(decoded))
+    }
+}

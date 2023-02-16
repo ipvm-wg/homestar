@@ -1,0 +1,73 @@
+[package]
+name = "ipvm"
+version = "0.1.0"
+description = ""
+keywords = []
+categories = []
+
+include = ["/src", "README.md", "LICENSE"]
+license = "Apache"
+readme = "README.md"
+edition = "2021"
+rust-version = "1.66"
+documentation = "https://docs.rs/ipvm"
+repository = "https://github.com/ipvm-wg/ipvm"
+authors = ["Brooklyn Zelenka <hello@brooklynzelenka.com>", "Zeeshan Lakhani <zeeshan@fission.codes>"]
+
+[lib]
+path = "src/lib.rs"
+bench = false
+doctest = true
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "ipvm"
+path = "src/main.rs"
+doc = false
+bench = false
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+bincode = "1.3"
+clap = { version = "4.1", features = ["derive"] }
+derive_more = "0.99.17"
+diesel = { version = "2.0", features = ["sqlite"] }
+dotenvy = "0.15"
+either = "1.8.0"
+env_logger = "0.10"
+heck = "0.4"
+ipfs-api = "0.17"
+ipfs-api-backend-hyper = { version = "0.6", features = ["with-builder"] }
+itertools = "0.10"
+json = "0.12"
+libipld = "0.16"
+libipld-core = { version = "0.16", features = ["serde-codec", "serde"] }
+libp2p = { git = "https://github.com/libp2p/rust-libp2p", features = ["kad", "request-response", "macros", "identify", "mdns", "floodsub", "gossipsub", "tokio", "dns", "tcp", "noise", "yamux", "websocket"] }
+multihash = "0.18"
+proptest = { version = "1.1", optional = true }
+rust_decimal = "1.28"
+semver = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_ipld_dagcbor = "0.2"
+signature = "2.0"
+stacker = "0.1"
+thiserror = "1.0"
+tokio = { version = "1.24", features = ["io-util", "io-std", "macros", "rt", "rt-multi-thread"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+ucan = "0.1"
+url = "2.3"
+wasmparser = "0.100"
+wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", features = ["async", "component-model", "default"] }
+wasmtime-component-util = { git = "https://github.com/bytecodealliance/wasmtime" }
+wat = "1.0"
+wit-component = "0.6"
+xid = "1.0"
+
+[dev-dependencies]
+criterion = "0.4"
+
+[features]
+default = []
+test_utils = ["proptest"]

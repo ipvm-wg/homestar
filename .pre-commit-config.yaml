@@ -24,7 +24,7 @@ repos:
         description: Lint via clippy
         entry: cargo clippy
         language: system
-        args: ["--", "-D", "warnings"]
+        args: ["--workspace", "--", "-D", "warnings"]
         types: [rust]
         pass_filenames: false
       - id: alejandra
@@ -38,7 +38,7 @@ repos:
     rev: v1.0.9
     hooks:
       - id: cargo-sort
-        args: []
+        args: ["-w"]
 
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v2.1.1

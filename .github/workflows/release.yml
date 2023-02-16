@@ -26,7 +26,7 @@ jobs:
       github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
 
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
+      releases_created: ${{ steps.release.outputs" }}['ipvm--release_created'] || steps.release.outputs['wit-ipld--release_created'] }}
 
     steps:
       - name: Run release-please
@@ -39,7 +39,7 @@ jobs:
           extra-files: |
             README.md
 
-  publish-release:
+  publish-release-crates:
     runs-on: ubuntu-latest
     needs: [ release-please ]
 
@@ -47,14 +47,9 @@ jobs:
       contents: write
       pull-requests: write
 
-    if: ${{ needs.release-please.outputs.release_created || github.event.inputs.force-publish }}
+    if: ${{ needs.release-please.outputs.releases_created || github.event.inputs.force-publish }}
 
     steps:
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Checkout Repository
         uses: actions/checkout@v3
 
@@ -68,12 +63,20 @@ jobs:
           profile: minimal
           toolchain: stable
 
-      - name: Verify Publishing of crate
+      - name: Install Cargo Workspaces
+        env:
+          RUSTFLAGS: '-Copt-level=1'
+        uses: actions-rs/cargo@v1
+        with:
+          args: --force cargo-workspaces
+          command: install
+
+      - name: Verify Publishing of crates
         uses: katyo/publish-crates@v2
         with:
           dry-run: true
 
       - name: Cargo Publish to crates.io
-        uses: katyo/publish-crates@v2
-        with:
-          registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo workspaces publish --from-git
