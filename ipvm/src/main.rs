@@ -143,7 +143,11 @@ async fn main() -> Result<()> {
                     acc
                 })?;
 
-            let mut env = wasmtime::World::instantiate(wasm_bytes, fun, ()).await?;
+            // TODO: Only works off happy path, but need to work with traps to
+            // capture error.
+            // TODO: State will derive from resources, other configuration.
+            let mut env =
+                wasmtime::World::instantiate(wasm_bytes, fun, wasmtime::State::default()).await?;
             let res = env.execute(ipld_args.clone()).await?;
 
             let resource = Url::parse(format!("ipfs://{wasm}").as_str()).expect("IPFS URL");
@@ -182,7 +186,6 @@ async fn main() -> Result<()> {
             // We delay messages to make sure peers are within the mesh.
             tokio::spawn(async move {
                 // TODO: make this configurable, but currently matching heartbeat.
-
                 let _ = async_client
                     .publish_message(
                         Topic::new(RECEIPTS_TOPIC.to_string()),
