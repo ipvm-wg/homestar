@@ -2,6 +2,7 @@ ignore:
   - "ipvm/tests"
   - "ipvm/src/test_utils"
   - "ipvm-guest-wasm"
+  - "ipvm-wasm/src/test_utils"
 
 comment:
   layout: "reach, diff, flags, files"

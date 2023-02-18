@@ -1,8 +1,15 @@
 [workspace]
 members = [
     "ipvm",
-    "ipvm-guest-wasm"
+    "ipvm-guest-wasm",
+    "ipvm-wasm"
 ]
+
+[workspace.package]
+authors = ["Brooklyn Zelenka <hello@brooklynzelenka.com>", "Zeeshan Lakhani <zeeshan@fission.codes>"]
+edition = "2021"
+license = "Apache"
+rust-version = "1.66.0"
 
 # Speedup build on macOS
 # See https://blog.rust-lang.org/2021/03/25/Rust-1.51.0.html#splitting-debug-information

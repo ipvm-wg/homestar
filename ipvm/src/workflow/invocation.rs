@@ -32,7 +32,7 @@ pub struct Invocation {
 impl From<Invocation> for Ipld {
     fn from(invocation: Invocation) -> Self {
         Ipld::Map(BTreeMap::from([
-            (RUN_KEY.into(), invocation.run.clone().into()),
+            (RUN_KEY.into(), invocation.run.to_owned().into()),
             (METADATA_KEY.into(), invocation.meta),
             (
                 PROOF_KEY.into(),
@@ -70,7 +70,7 @@ impl TryFrom<Ipld> for Invocation {
             .to_owned()
             .iter()
             .try_fold(vec![], |mut acc, ipld| {
-                let cid = from_ipld::<Cid>(ipld.clone())?;
+                let cid = from_ipld::<Cid>(ipld.to_owned())?;
                 acc.push(Link::new(cid));
                 Ok::<_, anyhow::Error>(acc)
             })?;

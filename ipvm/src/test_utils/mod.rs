@@ -1,6 +1,3 @@
-///
-pub mod component;
-
 /// Random value generator for sampling data.
 #[cfg(feature = "test_utils")]
 mod rvg;

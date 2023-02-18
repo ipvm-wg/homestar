@@ -24,6 +24,15 @@ updates:
     schedule:
       interval: "weekly"
 
+  - package-ecosystem: "cargo"
+    directory: "/ipvm-wasm"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     commit-message:

@@ -656,15 +656,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
-name = "cbor4ii"
-version = "0.2.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b544cf8c89359205f4f990d0e6f3828db42df85b5dac95d09157a250eb0749c4"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "cc"
 version = "1.0.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -740,20 +731,6 @@ checksum = "213030a2b5a4e0c0892b6652260cf6ccac84827b83a85a534e178e3906c4cf1b"
 dependencies = [
  "ciborium-io",
  "half",
-]
-
-[[package]]
-name = "cid"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6ed9c8b2d17acb8110c46f1da5bf4a696d745e1474a16db0cd2b49cd0249bf2"
-dependencies = [
- "core2",
- "multibase",
- "multihash 0.16.3",
- "serde",
- "serde_bytes",
- "unsigned-varint",
 ]
 
 [[package]]
@@ -2336,41 +2313,28 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "bincode",
  "clap 4.1.4",
  "criterion",
  "derive_more",
  "diesel",
  "dotenvy",
- "either",
  "env_logger",
- "heck",
  "ipfs-api",
  "ipfs-api-backend-hyper",
+ "ipvm-wasm",
  "itertools",
- "json",
  "libipld",
  "libipld-core 0.16.0",
  "libp2p",
- "multihash 0.18.0",
  "proptest",
- "rust_decimal",
- "semver 1.0.16",
  "serde",
- "serde_ipld_dagcbor",
  "signature 2.0.0",
- "stacker",
  "thiserror",
  "tokio",
  "tracing",
  "tracing-subscriber",
  "ucan",
  "url",
- "wasmparser 0.101.0",
- "wasmtime",
- "wasmtime-component-util",
- "wat",
- "wit-component 0.7.0",
  "xid",
 ]
 
@@ -2379,6 +2343,27 @@ name = "ipvm-guest-wasm"
 version = "0.1.0"
 dependencies = [
  "wit-bindgen",
+]
+
+[[package]]
+name = "ipvm-wasm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "criterion",
+ "heck",
+ "itertools",
+ "libipld",
+ "libipld-core 0.16.0",
+ "rust_decimal",
+ "stacker",
+ "thiserror",
+ "tracing",
+ "wasmparser 0.101.0",
+ "wasmtime",
+ "wasmtime-component-util",
+ "wat",
+ "wit-component 0.7.0",
 ]
 
 [[package]]
@@ -2445,12 +2430,6 @@ checksum = "445dde2150c55e483f3d8416706b97ec8e8237c307e5b7b4b8dd15e6af2a0730"
 dependencies = [
  "wasm-bindgen",
 ]
-
-[[package]]
-name = "json"
-version = "0.12.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "078e285eafdfb6c4b434e0d31e8cfcb5115b651496faca5749b88fafd4f23bfd"
 
 [[package]]
 name = "keccak"
@@ -3217,19 +3196,6 @@ dependencies = [
  "base-x",
  "data-encoding",
  "data-encoding-macro",
-]
-
-[[package]]
-name = "multihash"
-version = "0.16.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c346cf9999c631f002d8f977c4eaeaa0e6386f16007202308d0b3757522c2cc"
-dependencies = [
- "core2",
- "multihash-derive",
- "serde",
- "serde-big-array",
- "unsigned-varint",
 ]
 
 [[package]]
@@ -4597,18 +4563,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "serde_ipld_dagcbor"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1e23de7a4a18dff77ab9531f279a882500b8cf3549fde044d4e10481b411f1e"
-dependencies = [
- "cbor4ii",
- "cid 0.8.6",
- "scopeguard",
- "serde",
 ]
 
 [[package]]

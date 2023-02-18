@@ -1,3 +1,5 @@
+//! [wasmtime::component::Component] test-utilities.
+
 use std::{fmt::Write, iter};
 use wasmtime::{
     component::{Component, Linker},

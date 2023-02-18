@@ -50,12 +50,12 @@ impl fmt::Display for Receipt {
 
 impl Receipt {
     /// Generate a receipt.
-    pub fn new(cid: Cid, local: LocalReceipt) -> Self {
+    pub fn new(cid: Cid, local: &LocalReceipt) -> Self {
         Self {
             cid: LocalCid(cid),
             closure_cid: LocalCid(local.closure_cid),
-            nonce: local.nonce,
-            out: LocalIpld(local.out),
+            nonce: local.nonce.to_string(),
+            out: LocalIpld(local.out.to_owned()),
         }
     }
 
@@ -70,8 +70,8 @@ impl Receipt {
     }
 
     /// Get closure executed result/value in [Receipt] as [Ipld].
-    pub fn output(&self) -> Ipld {
-        self.out.0.to_owned()
+    pub fn output(&self) -> &Ipld {
+        &self.out.0
     }
 
     /// Get closure executed result/value in [Receipt] as encoded Cbor.
@@ -165,7 +165,15 @@ impl TryFrom<LocalReceipt> for Receipt {
     type Error = anyhow::Error;
 
     fn try_from(receipt: LocalReceipt) -> Result<Self, Self::Error> {
-        let cid = Cid::try_from(receipt.clone())?;
+        TryFrom::try_from(&receipt)
+    }
+}
+
+impl TryFrom<&LocalReceipt> for Receipt {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: &LocalReceipt) -> Result<Self, Self::Error> {
+        let cid = Cid::try_from(receipt)?;
         Ok(Receipt::new(cid, receipt))
     }
 }
@@ -174,7 +182,7 @@ impl TryFrom<LocalReceipt> for Vec<u8> {
     type Error = anyhow::Error;
 
     fn try_from(receipt: LocalReceipt) -> Result<Self, Self::Error> {
-        let receipt_ipld = Ipld::from(receipt);
+        let receipt_ipld = Ipld::from(&receipt);
         DagCborCodec.encode(&receipt_ipld)
     }
 }
@@ -183,6 +191,14 @@ impl TryFrom<LocalReceipt> for Cid {
     type Error = anyhow::Error;
 
     fn try_from(receipt: LocalReceipt) -> Result<Self, Self::Error> {
+        TryFrom::try_from(&receipt)
+    }
+}
+
+impl TryFrom<&LocalReceipt> for Cid {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: &LocalReceipt) -> Result<Self, Self::Error> {
         let ipld = Ipld::from(receipt);
         let bytes = DagCborCodec.encode(&ipld)?;
         let hash = Code::Sha2_256.digest(&bytes);
@@ -192,10 +208,16 @@ impl TryFrom<LocalReceipt> for Cid {
 
 impl From<LocalReceipt> for Ipld {
     fn from(receipt: LocalReceipt) -> Self {
+        From::from(&receipt)
+    }
+}
+
+impl From<&LocalReceipt> for Ipld {
+    fn from(receipt: &LocalReceipt) -> Self {
         Ipld::Map(BTreeMap::from([
-            (CLOSURE_CID_KEY.into(), Ipld::Link(receipt.closure_cid)),
-            (NONCE_KEY.into(), Ipld::String(receipt.nonce)),
-            (OUT_KEY.into(), receipt.out),
+            (CLOSURE_CID_KEY.into(), receipt.closure_cid.into()),
+            (NONCE_KEY.into(), receipt.nonce.to_string().into()),
+            (OUT_KEY.into(), receipt.out.to_owned()),
         ]))
     }
 }

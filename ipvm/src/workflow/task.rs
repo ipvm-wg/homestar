@@ -83,7 +83,7 @@ impl TryFrom<Ipld> for Task {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld.clone())?;
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld.to_owned())?;
 
         let resources = map
             .get(RESOURCES_KEY)
