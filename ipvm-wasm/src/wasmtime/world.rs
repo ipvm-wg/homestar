@@ -163,7 +163,14 @@ impl World {
         config.wasm_component_model(true);
         config.async_support(true);
         config.cranelift_nan_canonicalization(true);
+
+        // Most Wasm instructions consume 1 unit of fuel.
+        // Some instructions, such as nop, drop, block, and loop, consume 0
+        // units, as any execution cost associated with them involves other
+        // instructions which do consume fuel. We use *these* defaults for now
+        // for Ops, instead of parsing each Op.
         config.consume_fuel(true);
+
         config
     }
 
