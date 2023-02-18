@@ -139,14 +139,14 @@ impl TryFrom<Ipld> for Input {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        let Ok(map) = from_ipld::<BTreeMap<String, Ipld>>(ipld.clone()) else {
+        let Ok(map) = from_ipld::<BTreeMap<String, Ipld>>(ipld.to_owned()) else {
             return Ok(Input::IpldData(ipld))
         };
 
         if map.len() > 1 {
             map.get(OK_BRANCH)
                 .map_or(Ok(Input::IpldData(ipld)), |ipld| {
-                    let pointer = from_ipld(ipld.clone())?;
+                    let pointer = from_ipld(ipld.to_owned())?;
                     let invoked_task = InvokedTaskPointer::try_from(Ipld::List(pointer))?;
                     Ok(Input::Deferred(Promise {
                         result: Some(Status::Success),

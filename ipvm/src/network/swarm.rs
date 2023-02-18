@@ -124,9 +124,7 @@ impl ComposedBehaviour {
         let id_topic = floodsub::Topic::new(topic);
         // Make this an or msg to match on other topics.
         let TopicMessage::Receipt(receipt) = msg;
-        let msg_bytes = bincode::serialize(&receipt)
-            .map_err(|e| anyhow!("failed to serialize receipt: {e}"))?;
-
+        let msg_bytes: Vec<u8> = receipt.try_into()?;
         self.floodsub.publish(id_topic, msg_bytes);
         Ok(())
     }

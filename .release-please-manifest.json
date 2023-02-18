@@ -1,4 +1,5 @@
 {
   "ipvm": "0.1.0",
-  "ipvm-guest-wasm": "0.1.0"
+  "ipvm-guest-wasm": "0.1.0",
+  "ipvm-wasm": "0.1.0"
 }

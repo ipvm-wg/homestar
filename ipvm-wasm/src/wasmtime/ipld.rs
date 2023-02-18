@@ -28,7 +28,15 @@ pub enum InterfaceType {
 }
 
 impl InterfaceType {
+    #[allow(dead_code)]
     fn into_inner(self) -> Option<Type> {
+        match self {
+            InterfaceType::Type(ty) => Some(ty),
+            _ => None,
+        }
+    }
+
+    fn inner(&self) -> Option<&Type> {
         match self {
             InterfaceType::Type(ty) => Some(ty),
             _ => None,
@@ -66,7 +74,7 @@ impl RuntimeVal {
     }
 
     /// Convert from [Ipld] to [RuntimeVal] with a given [InterfaceType].
-    pub fn try_from(ipld: Ipld, interface_ty: InterfaceType) -> Result<Self> {
+    pub fn try_from(ipld: Ipld, interface_ty: &InterfaceType) -> Result<Self> {
         // TODO: Configure for recursion.
         stacker::maybe_grow(64 * 1024, 1024 * 1024, || {
             let dyn_type = match ipld {
@@ -99,14 +107,14 @@ impl RuntimeVal {
                 Ipld::List(v) => {
                     let vec = v
                         .into_iter()
-                        .map(|elem| RuntimeVal::try_from(elem, interface_ty.clone()))
+                        .map(|elem| RuntimeVal::try_from(elem, interface_ty))
                         .fold_ok(vec![], |mut acc, elem| {
                             acc.push(elem.into_inner());
                             acc
                         })?;
 
                     let inner = interface_ty
-                        .into_inner()
+                        .inner()
                         .ok_or_else(|| anyhow!("component type mismatch: expected <list>"))?;
 
                     let list_inst = matches!(inner, Type::List(_))
@@ -117,7 +125,7 @@ impl RuntimeVal {
                 }
                 Ipld::Map(v) => {
                     let inner = interface_ty
-                        .into_inner()
+                        .inner()
                         .ok_or_else(|| anyhow!("component type mismatch: expected <List>"))?;
 
                     let list_inst = matches!(inner, Type::List(_))
@@ -129,16 +137,16 @@ impl RuntimeVal {
                         .ok_or_else(|| anyhow!("{inner:?} must be a <list>"))?
                         .to_owned();
 
+                    let ty = InterfaceType::Type(inner.to_owned());
+
                     let vec = v
                         .into_iter()
-                        .map(|(key, elem)| {
-                            match RuntimeVal::try_from(elem, InterfaceType::Type(inner.clone())) {
-                                Ok(value) => {
-                                    let tuple = Box::new([Val::String(Box::from(key)), value.0]);
-                                    tuple_inst.new_val(tuple)
-                                }
-                                Err(e) => Err(anyhow!(e)),
+                        .map(|(key, elem)| match RuntimeVal::try_from(elem, &ty) {
+                            Ok(value) => {
+                                let tuple = Box::new([Val::String(Box::from(key)), value.0]);
+                                tuple_inst.new_val(tuple)
                             }
+                            Err(e) => Err(anyhow!(e)),
                         })
                         .fold_ok(vec![], |mut acc, tuple| {
                             acc.push(tuple);
@@ -164,81 +172,84 @@ impl TryFrom<RuntimeVal> for Ipld {
         fn cid(s: &str) -> Result<Cid, cid::Error> {
             Cid::try_from(s)
         }
-        let ipld = match val {
-            RuntimeVal(Val::Char(c)) => Ipld::String(c.to_string()),
-            RuntimeVal(Val::String(v)) => match v.to_string() {
-                s if s.eq("null") => Ipld::Null,
-                s => {
-                    if let Ok(cid) = cid(&s) {
-                        Ipld::Link(cid)
-                    } else if let Ok(decoded) = base_64_bytes(&s) {
-                        Ipld::Bytes(decoded)
-                    } else {
-                        Ipld::String(s)
+        // TODO: Configure for recursion.
+        stacker::maybe_grow(64 * 1024, 1024 * 1024, || {
+            let ipld = match val {
+                RuntimeVal(Val::Char(c)) => Ipld::String(c.to_string()),
+                RuntimeVal(Val::String(v)) => match v.to_string() {
+                    s if s.eq("null") => Ipld::Null,
+                    s => {
+                        if let Ok(cid) = cid(&s) {
+                            Ipld::Link(cid)
+                        } else if let Ok(decoded) = base_64_bytes(&s) {
+                            Ipld::Bytes(decoded)
+                        } else {
+                            Ipld::String(s)
+                        }
                     }
+                },
+                RuntimeVal(Val::Bool(v)) => Ipld::Bool(v),
+                RuntimeVal(Val::U8(v)) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::U16(v)) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::U32(v)) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::U64(v)) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::S8(v)) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::S16(v)) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::S32(v)) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::S64(v)) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::Float32(v)) => {
+                    // Convert to decimal for handling precision issues going from
+                    // f32 => f64.
+                    let dec = Decimal::from_f32(v)
+                        .ok_or_else(|| anyhow!("failed conversion to decimal"))?;
+                    Ipld::Float(
+                        dec.to_f64()
+                            .ok_or_else(|| anyhow!("failed conversion from decimal"))?,
+                    )
                 }
-            },
-            RuntimeVal(Val::Bool(v)) => Ipld::Bool(v),
-            RuntimeVal(Val::U8(v)) => Ipld::Integer(v.into()),
-            RuntimeVal(Val::U16(v)) => Ipld::Integer(v.into()),
-            RuntimeVal(Val::U32(v)) => Ipld::Integer(v.into()),
-            RuntimeVal(Val::U64(v)) => Ipld::Integer(v.into()),
-            RuntimeVal(Val::S8(v)) => Ipld::Integer(v.into()),
-            RuntimeVal(Val::S16(v)) => Ipld::Integer(v.into()),
-            RuntimeVal(Val::S32(v)) => Ipld::Integer(v.into()),
-            RuntimeVal(Val::S64(v)) => Ipld::Integer(v.into()),
-            RuntimeVal(Val::Float32(v)) => {
-                // Convert to decimal for handling precision issues going from
-                // f32 => f64.
-                let dec =
-                    Decimal::from_f32(v).ok_or_else(|| anyhow!("failed conversion to decimal"))?;
-                Ipld::Float(
-                    dec.to_f64()
-                        .ok_or_else(|| anyhow!("failed conversion from decimal"))?,
-                )
-            }
-            RuntimeVal(Val::Float64(v)) => Ipld::Float(v),
-            RuntimeVal(Val::List(v)) if matches!(v.ty().ty(), Type::Tuple(_)) => {
-                let inner = v
-                    .iter()
-                    .map(|elem| {
-                        if let Val::Tuple(tup) = elem {
-                            let tup_values = tup.values();
-                            if let [Val::String(s), v] = tup_values {
-                                match Ipld::try_from(RuntimeVal(v.to_owned())) {
-                                    Ok(value) => Ok((s.to_string(), value)),
-                                    Err(e) => Err(e),
+                RuntimeVal(Val::Float64(v)) => Ipld::Float(v),
+                RuntimeVal(Val::List(v)) if matches!(v.ty().ty(), Type::Tuple(_)) => {
+                    let inner = v
+                        .iter()
+                        .map(|elem| {
+                            if let Val::Tuple(tup) = elem {
+                                let tup_values = tup.values();
+                                if let [Val::String(s), v] = tup_values {
+                                    match Ipld::try_from(RuntimeVal(v.to_owned())) {
+                                        Ok(value) => Ok((s.to_string(), value)),
+                                        Err(e) => Err(e),
+                                    }
+                                } else {
+                                    Err(anyhow!("mismatched types: {:?}", tup_values))
                                 }
                             } else {
-                                Err(anyhow!("mismatched types: {:?}", tup_values))
+                                Err(anyhow!("mismatched types: {elem:?}"))
                             }
-                        } else {
-                            Err(anyhow!("mismatched types: {elem:?}"))
-                        }
-                    })
-                    .fold_ok(BTreeMap::new(), |mut acc, (k, v)| {
-                        acc.insert(k, v);
-                        acc
-                    })?;
+                        })
+                        .fold_ok(BTreeMap::new(), |mut acc, (k, v)| {
+                            acc.insert(k, v);
+                            acc
+                        })?;
 
-                Ipld::Map(inner)
-            }
-            RuntimeVal(Val::List(v)) => {
-                let inner = v
-                    .iter()
-                    .map(|elem| Ipld::try_from(RuntimeVal(elem.to_owned())))
-                    .fold_ok(vec![], |mut acc, elem| {
-                        acc.push(elem);
-                        acc
-                    })?;
+                    Ipld::Map(inner)
+                }
+                RuntimeVal(Val::List(v)) => {
+                    let inner = v
+                        .iter()
+                        .map(|elem| Ipld::try_from(RuntimeVal(elem.to_owned())))
+                        .fold_ok(vec![], |mut acc, elem| {
+                            acc.push(elem);
+                            acc
+                        })?;
 
-                Ipld::List(inner)
-            }
-            // Rest of Wit types are unhandled going to Ipld.
-            v => Err(anyhow!("no compatible Ipld type for {:?}", v))?,
-        };
+                    Ipld::List(inner)
+                }
+                // Rest of Wit types are unhandled going to Ipld.
+                v => Err(anyhow!("no compatible Ipld type for {:?}", v))?,
+            };
 
-        Ok(ipld)
+            Ok(ipld)
+        })
     }
 }
 
@@ -256,7 +267,7 @@ mod test {
         let runtime_null = RuntimeVal(Val::String(Box::from("null")));
 
         assert_eq!(
-            RuntimeVal::try_from(Ipld::Null, InterfaceType::Any).unwrap(),
+            RuntimeVal::try_from(Ipld::Null, &InterfaceType::Any).unwrap(),
             runtime_null
         );
 
@@ -268,7 +279,7 @@ mod test {
         let runtime_bool = RuntimeVal(Val::Bool(false));
 
         assert_eq!(
-            RuntimeVal::try_from(Ipld::Bool(false), InterfaceType::Any).unwrap(),
+            RuntimeVal::try_from(Ipld::Bool(false), &InterfaceType::Any).unwrap(),
             runtime_bool
         );
 
@@ -281,7 +292,7 @@ mod test {
         let runtime_int = RuntimeVal(Val::S64(2828829));
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), InterfaceType::Any).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
             runtime_int
         );
 
@@ -289,14 +300,29 @@ mod test {
     }
 
     #[test]
-    fn try_integer_type_roundtrip() {
+    fn try_integer_unsigned_type_roundtrip() {
         let ipld = Ipld::Integer(8829);
-        let runtime_int = RuntimeVal(Val::S16(8829));
+        let runtime_int = RuntimeVal(Val::U16(8829));
 
-        let ty = test_utils::component::setup_component("s16".to_string(), 4);
+        let ty = test_utils::component::setup_component("u16".to_string(), 4);
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), InterfaceType::Type(ty)).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
+            runtime_int
+        );
+
+        assert_eq!(Ipld::try_from(runtime_int).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_integer_signed_type_roundtrip() {
+        let ipld = Ipld::Integer(-8829);
+        let runtime_int = RuntimeVal(Val::S32(-8829));
+
+        let ty = test_utils::component::setup_component("s32".to_string(), 4);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
             runtime_int
         );
 
@@ -309,7 +335,7 @@ mod test {
         let runtime_float = RuntimeVal(Val::Float64(3883.20));
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), InterfaceType::Any).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
             runtime_float
         );
 
@@ -330,7 +356,7 @@ mod test {
         );
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), InterfaceType::Type(ty)).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
             runtime_float
         );
 
@@ -343,7 +369,7 @@ mod test {
         let runtime = RuntimeVal(Val::String(Box::from("Hello!")));
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), InterfaceType::Any).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
             runtime
         );
 
@@ -358,7 +384,7 @@ mod test {
         let runtime = RuntimeVal(Val::String(Box::from(encoded_cid)));
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), InterfaceType::Any).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
             runtime
         );
 
@@ -374,7 +400,7 @@ mod test {
         let runtime = RuntimeVal(Val::String(Box::from(encoded_cid)));
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), InterfaceType::Any).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
             runtime
         );
 
@@ -390,7 +416,7 @@ mod test {
         let runtime = RuntimeVal(Val::String(Box::from(encoded_cid)));
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), InterfaceType::Any).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
             runtime
         );
 
@@ -411,7 +437,7 @@ mod test {
         let runtime = RuntimeVal(val_list);
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), InterfaceType::Type(ty)).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
             runtime
         );
 
@@ -460,7 +486,7 @@ mod test {
         let runtime = RuntimeVal(val_map);
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), InterfaceType::Type(ty)).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
             runtime
         );
 

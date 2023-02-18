@@ -8,7 +8,6 @@
 pub mod cli;
 pub mod db;
 pub mod network;
-pub mod wasm;
 pub mod workflow;
 
 /// Test utilities.

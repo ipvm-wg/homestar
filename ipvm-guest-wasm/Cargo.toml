@@ -2,7 +2,7 @@
 name = "ipvm-guest-wasm"
 publish = false
 version = "0.1.0"
-edition = "2021"
+edition = { workspace = true }
 
 [dependencies]
 wit-bindgen = { git = "https://github.com/bytecodealliance/wit-bindgen", branch = "main" }

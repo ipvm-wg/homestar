@@ -1,0 +1,43 @@
+[package]
+name = "ipvm-wasm"
+version = "0.1.0"
+description = ""
+keywords = []
+categories = []
+
+include = ["/src", "README.md", "LICENSE"]
+license = "Apache"
+readme = "README.md"
+edition = { workspace = true }
+rust-version = { workspace = true }
+documentation = "https://docs.rs/ipvm-wasm"
+repository = "https://github.com/ipvm-wg/ipvm"
+authors = { workspace = true }
+
+[lib]
+path = "src/lib.rs"
+bench = false
+doctest = true
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+anyhow = "1.0"
+heck = "0.4"
+itertools = "0.10"
+libipld = "0.16"
+libipld-core = { version = "0.16", features = ["serde-codec", "serde"] }
+rust_decimal = "1.28"
+stacker = "0.1"
+thiserror = "1.0"
+tracing = "0.1"
+wasmparser = "0.101"
+wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", features = ["async", "component-model", "default"] }
+wasmtime-component-util = { git = "https://github.com/bytecodealliance/wasmtime" }
+wat = "1.0"
+wit-component = "0.7"
+
+[dev-dependencies]
+criterion = "0.4"
+
+[features]
+default = []

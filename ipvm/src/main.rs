@@ -14,12 +14,12 @@ use ipvm::{
         eventloop::{Event, RECEIPTS_TOPIC},
         swarm::{self, Topic, TopicMessage},
     },
-    wasm::wasmtime::shim,
     workflow::{
         closure::{Action, Closure, Input},
         receipt::{LocalReceipt, Receipt},
     },
 };
+use ipvm_wasm::wasmtime;
 use itertools::Itertools;
 use libipld::{
     cid::{multibase::Base, Cid},
@@ -36,7 +36,6 @@ use std::{
     str::{self, FromStr},
 };
 use url::Url;
-use wasmtime::{component::Linker, Config, Engine, Store};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -75,6 +74,7 @@ async fn main() -> Result<()> {
     };
 
     // TODO: abstraction for this and redo inner parts, around ownership, etc.
+    // TODO: cleanup-up use, clones, etc.
     match opts.argument {
         Argument::Get { name } => {
             let cid_name = Cid::from_str(&name)?;
@@ -143,20 +143,8 @@ async fn main() -> Result<()> {
                     acc
                 })?;
 
-            let mut config = Config::new();
-            config.strategy(wasmtime::Strategy::Cranelift);
-            config.wasm_component_model(true);
-            config.async_support(true);
-            config.cranelift_nan_canonicalization(true);
-
-            let engine = Engine::new(&config)?;
-            let linker = Linker::new(&engine);
-            let mut store = Store::new(&engine, ());
-
-            let component = shim::component_from_bytes(&wasm_bytes, engine)?;
-            let (bindings, _instance) =
-                shim::Wasmtime::instantiate(&mut store, &component, &linker, fun).await?;
-            let res = bindings.execute(store, ipld_args.clone()).await?;
+            let mut env = wasmtime::World::instantiate(wasm_bytes, fun, ()).await?;
+            let res = env.execute(ipld_args.clone()).await?;
 
             let resource = Url::parse(format!("ipfs://{wasm}").as_str()).expect("IPFS URL");
 
@@ -167,18 +155,17 @@ async fn main() -> Result<()> {
             };
 
             let link: Link<Closure> = Closure::try_into(closure)?;
-            let receipt = LocalReceipt::new(link, res);
-            let receipt_bytes: Vec<u8> = receipt.clone().try_into()?;
+            let local_receipt = LocalReceipt::new(link, res);
+            let receipt = Receipt::try_from(&local_receipt)?;
 
+            let receipt_bytes: Vec<u8> = local_receipt.try_into()?;
             let dag_builder = DagPut::builder().input_codec(DagCodec::Cbor).build();
             let DagPutResponse { cid } = ipfs
                 .dag_put_with_options(Cursor::new(receipt_bytes.clone()), dag_builder)
                 .await
                 .expect("a CID");
 
-            let receipt: Receipt = receipt.try_into()?;
-
-            // Test for now
+            //Test for now
             assert_eq!(cid.cid_string, receipt.cid());
 
             let mut conn = db::establish_connection();
@@ -190,7 +177,7 @@ async fn main() -> Result<()> {
             println!("stored: {receipt}");
 
             let closure_cid = receipt.closure_cid();
-            let output = receipt.output();
+            let output = receipt.output().clone();
             let async_client = client.clone();
             // We delay messages to make sure peers are within the mesh.
             tokio::spawn(async move {
@@ -199,7 +186,7 @@ async fn main() -> Result<()> {
                 let _ = async_client
                     .publish_message(
                         Topic::new(RECEIPTS_TOPIC.to_string()),
-                        TopicMessage::Receipt(receipt.clone()),
+                        TopicMessage::Receipt(receipt),
                     )
                     .await;
             });
