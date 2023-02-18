@@ -15,6 +15,33 @@ use wasmtime::{
 };
 use wit_component::ComponentEncoder;
 
+// TODO: Implement errors over thiserror and bubble up traps from here to
+// our error set.
+
+/// Incoming `state` from host runtime.
+#[derive(Debug)]
+pub struct State {
+    fuel: u64,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self { fuel: u64::MAX }
+    }
+}
+
+impl State {
+    /// Create a new [State] object.
+    pub fn new(fuel: u64) -> Self {
+        Self { fuel }
+    }
+
+    /// Set fuel add.
+    pub fn add_fuel(&mut self, fuel: u64) {
+        self.fuel = fuel
+    }
+}
+
 /// Runtime struct wrapping wasm/host bindings, the
 /// wasmtime [Instance], [Linker], and [Store].
 #[allow(missing_debug_implementations)]
@@ -111,14 +138,14 @@ impl World {
     /// parameters, wrapping up the result in a [Runner] structure
     /// that translates between wasm and the host, and gives access
     /// to further linking and store state.
-    pub async fn instantiate<T>(bytes: Vec<u8>, fun_name: String, data: T) -> Result<Env<T>>
-    where
-        T: Send,
-    {
+    pub async fn instantiate(bytes: Vec<u8>, fun_name: String, data: State) -> Result<Env<State>> {
         let config = Self::configure();
         let engine = Engine::new(&config)?;
         let linker = Self::define_linker(&engine);
+
         let mut store = Store::new(&engine, data);
+        store.add_fuel(store.data().fuel)?;
+
         let component = component_from_bytes(&bytes, engine)?;
         let instance = linker.instantiate_async(&mut store, &component).await?;
         let bindings = Self::new(&mut store, &instance, fun_name)?;
@@ -136,6 +163,14 @@ impl World {
         config.wasm_component_model(true);
         config.async_support(true);
         config.cranelift_nan_canonicalization(true);
+
+        // Most Wasm instructions consume 1 unit of fuel.
+        // Some instructions, such as nop, drop, block, and loop, consume 0
+        // units, as any execution cost associated with them involves other
+        // instructions which do consume fuel. We use *these* defaults for now
+        // for Ops, instead of parsing each Op.
+        config.consume_fuel(true);
+
         config
     }
 
