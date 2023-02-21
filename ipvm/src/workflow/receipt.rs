@@ -201,7 +201,7 @@ impl TryFrom<&LocalReceipt> for Cid {
     fn try_from(receipt: &LocalReceipt) -> Result<Self, Self::Error> {
         let ipld = Ipld::from(receipt);
         let bytes = DagCborCodec.encode(&ipld)?;
-        let hash = Code::Sha2_256.digest(&bytes);
+        let hash = Code::Sha3_256.digest(&bytes);
         Ok(Cid::new_v1(0x71, hash))
     }
 }

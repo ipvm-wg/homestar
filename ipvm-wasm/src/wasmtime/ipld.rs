@@ -287,12 +287,14 @@ mod test {
     }
 
     #[test]
-    fn try_integer_any_roundtrip() {
-        let ipld = Ipld::Integer(2828829);
-        let runtime_int = RuntimeVal(Val::S64(2828829));
+    fn try_integer_unsignedu8_type_roundtrip() {
+        let ipld = Ipld::Integer(8);
+        let runtime_int = RuntimeVal(Val::U8(8));
+
+        let ty = test_utils::component::setup_component("u8".to_string(), 4);
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
             runtime_int
         );
 
@@ -300,7 +302,7 @@ mod test {
     }
 
     #[test]
-    fn try_integer_unsigned_type_roundtrip() {
+    fn try_integer_unsigned16_type_roundtrip() {
         let ipld = Ipld::Integer(8829);
         let runtime_int = RuntimeVal(Val::U16(8829));
 
@@ -315,12 +317,111 @@ mod test {
     }
 
     #[test]
-    fn try_integer_signed_type_roundtrip() {
+    fn try_integer_unsigned32_type_roundtrip() {
+        let ipld = Ipld::Integer(8829);
+        let runtime_int = RuntimeVal(Val::U32(8829));
+
+        let ty = test_utils::component::setup_component("u32".to_string(), 4);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
+            runtime_int
+        );
+
+        assert_eq!(Ipld::try_from(runtime_int).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_integer_unsigned64_type_roundtrip() {
+        let ipld = Ipld::Integer(8829);
+        let runtime_int = RuntimeVal(Val::U64(8829));
+
+        let ty = test_utils::component::setup_component_with_param(
+            "u64".to_string(),
+            &[test_utils::component::Param(
+                test_utils::component::Type::I64,
+                Some(0),
+            )],
+        );
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
+            runtime_int
+        );
+
+        assert_eq!(Ipld::try_from(runtime_int).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_integer_any_roundtrip() {
+        let ipld = Ipld::Integer(2828829);
+        let runtime_int = RuntimeVal(Val::S64(2828829));
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
+            runtime_int
+        );
+
+        assert_eq!(Ipld::try_from(runtime_int).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_integer_signedu8_type_roundtrip() {
+        let ipld = Ipld::Integer(1);
+        let runtime_int = RuntimeVal(Val::S8(1));
+
+        let ty = test_utils::component::setup_component("s8".to_string(), 4);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
+            runtime_int
+        );
+
+        assert_eq!(Ipld::try_from(runtime_int).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_integer_signed16_type_roundtrip() {
+        let ipld = Ipld::Integer(-8829);
+        let runtime_int = RuntimeVal(Val::S16(-8829));
+
+        let ty = test_utils::component::setup_component("s16".to_string(), 4);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
+            runtime_int
+        );
+
+        assert_eq!(Ipld::try_from(runtime_int).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_integer_signed32_type_roundtrip() {
         let ipld = Ipld::Integer(-8829);
         let runtime_int = RuntimeVal(Val::S32(-8829));
 
         let ty = test_utils::component::setup_component("s32".to_string(), 4);
 
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
+            runtime_int
+        );
+
+        assert_eq!(Ipld::try_from(runtime_int).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_integer_signed64_type_roundtrip() {
+        let ipld = Ipld::Integer(-8829);
+        let runtime_int = RuntimeVal(Val::S64(-8829));
+
+        let ty = test_utils::component::setup_component_with_param(
+            "s64".to_string(),
+            &[test_utils::component::Param(
+                test_utils::component::Type::I64,
+                Some(0),
+            )],
+        );
         assert_eq!(
             RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
             runtime_int
@@ -393,7 +494,7 @@ mod test {
 
     #[test]
     fn try_cid_v1_roundtrip() {
-        let h = Code::Sha2_256.digest(b"beep boop");
+        let h = Code::Blake3_256.digest(b"beep boop");
         let cid = Cid::new_v1(RAW, h);
         let ipld = Ipld::Link(cid);
         let encoded_cid = cid.to_string_of_base(Base::Base32Lower).unwrap();

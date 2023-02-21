@@ -30,6 +30,8 @@ rust_decimal = "1.28"
 stacker = "0.1"
 thiserror = "1.0"
 tracing = "0.1"
+wasi-cap-std-sync = { git = "https://github.com/bytecodealliance/preview2-prototyping" }
+wasi-common = { git = "https://github.com/bytecodealliance/preview2-prototyping" }
 wasmparser = "0.101"
 wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", features = ["async", "component-model", "default"] }
 wasmtime-component-util = { git = "https://github.com/bytecodealliance/wasmtime" }
@@ -38,6 +40,8 @@ wit-component = "0.7"
 
 [dev-dependencies]
 criterion = "0.4"
+tokio = { version = "1.25", default_features = false }
+tokio-test = "0.4"
 
 [features]
 default = []
