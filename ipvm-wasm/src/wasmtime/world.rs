@@ -15,6 +15,9 @@ use wasmtime::{
 };
 use wit_component::ComponentEncoder;
 
+// One unit of fuel represents around 100k instructions.
+const UNIT_OF_COMPUTE_INSTRUCTIONS: u64 = 100_000;
+
 // TODO: Implement errors over thiserror and bubble up traps from here to
 // our error set.
 
@@ -67,12 +70,14 @@ impl<T> Env<T> {
     /// IDL types when Wasm was compiled/generated.
     ///
     /// [Wit]: https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md
-    pub async fn execute(&mut self, args: Vec<Ipld>) -> Result<Ipld>
+    pub async fn execute(&mut self, args: Ipld) -> Result<Ipld>
     where
         T: Send,
     {
+        use libipld::serde::from_ipld;
         let param_typs = self.bindings.func().params(&self.store);
         let result_typs = self.bindings.func().results(&self.store);
+        let args = from_ipld::<Vec<Ipld>>(args)?;
 
         let params: Vec<component::Val> = iter::zip(param_typs.iter(), args.into_iter())
             .map(|(typ, arg)| RuntimeVal::try_from(arg, &InterfaceType::from(typ)))
@@ -145,6 +150,10 @@ impl World {
 
         let mut store = Store::new(&engine, data);
         store.add_fuel(store.data().fuel)?;
+
+        // Configures a `Store` to yield execution of async WebAssembly code
+        // periodically and not cause extended polling.
+        store.out_of_fuel_async_yield(u64::MAX, UNIT_OF_COMPUTE_INSTRUCTIONS);
 
         let component = component_from_bytes(&bytes, engine)?;
         let instance = linker.instantiate_async(&mut store, &component).await?;

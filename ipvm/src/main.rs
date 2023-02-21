@@ -148,7 +148,7 @@ async fn main() -> Result<()> {
             // TODO: State will derive from resources, other configuration.
             let mut env =
                 wasmtime::World::instantiate(wasm_bytes, fun, wasmtime::State::default()).await?;
-            let res = env.execute(ipld_args.clone()).await?;
+            let res = env.execute(Ipld::List(ipld_args.clone())).await?;
 
             let resource = Url::parse(format!("ipfs://{wasm}").as_str()).expect("IPFS URL");
 
@@ -163,7 +163,10 @@ async fn main() -> Result<()> {
             let receipt = Receipt::try_from(&local_receipt)?;
 
             let receipt_bytes: Vec<u8> = local_receipt.try_into()?;
-            let dag_builder = DagPut::builder().input_codec(DagCodec::Cbor).build();
+            let dag_builder = DagPut::builder()
+                .input_codec(DagCodec::Cbor)
+                .hash("sha3-256") // sadly no support for blake3-256
+                .build();
             let DagPutResponse { cid } = ipfs
                 .dag_put_with_options(Cursor::new(receipt_bytes.clone()), dag_builder)
                 .await
