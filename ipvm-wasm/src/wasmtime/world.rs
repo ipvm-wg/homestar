@@ -46,23 +46,39 @@ impl State {
 }
 
 /// Runtime struct wrapping wasm/host bindings, the
-/// wasmtime [Instance], [Linker], and [Store].
+/// wasmtime [Instance], [Engine], [Linker], and [Store].
 #[allow(missing_debug_implementations)]
 pub struct Env<T> {
     bindings: World,
+    engine: Engine,
     instance: Instance,
     linker: Linker<T>,
     store: Store<T>,
 }
 
 impl<T> Env<T> {
-    fn new(bindings: World, instance: Instance, linker: Linker<T>, store: Store<T>) -> Env<T> {
+    fn new(
+        bindings: World,
+        engine: Engine,
+        instance: Instance,
+        linker: Linker<T>,
+        store: Store<T>,
+    ) -> Env<T> {
         Env {
             bindings,
+            engine,
             instance,
             linker,
             store,
         }
+    }
+
+    fn set_bindings(&mut self, bindings: World) {
+        self.bindings = bindings;
+    }
+
+    fn set_instance(&mut self, instance: Instance) {
+        self.instance = instance;
     }
 
     /// Execute Wasm function dynamically given [Ipld] arguments
@@ -140,10 +156,16 @@ pub struct World(Func);
 
 impl World {
     /// Instantiates the provided `module` using the specified
-    /// parameters, wrapping up the result in a [Runner] structure
+    /// parameters, wrapping up the result in a [Env] structure
     /// that translates between wasm and the host, and gives access
-    /// to further linking and store state.
-    pub async fn instantiate(bytes: Vec<u8>, fun_name: String, data: State) -> Result<Env<State>> {
+    /// for future invocations to use the already-initialized linker, store.
+    ///
+    /// Used when first initiating a module of a workflow.
+    pub async fn instantiate<'a>(
+        bytes: Vec<u8>,
+        fun_name: String,
+        data: State,
+    ) -> Result<Env<State>> {
         let config = Self::configure();
         let engine = Engine::new(&config)?;
         let linker = Self::define_linker(&engine);
@@ -155,11 +177,40 @@ impl World {
         // periodically and not cause extended polling.
         store.out_of_fuel_async_yield(u64::MAX, UNIT_OF_COMPUTE_INSTRUCTIONS);
 
-        let component = component_from_bytes(&bytes, engine)?;
+        // engine clones are shallow (not deep).
+        let component = component_from_bytes(&bytes, engine.clone())?;
+
         let instance = linker.instantiate_async(&mut store, &component).await?;
         let bindings = Self::new(&mut store, &instance, fun_name)?;
+        let env = Env::new(bindings, engine, instance, linker, store);
+        Ok(env)
+    }
 
-        Ok(Env::new(bindings, instance, linker, store))
+    /// Instantiates the provided `module` using the current
+    /// [environment]'s engine, linker, and store, producing
+    /// a new set of bindings for execution, and overriding
+    /// the instance for the Wasm component.
+    ///
+    /// [environment]: Env
+    pub async fn instantiate_with_current_env<T>(
+        bytes: Vec<u8>,
+        fun_name: String,
+        env: &mut Env<T>,
+    ) -> Result<&mut Env<T>>
+    where
+        T: Send,
+    {
+        // engine clones are shallow (not deep).
+        let component = component_from_bytes(&bytes, env.engine.clone())?;
+
+        let instance = env
+            .linker
+            .instantiate_async(&mut env.store, &component)
+            .await?;
+        let bindings = Self::new(&mut env.store, &instance, fun_name)?;
+        env.set_instance(instance);
+        env.set_bindings(bindings);
+        Ok(env)
     }
 
     fn func(&self) -> Func {
