@@ -29,7 +29,9 @@ const CLOSURE_CID_KEY: &str = "closure_cid";
 const NONCE_KEY: &str = "nonce";
 const OUT_KEY: &str = "out";
 
-/// Receipt for closure invocation.
+/// Receipt for closure invocation, including it's own [Cid].
+///
+/// `@See` [LocalReceipt] for more info on the internal fields.
 #[derive(Debug, Clone, PartialEq, Queryable, Insertable, Serialize, Deserialize)]
 pub struct Receipt {
     cid: LocalCid,
@@ -84,7 +86,7 @@ impl TryFrom<Receipt> for Vec<u8> {
     type Error = anyhow::Error;
 
     fn try_from(receipt: Receipt) -> Result<Self, Self::Error> {
-        let receipt_ipld = Ipld::from(receipt);
+        let receipt_ipld = Ipld::from(LocalReceipt::try_from(receipt)?);
         DagCborCodec.encode(&receipt_ipld)
     }
 }
@@ -95,6 +97,16 @@ impl TryFrom<Vec<u8>> for Receipt {
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
         let ipld: Ipld = DagCborCodec.decode(&bytes)?;
         Receipt::try_from(ipld)
+    }
+}
+
+impl From<Receipt> for LocalReceipt {
+    fn from(receipt: Receipt) -> Self {
+        LocalReceipt {
+            closure_cid: receipt.closure_cid.0,
+            nonce: receipt.nonce,
+            out: receipt.out.0,
+        }
     }
 }
 
@@ -143,6 +155,9 @@ impl TryFrom<Ipld> for Receipt {
 }
 
 /// Local version of [Receipt] to generate [Cid].
+///
+/// A nonce is currently a [`xid`], 12 bytes / 20 chars,
+/// configuration free, sortable.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LocalReceipt {
     closure_cid: Cid,
@@ -274,5 +289,59 @@ impl FromSql<Binary, Sqlite> for LocalIpld {
         let raw_bytes: &[u8] = unsafe { &*raw_bytes };
         let decoded = DagCborCodec.decode(raw_bytes)?;
         Ok(LocalIpld(decoded))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{db::schema, test_utils::db, workflow::receipt::receipts};
+    use diesel::{QueryDsl, RunQueryDsl};
+
+    use super::*;
+    const RAW: u64 = 0x55;
+
+    fn receipt() -> (LocalReceipt, Receipt) {
+        let h = Code::Blake3_256.digest(b"beep boop");
+        let cid = Cid::new_v1(RAW, h);
+        let link = Link::new(cid);
+        let local = LocalReceipt::new(link, Ipld::Bool(true));
+        let receipt = Receipt::try_from(&local).unwrap();
+        (local, receipt)
+    }
+
+    #[test]
+    fn local_into_receipt() {
+        let (local, receipt) = receipt();
+        assert_eq!(local.closure_cid.to_string(), receipt.closure_cid());
+        assert_eq!(local.nonce, receipt.nonce);
+        assert_eq!(&local.out, receipt.output());
+
+        let output_bytes = DagCborCodec.encode(&local.out).unwrap();
+        assert_eq!(output_bytes, receipt.output_encoded().unwrap());
+
+        let local_bytes: Vec<u8> = local.try_into().unwrap();
+        let receipt_bytes: Vec<u8> = receipt.try_into().unwrap();
+        assert_eq!(local_bytes, receipt_bytes);
+    }
+
+    #[test]
+    fn receipt_sql_roundtrip() {
+        let mut conn = db::setup().unwrap();
+
+        let (_, receipt) = receipt();
+
+        let rows_inserted = diesel::insert_into(schema::receipts::table)
+            .values(&receipt)
+            .execute(&mut conn)
+            .unwrap();
+
+        assert_eq!(1, rows_inserted);
+
+        let inserted_receipt = receipts::table
+            .select(receipts::cid)
+            .load::<String>(&mut conn)
+            .unwrap();
+
+        assert_eq!(vec![receipt.cid()], inserted_receipt);
     }
 }

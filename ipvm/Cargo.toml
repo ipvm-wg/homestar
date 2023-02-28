@@ -32,6 +32,7 @@ async-trait = "0.1"
 clap = { version = "4.1", features = ["derive"] }
 derive_more = "0.99"
 diesel = { version = "2.0", features = ["sqlite"] }
+diesel_migrations = "2.0"
 dotenvy = "0.15"
 env_logger = "0.10"
 ipfs-api = "0.17"
