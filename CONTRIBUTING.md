@@ -1,4 +1,4 @@
-# Contributing to ipvm
+# Contributing to homestar
 
 We welcome everyone to contribute what and where they can. Whether you are brand
 new, just want to contribute a little bit, or want to contribute a lot there is
@@ -84,7 +84,7 @@ need to be the best programmer to contribute. Our discord is open for questions
 	- You can learn more about cloning repositories [here][git-clone].
 
  6. **Build** the project
-    - For a detailed look on how to build ipvm look at our
+    - For a detailed look on how to build homestar look at our
       [README file](./README.md).
 
  7. **Start writing** your code

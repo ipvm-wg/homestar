@@ -7,7 +7,7 @@ version: 2
 
 updates:
   - package-ecosystem: "cargo"
-    directory: "/ipvm"
+    directory: "/homestar"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -16,7 +16,7 @@ updates:
       interval: "weekly"
 
   - package-ecosystem: "cargo"
-    directory: "/ipvm-guest-wasm"
+    directory: "/homestar-guest-wasm"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -25,7 +25,7 @@ updates:
       interval: "weekly"
 
   - package-ecosystem: "cargo"
-    directory: "/ipvm-wasm"
+    directory: "/homestar-wasm"
     commit-message:
       prefix: "chore"
       include: "scope"

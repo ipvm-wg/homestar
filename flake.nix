@@ -1,5 +1,5 @@
 {
-  description = "ipvm";
+  description = "homestar";
 
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-22.11";
@@ -46,7 +46,7 @@
       in rec
       {
         devShells.default = pkgs.mkShell {
-          name = "ipvm";
+          name = "homestar";
           nativeBuildInputs = with pkgs;
             [
               # The ordering of these two items is important. For nightly rustfmt to be used instead of

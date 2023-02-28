@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    "ipvm",
-    "ipvm-guest-wasm",
-    "ipvm-wasm"
+    "homestar",
+    "homestar-guest-wasm",
+    "homestar-wasm"
 ]
 
 [workspace.package]
@@ -16,11 +16,11 @@ rust-version = "1.66.0"
 [profile.dev]
 split-debuginfo = "unpacked"
 
-[profile.release.package.ipvm]
+[profile.release.package.homestar]
 # Tell `rustc` to optimize for small code size.
 opt-level = "s"
 
-[profile.release.package.ipvm-guest-wasm]
+[profile.release.package.homestar-guest-wasm]
 # Perform optimizations on all codegen units.
 codegen-units = 1
 # Tell `rustc` to optimize for small code size.
