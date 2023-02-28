@@ -80,7 +80,9 @@ impl EventLoop {
                 match Receipt::try_from(message.data) {
                     Ok(receipt) => println!("got message: {receipt}"),
 
-                    Err(err) => println!("cannot handle_message: {err}"),
+                    Err(err) => {
+                        println!("cannot handle_message: {err}")
+                    },
                 },
             SwarmEvent::Behaviour(ComposedEvent::Floodsub(FloodsubEvent::Subscribed {
                 peer_id,

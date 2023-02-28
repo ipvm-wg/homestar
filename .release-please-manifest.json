@@ -1,5 +1,5 @@
 {
-  "ipvm": "0.1.0",
-  "ipvm-guest-wasm": "0.1.0",
-  "ipvm-wasm": "0.1.0"
+  "homestar": "0.1.0",
+  "homestar-guest-wasm": "0.1.0",
+  "homestar-wasm": "0.1.0"
 }

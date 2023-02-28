@@ -1,5 +1,5 @@
 [package]
-name = "ipvm"
+name = "homestar"
 version = "0.1.0"
 description = ""
 keywords = []
@@ -10,8 +10,8 @@ license = { workspace = true }
 readme = "README.md"
 edition = { workspace = true }
 rust-version = { workspace = true }
-documentation = "https://docs.rs/ipvm"
-repository = "https://github.com/ipvm-wg/ipvm"
+documentation = "https://docs.rs/homestar"
+repository = "https://github.com/ipvm-wg/homestar"
 authors = { workspace = true }
 
 [lib]
@@ -21,7 +21,7 @@ doctest = true
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "ipvm"
+name = "homestar"
 path = "src/main.rs"
 doc = false
 bench = false
@@ -35,13 +35,13 @@ diesel = { version = "2.0", features = ["sqlite"] }
 diesel_migrations = "2.0"
 dotenvy = "0.15"
 env_logger = "0.10"
+homestar-wasm = { version = "0.1", path = "../homestar-wasm" }
 ipfs-api = "0.17"
 ipfs-api-backend-hyper = { version = "0.6", features = ["with-builder"] }
-ipvm-wasm = { version = "0.1", path = "../ipvm-wasm" }
 itertools = "0.10"
 libipld = "0.16"
 libipld-core = { version = "0.16", features = ["serde-codec", "serde"] }
-libp2p = { git = "https://github.com/libp2p/rust-libp2p", features = ["kad", "request-response", "macros", "identify", "mdns", "floodsub", "gossipsub", "tokio", "dns", "tcp", "noise", "yamux", "websocket"] }
+libp2p = { version = "0.51", features = ["kad", "request-response", "macros", "identify", "mdns", "floodsub", "gossipsub", "tokio", "dns", "tcp", "noise", "yamux", "websocket"] }
 proptest = { version = "1.1", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 signature = "2.0"

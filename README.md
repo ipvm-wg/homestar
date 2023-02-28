@@ -1,24 +1,24 @@
 <div align="center">
-  <a href="https://github.com/ipvm-wg/ipvm" target="_blank">
-    <img src="https://raw.githubusercontent.com/ipvm-wg/ipvm/main/assets/a_logo.png" alt="ipvm Logo" width="100"></img>
+  <a href="https://github.com/ipvm-wg/homestar" target="_blank">
+    <img src="https://raw.githubusercontent.com/ipvm-wg/homestar/main/assets/a_logo.png" alt="homestar Logo" width="100"></img>
   </a>
 
-  <h1 align="center">ipvm</h1>
+  <h1 align="center">homestar</h1>
 
   <p>
-    <a href="https://crates.io/crates/ipvm">
-      <img src="https://img.shields.io/crates/v/ipvm?label=crates" alt="Crate">
+    <a href="https://crates.io/crates/homestar">
+      <img src="https://img.shields.io/crates/v/homestar?label=crates" alt="Crate">
     </a>
-    <a href="https://codecov.io/gh/ipvm-wg/ipvm">
-      <img src="https://codecov.io/gh/ipvm-wg/ipvm/branch/main/graph/badge.svg?token=SOMETOKEN" alt="Code Coverage"/>
+    <a href="https://codecov.io/gh/ipvm-wg/homestar">
+      <img src="https://codecov.io/gh/ipvm-wg/homestar/branch/main/graph/badge.svg?token=SOMETOKEN" alt="Code Coverage"/>
     </a>
-    <a href="https://github.com/ipvm-wg/ipvm/actions?query=">
-      <img src="https://github.com/ipvm-wg/ipvm/actions/workflows/tests_and_checks.yml/badge.svg" alt="Build Status">
+    <a href="https://github.com/ipvm-wg/homestar/actions?query=">
+      <img src="https://github.com/ipvm-wg/homestar/actions/workflows/tests_and_checks.yml/badge.svg" alt="Build Status">
     </a>
-    <a href="https://github.com/ipvm-wg/ipvm/blob/main/LICENSE">
+    <a href="https://github.com/ipvm-wg/homestar/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
     </a>
-    <a href="https://docs.rs/ipvm">
+    <a href="https://docs.rs/homestar">
       <img src="https://img.shields.io/static/v1?label=Docs&message=docs.rs&color=blue" alt="Docs">
     </a>
     <a href="https://discord.gg/fissioncodes">
@@ -36,7 +36,7 @@
 - [Installation](#installation)
 - [Testing the Project](#testing-the-project)
 - [Benchmarking the Project](#benchmarking-the-project)
-- [Running ipvm on Docker](#running-ipvm-on-docker)
+- [Running homestar on Docker](#running-homestar-on-docker)
 - [Contributing](#contributing)
 - [Getting Help](#getting-help)
 - [External Resources](#external-resources)
@@ -47,7 +47,7 @@
 ### Using `cargo`
 
 ```console
-$ cargo install ipvm
+$ cargo install homestar
 ```
 
 ## Testing the Project
@@ -71,7 +71,7 @@ for integrating [proptest][proptest] within the the suite for working with
   cargo bench --features test_utils
   ```
 
-## Running ipvm on Docker
+## Running homestar on Docker
 
 We recommend setting your [Docker Engine][docker-engine] configuration
 with `experimental` and `buildkit` set to `true`, for example:
@@ -94,13 +94,13 @@ with `experimental` and `buildkit` set to `true`, for example:
 - Build a multi-plaform Docker image via [buildx][buildx]:
 
   ```console
-  docker buildx build --platform=linux/amd64,linux/arm64 -t ipvm --progress=plain .
+  docker buildx build --platform=linux/amd64,linux/arm64 -t homestar --progress=plain .
   ```
 
 - Run a Docker image (depending on your platform):
 
   ```console
-  docker run --platform=linux/amd64 -t ipvm
+  docker run --platform=linux/amd64 -t homestar
   ```
 
 ## Contributing

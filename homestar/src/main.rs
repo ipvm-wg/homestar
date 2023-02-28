@@ -1,12 +1,7 @@
 use anyhow::{anyhow, bail, Result};
 use clap::Parser;
 use diesel::RunQueryDsl;
-use ipfs_api::{
-    request::{DagCodec, DagPut},
-    response::DagPutResponse,
-    IpfsApi, IpfsClient,
-};
-use ipvm::{
+use homestar::{
     cli::{Args, Argument},
     db::{self, schema},
     network::{
@@ -19,7 +14,12 @@ use ipvm::{
         receipt::{LocalReceipt, Receipt},
     },
 };
-use ipvm_wasm::wasmtime;
+use homestar_wasm::wasmtime;
+use ipfs_api::{
+    request::{DagCodec, DagPut},
+    response::DagPutResponse,
+    IpfsApi, IpfsClient,
+};
 use itertools::Itertools;
 use libipld::{
     cid::{multibase::Base, Cid},
@@ -189,6 +189,8 @@ async fn main() -> Result<()> {
             // We delay messages to make sure peers are within the mesh.
             tokio::spawn(async move {
                 // TODO: make this configurable, but currently matching heartbeat.
+                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                println!("SHIT: {receipt}");
                 let _ = async_client
                     .publish_message(
                         Topic::new(RECEIPTS_TOPIC.to_string()),

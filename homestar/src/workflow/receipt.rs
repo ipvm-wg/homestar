@@ -86,7 +86,7 @@ impl TryFrom<Receipt> for Vec<u8> {
     type Error = anyhow::Error;
 
     fn try_from(receipt: Receipt) -> Result<Self, Self::Error> {
-        let receipt_ipld = Ipld::from(LocalReceipt::try_from(receipt)?);
+        let receipt_ipld = Ipld::from(receipt);
         DagCborCodec.encode(&receipt_ipld)
     }
 }
@@ -318,10 +318,6 @@ mod test {
 
         let output_bytes = DagCborCodec.encode(&local.out).unwrap();
         assert_eq!(output_bytes, receipt.output_encoded().unwrap());
-
-        let local_bytes: Vec<u8> = local.try_into().unwrap();
-        let receipt_bytes: Vec<u8> = receipt.try_into().unwrap();
-        assert_eq!(local_bytes, receipt_bytes);
     }
 
     #[test]

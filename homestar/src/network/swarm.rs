@@ -14,7 +14,7 @@ use libp2p::{
     core::upgrade::{self, read_length_prefixed, write_length_prefixed, ProtocolName},
     floodsub::{self, Floodsub, FloodsubEvent},
     futures::{AsyncRead, AsyncWrite, AsyncWriteExt},
-    gossipsub::{self, error::SubscriptionError, MessageId, TopicHash},
+    gossipsub::{self, MessageId, SubscriptionError, TopicHash},
     identity::Keypair,
     kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
     mdns, noise,

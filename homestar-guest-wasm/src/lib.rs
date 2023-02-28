@@ -2,7 +2,7 @@ wit_bindgen::generate!("test" in "./wits");
 
 struct Component;
 
-impl Ipvm for Component {
+impl Homestar for Component {
     fn add_one(a: i32) -> i32 {
         a + 1
     }
@@ -13,4 +13,4 @@ impl Ipvm for Component {
     }
 }
 
-export_ipvm!(Component);
+export_homestar!(Component);

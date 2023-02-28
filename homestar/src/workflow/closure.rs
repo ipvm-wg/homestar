@@ -1,4 +1,4 @@
-//! The smallest unit of work in IPVM.
+//! The smallest unit of work in Homestar.
 
 use crate::workflow::pointer::{InvokedTaskPointer, Promise, Status, OK_BRANCH};
 use anyhow::anyhow;
@@ -17,14 +17,14 @@ const WITH_KEY: &str = "with";
 const DO_KEY: &str = "do";
 const INPUTS_KEY: &str = "inputs";
 
-/// The suspended representation of the smallest unit of work in IPVM
+/// The suspended representation of the smallest unit of work in Homestar.
 ///
 /// # Example
 ///
 /// ```
 /// use libipld::Ipld;
 /// use url::Url;
-/// use ipvm::workflow::closure::{Closure, Action, Input};
+/// use homestar::workflow::closure::{Closure, Action, Input};
 ///
 /// Closure {
 ///     resource: Url::parse("ipfs://bafkreihf37goitzzlatlhwgiadb2wxkmn4k2edremzfjsm7qhnoxwlfstm").expect("IPFS URL"),
@@ -108,9 +108,9 @@ impl TryFrom<Ipld> for Closure {
     }
 }
 
-/// IPVM-flavoured inputs to a [Closure].
+/// Homestar-flavoured inputs to a [Closure].
 ///
-/// An `Input` is either [Ipld] or a deferred IPVM [Promise].
+/// An `Input` is either [Ipld] or a deferred Homestar [Promise].
 #[derive(Clone, Debug, PartialEq)]
 pub enum Input {
     /// Literals
@@ -167,7 +167,7 @@ impl TryFrom<Ipld> for Input {
 /// # Example
 ///
 /// ```
-/// use ipvm::workflow::closure::Action;
+/// use homestar::workflow::closure::Action;
 ///
 /// Action::from("msg/send");
 /// Action::from("crud/update");
@@ -176,7 +176,7 @@ impl TryFrom<Ipld> for Input {
 /// Actions are case-insensitive, and don't respect wrapping whitespace:
 ///
 /// ```
-/// use ipvm::workflow::closure::Action;
+/// use homestar::workflow::closure::Action;
 ///
 /// let action = Action::from("eXaMpLe/tEsT");
 /// assert_eq!(action.to_string(), "example/test".to_string());

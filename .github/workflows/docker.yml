@@ -43,11 +43,11 @@ jobs:
       - name: Docker Build
         uses: docker/build-push-action@v4
         with:
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/ipvm:latest
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/ipvm:latest,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/homestar:latest
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/homestar:latest,mode=max
           file: docker/Dockerfile
           context: .
           platforms: linux/amd64, linux/arm64
           push: false
           tags: |
-            ${{ github.repository_owner }}/ipvm:latest
+            ${{ github.repository_owner }}/homestar:latest

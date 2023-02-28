@@ -1,14 +1,14 @@
-//! Ipvm configuration.
+//! Homestar configuration.
 
 use anyhow::anyhow;
-use ipvm_wasm::wasmtime;
+use homestar_wasm::wasmtime;
 use libipld::{serde::from_ipld, Ipld};
 use std::{collections::BTreeMap, default::Default, time::Duration};
 
 const FUEL_KEY: &str = "fuel";
 const TIMEOUT_KEY: &str = "time";
 
-/// IPVM resource configuration for defining fuel quotas, timeouts, etc.
+/// Homestar resource configuration for defining fuel quotas, timeouts, etc.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Resources {
     fuel: Option<u64>,

@@ -1,5 +1,5 @@
 [package]
-name = "ipvm-wasm"
+name = "homestar-wasm"
 version = "0.1.0"
 description = ""
 keywords = []
@@ -10,8 +10,8 @@ license = "Apache"
 readme = "README.md"
 edition = { workspace = true }
 rust-version = { workspace = true }
-documentation = "https://docs.rs/ipvm-wasm"
-repository = "https://github.com/ipvm-wg/ipvm"
+documentation = "https://docs.rs/homestar-wasm"
+repository = "https://github.com/ipvm-wg/homestar"
 authors = { workspace = true }
 
 [lib]

@@ -2,7 +2,7 @@
 # see https://diesel.rs/guides/configuring-diesel-cli
 
 [print_schema]
-file = "ipvm/src/schema.rs"
+file = "homestar/src/schema.rs"
 
 [migrations_directory]
 dir = "migrations"
