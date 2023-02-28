@@ -28,20 +28,15 @@ use std::{
 use wasmtime::component::{Type, Val};
 
 /// Interface-type wrapper over wasmtime component [wasmtime::component::Type].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum InterfaceType<'a> {
     /// Works for `any` [wasmtime::component::Type].
+    #[default]
     Any,
     /// Wraps [wasmtime::component::Type].
     Type(Type),
     /// Wraps [wasmtime::component::Type] ref.
     TypeRef(&'a Type),
-}
-
-impl Default for InterfaceType<'_> {
-    fn default() -> Self {
-        InterfaceType::Any
-    }
 }
 
 impl InterfaceType<'_> {
