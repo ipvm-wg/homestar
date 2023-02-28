@@ -2,7 +2,11 @@
 //! and [wasmtime::component::Type]s.
 
 use anyhow::{anyhow, Result};
-use itertools::Itertools;
+use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
+use itertools::{
+    FoldWhile::{Continue, Done},
+    Itertools, Position,
+};
 use libipld::{
     cid::{
         self,
@@ -15,23 +19,37 @@ use rust_decimal::{
     prelude::{FromPrimitive, ToPrimitive},
     Decimal,
 };
-use std::{collections::BTreeMap, str};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    iter,
+    rc::Rc,
+    str,
+};
 use wasmtime::component::{Type, Val};
 
 /// Interface-type wrapper over wasmtime component [wasmtime::component::Type].
 #[derive(Clone, Debug)]
-pub enum InterfaceType {
+pub enum InterfaceType<'a> {
     /// Works for `any` [wasmtime::component::Type].
     Any,
     /// Wraps [wasmtime::component::Type].
     Type(Type),
+    /// Wraps [wasmtime::component::Type] ref.
+    TypeRef(&'a Type),
 }
 
-impl InterfaceType {
+impl Default for InterfaceType<'_> {
+    fn default() -> Self {
+        InterfaceType::Any
+    }
+}
+
+impl InterfaceType<'_> {
     #[allow(dead_code)]
     fn into_inner(self) -> Option<Type> {
         match self {
             InterfaceType::Type(ty) => Some(ty),
+            InterfaceType::TypeRef(ty) => Some(ty.to_owned()),
             _ => None,
         }
     }
@@ -39,15 +57,18 @@ impl InterfaceType {
     fn inner(&self) -> Option<&Type> {
         match self {
             InterfaceType::Type(ty) => Some(ty),
+            InterfaceType::TypeRef(ty) => Some(ty),
             _ => None,
         }
     }
 }
 
-impl<'a> From<&'a Type> for InterfaceType {
+impl<'a> From<&'a Type> for InterfaceType<'a> {
     fn from(typ: &'a Type) -> Self {
         match typ {
             Type::List(_)
+            | Type::Record(_)
+            | Type::Union(_)
             | Type::S8
             | Type::S16
             | Type::S32
@@ -57,72 +78,268 @@ impl<'a> From<&'a Type> for InterfaceType {
             | Type::U32
             | Type::U64
             | Type::Float32
-            | Type::Float64 => InterfaceType::Type(typ.to_owned()),
+            | Type::Float64 => InterfaceType::TypeRef(typ),
             _ => InterfaceType::Any,
         }
     }
 }
 
+/// Shared [AtomicRefCell] for adding/popping `named` tags on a
+/// referenced stack.
+#[derive(Debug, PartialEq)]
+pub struct Tags(Rc<AtomicRefCell<VecDeque<String>>>);
+
+impl Tags {
+    fn new(tags: VecDeque<String>) -> Self {
+        Tags(Rc::new(AtomicRefCell::new(tags)))
+    }
+
+    fn borrow_mut(&self) -> AtomicRefMut<'_, VecDeque<String>> {
+        self.0.borrow_mut()
+    }
+
+    fn try_borrow_mut(&self) -> Result<AtomicRefMut<'_, VecDeque<String>>> {
+        self.0.try_borrow_mut().map_err(|e| anyhow!(e))
+    }
+
+    fn borrow(&self) -> AtomicRef<'_, VecDeque<String>> {
+        self.0.borrow()
+    }
+
+    #[allow(dead_code)]
+    fn try_borrow(&self) -> Result<AtomicRef<'_, VecDeque<String>>> {
+        self.0.try_borrow().map_err(|e| anyhow!(e))
+    }
+
+    fn pop(&self) -> Option<String> {
+        self.borrow_mut().pop_front()
+    }
+
+    fn empty(&self) -> bool {
+        self.borrow().is_empty()
+    }
+}
+
+impl Clone for Tags {
+    fn clone(&self) -> Self {
+        Tags(Rc::clone(&self.0))
+    }
+}
+
+impl Default for Tags {
+    fn default() -> Self {
+        Tags::new(VecDeque::new())
+    }
+}
+
 /// Wrapper-type for runtime [wasmtime::component::Val].
 #[derive(Debug, PartialEq)]
-pub struct RuntimeVal(pub Val);
+pub struct RuntimeVal(Val, Tags);
 
 impl RuntimeVal {
     /// Return [wasmtime::component::Val] from [RuntimeVal] wrapper.
-    pub fn into_inner(self) -> Val {
+    pub fn into_inner(self) -> (Val, Tags) {
+        (self.0, self.1)
+    }
+
+    /// Return [wasmtime::component::Val] from [RuntimeVal] wrapper.
+    pub fn value(self) -> Val {
         self.0
     }
 
+    /// Instantiate [RuntimeVal] type without a tag.
+    pub fn new(val: Val) -> Self {
+        RuntimeVal(val, Tags::default())
+    }
+
+    /// Instantiate [RuntimeVal] type with a tag.
+    pub fn new_with_tags(val: Val, tags: Tags) -> Self {
+        RuntimeVal(val, tags)
+    }
+
     /// Convert from [Ipld] to [RuntimeVal] with a given [InterfaceType].
-    pub fn try_from(ipld: Ipld, interface_ty: &InterfaceType) -> Result<Self> {
+    ///
+    /// TODOs:
+    ///  * check Unions over lists and tags
+    ///  * Enums
+    ///  * Structs / Records
+    ///  * Results / Options
+    pub fn try_from(ipld: Ipld, interface_ty: &InterfaceType<'_>) -> Result<Self> {
         // TODO: Configure for recursion.
         stacker::maybe_grow(64 * 1024, 1024 * 1024, || {
             let dyn_type = match ipld {
-                Ipld::Null => RuntimeVal(Val::String(Box::from("null"))),
-                Ipld::Bool(v) => RuntimeVal(Val::Bool(v)),
+                Ipld::Map(mut v)
+                    if matches!(interface_ty.inner(), Some(Type::Union(_))) && v.len() == 1 =>
+                {
+                    let inner = interface_ty
+                        .inner()
+                        .ok_or_else(|| anyhow!("component type mismatch: expected <union>"))?;
+
+                    // already pattern matched against
+                    let union_inst = inner.unwrap_union();
+
+                    let (key, elem) = v.pop_first().ok_or_else(|| {
+                        anyhow!("ipld map must contain at least one discriminant")
+                    })?;
+
+                    let (discriminant, tags) = union_inst
+                        .types()
+                        .zip(iter::repeat(elem))
+                        .enumerate()
+                        .with_position()
+                        .fold_while(Ok((Ok(Val::Bool(false)), Tags::default())), |acc, pos| {
+                            let is_last = matches!(pos, Position::Last(_) | Position::Only(_));
+                            let (idx, (ty, elem)) = pos.into_inner();
+                            match RuntimeVal::try_from(elem, &InterfaceType::TypeRef(&ty)) {
+                                Ok(RuntimeVal(value, tags)) => {
+                                    if value.ty() == ty {
+                                        Done(Ok((union_inst.new_val(idx as u32, value), tags)))
+                                    } else {
+                                        Continue(acc)
+                                    }
+                                }
+                                Err(e) => {
+                                    if is_last {
+                                        Done(Err(anyhow!("No match within <union>: {e:?}")))
+                                    } else {
+                                        Continue(acc)
+                                    }
+                                }
+                            }
+                        })
+                        .into_inner()?;
+
+                    tags.try_borrow_mut()?.push_front(key);
+
+                    RuntimeVal::new_with_tags(discriminant?, tags)
+                }
+                v if matches!(interface_ty.inner(), Some(Type::Union(_))) => {
+                    let inner = interface_ty
+                        .inner()
+                        .ok_or_else(|| anyhow!("component type mismatch: expected <union>"))?;
+
+                    // already pattern matched against
+                    let union_inst = inner.unwrap_union();
+
+                    let discriminant = union_inst
+                        .types()
+                        .zip(iter::repeat(v))
+                        .enumerate()
+                        .with_position()
+                        .fold_while(Ok(Val::Bool(false)), |acc, pos| {
+                            let is_last = matches!(pos, Position::Last(_) | Position::Only(_));
+                            let (idx, (ty, elem)) = pos.into_inner();
+                            match RuntimeVal::try_from(elem, &InterfaceType::TypeRef(&ty)) {
+                                Ok(RuntimeVal(value, _tags)) => {
+                                    if value.ty() == ty {
+                                        Done(union_inst.new_val(idx as u32, value))
+                                    } else {
+                                        Continue(acc)
+                                    }
+                                }
+                                Err(e) => {
+                                    if is_last {
+                                        Done(Err(anyhow!("No match within <union>: {e:?}")))
+                                    } else {
+                                        Continue(acc)
+                                    }
+                                }
+                            }
+                        })
+                        .into_inner()?;
+
+                    RuntimeVal::new(discriminant)
+                }
+                Ipld::Null => match interface_ty {
+                    InterfaceType::Type(Type::String)
+                    | InterfaceType::TypeRef(Type::String)
+                    | InterfaceType::Any => RuntimeVal::new(Val::String(Box::from("null"))),
+                    _ => Err(anyhow!("no compatible Wit type for {:?}", Ipld::Null))?,
+                },
+                Ipld::Bool(v) => match interface_ty {
+                    InterfaceType::Type(Type::Bool)
+                    | InterfaceType::TypeRef(Type::Bool)
+                    | InterfaceType::Any => RuntimeVal::new(Val::Bool(v)),
+                    _ => Err(anyhow!(
+                        "no compatible Wit type for Ipld <bool> type of {:?}",
+                        v
+                    ))?,
+                },
                 Ipld::Integer(v) => match interface_ty {
-                    InterfaceType::Type(Type::U8) => RuntimeVal(Val::U8(v.try_into()?)),
-                    InterfaceType::Type(Type::U16) => RuntimeVal(Val::U16(v.try_into()?)),
-                    InterfaceType::Type(Type::U32) => RuntimeVal(Val::U32(v.try_into()?)),
-                    InterfaceType::Type(Type::U64) => RuntimeVal(Val::U64(v.try_into()?)),
-                    InterfaceType::Type(Type::S8) => RuntimeVal(Val::S8(v.try_into()?)),
-                    InterfaceType::Type(Type::S16) => RuntimeVal(Val::S16(v.try_into()?)),
-                    InterfaceType::Type(Type::S32) => RuntimeVal(Val::S32(v.try_into()?)),
-                    _ => RuntimeVal(Val::S64(v.try_into()?)),
+                    InterfaceType::Type(Type::U8) | InterfaceType::TypeRef(Type::U8) => {
+                        RuntimeVal::new(Val::U8(v.try_into()?))
+                    }
+                    InterfaceType::Type(Type::U16) | InterfaceType::TypeRef(Type::U16) => {
+                        RuntimeVal::new(Val::U16(v.try_into()?))
+                    }
+                    InterfaceType::Type(Type::U32) | InterfaceType::TypeRef(Type::U32) => {
+                        RuntimeVal::new(Val::U32(v.try_into()?))
+                    }
+                    InterfaceType::Type(Type::U64) | InterfaceType::TypeRef(Type::U64) => {
+                        RuntimeVal::new(Val::U64(v.try_into()?))
+                    }
+                    InterfaceType::Type(Type::S8) | InterfaceType::TypeRef(Type::S8) => {
+                        RuntimeVal::new(Val::S8(v.try_into()?))
+                    }
+                    InterfaceType::Type(Type::S16) | InterfaceType::TypeRef(Type::S16) => {
+                        RuntimeVal::new(Val::S16(v.try_into()?))
+                    }
+                    InterfaceType::Type(Type::S32) | InterfaceType::TypeRef(Type::S32) => {
+                        RuntimeVal::new(Val::S32(v.try_into()?))
+                    }
+                    InterfaceType::Any
+                    | InterfaceType::Type(Type::S64)
+                    | InterfaceType::TypeRef(Type::S64) => RuntimeVal::new(Val::S64(v.try_into()?)),
+                    _ => Err(anyhow!(
+                        "no compatible Wit type for Ipld <integer> type of {:?}",
+                        v
+                    ))?,
                 },
                 Ipld::Float(v) => match interface_ty {
-                    InterfaceType::Type(Type::Float32) => RuntimeVal(Val::Float32(v as f32)),
-                    _ => RuntimeVal(Val::Float64(v)),
+                    InterfaceType::Type(Type::Float32) | InterfaceType::TypeRef(Type::Float32) => {
+                        RuntimeVal::new(Val::Float32(v as f32))
+                    }
+                    _ => RuntimeVal::new(Val::Float64(v)),
                 },
-                Ipld::String(v) => RuntimeVal(Val::String(Box::from(v))),
-                Ipld::Bytes(v) => RuntimeVal(Val::String(Box::from(Base::Base64.encode(v)))),
+                Ipld::String(v) => RuntimeVal::new(Val::String(Box::from(v))),
+                Ipld::Bytes(v) => RuntimeVal::new(Val::String(Box::from(Base::Base64.encode(v)))),
                 Ipld::Link(v) => match v.version() {
-                    cid::Version::V0 => RuntimeVal(Val::String(Box::from(
+                    cid::Version::V0 => RuntimeVal::new(Val::String(Box::from(
                         v.to_string_of_base(Base::Base58Btc)?,
                     ))),
-                    cid::Version::V1 => RuntimeVal(Val::String(Box::from(
+                    cid::Version::V1 => RuntimeVal::new(Val::String(Box::from(
                         v.to_string_of_base(Base::Base32Lower)?,
                     ))),
                 },
-                Ipld::List(v) => {
-                    let vec = v
-                        .into_iter()
-                        .map(|elem| RuntimeVal::try_from(elem, interface_ty))
-                        .fold_ok(vec![], |mut acc, elem| {
-                            acc.push(elem.into_inner());
-                            acc
-                        })?;
-
+                Ipld::List(v) if matches!(interface_ty.inner(), Some(Type::List(_))) => {
                     let inner = interface_ty
                         .inner()
                         .ok_or_else(|| anyhow!("component type mismatch: expected <list>"))?;
 
-                    let list_inst = matches!(inner, Type::List(_))
-                        .then_some(inner.unwrap_list())
-                        .ok_or_else(|| anyhow!("{inner:?} must be a <list>"))?;
+                    // already pattern matched against
+                    let list_inst = inner.unwrap_list();
 
-                    RuntimeVal(list_inst.new_val(vec.into_boxed_slice())?)
+                    let vec = v.into_iter().try_fold(vec![], |mut acc, elem| {
+                        let RuntimeVal(value, _tags) =
+                            RuntimeVal::try_from(elem, &InterfaceType::Type(list_inst.ty()))?;
+                        acc.push(value);
+                        Ok::<Vec<Val>, anyhow::Error>(acc)
+                    })?;
+
+                    RuntimeVal::new(list_inst.new_val(vec.into_boxed_slice())?)
                 }
+                // Handle edge-casing via Ipld representations.
+                // i.e. true, as [true] as part of a Ipld-schema union.
+                Ipld::List(v) => v
+                    .into_iter()
+                    .fold_while(Ok(RuntimeVal::new(Val::Bool(false))), |_acc, elem| {
+                        match RuntimeVal::try_from(elem, interface_ty) {
+                            Ok(runtime_val) => Done(Ok(runtime_val)),
+                            Err(e) => Done(Err(anyhow!(e))),
+                        }
+                    })
+                    .into_inner()?,
+
                 Ipld::Map(v) => {
                     let inner = interface_ty
                         .inner()
@@ -137,23 +354,31 @@ impl RuntimeVal {
                         .ok_or_else(|| anyhow!("{inner:?} must be a <list>"))?
                         .to_owned();
 
-                    let ty = InterfaceType::Type(inner.to_owned());
+                    let ty = tuple_inst
+                        .types()
+                        .nth(1)
+                        .ok_or_else(|| anyhow!("a map has tuples of two elements"))?;
 
-                    let vec = v
-                        .into_iter()
-                        .map(|(key, elem)| match RuntimeVal::try_from(elem, &ty) {
-                            Ok(value) => {
-                                let tuple = Box::new([Val::String(Box::from(key)), value.0]);
-                                tuple_inst.new_val(tuple)
-                            }
-                            Err(e) => Err(anyhow!(e)),
-                        })
-                        .fold_ok(vec![], |mut acc, tuple| {
-                            acc.push(tuple);
-                            acc
-                        })?;
+                    let (vec, tags) = v.into_iter().try_fold(
+                        (vec![], VecDeque::new()),
+                        |(mut acc_tuples, mut acc_tags), (key, elem)| {
+                            let RuntimeVal(value, tags) =
+                                RuntimeVal::try_from(elem, &InterfaceType::TypeRef(&ty))?;
 
-                    RuntimeVal(list_inst.new_val(vec.into_boxed_slice())?)
+                            let tuple = Box::new([Val::String(Box::from(key)), value]);
+                            let new_tuple = tuple_inst.new_val(tuple)?;
+                            acc_tuples.push(new_tuple);
+                            let mut tags = tags.try_borrow_mut()?;
+                            (acc_tags).append(&mut tags);
+                            Ok::<(Vec<Val>, VecDeque<String>), anyhow::Error>((
+                                acc_tuples, acc_tags,
+                            ))
+                        },
+                    )?;
+                    RuntimeVal::new_with_tags(
+                        list_inst.new_val(vec.into_boxed_slice())?,
+                        Tags::new(tags),
+                    )
                 }
             };
 
@@ -175,8 +400,8 @@ impl TryFrom<RuntimeVal> for Ipld {
         // TODO: Configure for recursion.
         stacker::maybe_grow(64 * 1024, 1024 * 1024, || {
             let ipld = match val {
-                RuntimeVal(Val::Char(c)) => Ipld::String(c.to_string()),
-                RuntimeVal(Val::String(v)) => match v.to_string() {
+                RuntimeVal(Val::Char(c), _) => Ipld::String(c.to_string()),
+                RuntimeVal(Val::String(v), _) => match v.to_string() {
                     s if s.eq("null") => Ipld::Null,
                     s => {
                         if let Ok(cid) = cid(&s) {
@@ -188,16 +413,16 @@ impl TryFrom<RuntimeVal> for Ipld {
                         }
                     }
                 },
-                RuntimeVal(Val::Bool(v)) => Ipld::Bool(v),
-                RuntimeVal(Val::U8(v)) => Ipld::Integer(v.into()),
-                RuntimeVal(Val::U16(v)) => Ipld::Integer(v.into()),
-                RuntimeVal(Val::U32(v)) => Ipld::Integer(v.into()),
-                RuntimeVal(Val::U64(v)) => Ipld::Integer(v.into()),
-                RuntimeVal(Val::S8(v)) => Ipld::Integer(v.into()),
-                RuntimeVal(Val::S16(v)) => Ipld::Integer(v.into()),
-                RuntimeVal(Val::S32(v)) => Ipld::Integer(v.into()),
-                RuntimeVal(Val::S64(v)) => Ipld::Integer(v.into()),
-                RuntimeVal(Val::Float32(v)) => {
+                RuntimeVal(Val::Bool(v), _) => Ipld::Bool(v),
+                RuntimeVal(Val::U8(v), _) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::U16(v), _) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::U32(v), _) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::U64(v), _) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::S8(v), _) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::S16(v), _) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::S32(v), _) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::S64(v), _) => Ipld::Integer(v.into()),
+                RuntimeVal(Val::Float32(v), _) => {
                     // Convert to decimal for handling precision issues going from
                     // f32 => f64.
                     let dec = Decimal::from_f32(v)
@@ -207,42 +432,45 @@ impl TryFrom<RuntimeVal> for Ipld {
                             .ok_or_else(|| anyhow!("failed conversion from decimal"))?,
                     )
                 }
-                RuntimeVal(Val::Float64(v)) => Ipld::Float(v),
-                RuntimeVal(Val::List(v)) if matches!(v.ty().ty(), Type::Tuple(_)) => {
-                    let inner = v
-                        .iter()
-                        .map(|elem| {
-                            if let Val::Tuple(tup) = elem {
-                                let tup_values = tup.values();
-                                if let [Val::String(s), v] = tup_values {
-                                    match Ipld::try_from(RuntimeVal(v.to_owned())) {
-                                        Ok(value) => Ok((s.to_string(), value)),
-                                        Err(e) => Err(e),
-                                    }
-                                } else {
-                                    Err(anyhow!("mismatched types: {:?}", tup_values))
-                                }
+                RuntimeVal(Val::Float64(v), _) => Ipld::Float(v),
+                RuntimeVal(Val::List(v), tags) if matches!(v.ty().ty(), Type::Tuple(_)) => {
+                    let inner = v.iter().try_fold(BTreeMap::new(), |mut acc, elem| {
+                        if let Val::Tuple(tup) = elem {
+                            let tup_values = tup.values();
+                            if let [Val::String(s), v] = tup_values {
+                                let ipld = Ipld::try_from(RuntimeVal::new_with_tags(
+                                    v.to_owned(),
+                                    tags.clone(),
+                                ))?;
+                                acc.insert(s.to_string(), ipld);
+                                Ok::<BTreeMap<std::string::String, Ipld>, anyhow::Error>(acc)
                             } else {
-                                Err(anyhow!("mismatched types: {elem:?}"))
+                                Err(anyhow!("mismatched types: {:?}", tup_values))?
                             }
-                        })
-                        .fold_ok(BTreeMap::new(), |mut acc, (k, v)| {
-                            acc.insert(k, v);
-                            acc
-                        })?;
-
+                        } else {
+                            Err(anyhow!("mismatched types: {elem:?}"))?
+                        }
+                    })?;
                     Ipld::Map(inner)
                 }
-                RuntimeVal(Val::List(v)) => {
-                    let inner = v
-                        .iter()
-                        .map(|elem| Ipld::try_from(RuntimeVal(elem.to_owned())))
-                        .fold_ok(vec![], |mut acc, elem| {
-                            acc.push(elem);
-                            acc
-                        })?;
+                RuntimeVal(Val::List(v), _) => {
+                    let inner = v.iter().try_fold(vec![], |mut acc, elem| {
+                        let ipld = Ipld::try_from(RuntimeVal::new(elem.to_owned()))?;
+                        acc.push(ipld);
+                        Ok::<Vec<Ipld>, anyhow::Error>(acc)
+                    })?;
 
                     Ipld::List(inner)
+                }
+                RuntimeVal(Val::Union(u), tags) if !tags.empty() => {
+                    let inner = Ipld::try_from(RuntimeVal::new(u.payload().to_owned()))?;
+
+                    // Keep tag.
+                    let tag = tags.pop().ok_or_else(|| anyhow!("tags should be > 1"))?;
+                    Ipld::from(BTreeMap::from([(tag, inner)]))
+                }
+                RuntimeVal(Val::Union(u), tags) if tags.empty() => {
+                    Ipld::try_from(RuntimeVal::new(u.payload().to_owned()))?
                 }
                 // Rest of Wit types are unhandled going to Ipld.
                 v => Err(anyhow!("no compatible Ipld type for {:?}", v))?,
@@ -257,14 +485,45 @@ impl TryFrom<RuntimeVal> for Ipld {
 mod test {
     use super::*;
     use crate::test_utils;
-    use libipld::multihash::{Code, MultihashDigest};
+    use libipld::{
+        cbor::DagCborCodec,
+        ipld,
+        multihash::{Code, MultihashDigest},
+        prelude::Encode,
+        DagCbor,
+    };
+    use serde_ipld_dagcbor::from_slice;
     use std::collections::BTreeMap;
 
     const RAW: u64 = 0x55;
 
+    #[derive(Clone, Copy, DagCbor, Debug, Eq, PartialEq)]
+    #[ipld(repr = "keyed")]
+    enum KeyedUnion {
+        #[ipld(repr = "value")]
+        A(bool),
+        #[ipld(rename = "b")]
+        #[ipld(repr = "value")]
+        B(u16),
+        #[ipld(repr = "value")]
+        C(u16),
+    }
+
+    #[derive(Clone, Copy, DagCbor, Debug, Eq, PartialEq)]
+    #[ipld(repr = "kinded")]
+    enum KindedUnion {
+        #[ipld(repr = "value")]
+        A(bool),
+        #[ipld(rename = "b")]
+        #[ipld(repr = "value")]
+        B(u16),
+        #[ipld(repr = "value")]
+        C(u16),
+    }
+
     #[test]
     fn try_null_roundtrip() {
-        let runtime_null = RuntimeVal(Val::String(Box::from("null")));
+        let runtime_null = RuntimeVal::new(Val::String(Box::from("null")));
 
         assert_eq!(
             RuntimeVal::try_from(Ipld::Null, &InterfaceType::Any).unwrap(),
@@ -276,7 +535,7 @@ mod test {
 
     #[test]
     fn try_bool_roundtrip() {
-        let runtime_bool = RuntimeVal(Val::Bool(false));
+        let runtime_bool = RuntimeVal::new(Val::Bool(false));
 
         assert_eq!(
             RuntimeVal::try_from(Ipld::Bool(false), &InterfaceType::Any).unwrap(),
@@ -289,7 +548,7 @@ mod test {
     #[test]
     fn try_integer_unsignedu8_type_roundtrip() {
         let ipld = Ipld::Integer(8);
-        let runtime_int = RuntimeVal(Val::U8(8));
+        let runtime_int = RuntimeVal::new(Val::U8(8));
 
         let ty = test_utils::component::setup_component("u8".to_string(), 4);
 
@@ -304,7 +563,7 @@ mod test {
     #[test]
     fn try_integer_unsigned16_type_roundtrip() {
         let ipld = Ipld::Integer(8829);
-        let runtime_int = RuntimeVal(Val::U16(8829));
+        let runtime_int = RuntimeVal::new(Val::U16(8829));
 
         let ty = test_utils::component::setup_component("u16".to_string(), 4);
 
@@ -319,7 +578,7 @@ mod test {
     #[test]
     fn try_integer_unsigned32_type_roundtrip() {
         let ipld = Ipld::Integer(8829);
-        let runtime_int = RuntimeVal(Val::U32(8829));
+        let runtime_int = RuntimeVal::new(Val::U32(8829));
 
         let ty = test_utils::component::setup_component("u32".to_string(), 4);
 
@@ -334,7 +593,7 @@ mod test {
     #[test]
     fn try_integer_unsigned64_type_roundtrip() {
         let ipld = Ipld::Integer(8829);
-        let runtime_int = RuntimeVal(Val::U64(8829));
+        let runtime_int = RuntimeVal::new(Val::U64(8829));
 
         let ty = test_utils::component::setup_component_with_param(
             "u64".to_string(),
@@ -355,7 +614,7 @@ mod test {
     #[test]
     fn try_integer_any_roundtrip() {
         let ipld = Ipld::Integer(2828829);
-        let runtime_int = RuntimeVal(Val::S64(2828829));
+        let runtime_int = RuntimeVal::new(Val::S64(2828829));
 
         assert_eq!(
             RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
@@ -368,7 +627,7 @@ mod test {
     #[test]
     fn try_integer_signedu8_type_roundtrip() {
         let ipld = Ipld::Integer(1);
-        let runtime_int = RuntimeVal(Val::S8(1));
+        let runtime_int = RuntimeVal::new(Val::S8(1));
 
         let ty = test_utils::component::setup_component("s8".to_string(), 4);
 
@@ -383,7 +642,7 @@ mod test {
     #[test]
     fn try_integer_signed16_type_roundtrip() {
         let ipld = Ipld::Integer(-8829);
-        let runtime_int = RuntimeVal(Val::S16(-8829));
+        let runtime_int = RuntimeVal::new(Val::S16(-8829));
 
         let ty = test_utils::component::setup_component("s16".to_string(), 4);
 
@@ -398,7 +657,7 @@ mod test {
     #[test]
     fn try_integer_signed32_type_roundtrip() {
         let ipld = Ipld::Integer(-8829);
-        let runtime_int = RuntimeVal(Val::S32(-8829));
+        let runtime_int = RuntimeVal::new(Val::S32(-8829));
 
         let ty = test_utils::component::setup_component("s32".to_string(), 4);
 
@@ -413,7 +672,7 @@ mod test {
     #[test]
     fn try_integer_signed64_type_roundtrip() {
         let ipld = Ipld::Integer(-8829);
-        let runtime_int = RuntimeVal(Val::S64(-8829));
+        let runtime_int = RuntimeVal::new(Val::S64(-8829));
 
         let ty = test_utils::component::setup_component_with_param(
             "s64".to_string(),
@@ -433,7 +692,7 @@ mod test {
     #[test]
     fn try_float_any_roundtrip() {
         let ipld = Ipld::Float(3883.20);
-        let runtime_float = RuntimeVal(Val::Float64(3883.20));
+        let runtime_float = RuntimeVal::new(Val::Float64(3883.20));
 
         assert_eq!(
             RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
@@ -446,7 +705,7 @@ mod test {
     #[test]
     fn try_float_type_roundtrip() {
         let ipld = Ipld::Float(3883.20);
-        let runtime_float = RuntimeVal(Val::Float32(3883.20));
+        let runtime_float = RuntimeVal::new(Val::Float32(3883.20));
 
         let ty = test_utils::component::setup_component_with_param(
             "float32".to_string(),
@@ -467,7 +726,7 @@ mod test {
     #[test]
     fn try_string_roundtrip() {
         let ipld = Ipld::String("Hello!".into());
-        let runtime = RuntimeVal(Val::String(Box::from("Hello!")));
+        let runtime = RuntimeVal::new(Val::String(Box::from("Hello!")));
 
         assert_eq!(
             RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
@@ -482,7 +741,7 @@ mod test {
         let bytes = b"hell0".to_vec();
         let ipld = Ipld::Bytes(bytes.clone());
         let encoded_cid = Base::Base64.encode(bytes);
-        let runtime = RuntimeVal(Val::String(Box::from(encoded_cid)));
+        let runtime = RuntimeVal::new(Val::String(Box::from(encoded_cid)));
 
         assert_eq!(
             RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
@@ -498,7 +757,7 @@ mod test {
         let cid = Cid::new_v1(RAW, h);
         let ipld = Ipld::Link(cid);
         let encoded_cid = cid.to_string_of_base(Base::Base32Lower).unwrap();
-        let runtime = RuntimeVal(Val::String(Box::from(encoded_cid)));
+        let runtime = RuntimeVal::new(Val::String(Box::from(encoded_cid)));
 
         assert_eq!(
             RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
@@ -514,7 +773,7 @@ mod test {
         let cid = Cid::new_v0(h).unwrap();
         let ipld = Ipld::Link(cid);
         let encoded_cid = cid.to_string_of_base(Base::Base58Btc).unwrap();
-        let runtime = RuntimeVal(Val::String(Box::from(encoded_cid)));
+        let runtime = RuntimeVal::new(Val::String(Box::from(encoded_cid)));
 
         assert_eq!(
             RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
@@ -535,7 +794,7 @@ mod test {
             .new_val(Box::new([Val::S64(22), Val::S64(32)]))
             .unwrap();
 
-        let runtime = RuntimeVal(val_list);
+        let runtime = RuntimeVal::new(val_list);
 
         assert_eq!(
             RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
@@ -543,6 +802,122 @@ mod test {
         );
 
         assert_eq!(Ipld::try_from(runtime).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_list_of_list_roundtrip() {
+        let ipld = Ipld::List(vec![
+            Ipld::List(vec![Ipld::String("a".to_string())]),
+            Ipld::List(vec![Ipld::String("b".to_string())]),
+        ]);
+
+        let ty = test_utils::component::setup_component("(list (list string))".to_string(), 8);
+
+        let inner_list = ty.unwrap_list();
+
+        let first_list = inner_list
+            .ty()
+            .unwrap_list()
+            .new_val(Box::new([Val::String(Box::from("a"))]))
+            .unwrap();
+
+        let second_list = inner_list
+            .ty()
+            .unwrap_list()
+            .new_val(Box::new([Val::String(Box::from("b"))]))
+            .unwrap();
+
+        let val_list = ty
+            .unwrap_list()
+            .new_val(Box::new([first_list, second_list]))
+            .unwrap();
+
+        let runtime = RuntimeVal::new(val_list);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
+            runtime
+        );
+
+        assert_eq!(Ipld::try_from(runtime).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_union_roundtrip_keyed() {
+        let mut bytes_kind_b = Vec::new();
+        KeyedUnion::B(2)
+            .encode(DagCborCodec, &mut bytes_kind_b)
+            .unwrap();
+        let ipld_kind_b: Ipld = from_slice(&bytes_kind_b).unwrap();
+
+        let ty = test_utils::component::setup_component("(union bool u16)".to_string(), 8);
+        let unwrapped = ty.unwrap_union();
+
+        let val_union_1 = unwrapped.new_val(1, Val::U16(2)).unwrap();
+        let runtime_1 =
+            RuntimeVal::new_with_tags(val_union_1, Tags::new(vec!["b".to_string()].into()));
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld_kind_b.clone(), &InterfaceType::Type(ty.clone())).unwrap(),
+            runtime_1
+        );
+
+        assert_eq!(Ipld::try_from(runtime_1).unwrap(), ipld_kind_b);
+
+        let val_union_0 = unwrapped.new_val(0, Val::Bool(true)).unwrap();
+        let runtime_0 =
+            RuntimeVal::new_with_tags(val_union_0, Tags::new(vec!["A".to_string()].into()));
+
+        let mut bytes_kind_a = Vec::new();
+        KeyedUnion::A(true)
+            .encode(DagCborCodec, &mut bytes_kind_a)
+            .unwrap();
+        let ipld_kind_a: Ipld = from_slice(&bytes_kind_a).unwrap();
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld_kind_a.clone(), &InterfaceType::Type(ty.clone())).unwrap(),
+            runtime_0
+        );
+
+        assert_eq!(Ipld::try_from(runtime_0).unwrap(), ipld_kind_a);
+    }
+
+    #[test]
+    fn try_union_roundtrip_kinded() {
+        let mut bytes_kind_b = Vec::new();
+        KindedUnion::B(2)
+            .encode(DagCborCodec, &mut bytes_kind_b)
+            .unwrap();
+        let ipld_kind_b: Ipld = from_slice(&bytes_kind_b).unwrap();
+
+        let ty = test_utils::component::setup_component("(union bool u16)".to_string(), 8);
+        let unwrapped = ty.unwrap_union();
+
+        let val_union_1 = unwrapped.new_val(1, Val::U16(2)).unwrap();
+        let runtime_1 = RuntimeVal::new(val_union_1);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld_kind_b.clone(), &InterfaceType::Type(ty.clone())).unwrap(),
+            runtime_1
+        );
+
+        assert_eq!(Ipld::try_from(runtime_1).unwrap(), ipld_kind_b);
+
+        let val_union_0 = unwrapped.new_val(0, Val::Bool(true)).unwrap();
+        let runtime_0 = RuntimeVal::new(val_union_0);
+
+        let mut bytes_kind_a = Vec::new();
+        KindedUnion::A(true)
+            .encode(DagCborCodec, &mut bytes_kind_a)
+            .unwrap();
+        let ipld_kind_a: Ipld = from_slice(&bytes_kind_a).unwrap();
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld_kind_a.clone(), &InterfaceType::Type(ty.clone())).unwrap(),
+            runtime_0
+        );
+
+        assert_eq!(Ipld::try_from(runtime_0).unwrap(), ipld_kind_a);
     }
 
     #[test]
@@ -565,26 +940,96 @@ mod test {
             Val::String(Box::from("Hello!")),
         ];
 
-        let val_tuple1 = ty
-            .unwrap_list()
+        let unwrapped = ty.unwrap_list();
+
+        let val_tuple1 = unwrapped
             .ty()
             .unwrap_tuple()
             .new_val(Box::new(tuple1))
             .unwrap();
-
-        let val_tuple2 = ty
-            .unwrap_list()
+        let val_tuple2 = unwrapped
             .ty()
             .unwrap_tuple()
             .new_val(Box::new(tuple2))
             .unwrap();
 
-        let val_map = ty
-            .unwrap_list()
+        let val_map = unwrapped
             .new_val(Box::new([val_tuple1, val_tuple2]))
             .unwrap();
 
-        let runtime = RuntimeVal(val_map);
+        let runtime = RuntimeVal::new(val_map);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
+            runtime
+        );
+
+        assert_eq!(Ipld::try_from(runtime).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_map_complex_roundtrip() {
+        let mut bytes_kind_a = Vec::new();
+        KeyedUnion::A(false)
+            .encode(DagCborCodec, &mut bytes_kind_a)
+            .unwrap();
+        let ipld_kind_a: Ipld = from_slice(&bytes_kind_a).unwrap();
+
+        let mut bytes_kind_b = Vec::new();
+        KeyedUnion::B(2)
+            .encode(DagCborCodec, &mut bytes_kind_b)
+            .unwrap();
+        let ipld_kind_b: Ipld = from_slice(&bytes_kind_b).unwrap();
+
+        let mut bytes_kind_c = Vec::new();
+        KeyedUnion::C(22)
+            .encode(DagCborCodec, &mut bytes_kind_c)
+            .unwrap();
+        let ipld_kind_c: Ipld = from_slice(&bytes_kind_c).unwrap();
+
+        let ipld = Ipld::Map(BTreeMap::from([
+            ("test".into(), ipld_kind_a),
+            ("test1".into(), ipld_kind_b),
+            ("test2".into(), ipld_kind_c),
+        ]));
+
+        let ty = test_utils::component::setup_component(
+            "(list (tuple string (union bool u16)))".to_string(),
+            8,
+        );
+
+        let unwrapped_list = ty.unwrap_list();
+        let unwrapped = unwrapped_list.ty();
+        let unwrapped_tuple = unwrapped.unwrap_tuple();
+        let union = unwrapped_tuple.clone().types().nth(1).unwrap();
+
+        let tuple1 = [
+            Val::String(Box::from("test")),
+            union.unwrap_union().new_val(0, Val::Bool(false)).unwrap(),
+        ];
+
+        let tuple2 = [
+            Val::String(Box::from("test1")),
+            union.unwrap_union().new_val(1, Val::U16(2)).unwrap(),
+        ];
+
+        let tuple3 = [
+            Val::String(Box::from("test2")),
+            union.unwrap_union().new_val(1, Val::U16(22)).unwrap(),
+        ];
+
+        let val_tuple1 = unwrapped_tuple.new_val(Box::new(tuple1)).unwrap();
+        let val_tuple2 = unwrapped_tuple.new_val(Box::new(tuple2)).unwrap();
+        let val_tuple3 = unwrapped_tuple.new_val(Box::new(tuple3)).unwrap();
+
+        let val_map = unwrapped_list
+            .new_val(Box::new([val_tuple1, val_tuple2, val_tuple3]))
+            .unwrap();
+
+        let runtime = RuntimeVal::new_with_tags(
+            val_map,
+            Tags::new(vec!["A".into(), "b".into(), "C".into()].into()),
+        );
 
         assert_eq!(
             RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),

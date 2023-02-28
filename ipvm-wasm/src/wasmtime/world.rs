@@ -7,7 +7,7 @@ use crate::wasmtime::ipld::{InterfaceType, RuntimeVal};
 use anyhow::{anyhow, Result};
 use heck::{ToKebabCase, ToSnakeCase};
 use itertools::Itertools;
-use libipld::Ipld;
+use libipld::{serde::from_ipld, Ipld};
 use std::iter;
 use wasmtime::{
     component::{self, Component, Func, Instance, Linker},
@@ -90,7 +90,6 @@ impl<T> Env<T> {
     where
         T: Send,
     {
-        use libipld::serde::from_ipld;
         let param_typs = self.bindings.func().params(&self.store);
         let result_typs = self.bindings.func().results(&self.store);
         let args = from_ipld::<Vec<Ipld>>(args)?;
@@ -98,7 +97,7 @@ impl<T> Env<T> {
         let params: Vec<component::Val> = iter::zip(param_typs.iter(), args.into_iter())
             .map(|(typ, arg)| RuntimeVal::try_from(arg, &InterfaceType::from(typ)))
             .fold_ok(vec![], |mut acc, v| {
-                acc.push(v.into_inner());
+                acc.push(v.value());
                 acc
             })?;
 
@@ -118,7 +117,7 @@ impl<T> Env<T> {
 
         let results: Vec<Ipld> = results_alloc
             .into_iter()
-            .map(|v| Ipld::try_from(RuntimeVal(v)))
+            .map(|v| Ipld::try_from(RuntimeVal::new(v)))
             .fold_ok(vec![], |mut acc, v| {
                 acc.push(v);
                 acc

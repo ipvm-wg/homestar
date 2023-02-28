@@ -22,11 +22,13 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 anyhow = "1.0"
+atomic_refcell = "0.1"
 heck = "0.4"
 itertools = "0.10"
 libipld = "0.16"
 libipld-core = { version = "0.16", features = ["serde-codec", "serde"] }
 rust_decimal = "1.28"
+serde_ipld_dagcbor = "0.2"
 stacker = "0.1"
 thiserror = "1.0"
 tracing = "0.1"

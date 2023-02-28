@@ -3,3 +3,6 @@
 mod rvg;
 #[cfg(feature = "test_utils")]
 pub use rvg::*;
+
+#[cfg(test)]
+pub mod db;

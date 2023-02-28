@@ -108,3 +108,27 @@ async fn test_execute_wasms_in_seq() {
         Ipld::List(vec![Ipld::String("Natural Science\nworld".to_string())])
     );
 }
+
+#[tokio::test]
+async fn test_execute_wasms_in_seq_with_threaded_result() {
+    let ipld_int = Ipld::List(vec![Ipld::Integer(1)]);
+
+    let wasm1 = fs::read(fixtures("add_one.wasm")).unwrap();
+    let wasm2 = fs::read(fixtures("ipvm_guest_wasm.wasm")).unwrap();
+
+    let mut env =
+        wasmtime::World::instantiate(wasm1, "add_one".to_string(), wasmtime::State::default())
+            .await
+            .unwrap();
+    let res = env.execute(ipld_int).await.unwrap();
+    assert_eq!(res, Ipld::List(vec![Ipld::Integer(2)]));
+
+    let env2 =
+        wasmtime::World::instantiate_with_current_env(wasm2, "add-one".to_string(), &mut env)
+            .await
+            .unwrap();
+
+    let res2 = env2.execute(res).await.unwrap();
+
+    assert_eq!(res2, Ipld::List(vec![Ipld::Integer(3)]));
+}
