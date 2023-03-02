@@ -9,6 +9,7 @@
 //! [here]: https://github.com/ipvm-wg/spec.
 
 pub mod cli;
+pub mod consts;
 pub mod db;
 pub mod network;
 pub mod workflow;

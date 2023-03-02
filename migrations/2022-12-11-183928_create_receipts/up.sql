@@ -1,8 +1,10 @@
 CREATE TABLE receipts (
-  cid         VARCHAR NOT NULL PRIMARY KEY,
-  closure_cid VARCHAR NOT NULL,
-  nonce       VARCHAR NOT NULL,
-  out         BINARY  NOT NULL
+  cid         TEXT NOT NULL PRIMARY KEY,
+  ran         TEXT NOT NULL,
+  out         BLOB  NOT NULL,
+  meta        BLOB  NOT NULL,
+  iss         TEXT,
+  prf         BLOB NOT NULL
 );
 
-CREATE INDEX closure_cid_index ON receipts (closure_cid);
+CREATE INDEX ran_index ON receipts (ran);

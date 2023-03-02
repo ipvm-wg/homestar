@@ -6,7 +6,6 @@
 use crate::wasmtime::ipld::{InterfaceType, RuntimeVal};
 use anyhow::{anyhow, Result};
 use heck::{ToKebabCase, ToSnakeCase};
-use itertools::Itertools;
 use libipld::{serde::from_ipld, Ipld};
 use std::iter;
 use wasmtime::{
@@ -94,12 +93,14 @@ impl<T> Env<T> {
         let result_typs = self.bindings.func().results(&self.store);
         let args = from_ipld::<Vec<Ipld>>(args)?;
 
-        let params: Vec<component::Val> = iter::zip(param_typs.iter(), args.into_iter())
-            .map(|(typ, arg)| RuntimeVal::try_from(arg, &InterfaceType::from(typ)))
-            .fold_ok(vec![], |mut acc, v| {
+        let params: Vec<component::Val> = iter::zip(param_typs.iter(), args.into_iter()).try_fold(
+            vec![],
+            |mut acc, (typ, arg)| {
+                let v = RuntimeVal::try_from(arg, &InterfaceType::from(typ))?;
                 acc.push(v.value());
-                acc
-            })?;
+                Ok::<_, anyhow::Error>(acc)
+            },
+        )?;
 
         let mut results_alloc: Vec<component::Val> = result_typs
             .iter()
@@ -115,13 +116,11 @@ impl<T> Env<T> {
             .post_return_async(&mut self.store)
             .await?;
 
-        let results: Vec<Ipld> = results_alloc
-            .into_iter()
-            .map(|v| Ipld::try_from(RuntimeVal::new(v)))
-            .fold_ok(vec![], |mut acc, v| {
-                acc.push(v);
-                acc
-            })?;
+        let results: Vec<Ipld> = results_alloc.into_iter().try_fold(vec![], |mut acc, res| {
+            let v = Ipld::try_from(RuntimeVal::new(res))?;
+            acc.push(v);
+            Ok::<_, anyhow::Error>(acc)
+        })?;
 
         Ok(Ipld::from(results))
     }

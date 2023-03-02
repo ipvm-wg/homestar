@@ -1,6 +1,7 @@
 //! Output of an invocation, referenced by its invocation pointer.
 
-use crate::{db::schema::receipts, workflow::closure::Closure};
+use super::{pointer::InvocationPointer, prf::UcanPrf, InvocationResult};
+use crate::db::schema::receipts;
 use anyhow::anyhow;
 use diesel::{
     backend::RawValue,
@@ -13,51 +14,71 @@ use diesel::{
 use libipld::{
     cbor::DagCborCodec,
     cid::{
-        multibase::Base,
         multihash::{Code, MultihashDigest},
         Cid,
     },
     prelude::Codec,
     serde::from_ipld,
-    Ipld, Link,
+    Ipld,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, fmt, str::FromStr};
+use std::{borrow::Cow, collections::BTreeMap, fmt, str::FromStr};
+use ucan::ipld::Principle;
 
-const CID_KEY: &str = "cid";
-const CLOSURE_CID_KEY: &str = "closure_cid";
-const NONCE_KEY: &str = "nonce";
+const RAN_KEY: &str = "ran";
 const OUT_KEY: &str = "out";
+const ISSUER_KEY: &str = "iss";
+const METADATA_KEY: &str = "meta";
+const PROOF_KEY: &str = "prf";
+const CID_KEY: &str = "cid";
 
-/// Receipt for closure invocation, including it's own [Cid].
+///
+#[derive(Clone, Debug, AsExpression, FromSqlRow, PartialEq)]
+#[diesel(sql_type = Text)]
+pub struct Issuer(Principle);
+
+impl fmt::Display for Issuer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let did_as_string = self.0.to_string();
+        write!(f, "{did_as_string}")
+    }
+}
+
+/// Receipt for [Invocation], including it's own [Cid].
 ///
 /// `@See` [LocalReceipt] for more info on the internal fields.
-#[derive(Debug, Clone, PartialEq, Queryable, Insertable, Serialize, Deserialize)]
+///
+/// [Invocation]: super::Invocation
+#[derive(Debug, Clone, PartialEq, Queryable, Insertable)]
 pub struct Receipt {
-    cid: LocalCid,
-    closure_cid: LocalCid,
-    nonce: String,
-    out: LocalIpld,
+    cid: InvocationPointer,
+    ran: InvocationPointer,
+    out: InvocationResult<Ipld>,
+    meta: LocalIpld,
+    iss: Option<Issuer>,
+    prf: UcanPrf,
 }
 
 impl fmt::Display for Receipt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Receipt: [cid: {}, closure_cid: {}, nonce: {}, output: {:?}]",
-            self.cid, self.closure_cid, self.nonce, self.out.0
+            "Receipt: [cid: {}, ran: {}, output: {:?}, metadata: {:?}, issuer: {:?}]",
+            self.cid, self.ran, self.out, self.meta.0, self.iss
         )
     }
 }
 
 impl Receipt {
     /// Generate a receipt.
-    pub fn new(cid: Cid, local: &LocalReceipt) -> Self {
+    pub fn new(cid: Cid, local: &LocalReceipt<'_, Ipld>) -> Self {
         Self {
-            cid: LocalCid(cid),
-            closure_cid: LocalCid(local.closure_cid),
-            nonce: local.nonce.to_string(),
-            out: LocalIpld(local.out.to_owned()),
+            ran: local.ran.as_ref().to_owned(),
+            out: local.out.to_owned(),
+            meta: LocalIpld(local.meta.to_owned()),
+            iss: local.iss.to_owned(),
+            prf: local.prf.to_owned(),
+            cid: InvocationPointer::new(cid),
         }
     }
 
@@ -66,19 +87,20 @@ impl Receipt {
         self.cid.to_string()
     }
 
-    /// Get closure [Cid] in [Receipt] as a [String].
-    pub fn closure_cid(&self) -> String {
-        self.closure_cid.to_string()
+    /// Get [Cid] in [Receipt] as a [String].
+    pub fn ran(&self) -> String {
+        self.ran.to_string()
     }
 
-    /// Get closure executed result/value in [Receipt] as [Ipld].
-    pub fn output(&self) -> &Ipld {
-        &self.out.0
+    /// Get executed result/value in [Receipt] as [Ipld].
+    pub fn output(&self) -> &InvocationResult<Ipld> {
+        &self.out
     }
 
-    /// Get closure executed result/value in [Receipt] as encoded Cbor.
+    /// Get executed result/value in [Receipt] as encoded Cbor.
     pub fn output_encoded(&self) -> anyhow::Result<Vec<u8>> {
-        DagCborCodec.encode(&self.out.0)
+        let ipld = Ipld::from(self.out.to_owned());
+        DagCborCodec.encode(&ipld)
     }
 }
 
@@ -100,23 +122,36 @@ impl TryFrom<Vec<u8>> for Receipt {
     }
 }
 
-impl From<Receipt> for LocalReceipt {
-    fn from(receipt: Receipt) -> Self {
-        LocalReceipt {
-            closure_cid: receipt.closure_cid.0,
-            nonce: receipt.nonce,
-            out: receipt.out.0,
-        }
+impl TryFrom<Receipt> for LocalReceipt<'_, Ipld> {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: Receipt) -> Result<Self, Self::Error> {
+        let local = LocalReceipt {
+            ran: Cow::from(receipt.ran),
+            out: receipt.out,
+            meta: receipt.meta.0,
+            iss: receipt.iss,
+            prf: receipt.prf,
+        };
+        Ok(local)
     }
 }
 
 impl From<Receipt> for Ipld {
     fn from(receipt: Receipt) -> Self {
         Ipld::Map(BTreeMap::from([
-            (CID_KEY.into(), Ipld::Link(receipt.cid.0)),
-            (CLOSURE_CID_KEY.into(), Ipld::Link(receipt.closure_cid.0)),
-            (NONCE_KEY.into(), Ipld::String(receipt.nonce)),
-            (OUT_KEY.into(), receipt.out.0),
+            (RAN_KEY.into(), receipt.ran.into()),
+            (OUT_KEY.into(), receipt.out.into()),
+            (METADATA_KEY.into(), receipt.meta.0),
+            (
+                ISSUER_KEY.into(),
+                receipt
+                    .iss
+                    .map(|iss| iss.to_string().into())
+                    .unwrap_or(Ipld::Null),
+            ),
+            (PROOF_KEY.into(), receipt.prf.into()),
+            (CID_KEY.into(), receipt.cid.into()),
         ]))
     }
 }
@@ -126,94 +161,118 @@ impl TryFrom<Ipld> for Receipt {
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
-        let cid_ipld = map
-            .get(CID_KEY)
-            .ok_or_else(|| anyhow!("Missing {CID_KEY}"))?;
-        let cid = from_ipld(cid_ipld.to_owned())?;
 
-        let closure_cid_ipld = map
-            .get(CLOSURE_CID_KEY)
-            .ok_or_else(|| anyhow!("Missing {CLOSURE_CID_KEY}"))?;
-        let closure_cid = from_ipld(closure_cid_ipld.to_owned())?;
+        let ran = map
+            .get(RAN_KEY)
+            .ok_or_else(|| anyhow!("missing {RAN_KEY}"))?
+            .try_into()?;
 
-        let nonce_ipld = map
-            .get(NONCE_KEY)
-            .ok_or_else(|| anyhow!("Missing {NONCE_KEY}"))?;
-        let nonce = from_ipld(nonce_ipld.to_owned())?;
         let out = map
             .get(OUT_KEY)
-            .ok_or_else(|| anyhow!("Missing {OUT_KEY}"))?
-            .to_owned();
+            .ok_or_else(|| anyhow!("missing {OUT_KEY}"))?;
+
+        let meta = map
+            .get(METADATA_KEY)
+            .ok_or_else(|| anyhow!("missing {METADATA_KEY}"))?;
+
+        let iss = map
+            .get(ISSUER_KEY)
+            .and_then(|ipld| match ipld {
+                Ipld::Null => None,
+                ipld => Some(ipld),
+            })
+            .and_then(|ipld| from_ipld(ipld.to_owned()).ok())
+            .map(Issuer);
+
+        let prf = map
+            .get(PROOF_KEY)
+            .ok_or_else(|| anyhow!("missing {PROOF_KEY}"))?;
+
+        let cid = from_ipld(
+            map.get(CID_KEY)
+                .ok_or_else(|| anyhow!("missing {CID_KEY}"))?
+                .to_owned(),
+        )?;
 
         Ok(Receipt {
-            cid: LocalCid(cid),
-            closure_cid: LocalCid(closure_cid),
-            nonce,
-            out: LocalIpld(out),
+            ran,
+            out: InvocationResult::try_from(out)?,
+            meta: LocalIpld(meta.to_owned()),
+            iss,
+            prf: UcanPrf::try_from(prf)?,
+            cid: InvocationPointer::new(cid),
         })
     }
 }
 
 /// Local version of [Receipt] to generate [Cid].
-///
-/// A nonce is currently a [`xid`], 12 bytes / 20 chars,
-/// configuration free, sortable.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct LocalReceipt {
-    closure_cid: Cid,
-    nonce: String,
-    out: Ipld,
+#[derive(Debug, Clone, PartialEq)]
+pub struct LocalReceipt<'a, T> {
+    ran: Cow<'a, InvocationPointer>,
+    out: InvocationResult<T>,
+    meta: Ipld,
+    iss: Option<Issuer>,
+    prf: UcanPrf,
 }
 
-impl LocalReceipt {
-    /// Generate a *local* receipt.
-    pub fn new(link: Link<Closure>, result: Ipld) -> Self {
+impl<'a, T> LocalReceipt<'a, T> {
+    /// Generate a `local` receipt, that can also be shared
+    /// over the network.
+    pub fn new(
+        ran: InvocationPointer,
+        result: InvocationResult<T>,
+        metadata: Ipld,
+        issuer: Option<Issuer>,
+        proof: UcanPrf,
+    ) -> Self {
         Self {
-            closure_cid: *link,
-            nonce: xid::new().to_string(),
+            ran: Cow::from(ran),
             out: result,
+            meta: metadata,
+            iss: issuer,
+            prf: proof,
         }
     }
 }
 
-impl TryFrom<LocalReceipt> for Receipt {
+impl TryFrom<LocalReceipt<'_, Ipld>> for Receipt {
     type Error = anyhow::Error;
 
-    fn try_from(receipt: LocalReceipt) -> Result<Self, Self::Error> {
+    fn try_from(receipt: LocalReceipt<'_, Ipld>) -> Result<Self, Self::Error> {
         TryFrom::try_from(&receipt)
     }
 }
 
-impl TryFrom<&LocalReceipt> for Receipt {
+impl TryFrom<&LocalReceipt<'_, Ipld>> for Receipt {
     type Error = anyhow::Error;
 
-    fn try_from(receipt: &LocalReceipt) -> Result<Self, Self::Error> {
+    fn try_from(receipt: &LocalReceipt<'_, Ipld>) -> Result<Self, Self::Error> {
         let cid = Cid::try_from(receipt)?;
         Ok(Receipt::new(cid, receipt))
     }
 }
 
-impl TryFrom<LocalReceipt> for Vec<u8> {
+impl TryFrom<LocalReceipt<'_, Ipld>> for Vec<u8> {
     type Error = anyhow::Error;
 
-    fn try_from(receipt: LocalReceipt) -> Result<Self, Self::Error> {
+    fn try_from(receipt: LocalReceipt<'_, Ipld>) -> Result<Self, Self::Error> {
         let receipt_ipld = Ipld::from(&receipt);
         DagCborCodec.encode(&receipt_ipld)
     }
 }
 
-impl TryFrom<LocalReceipt> for Cid {
+impl TryFrom<LocalReceipt<'_, Ipld>> for Cid {
     type Error = anyhow::Error;
 
-    fn try_from(receipt: LocalReceipt) -> Result<Self, Self::Error> {
+    fn try_from(receipt: LocalReceipt<'_, Ipld>) -> Result<Self, Self::Error> {
         TryFrom::try_from(&receipt)
     }
 }
 
-impl TryFrom<&LocalReceipt> for Cid {
+impl TryFrom<&LocalReceipt<'_, Ipld>> for Cid {
     type Error = anyhow::Error;
 
-    fn try_from(receipt: &LocalReceipt) -> Result<Self, Self::Error> {
+    fn try_from(receipt: &LocalReceipt<'_, Ipld>) -> Result<Self, Self::Error> {
         let ipld = Ipld::from(receipt);
         let bytes = DagCborCodec.encode(&ipld)?;
         let hash = Code::Sha3_256.digest(&bytes);
@@ -221,57 +280,35 @@ impl TryFrom<&LocalReceipt> for Cid {
     }
 }
 
-impl From<LocalReceipt> for Ipld {
-    fn from(receipt: LocalReceipt) -> Self {
+impl From<LocalReceipt<'_, Ipld>> for Ipld {
+    fn from(receipt: LocalReceipt<'_, Ipld>) -> Self {
         From::from(&receipt)
     }
 }
 
-impl From<&LocalReceipt> for Ipld {
-    fn from(receipt: &LocalReceipt) -> Self {
+impl From<&LocalReceipt<'_, Ipld>> for Ipld {
+    fn from(receipt: &LocalReceipt<'_, Ipld>) -> Self {
         Ipld::Map(BTreeMap::from([
-            (CLOSURE_CID_KEY.into(), receipt.closure_cid.into()),
-            (NONCE_KEY.into(), receipt.nonce.to_string().into()),
-            (OUT_KEY.into(), receipt.out.to_owned()),
+            (RAN_KEY.into(), receipt.ran.as_ref().to_owned().into()),
+            (OUT_KEY.into(), receipt.out.to_owned().into()),
+            (METADATA_KEY.into(), receipt.meta.to_owned()),
+            (
+                ISSUER_KEY.into(),
+                receipt
+                    .iss
+                    .as_ref()
+                    .map(|iss| iss.to_string().into())
+                    .unwrap_or(Ipld::Null),
+            ),
+            (PROOF_KEY.into(), receipt.prf.to_owned().into()),
         ]))
     }
 }
 
-/// Wrapper-type for [Cid] in order integrate to/from for local storage/db.
-#[derive(Clone, Debug, AsExpression, FromSqlRow, PartialEq, Serialize, Deserialize)]
-#[diesel(sql_type = Text)]
-pub struct LocalCid(pub Cid);
-
-impl fmt::Display for LocalCid {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let cid_as_string = self
-            .0
-            .to_string_of_base(Base::Base32Lower)
-            .map_err(|_| fmt::Error)?;
-
-        write!(f, "{cid_as_string}")
-    }
-}
-
-/// /// Wrapper-type for [Ipld] in order integrate to/from for local storage/db.
-#[derive(Clone, Debug, AsExpression, FromSqlRow, PartialEq, Serialize, Deserialize)]
+/// Wrapper-type for [Ipld] in order integrate to/from for local storage/db.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, AsExpression, FromSqlRow)]
 #[diesel(sql_type = Binary)]
 pub struct LocalIpld(pub Ipld);
-
-impl ToSql<Text, Sqlite> for LocalCid {
-    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
-        out.set_value(self.0.to_string_of_base(Base::Base32Lower)?);
-        Ok(IsNull::No)
-    }
-}
-
-impl FromSql<Text, Sqlite> for LocalCid {
-    fn from_sql(bytes: RawValue<'_, Sqlite>) -> deserialize::Result<Self> {
-        let s = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
-        // Will decode appropo base.
-        Ok(LocalCid(Cid::from_str(&s)?))
-    }
-}
 
 impl ToSql<Binary, Sqlite> for LocalIpld
 where
@@ -292,19 +329,39 @@ impl FromSql<Binary, Sqlite> for LocalIpld {
     }
 }
 
+impl ToSql<Text, Sqlite> for Issuer {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
+        out.set_value(self.0.to_string());
+        Ok(IsNull::No)
+    }
+}
+
+impl FromSql<Text, Sqlite> for Issuer {
+    fn from_sql(bytes: RawValue<'_, Sqlite>) -> deserialize::Result<Self> {
+        let s = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
+        Ok(Issuer(Principle::from_str(&s)?))
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use crate::{db::schema, test_utils::db, workflow::receipt::receipts};
-    use diesel::{QueryDsl, RunQueryDsl};
-
     use super::*;
+    use crate::{db::schema, test_utils::db, workflow::receipt::receipts};
+    use diesel::prelude::*;
+    use libipld::Link;
     const RAW: u64 = 0x55;
 
-    fn receipt() -> (LocalReceipt, Receipt) {
+    fn receipt<'a>() -> (LocalReceipt<'a, Ipld>, Receipt) {
         let h = Code::Blake3_256.digest(b"beep boop");
         let cid = Cid::new_v1(RAW, h);
-        let link = Link::new(cid);
-        let local = LocalReceipt::new(link, Ipld::Bool(true));
+        let link: Link<Cid> = Link::new(cid);
+        let local = LocalReceipt::new(
+            InvocationPointer::new_from_link(link).into(),
+            InvocationResult::Ok(Ipld::Bool(true)),
+            Ipld::Null,
+            None,
+            UcanPrf::default(),
+        );
         let receipt = Receipt::try_from(&local).unwrap();
         (local, receipt)
     }
@@ -312,11 +369,13 @@ mod test {
     #[test]
     fn local_into_receipt() {
         let (local, receipt) = receipt();
-        assert_eq!(local.closure_cid.to_string(), receipt.closure_cid());
-        assert_eq!(local.nonce, receipt.nonce);
+        assert_eq!(local.ran.to_string(), receipt.ran());
         assert_eq!(&local.out, receipt.output());
+        assert_eq!(local.meta, receipt.meta.0);
+        assert_eq!(local.iss, receipt.iss);
+        assert_eq!(local.prf, receipt.prf);
 
-        let output_bytes = DagCborCodec.encode(&local.out).unwrap();
+        let output_bytes = DagCborCodec.encode::<Ipld>(&local.out.into()).unwrap();
         assert_eq!(output_bytes, receipt.output_encoded().unwrap());
     }
 
@@ -333,11 +392,17 @@ mod test {
 
         assert_eq!(1, rows_inserted);
 
-        let inserted_receipt = receipts::table
-            .select(receipts::cid)
-            .load::<String>(&mut conn)
-            .unwrap();
+        let inserted_receipt = receipts::table.load::<Receipt>(&mut conn).unwrap();
 
-        assert_eq!(vec![receipt.cid()], inserted_receipt);
+        assert_eq!(vec![receipt], inserted_receipt);
+    }
+
+    #[test]
+    fn receipt_bytes_roundtrip() {
+        let (_, receipt) = receipt();
+        let bytes: Vec<u8> = receipt.clone().try_into().unwrap();
+        let from_bytes = Receipt::try_from(bytes).unwrap();
+
+        assert_eq!(receipt, from_bytes);
     }
 }

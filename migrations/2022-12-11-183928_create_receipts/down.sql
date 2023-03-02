@@ -1,2 +1,2 @@
 DROP TABLE receipts;
-DROP INDEX closure_cid_index;
+DROP INDEX ran_index;

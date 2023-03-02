@@ -1,101 +1,165 @@
-//! Pointers to workflow types.
+#![allow(missing_docs)]
 
-use anyhow::{anyhow, ensure};
-use libipld::{cid::Cid, serde::from_ipld, Ipld};
-use std::{collections::btree_map::BTreeMap, result::Result};
+//! Pointers and references to [Invocations] and [Tasks].
+//!
+//! [Invocations]: super::Invocation
+//! [Tasks]: super::Task
 
-/// Successful [Promise] result.
+use anyhow::ensure;
+use diesel::{
+    backend::RawValue,
+    deserialize::{self, FromSql},
+    serialize::{self, IsNull, Output, ToSql},
+    sql_types::Text,
+    sqlite::Sqlite,
+    AsExpression, FromSqlRow,
+};
+use enum_assoc::Assoc;
+use libipld::{
+    cid::{multibase::Base, Cid},
+    serde::from_ipld,
+    Ipld, Link,
+};
+use serde::{Deserialize, Serialize};
+use std::{borrow::Cow, collections::btree_map::BTreeMap, fmt, str::FromStr};
+
+/// `await/ok` branch for a task invocation.
+pub const OK_BRANCH: &str = "await/ok";
+/// `await/error` branch for a task invocation.
+pub const ERR_BRANCH: &str = "await/error";
+/// `await/*` branch for a task invocation.
+pub const PTR_BRANCH: &str = "await/*";
+
+/// Type alias around [InvocationPointer] for [Task] pointers.
 ///
-/// [Promise]: super::pointer::Promise
-pub const OK_BRANCH: &str = "ucan/ok";
-const ERR_BRANCH: &str = "ucan/err";
-const PTR_BRANCH: &str = "ucan/ptr";
-
-/// A pointer to an unresolved [Invocation] and
-/// [Task], optionally including the [Status::Success] or
-/// [Status::Failure] branch.
+/// Essentially, reusing [InvocationPointer] as a [Cid] wrapper.
 ///
-/// [Invocation]: super::invocation::Invocation
-/// [Task]: super::task::Task
+/// [Task]: super::Task
+pub type InvokedTaskPointer = InvocationPointer;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Promise {
-    /// Reference to an unresolved [Task] inside a specific [Invocation].
+/// Enumerated wrapper around resulting branches of a promise
+/// that's being awaited on.
+///
+/// Variants and branch strings are interchangable:
+///
+/// # Example
+///
+/// ```
+/// use homestar::workflow::pointer::AwaitResult;
+///
+/// let await_result = AwaitResult::Error;
+/// assert_eq!(await_result.branch(), "await/error");
+/// assert_eq!(AwaitResult::result("await/*").unwrap(), AwaitResult::Ptr);
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq, Assoc)]
+#[func(pub const fn branch(&self) -> &'static str)]
+#[func(pub fn result(s: &str) -> Option<Self>)]
+pub enum AwaitResult {
+    /// `Ok` branch.
+    #[assoc(branch = OK_BRANCH)]
+    #[assoc(result = OK_BRANCH)]
+    Ok,
+    /// `Error` branch.
+    #[assoc(branch = ERR_BRANCH)]
+    #[assoc(result = ERR_BRANCH)]
+    Error,
     ///
-    /// [Invocation]: super::invocation::Invocation
-    /// [Task]: super::task::Task
-    pub invoked_task: InvokedTaskPointer,
-
-    /// An optional narrowing to a particular [Status] branch.
-    pub result: Option<Status>,
+    #[assoc(branch = PTR_BRANCH)]
+    #[assoc(result = PTR_BRANCH)]
+    Ptr,
 }
 
-impl From<Promise> for Ipld {
-    fn from(promise: Promise) -> Self {
-        let key = match promise.result {
-            Some(Status::Success) => OK_BRANCH,
-            Some(Status::Failure) => ERR_BRANCH,
-            None => PTR_BRANCH,
-        };
+/// Describes the eventual output of the referenced [Task invocation], either
+/// resolving to [OK_BRANCH], [ERR_BRANCH], or [PTR_BRANCH].
+///
+/// [Task invocation]: InvokedTaskPointer
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Await {
+    invoked_task: InvokedTaskPointer,
+    result: AwaitResult,
+}
 
+impl Await {
+    /// A new `Promise` [Await]'ed on, resulting in a [InvokedTaskPointer]
+    /// and [AwaitResult].
+    pub fn new(invoked: InvokedTaskPointer, result: AwaitResult) -> Self {
+        Await {
+            invoked_task: invoked,
+            result,
+        }
+    }
+}
+
+impl From<Await> for Ipld {
+    fn from(await_promise: Await) -> Self {
         Ipld::Map(BTreeMap::from([(
-            key.to_string(),
-            promise.invoked_task.into(),
+            await_promise.result.branch().to_string(),
+            await_promise.invoked_task.into(),
         )]))
     }
 }
 
-impl TryFrom<Ipld> for Promise {
+impl TryFrom<Ipld> for Await {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
-        ensure!(map.len() == 1, "unexpected keys in Promise");
+        ensure!(map.len() == 1, "unexpected keys inside awaited promise");
 
         let (key, value) = map.iter().next().unwrap();
         let invoked_task = InvokedTaskPointer::try_from(value.clone())?;
 
         let result = match key.as_str() {
-            OK_BRANCH => Ok(Some(Status::Success)),
-            ERR_BRANCH => Ok(Some(Status::Failure)),
-            PTR_BRANCH => Ok(None),
-            other => Err(anyhow!("unexpected Promise branch selector: {other}")),
-        }?;
+            OK_BRANCH => AwaitResult::Ok,
+            ERR_BRANCH => AwaitResult::Error,
+            _ => AwaitResult::Ptr,
+        };
 
-        Ok(Promise {
+        Ok(Await {
             invoked_task,
             result,
         })
     }
 }
 
-/// The [Promise] result branch
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Status {
-    /// `Success` or `Ok` branch.
-    Success,
-    /// `Failure` or `Err` branch.
-    Failure,
+/// References a specific [Invocation], always by Cid.
+///
+/// [Invocation]: super::Invocation
+#[derive(Clone, Debug, AsExpression, FromSqlRow, PartialEq, Eq, Serialize, Deserialize)]
+#[diesel(sql_type = Text)]
+pub struct InvocationPointer(Cid);
+
+impl fmt::Display for InvocationPointer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let cid_as_string = self
+            .0
+            .to_string_of_base(Base::Base32Lower)
+            .map_err(|_| fmt::Error)?;
+
+        write!(f, "{cid_as_string}")
+    }
 }
 
-/// References a specific [Invocation], either directly by [Cid] (absolute), or
-/// local to the [Invocation] itself (relative).
-///
-/// [Invocation]: super::invocation::Invocation
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum InvocationPointer {
-    /// Remote pointer.
-    Remote(Cid),
-    /// Local or relative pointer.
-    Local,
+impl InvocationPointer {
+    /// Return the `inner` [Cid] for the [InvocationPointer].
+    pub fn cid(&self) -> Cid {
+        self.0
+    }
+
+    /// Wrap an [InvocationPointer] for a given [Cid].
+    pub fn new(cid: Cid) -> Self {
+        InvocationPointer(cid)
+    }
+
+    /// Convert an [Ipld::Link] to an [InvocationPointer].
+    pub fn new_from_link<T>(link: Link<T>) -> Self {
+        InvocationPointer(*link)
+    }
 }
 
 impl From<InvocationPointer> for Ipld {
     fn from(ptr: InvocationPointer) -> Self {
-        match ptr {
-            InvocationPointer::Local => Ipld::String("/".to_string()),
-            InvocationPointer::Remote(cid) => Ipld::Link(cid),
-        }
+        Ipld::Link(ptr.cid())
     }
 }
 
@@ -103,94 +167,41 @@ impl TryFrom<Ipld> for InvocationPointer {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        let s = from_ipld::<String>(ipld)?;
-
-        match s.as_str() {
-            "/" => Ok(InvocationPointer::Local),
-            other => Ok(InvocationPointer::Remote(Cid::try_from(other)?)),
-        }
+        let s: Cid = from_ipld(ipld)?;
+        Ok(InvocationPointer(s))
     }
 }
 
-/// References an [InvocationPointer] with a specific
-/// [TaskLabel].
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct InvokedTaskPointer {
-    invocation: InvocationPointer,
-    label: TaskLabel,
-}
-
-impl InvokedTaskPointer {
-    /// Return [InvocationPointer] from task pointer.
-    pub fn invocation(&self) -> &InvocationPointer {
-        &self.invocation
-    }
-
-    /// Return [TaskLabel] from task pointer.
-    pub fn label(&self) -> &TaskLabel {
-        &self.label
-    }
-}
-
-impl From<InvokedTaskPointer> for Ipld {
-    fn from(ptr: InvokedTaskPointer) -> Self {
-        Ipld::List(vec![ptr.invocation.into(), ptr.label.into()])
-    }
-}
-
-impl TryFrom<Ipld> for InvokedTaskPointer {
+impl TryFrom<&Ipld> for InvocationPointer {
     type Error = anyhow::Error;
 
-    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        let list: Vec<Ipld> = from_ipld(ipld)?;
-
-        match &list[..] {
-            [Ipld::String(s), Ipld::String(label)] => {
-                if s.as_str() == "/" {
-                    Ok(InvokedTaskPointer {
-                        invocation: InvocationPointer::Local,
-                        label: TaskLabel(label.to_string()),
-                    })
-                } else {
-                    Err(anyhow!("unexpected format for local InvokedTaskPointer"))
-                }
-            }
-            [Ipld::Link(ptr), Ipld::String(label)] => Ok(InvokedTaskPointer {
-                invocation: InvocationPointer::Remote(*ptr),
-                label: TaskLabel(label.to_string()),
-            }),
-
-            _ => Err(anyhow!("unexpected number of segments in IPLD tuple")),
-        }
+    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+        TryFrom::try_from(ipld.to_owned())
     }
 }
 
-/// A Task label.
-#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
-pub struct TaskLabel(String);
-
-impl TaskLabel {
-    /// Create a new [TaskLabel].
-    pub fn new(label: String) -> Self {
-        TaskLabel(label)
-    }
-    /// Get the inner label from [TaskLabel] wrapper.
-    pub fn label(&self) -> &str {
-        &self.0
+impl<'a> From<InvocationPointer> for Cow<'a, InvocationPointer> {
+    fn from(ptr: InvocationPointer) -> Self {
+        Cow::Owned(ptr)
     }
 }
 
-impl From<TaskLabel> for Ipld {
-    fn from(label: TaskLabel) -> Ipld {
-        Ipld::String(label.0)
+impl<'a> From<&'a InvocationPointer> for Cow<'a, InvocationPointer> {
+    fn from(ptr: &'a InvocationPointer) -> Self {
+        Cow::Borrowed(ptr)
     }
 }
 
-impl TryFrom<Ipld> for TaskLabel {
-    type Error = anyhow::Error;
+impl ToSql<Text, Sqlite> for InvocationPointer {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
+        out.set_value(self.cid().to_string_of_base(Base::Base32Lower)?);
+        Ok(IsNull::No)
+    }
+}
 
-    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        let label = from_ipld(ipld)?;
-        Ok(TaskLabel(label))
+impl FromSql<Text, Sqlite> for InvocationPointer {
+    fn from_sql(bytes: RawValue<'_, Sqlite>) -> deserialize::Result<Self> {
+        let s = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
+        Ok(InvocationPointer::new(Cid::from_str(&s)?))
     }
 }

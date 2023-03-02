@@ -1,18 +1,31 @@
-//! Homestar configuration.
+//! Homestar [workflow] configuration, typically expressed as metadata for
+//! [Invocations].
+//!
+//! [workflow]: super
+//! [Invocations]: super::Invocation
 
-use anyhow::anyhow;
 use homestar_wasm::wasmtime;
 use libipld::{serde::from_ipld, Ipld};
+use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, default::Default, time::Duration};
 
 const FUEL_KEY: &str = "fuel";
 const TIMEOUT_KEY: &str = "time";
 
-/// Homestar resource configuration for defining fuel quotas, timeouts, etc.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// Resource configuration for defining fuel quota, timeout, etc.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Resources {
     fuel: Option<u64>,
     time: Option<Duration>,
+}
+
+impl Default for Resources {
+    fn default() -> Self {
+        Self {
+            fuel: Some(u64::MAX),
+            time: Some(Duration::from_millis(100_000)),
+        }
+    }
 }
 
 impl Resources {
@@ -82,18 +95,41 @@ impl TryFrom<Ipld> for Resources {
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
-        let fuel = from_ipld(
-            map.get(FUEL_KEY)
-                .ok_or_else(|| anyhow!("no fuel set."))?
-                .to_owned(),
-        )?;
 
-        let time = from_ipld(
-            map.get(TIMEOUT_KEY)
-                .ok_or_else(|| anyhow!("no timeout set."))?
-                .to_owned(),
-        )?;
+        let fuel = map.get(FUEL_KEY).and_then(|ipld| match ipld {
+            Ipld::Null => None,
+            ipld => from_ipld(ipld.to_owned()).ok(),
+        });
+
+        let time = map.get(TIMEOUT_KEY).and_then(|ipld| match ipld {
+            Ipld::Null => None,
+            ipld => {
+                let time = from_ipld(ipld.to_owned()).unwrap_or(100_000);
+                Some(Duration::from_millis(time))
+            }
+        });
 
         Ok(Resources { fuel, time })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn ipld_roundtrip() {
+        let config = Resources::default();
+        let ipld = Ipld::from(config.clone());
+
+        assert_eq!(
+            ipld,
+            Ipld::Map(BTreeMap::from([
+                (FUEL_KEY.into(), Ipld::Integer(u64::MAX.into())),
+                (TIMEOUT_KEY.into(), Ipld::Integer(100_000))
+            ]))
+        );
+        assert_eq!(config, ipld.try_into().unwrap())
     }
 }
