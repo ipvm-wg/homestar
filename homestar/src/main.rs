@@ -190,7 +190,6 @@ async fn main() -> Result<()> {
             tokio::spawn(async move {
                 // TODO: make this configurable, but currently matching heartbeat.
                 tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-                println!("SHIT: {receipt}");
                 let _ = async_client
                     .publish_message(
                         Topic::new(RECEIPTS_TOPIC.to_string()),
