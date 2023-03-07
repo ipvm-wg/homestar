@@ -5603,6 +5603,7 @@ checksum = "497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba"
 [[package]]
 name = "ucan"
 version = "0.1.0"
+source = "git+https://github.com/ucan-wg/rs-ucan?branch=zl/principle-derives#fe7f0f2761b708c45430678930a5b834eeb1c983"
 dependencies = [
  "anyhow",
  "async-recursion",

@@ -54,7 +54,7 @@ thiserror = "1.0"
 tokio = { version = "1.26", features = ["io-util", "io-std", "macros", "rt", "rt-multi-thread"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
-ucan = { version = "0.1", path = "../../../rs-ucan/ucan" }
+ucan = { version = "0.1", git = "https://github.com/ucan-wg/rs-ucan", branch = "zl/principle-derives" }
 url = "2.3"
 xid = "1.0"
 
