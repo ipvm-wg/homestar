@@ -10,8 +10,11 @@ use homestar::{
         swarm::{self, Topic, TopicMessage},
     },
     workflow::{
-        closure::{Action, Closure, Input},
+        config::Resources,
+        prf::UcanPrf,
         receipt::{LocalReceipt, Receipt},
+        task::Task,
+        Ability, Input, Invocation, InvocationResult,
     },
 };
 use homestar_wasm::wasmtime;
@@ -23,7 +26,7 @@ use ipfs_api::{
 use itertools::Itertools;
 use libipld::{
     cid::{multibase::Base, Cid},
-    Ipld, Link,
+    Ipld,
 };
 use libp2p::{
     core::PeerId,
@@ -149,17 +152,25 @@ async fn main() -> Result<()> {
             let mut env =
                 wasmtime::World::instantiate(wasm_bytes, fun, wasmtime::State::default()).await?;
             let res = env.execute(Ipld::List(ipld_args.clone())).await?;
-
             let resource = Url::parse(format!("ipfs://{wasm}").as_str()).expect("IPFS URL");
 
-            let closure = Closure {
+            let task = Task::new(
                 resource,
-                action: Action::try_from("wasm/run")?,
-                inputs: Input::IpldData(Ipld::List(ipld_args)),
-            };
+                Ability::from("wasm/run"),
+                Input::Ipld(Ipld::List(ipld_args)),
+                None,
+            );
+            let config = Resources::default();
+            let invocation =
+                Invocation::new(task.into(), config.clone().into(), UcanPrf::default())?;
 
-            let link: Link<Closure> = Closure::try_into(closure)?;
-            let local_receipt = LocalReceipt::new(link, res);
+            let local_receipt = LocalReceipt::new(
+                invocation.try_into()?,
+                InvocationResult::Ok(res),
+                Ipld::Null,
+                None,
+                UcanPrf::default(),
+            );
             let receipt = Receipt::try_from(&local_receipt)?;
 
             let receipt_bytes: Vec<u8> = local_receipt.try_into()?;
@@ -179,11 +190,13 @@ async fn main() -> Result<()> {
             // TODO: insert (or upsert via event handling when subscribed)
             diesel::insert_into(schema::receipts::table)
                 .values(&receipt)
+                .on_conflict(schema::receipts::cid)
+                .do_nothing()
                 .execute(&mut conn)
                 .expect("Error saving new receipt");
             println!("stored: {receipt}");
 
-            let closure_cid = receipt.closure_cid();
+            let invoked_cid = receipt.ran();
             let output = receipt.output().clone();
             let async_client = client.clone();
             // We delay messages to make sure peers are within the mesh.
@@ -198,12 +211,12 @@ async fn main() -> Result<()> {
                     .await;
             });
 
-            let _ = client.start_providing(closure_cid.clone()).await;
+            let _ = client.start_providing(invoked_cid.clone()).await;
 
             loop {
                 match events.recv().await {
                     Some(Event::InboundRequest { request, channel }) => {
-                        if request.eq(&closure_cid) {
+                        if request.eq(&invoked_cid) {
                             let output = format!("{:?}", output);
                             client.respond_file(output.into_bytes(), channel).await?;
                         }

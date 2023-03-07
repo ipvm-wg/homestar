@@ -34,7 +34,11 @@ derive_more = "0.99"
 diesel = { version = "2.0", features = ["sqlite"] }
 diesel_migrations = "2.0"
 dotenvy = "0.15"
+enum-as-inner = "0.5"
+enum-assoc = "0.4"
 env_logger = "0.10"
+generic-array = "0.14"
+hex = "0.4"
 homestar-wasm = { version = "0.1", path = "../homestar-wasm" }
 ipfs-api = "0.17"
 ipfs-api-backend-hyper = { version = "0.6", features = ["with-builder"] }
@@ -43,13 +47,14 @@ libipld = "0.16"
 libipld-core = { version = "0.16", features = ["serde-codec", "serde"] }
 libp2p = { version = "0.51", features = ["kad", "request-response", "macros", "identify", "mdns", "floodsub", "gossipsub", "tokio", "dns", "tcp", "noise", "yamux", "websocket"] }
 proptest = { version = "1.1", optional = true }
+semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 signature = "2.0"
 thiserror = "1.0"
-tokio = { version = "1.25", features = ["io-util", "io-std", "macros", "rt", "rt-multi-thread"] }
+tokio = { version = "1.26", features = ["io-util", "io-std", "macros", "rt", "rt-multi-thread"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
-ucan = "0.1"
+ucan = { version = "0.1", git = "https://github.com/ucan-wg/rs-ucan", branch = "zl/principle-derives" }
 url = "2.3"
 xid = "1.0"
 
