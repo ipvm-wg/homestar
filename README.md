@@ -6,8 +6,11 @@
   <h1 align="center">homestar</h1>
 
   <p>
-    <a href="https://crates.io/crates/homestar">
-      <img src="https://img.shields.io/crates/v/homestar?label=crates" alt="Crate">
+    <a href="https://crates.io/crates/homestar-core">
+      <img src="https://img.shields.io/crates/v/homestar-core?label=crates" alt="Crate">
+    </a>
+    <a href="https://crates.io/crates/homestar-wasm">
+      <img src="https://img.shields.io/crates/v/homestar-wasm?label=crates" alt="Crate">
     </a>
     <a href="https://codecov.io/gh/ipvm-wg/homestar">
       <img src="https://codecov.io/gh/ipvm-wg/homestar/branch/main/graph/badge.svg?token=SOMETOKEN" alt="Code Coverage"/>
@@ -18,8 +21,11 @@
     <a href="https://github.com/ipvm-wg/homestar/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
     </a>
-    <a href="https://docs.rs/homestar">
-      <img src="https://img.shields.io/static/v1?label=Docs&message=docs.rs&color=blue" alt="Docs">
+    <a href="https://docs.rs/homestar-core">
+      <img src="https://img.shields.io/static/v1?label=Docs&message=core.docs.rs&color=blue" alt="Docs">
+    </a>
+    <a href="https://docs.rs/homestar-wasm">
+      <img src="https://img.shields.io/static/v1?label=Docs&message=wasm.docs.rs&color=blue" alt="Docs">
     </a>
     <a href="https://discord.gg/fissioncodes">
       <img src="https://img.shields.io/static/v1?label=Discord&message=join%20us!&color=mediumslateblue" alt="Discord">
@@ -33,22 +39,12 @@
 
 ## Outline
 
-- [Installation](#installation)
 - [Testing the Project](#testing-the-project)
-- [Benchmarking the Project](#benchmarking-the-project)
-- [Running homestar on Docker](#running-homestar-on-docker)
 - [Contributing](#contributing)
 - [Getting Help](#getting-help)
 - [External Resources](#external-resources)
 - [License](#license)
 
-## Installation
-
-### Using `cargo`
-
-```console
-$ cargo install homestar
-```
 
 ## Testing the Project
 
@@ -56,51 +52,6 @@ $ cargo install homestar
 
   ```console
   cargo test --all-features
-  ```
-
-## Benchmarking the Project
-
-For benchmarking and measuring performance, this project leverages
-[criterion][criterion] and a `test_utils` feature flag
-for integrating [proptest][proptest] within the the suite for working with
-[strategies][strategies] and sampling from randomly generated values.
-
-- Run benchmarks
-
-  ```console
-  cargo bench --features test_utils
-  ```
-
-## Running homestar on Docker
-
-We recommend setting your [Docker Engine][docker-engine] configuration
-with `experimental` and `buildkit` set to `true`, for example:
-
-``` json
-{
-  "builder": {
-    "gc": {
-      "defaultKeepStorage": "20GB",
-      "enabled": true
-    }
-  },
-  "experimental": true,
-  "features": {
-    "buildkit": true
-  }
-}
-```
-
-- Build a multi-plaform Docker image via [buildx][buildx]:
-
-  ```console
-  docker buildx build --platform=linux/amd64,linux/arm64 -t homestar --progress=plain .
-  ```
-
-- Run a Docker image (depending on your platform):
-
-  ```console
-  docker run --platform=linux/amd64 -t homestar
   ```
 
 ## Contributing
@@ -163,7 +114,11 @@ We would be happy to try to answer your question or try opening a new issue on G
 
 ## External Resources
 
-These are references to specifications, talks and presentations, etc.
+- [What Is An IPVM][ipvm-wg]
+- [IPVM High-Level Spec][ipvm-spec]
+- [IPVM: The Long-Fabled Execution Layer][cod-ipvm] by Brooklyn Zelenka
+- [IPVM - IPFS and WASM][ipfs-thing-ipvm] by Brooklyn Zelenka
+- [Ucan Invocation Spec][ucan-invocation]
 
 ## License
 
@@ -179,19 +134,19 @@ conditions.
 
 
 [apache]: https://www.apache.org/licenses/LICENSE-2.0
-[buildx]: https://github.com/docker/buildx
 [cargo-expand]: https://github.com/dtolnay/cargo-expand
 [cargo-udeps]: https://github.com/est31/cargo-udeps
 [cargo-watch]: https://github.com/watchexec/cargo-watch
+[cod-ipvm]: https://www.youtube.com/watch?v=3y1RB8wt_YY
 [commit-spec]: https://www.conventionalcommits.org/en/v1.0.0/#specification
 [commit-spec-site]: https://www.conventionalcommits.org/
-[docker-engine]: https://docs.docker.com/engine/
 [direnv]:https://direnv.net/
-[criterion]: https://github.com/bheisler/criterion.rs
+[ipfs-thing-ipvm]: https://www.youtube.com/watch?v=rzJWk1nlYvs
+[ipvm-spec]: https://github.com/ipvm-wg/spec
+[ipvm-wg]: https://github.com/ipvm-wg
 [irust]: https://github.com/sigmaSd/IRust
 [mit]: http://opensource.org/licenses/MIT
 [nix]:https://nixos.org/download.html
 [nix-flake]: https://nixos.wiki/wiki/Flakes
 [pre-commit]: https://pre-commit.com/
-[proptest]: https://github.com/proptest-rs/proptest
-[strategies]: https://docs.rs/proptest/latest/proptest/strategy/trait.Strategy.html
+[ucan-invocation]: https://github.com/ucan-wg/invocation

@@ -27,7 +27,7 @@ use libipld::{
     Ipld,
 };
 use libp2p::{
-    futures::{future, FutureExt, TryStreamExt},
+    futures::{future, TryStreamExt},
     identity::Keypair,
     multiaddr::Protocol,
 };
@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
             let requests = providers.into_iter().map(|p| {
                 let mut client = client.clone();
                 let name = cid_string.clone();
-                async move { client.request_file(p, name).await }.boxed()
+                Box::pin(async move { client.request_file(p, name).await })
             });
 
             let file_content = future::select_ok(requests)
@@ -113,17 +113,14 @@ async fn main() -> Result<()> {
 
             let wasm_args =
                 // Pull arg *out* of IPFS
-                future::try_join_all(args.iter().map(|arg| async {
-
+                future::try_join_all(args.iter().map(|arg|
                   ipfs
                     .cat(arg.as_str())
                     .map_ok(|chunk| {
                     chunk.to_vec()
                     })
                     .try_concat()
-                    .await
-
-                })).await?;
+                )).await?;
 
             // TODO: Don't read randomly from file.
             // The interior of this is test specific code,
@@ -223,7 +220,7 @@ async fn main() -> Result<()> {
                 match events.recv().await {
                     Some(Event::InboundRequest { request, channel }) => {
                         if request.eq(&invoked_cid) {
-                            let output = format!("{:?}", output);
+                            let output = format!("{output:?}");
                             client.respond_file(output.into_bytes(), channel).await?;
                         }
                     }
