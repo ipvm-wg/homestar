@@ -6,11 +6,10 @@ use crate::{
         client::{Command, FileRequest, FileResponse},
         swarm::{ComposedBehaviour, ComposedEvent},
     },
-    workflow::receipt::Receipt,
+    Receipt,
 };
 use anyhow::{anyhow, Result};
 use libp2p::{
-    core::PeerId,
     floodsub::FloodsubEvent,
     futures::StreamExt,
     gossipsub,
@@ -20,12 +19,13 @@ use libp2p::{
     request_response::{self, RequestId, ResponseChannel},
     swarm::{Swarm, SwarmEvent},
 };
+use libp2p_identity::PeerId;
 use std::collections::{hash_map, HashMap, HashSet};
 use tokio::sync::{mpsc, oneshot};
 
 /// [Receipt]-related topic for pub(gossip)sub.
 ///
-/// [Receipt]: crate::workflow::receipt
+/// [Receipt]: homestar_core::workflow::receipt
 pub const RECEIPTS_TOPIC: &str = "receipts";
 
 /// Event loop handler for [libp2p] network events and commands.

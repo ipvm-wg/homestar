@@ -52,7 +52,7 @@ impl TryFrom<Ipld> for UcanPrf {
             let prf = inner.iter().try_fold(vec![], |mut acc, ipld| {
                 let cid = from_ipld(ipld.to_owned())?;
                 acc.push(Link::new(cid));
-                Ok::<_, anyhow::Error>(acc)
+                Ok::<_, Self::Error>(acc)
             })?;
             Ok(UcanPrf(prf))
         } else {

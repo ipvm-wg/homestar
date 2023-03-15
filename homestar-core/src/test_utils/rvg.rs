@@ -32,7 +32,7 @@ impl Rvg {
     /// # Example
     ///
     /// ```
-    /// use homestar::test_utils::Rvg;
+    /// use homestar_core::test_utils::Rvg;
     ///
     /// let mut rvg = Rvg::new();
     /// let int = rvg.sample(&(0..100i32));
@@ -49,7 +49,7 @@ impl Rvg {
     /// # Example
     ///
     /// ```
-    /// use homestar::test_utils::Rvg;
+    /// use homestar_core::test_utils::Rvg;
     ///
     /// let mut rvg = Rvg::new();
     /// let ints = rvg.sample_vec(&(0..100i32), 10);

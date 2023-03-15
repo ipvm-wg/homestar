@@ -6,7 +6,7 @@ use crate::{
         client::{FileRequest, FileResponse},
         pubsub,
     },
-    workflow::receipt::Receipt,
+    Receipt,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;

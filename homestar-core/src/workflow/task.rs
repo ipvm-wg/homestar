@@ -16,7 +16,7 @@ use libipld::{
     serde::from_ipld,
     Ipld,
 };
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{borrow::Cow, collections::BTreeMap, fmt};
 use url::Url;
 
 const DAG_CBOR: u64 = 0x71;
@@ -28,23 +28,26 @@ const NNC_KEY: &str = "nnc";
 /// Enumerator for `either` an expanded [Task] structure or
 /// an [InvokedTaskPointer] ([Cid] wrapper).
 #[derive(Debug, Clone, PartialEq)]
-pub enum RunTask<'a> {
+pub enum RunTask<'a, T> {
     /// [Task] as an expanded structure.
-    Expanded(Task<'a>),
+    Expanded(Task<'a, T>),
     /// [Task] as a pointer.
     Ptr(InvokedTaskPointer),
 }
 
-impl<'a> From<Task<'a>> for RunTask<'a> {
-    fn from(task: Task<'a>) -> Self {
+impl<'a, T> From<Task<'a, T>> for RunTask<'a, T> {
+    fn from(task: Task<'a, T>) -> Self {
         RunTask::Expanded(task)
     }
 }
 
-impl<'a> TryFrom<RunTask<'a>> for Task<'a> {
+impl<'a, T> TryFrom<RunTask<'a, T>> for Task<'a, T>
+where
+    T: fmt::Debug,
+{
     type Error = anyhow::Error;
 
-    fn try_from(run: RunTask<'a>) -> Result<Self, Self::Error> {
+    fn try_from(run: RunTask<'a, T>) -> Result<Self, Self::Error> {
         match run {
             RunTask::Expanded(task) => Ok(task),
             e => Err(anyhow!("wrong discriminant: {e:?}")),
@@ -52,16 +55,19 @@ impl<'a> TryFrom<RunTask<'a>> for Task<'a> {
     }
 }
 
-impl From<InvokedTaskPointer> for RunTask<'_> {
+impl<T> From<InvokedTaskPointer> for RunTask<'_, T> {
     fn from(ptr: InvokedTaskPointer) -> Self {
         RunTask::Ptr(ptr)
     }
 }
 
-impl<'a> TryFrom<RunTask<'a>> for InvokedTaskPointer {
+impl<'a, T> TryFrom<RunTask<'a, T>> for InvokedTaskPointer
+where
+    T: fmt::Debug,
+{
     type Error = anyhow::Error;
 
-    fn try_from(run: RunTask<'a>) -> Result<Self, Self::Error> {
+    fn try_from(run: RunTask<'a, T>) -> Result<Self, Self::Error> {
         match run {
             RunTask::Ptr(ptr) => Ok(ptr),
             e => Err(anyhow!("wrong discriminant: {e:?}")),
@@ -69,30 +75,39 @@ impl<'a> TryFrom<RunTask<'a>> for InvokedTaskPointer {
     }
 }
 
-impl<'a, 'b> TryFrom<&'b RunTask<'a>> for &'b InvokedTaskPointer {
+impl<'a, 'b, T> TryFrom<&'b RunTask<'a, T>> for &'b InvokedTaskPointer
+where
+    T: fmt::Debug,
+{
     type Error = anyhow::Error;
 
-    fn try_from(run: &'b RunTask<'a>) -> Result<Self, Self::Error> {
+    fn try_from(run: &'b RunTask<'a, T>) -> Result<Self, Self::Error> {
         match run {
             RunTask::Ptr(ptr) => Ok(ptr),
-            e => Err(anyhow!("unexpected discriminant: {e:?}")),
+            e => Err(anyhow!("wrong discriminant: {e:?}")),
         }
     }
 }
 
-impl<'a, 'b> TryFrom<&'b RunTask<'a>> for InvokedTaskPointer {
+impl<'a, 'b, T> TryFrom<&'b RunTask<'a, T>> for InvokedTaskPointer
+where
+    T: fmt::Debug,
+{
     type Error = anyhow::Error;
 
-    fn try_from(run: &'b RunTask<'a>) -> Result<Self, Self::Error> {
+    fn try_from(run: &'b RunTask<'a, T>) -> Result<Self, Self::Error> {
         match run {
             RunTask::Ptr(ptr) => Ok(ptr.to_owned()),
-            e => Err(anyhow!("unexpected discriminant: {e:?}")),
+            e => Err(anyhow!("wrong discriminant: {e:?}")),
         }
     }
 }
 
-impl From<RunTask<'_>> for Ipld {
-    fn from(run: RunTask<'_>) -> Self {
+impl<T> From<RunTask<'_, T>> for Ipld
+where
+    Ipld: From<T>,
+{
+    fn from(run: RunTask<'_, T>) -> Self {
         match run {
             RunTask::Expanded(task) => task.into(),
             RunTask::Ptr(taskptr) => taskptr.into(),
@@ -100,7 +115,10 @@ impl From<RunTask<'_>> for Ipld {
     }
 }
 
-impl TryFrom<Ipld> for RunTask<'_> {
+impl<T> TryFrom<Ipld> for RunTask<'_, T>
+where
+    T: From<Ipld>,
+{
     type Error = anyhow::Error;
 
     fn try_from<'a>(ipld: Ipld) -> Result<Self, Self::Error> {
@@ -121,7 +139,7 @@ impl TryFrom<Ipld> for RunTask<'_> {
 /// # Example
 ///
 /// ```
-/// use homestar::workflow::{Ability, Input, Task};
+/// use homestar_core::{Unit, workflow::{Ability, Input, Task}};
 /// use libipld::Ipld;
 /// use url::Url;
 ///
@@ -131,14 +149,17 @@ impl TryFrom<Ipld> for RunTask<'_> {
 /// let task = Task::unique(
 ///     resource,
 ///     Ability::from("wasm/run"),
-///     Input::Ipld(Ipld::List(vec![Ipld::Bool(true)]))
+///     Input::<Unit>::Ipld(Ipld::List(vec![Ipld::Bool(true)]))
 /// );
 /// ```
 ///
 /// We can also set-up a [Task] with a Deferred input to await on:
 /// ```
-/// use homestar::workflow::{Ability, Input, Nonce, Task,
-///        pointer::{Await, AwaitResult, InvocationPointer, InvokedTaskPointer}
+/// use homestar_core::{
+///     workflow::{Ability, Input, Nonce, Task,
+///         pointer::{Await, AwaitResult, InvocationPointer, InvokedTaskPointer},
+///     },
+///     Unit,
 /// };
 /// use libipld::{cid::{multihash::{Code, MultihashDigest}, Cid}, Ipld, Link};
 /// use url::Url;
@@ -153,7 +174,7 @@ impl TryFrom<Ipld> for RunTask<'_> {
 /// let task = Task::new(
 ///     resource,
 ///     Ability::from("wasm/run"),
-///     Input::Deferred(Await::new(invoked_task, AwaitResult::Ok)),
+///     Input::<Unit>::Deferred(Await::new(invoked_task, AwaitResult::Ok)),
 ///     Some(Nonce::generate())
 /// );
 ///
@@ -162,16 +183,16 @@ impl TryFrom<Ipld> for RunTask<'_> {
 /// ```
 /// [deferred promise]: super::pointer::Await
 #[derive(Clone, Debug, PartialEq)]
-pub struct Task<'a> {
+pub struct Task<'a, T> {
     on: Url,
     call: Cow<'a, Ability>,
-    input: Input,
+    input: Input<T>,
     nnc: Option<Nonce>,
 }
 
-impl Task<'_> {
+impl<T> Task<'_, T> {
     /// Create a new [Task].
-    pub fn new(on: Url, ability: Ability, input: Input, nnc: Option<Nonce>) -> Self {
+    pub fn new(on: Url, ability: Ability, input: Input<T>, nnc: Option<Nonce>) -> Self {
         Task {
             on,
             call: Cow::from(ability),
@@ -181,7 +202,7 @@ impl Task<'_> {
     }
 
     /// Create a unique [Task], with a default [Nonce] generator.
-    pub fn unique(on: Url, ability: Ability, input: Input) -> Self {
+    pub fn unique(on: Url, ability: Ability, input: Input<T>) -> Self {
         Task {
             on,
             call: Cow::from(ability),
@@ -189,45 +210,53 @@ impl Task<'_> {
             nnc: Some(Nonce::generate()),
         }
     }
+
+    /// Return [Task] resource, i.e. [Url].
+    pub fn resource(&self) -> &Url {
+        &self.on
+    }
+
+    /// Return [Ability] associated with `call`.
+    pub fn call(&self) -> &Ability {
+        &self.call
+    }
+
+    /// Return [Task] [Input].
+    pub fn input(&self) -> &Input<T> {
+        &self.input
+    }
 }
 
-impl TryFrom<Task<'_>> for InvocationPointer {
+impl<T> TryFrom<Task<'_, T>> for InvocationPointer
+where
+    Ipld: From<T>,
+{
     type Error = anyhow::Error;
 
-    fn try_from(task: Task<'_>) -> Result<Self, Self::Error> {
+    fn try_from(task: Task<'_, T>) -> Result<Self, Self::Error> {
         Ok(InvocationPointer::new(Cid::try_from(task)?))
     }
 }
 
-impl TryFrom<&Task<'_>> for InvocationPointer {
+impl<T> TryFrom<Task<'_, T>> for Cid
+where
+    Ipld: From<T>,
+{
     type Error = anyhow::Error;
 
-    fn try_from(task: &Task<'_>) -> Result<Self, Self::Error> {
-        TryFrom::try_from(task.to_owned())
-    }
-}
-
-impl TryFrom<Task<'_>> for Cid {
-    type Error = anyhow::Error;
-
-    fn try_from(task: Task<'_>) -> Result<Self, Self::Error> {
-        let ipld = Ipld::from(task);
+    fn try_from(task: Task<'_, T>) -> Result<Self, Self::Error> {
+        let ipld: Ipld = task.into();
         let bytes = DagCborCodec.encode(&ipld)?;
         let hash = Code::Sha3_256.digest(&bytes);
         Ok(Cid::new_v1(DAG_CBOR, hash))
     }
 }
 
-impl TryFrom<&Task<'_>> for Cid {
-    type Error = anyhow::Error;
-
-    fn try_from(task: &Task<'_>) -> Result<Self, Self::Error> {
-        TryFrom::try_from(task.to_owned())
-    }
-}
-
-impl From<Task<'_>> for Ipld {
-    fn from(task: Task<'_>) -> Self {
+impl<T> From<Task<'_, T>> for Ipld
+where
+    Ipld: From<T>,
+{
+    fn from(task: Task<'_, T>) -> Self {
         Ipld::Map(BTreeMap::from([
             (ON_KEY.into(), task.on.to_string().into()),
             (CALL_KEY.into(), task.call.to_string().into()),
@@ -240,7 +269,10 @@ impl From<Task<'_>> for Ipld {
     }
 }
 
-impl TryFrom<&Ipld> for Task<'_> {
+impl<T> TryFrom<&Ipld> for Task<'_, T>
+where
+    T: From<Ipld>,
+{
     type Error = anyhow::Error;
 
     fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
@@ -248,7 +280,10 @@ impl TryFrom<&Ipld> for Task<'_> {
     }
 }
 
-impl TryFrom<Ipld> for Task<'_> {
+impl<T> TryFrom<Ipld> for Task<'_, T>
+where
+    T: From<Ipld>,
+{
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
@@ -291,8 +326,9 @@ impl TryFrom<Ipld> for Task<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::Unit;
 
-    fn task<'a>() -> (Task<'a>, Vec<u8>) {
+    fn task<'a, T>() -> (Task<'a, T>, Vec<u8>) {
         let wasm = "bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".to_string();
         let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
         let nonce = Nonce::generate();
@@ -310,7 +346,7 @@ mod test {
 
     #[test]
     fn ipld_roundtrip() {
-        let (task, bytes) = task();
+        let (task, bytes) = task::<Unit>();
         let ipld = Ipld::from(task.clone());
 
         assert_eq!(

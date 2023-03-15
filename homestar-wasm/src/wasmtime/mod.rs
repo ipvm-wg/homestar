@@ -4,11 +4,13 @@
 //! [Wasmtime]: <https://wasmtime.dev/>
 //! [Ipld]: libipld::Ipld
 
+///
+pub mod config;
 /// [Ipld] <=> [wasmtime::component::Val] IR.
 ///
 /// [Ipld]: libipld::Ipld
 pub mod ipld;
-
 /// Wasmtime component initialzation and execution of Wasm function(s).
 mod world;
+
 pub use world::*;

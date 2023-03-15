@@ -19,7 +19,7 @@ use std::{borrow::Cow, fmt};
 /// # Example
 ///
 /// ```
-/// use homestar::workflow::Ability;
+/// use homestar_core::workflow::Ability;
 ///
 /// Ability::from("msg/send");
 /// Ability::from("crud/update");
@@ -28,7 +28,7 @@ use std::{borrow::Cow, fmt};
 /// Abilities are case-insensitive, and don't respect wrapping whitespace:
 ///
 /// ```
-/// use homestar::workflow::Ability;
+/// use homestar_core::workflow::Ability;
 ///
 /// let ability = Ability::from("eXaMpLe/tEsT");
 /// assert_eq!(ability.to_string(), "example/test".to_string());

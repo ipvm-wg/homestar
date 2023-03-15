@@ -5,7 +5,7 @@ version = "0.1.0"
 edition = { workspace = true }
 
 [dependencies]
-wit-bindgen = { git = "https://github.com/bytecodealliance/wit-bindgen", branch = "main" }
+wit-bindgen = "0.4"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

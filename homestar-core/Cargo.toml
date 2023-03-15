@@ -1,0 +1,45 @@
+[package]
+name = "homestar-core"
+version = "0.1.0"
+description = ""
+keywords = []
+categories = []
+
+include = ["/src", "README.md", "LICENSE"]
+license = { workspace = true }
+readme = "README.md"
+edition = { workspace = true }
+rust-version = { workspace = true }
+documentation = "https://docs.rs/homestar"
+repository = "https://github.com/ipvm-wg/homestar"
+authors = { workspace = true }
+
+[lib]
+path = "src/lib.rs"
+bench = false
+doctest = true
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+anyhow = "1.0"
+diesel = { version = "2.0", features = ["sqlite"] }
+enum-as-inner = "0.5"
+enum-assoc = "0.4"
+generic-array = "0.14"
+libipld = "0.16"
+proptest = { version = "1.1", optional = true }
+semver = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+signature = "2.0"
+thiserror = "1.0"
+tracing = "0.1"
+ucan = "0.1"
+url = "2.3"
+xid = "1.0"
+
+[dev-dependencies]
+criterion = "0.4"
+
+[features]
+default = []
+test_utils = ["proptest"]

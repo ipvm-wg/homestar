@@ -31,7 +31,7 @@ RUN mkdir .cargo
 RUN cargo vendor > .cargo/config
 RUN --mount=type=cache,target=$CARGO_HOME/registry \
     --mount=type=cache,target=$CARGO_HOME/.git \
-    --mount=type=cache,target=homestar/target,sharing=locked \
+    --mount=type=cache,target=homestar-runtime/target,sharing=locked \
     cargo build --target $CARGO_BUILD_TARGET --release
 
 # copy src
@@ -44,10 +44,10 @@ RUN rm ./target/$CARGO_BUILD_TARGET/release/deps/*homestar*
 RUN --mount=type=cache,target=$CARGO_HOME/registry \
     --mount=type=cache,target=$CARGO_HOME/.git \
     --mount=type=cache,target=homestar/target,sharing=locked \
-    cargo build --target $CARGO_BUILD_TARGET --bin homestar --release
+    cargo build --target $CARGO_BUILD_TARGET --bin homestar-runtime --release
 
-RUN musl-strip ./target/$CARGO_BUILD_TARGET/release/homestar
-RUN mv ./target/$CARGO_BUILD_TARGET/release/homestar /usr/local/bin
+RUN musl-strip ./target/$CARGO_BUILD_TARGET/release/homestar-runtime
+RUN mv ./target/$CARGO_BUILD_TARGET/release/homestar-runtime /usr/local/bin
 
 FROM scratch
 
