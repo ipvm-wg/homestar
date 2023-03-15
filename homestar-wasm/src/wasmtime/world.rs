@@ -3,10 +3,11 @@
 //!
 //! [Wasmtime]: https://docs.rs/wasmtime/latest/wasmtime/
 
-use crate::wasmtime::ipld::{InterfaceType, RuntimeVal};
-use anyhow::{anyhow, Result};
+use super::ipld::{InterfaceType, RuntimeVal};
+use crate::io::{Arg, Output};
+use anyhow::{anyhow, bail, Result};
 use heck::{ToKebabCase, ToSnakeCase};
-use libipld::{serde::from_ipld, Ipld};
+use homestar_core::workflow::{input::Args, Input};
 use std::iter;
 use wasmtime::{
     component::{self, Component, Func, Instance, Linker},
@@ -80,27 +81,37 @@ impl<T> Env<T> {
         self.instance = instance;
     }
 
-    /// Execute Wasm function dynamically given [Ipld] arguments
-    /// and returning [Ipld] results. Types must conform to [Wit]
-    /// IDL types when Wasm was compiled/generated.
+    /// Execute Wasm function dynamically given a list ([Args]) of [Ipld] or
+    /// [wasmtime::component::Val] arguments and returning [Output] results.
+    /// Types must conform to [Wit] IDL types when Wasm was compiled/generated.
     ///
     /// [Wit]: https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md
-    pub async fn execute(&mut self, args: Ipld) -> Result<Ipld>
+    /// [Ipld]: libipld::Ipld
+    pub async fn execute(&mut self, args: Args<Arg>) -> Result<Output>
     where
         T: Send,
     {
         let param_typs = self.bindings.func().params(&self.store);
         let result_typs = self.bindings.func().results(&self.store);
-        let args = from_ipld::<Vec<Ipld>>(args)?;
 
-        let params: Vec<component::Val> = iter::zip(param_typs.iter(), args.into_iter()).try_fold(
-            vec![],
-            |mut acc, (typ, arg)| {
-                let v = RuntimeVal::try_from(arg, &InterfaceType::from(typ))?;
-                acc.push(v.value());
-                Ok::<_, anyhow::Error>(acc)
-            },
-        )?;
+        let params: Vec<component::Val> = iter::zip(
+            param_typs.iter(),
+            args.into_inner().into_iter(),
+        )
+        .try_fold(vec![], |mut acc, (typ, arg)| {
+            let v = match arg {
+                Input::Ipld(ipld) => RuntimeVal::try_from(ipld, &InterfaceType::from(typ))?.value(),
+                // TODO: Match within `InvocationResult`(s).
+                Input::Arg(val) => val.into_inner().into_value().map_err(|e| anyhow!(e))?,
+                Input::Deferred(await_promise) => bail!(anyhow!(
+                    "deferred task not yet resolved for {}: {}",
+                    await_promise.result(),
+                    await_promise.task_cid()
+                )),
+            };
+            acc.push(v);
+            Ok::<_, anyhow::Error>(acc)
+        })?;
 
         let mut results_alloc: Vec<component::Val> = result_typs
             .iter()
@@ -116,13 +127,13 @@ impl<T> Env<T> {
             .post_return_async(&mut self.store)
             .await?;
 
-        let results: Vec<Ipld> = results_alloc.into_iter().try_fold(vec![], |mut acc, res| {
-            let v = Ipld::try_from(RuntimeVal::new(res))?;
-            acc.push(v);
-            Ok::<_, anyhow::Error>(acc)
-        })?;
+        let results = match &results_alloc[..] {
+            [v] => Output::Value(v.to_owned()),
+            [_v, ..] => Output::Values(results_alloc),
+            [] => Output::Void,
+        };
 
-        Ok(Ipld::from(results))
+        Ok(results)
     }
 
     /// Return `wasmtime` bindings.

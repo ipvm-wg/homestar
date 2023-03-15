@@ -23,7 +23,9 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 anyhow = "1.0"
 atomic_refcell = "0.1"
+enum-as-inner = "0.5"
 heck = "0.4"
+homestar-core = { version = "0.1", path = "../homestar-core" }
 itertools = "0.10"
 libipld = "0.16"
 libipld-core = { version = "0.16", features = ["serde-codec", "serde"] }

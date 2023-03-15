@@ -89,6 +89,7 @@ impl Tags {
         Tags(Rc::new(AtomicRefCell::new(tags)))
     }
 
+    #[allow(dead_code)]
     fn borrow_mut(&self) -> AtomicRefMut<'_, VecDeque<String>> {
         self.0.borrow_mut()
     }
@@ -106,8 +107,15 @@ impl Tags {
         self.0.try_borrow().map_err(|e| anyhow!(e))
     }
 
-    fn pop(&self) -> Option<String> {
-        self.borrow_mut().pop_front()
+    fn push(&mut self, tag: String) -> Result<()> {
+        self.try_borrow_mut()?.push_front(tag);
+        Ok(())
+    }
+
+    fn pop(&self) -> Result<String> {
+        self.try_borrow_mut()?
+            .pop_front()
+            .ok_or_else(|| anyhow!("tags should be > 1"))
     }
 
     fn empty(&self) -> bool {
@@ -177,7 +185,7 @@ impl RuntimeVal {
                         anyhow!("ipld map must contain at least one discriminant")
                     })?;
 
-                    let (discriminant, tags) = union_inst
+                    let (discriminant, mut tags) = union_inst
                         .types()
                         .zip(iter::repeat(elem))
                         .enumerate()
@@ -204,7 +212,7 @@ impl RuntimeVal {
                         })
                         .into_inner()?;
 
-                    tags.try_borrow_mut()?.push_front(key);
+                    tags.push(key)?;
 
                     RuntimeVal::new_with_tags(discriminant?, tags)
                 }
@@ -318,7 +326,7 @@ impl RuntimeVal {
                         let RuntimeVal(value, _tags) =
                             RuntimeVal::try_from(elem, &InterfaceType::Type(list_inst.ty()))?;
                         acc.push(value);
-                        Ok::<Vec<Val>, anyhow::Error>(acc)
+                        Ok::<_, anyhow::Error>(acc)
                     })?;
 
                     RuntimeVal::new(list_inst.new_val(vec.into_boxed_slice())?)
@@ -365,9 +373,7 @@ impl RuntimeVal {
                             acc_tuples.push(new_tuple);
                             let mut tags = tags.try_borrow_mut()?;
                             (acc_tags).append(&mut tags);
-                            Ok::<(Vec<Val>, VecDeque<String>), anyhow::Error>((
-                                acc_tuples, acc_tags,
-                            ))
+                            Ok::<_, anyhow::Error>((acc_tuples, acc_tags))
                         },
                     )?;
                     RuntimeVal::new_with_tags(
@@ -438,7 +444,7 @@ impl TryFrom<RuntimeVal> for Ipld {
                                     tags.clone(),
                                 ))?;
                                 acc.insert(s.to_string(), ipld);
-                                Ok::<BTreeMap<std::string::String, Ipld>, anyhow::Error>(acc)
+                                Ok::<_, Self::Error>(acc)
                             } else {
                                 Err(anyhow!("mismatched types: {:?}", tup_values))?
                             }
@@ -452,7 +458,7 @@ impl TryFrom<RuntimeVal> for Ipld {
                     let inner = v.iter().try_fold(vec![], |mut acc, elem| {
                         let ipld = Ipld::try_from(RuntimeVal::new(elem.to_owned()))?;
                         acc.push(ipld);
-                        Ok::<Vec<Ipld>, anyhow::Error>(acc)
+                        Ok::<_, Self::Error>(acc)
                     })?;
 
                     Ipld::List(inner)
@@ -461,7 +467,7 @@ impl TryFrom<RuntimeVal> for Ipld {
                     let inner = Ipld::try_from(RuntimeVal::new(u.payload().to_owned()))?;
 
                     // Keep tag.
-                    let tag = tags.pop().ok_or_else(|| anyhow!("tags should be > 1"))?;
+                    let tag = tags.pop()?;
                     Ipld::from(BTreeMap::from([(tag, inner)]))
                 }
                 RuntimeVal(Val::Union(u), tags) if tags.empty() => {

@@ -6,7 +6,7 @@ use crate::{
     workflow::{
         pointer::{InvocationPointer, InvokedTaskPointer},
         prf::UcanPrf,
-        RunTask,
+        task::RunTask,
     },
 };
 use anyhow::anyhow;
@@ -39,17 +39,21 @@ const PROOF_KEY: &str = "prf";
 /// [Task]: super::Task
 /// [prf]: super::prf
 #[derive(Debug, Clone, PartialEq)]
-pub struct Invocation<'a> {
+pub struct Invocation<'a, T> {
     v: Version,
-    run: RunTask<'a>,
+    run: RunTask<'a, T>,
     cause: Option<InvocationPointer>,
     meta: Ipld,
     prf: UcanPrf,
 }
 
-impl<'a> Invocation<'a> {
+impl<'a, T> Invocation<'a, T>
+where
+    Ipld: From<T>,
+    T: Clone,
+{
     /// Generate a new [Invocation] to run, with metadata, and `prf`.
-    pub fn new(run: RunTask<'a>, meta: Ipld, prf: UcanPrf) -> anyhow::Result<Self> {
+    pub fn new(run: RunTask<'a, T>, meta: Ipld, prf: UcanPrf) -> anyhow::Result<Self> {
         let invok = Invocation {
             v: Version::parse(VERSION)?,
             run,
@@ -66,7 +70,7 @@ impl<'a> Invocation<'a> {
     ///
     /// [cause]: https://github.com/ucan-wg/invocation#523-cause
     pub fn new_with_cause(
-        run: RunTask<'a>,
+        run: RunTask<'a, T>,
         meta: Ipld,
         prf: UcanPrf,
         cause: Option<InvocationPointer>,
@@ -85,7 +89,7 @@ impl<'a> Invocation<'a> {
     /// Return a reference pointer to given [Task] to run.
     ///
     /// [Task]: super::Task
-    pub fn run(&self) -> &RunTask<'_> {
+    pub fn run(&self) -> &RunTask<'_, T> {
         &self.run
     }
 
@@ -94,32 +98,38 @@ impl<'a> Invocation<'a> {
     /// [Task]: super::Task
     pub fn task_cid(&self) -> anyhow::Result<Cid> {
         match &self.run {
-            RunTask::Expanded(task) => Ok(InvokedTaskPointer::try_from(task)?.cid()),
+            RunTask::Expanded(task) => Ok(InvokedTaskPointer::try_from(task.to_owned())?.cid()),
             RunTask::Ptr(taskptr) => Ok(taskptr.cid()),
         }
     }
 }
 
-impl TryFrom<Invocation<'_>> for Ipld {
+impl<T> TryFrom<Invocation<'_, T>> for Ipld
+where
+    Ipld: From<T>,
+{
     type Error = anyhow::Error;
 
-    fn try_from(invocation: Invocation<'_>) -> Result<Self, Self::Error> {
+    fn try_from(invocation: Invocation<'_, T>) -> Result<Self, Self::Error> {
         let map = Ipld::Map(BTreeMap::from([
             (VERSION_KEY.into(), invocation.v.to_string().into()),
-            (RUN_KEY.into(), Ipld::try_from(invocation.run)?),
+            (RUN_KEY.into(), invocation.run.try_into()?),
             (
                 CAUSE_KEY.into(),
                 invocation.cause.map_or(Ok(Ipld::Null), Ipld::try_from)?,
             ),
             (METADATA_KEY.into(), invocation.meta),
-            (PROOF_KEY.into(), Ipld::from(invocation.prf)),
+            (PROOF_KEY.into(), invocation.prf.into()),
         ]));
 
         Ok(map)
     }
 }
 
-impl TryFrom<Ipld> for Invocation<'_> {
+impl<T> TryFrom<Ipld> for Invocation<'_, T>
+where
+    T: From<Ipld>,
+{
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
@@ -143,7 +153,7 @@ impl TryFrom<Ipld> for Invocation<'_> {
                     Ipld::Null => None,
                     ipld => Some(ipld),
                 })
-                .and_then(|ipld| InvocationPointer::try_from(ipld).ok()),
+                .and_then(|ipld| ipld.try_into().ok()),
             meta: map
                 .get(METADATA_KEY)
                 .ok_or_else(|| anyhow!("no `metadata` field set"))?
@@ -157,7 +167,10 @@ impl TryFrom<Ipld> for Invocation<'_> {
     }
 }
 
-impl TryFrom<&Ipld> for Invocation<'_> {
+impl<T> TryFrom<&Ipld> for Invocation<'_, T>
+where
+    T: From<Ipld>,
+{
     type Error = anyhow::Error;
 
     fn try_from<'a>(ipld: &Ipld) -> Result<Self, Self::Error> {
@@ -165,38 +178,29 @@ impl TryFrom<&Ipld> for Invocation<'_> {
     }
 }
 
-impl TryFrom<Invocation<'_>> for InvocationPointer {
+impl<T> TryFrom<Invocation<'_, T>> for InvocationPointer
+where
+    Ipld: From<T>,
+    T: Clone,
+{
     type Error = anyhow::Error;
 
-    fn try_from(invocation: Invocation<'_>) -> Result<Self, Self::Error> {
+    fn try_from(invocation: Invocation<'_, T>) -> Result<Self, Self::Error> {
         Ok(InvocationPointer::new(Cid::try_from(invocation)?))
     }
 }
 
-impl TryFrom<&Invocation<'_>> for InvocationPointer {
+impl<T> TryFrom<Invocation<'_, T>> for Cid
+where
+    Ipld: From<T>,
+{
     type Error = anyhow::Error;
 
-    fn try_from(invocation: &Invocation<'_>) -> Result<Self, Self::Error> {
-        TryFrom::try_from(invocation.to_owned())
-    }
-}
-
-impl TryFrom<Invocation<'_>> for Cid {
-    type Error = anyhow::Error;
-
-    fn try_from(invocation: Invocation<'_>) -> Result<Self, Self::Error> {
-        let ipld = Ipld::try_from(invocation)?;
+    fn try_from(invocation: Invocation<'_, T>) -> Result<Self, Self::Error> {
+        let ipld: Ipld = invocation.try_into()?;
         let bytes = DagCborCodec.encode(&ipld)?;
         let hash = Code::Sha3_256.digest(&bytes);
         Ok(Cid::new_v1(0x71, hash))
-    }
-}
-
-impl TryFrom<&Invocation<'_>> for Cid {
-    type Error = anyhow::Error;
-
-    fn try_from(invocation: &Invocation<'_>) -> Result<Self, Self::Error> {
-        TryFrom::try_from(invocation.to_owned())
     }
 }
 
@@ -204,12 +208,12 @@ impl TryFrom<&Invocation<'_>> for Cid {
 mod test {
     use super::*;
     use crate::{
-        consts,
         workflow::{config::Resources, Ability, Input, Task},
+        Unit, VERSION,
     };
     use url::Url;
 
-    fn task<'a>() -> Task<'a> {
+    fn task<'a, T>() -> Task<'a, T> {
         let wasm = "bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".to_string();
         let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
 
@@ -223,7 +227,7 @@ mod test {
 
     #[test]
     fn ipld_roundtrip() {
-        let task = task();
+        let task: Task<'_, Unit> = task();
 
         let config = Resources::default();
         let invocation1 = Invocation::new(
@@ -250,7 +254,7 @@ mod test {
         assert_eq!(
             ipld1,
             Ipld::Map(BTreeMap::from([
-                (VERSION_KEY.into(), Ipld::String(consts::VERSION.into())),
+                (VERSION_KEY.into(), Ipld::String(VERSION.into())),
                 (RUN_KEY.into(), ipld_task),
                 (CAUSE_KEY.into(), Ipld::Null),
                 (
@@ -267,7 +271,7 @@ mod test {
         assert_eq!(invocation1, ipld1.try_into().unwrap());
 
         let invocation2 = Invocation::new_with_cause(
-            RunTask::Ptr(task.try_into().unwrap()),
+            RunTask::Ptr::<Unit>(task.try_into().unwrap()),
             config.into(),
             UcanPrf::default(),
             Some(InvocationPointer::try_from(invocation1.clone()).unwrap()),
@@ -280,7 +284,7 @@ mod test {
         assert_eq!(
             ipld2,
             Ipld::Map(BTreeMap::from([
-                (VERSION_KEY.into(), Ipld::String(consts::VERSION.into())),
+                (VERSION_KEY.into(), Ipld::String(VERSION.into())),
                 (RUN_KEY.into(), Ipld::Link(invocation2.task_cid().unwrap())),
                 (CAUSE_KEY.into(), Ipld::Link(invocation1_ptr.cid())),
                 (

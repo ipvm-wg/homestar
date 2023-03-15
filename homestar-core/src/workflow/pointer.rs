@@ -45,7 +45,7 @@ pub type InvokedTaskPointer = InvocationPointer;
 /// # Example
 ///
 /// ```
-/// use homestar::workflow::pointer::AwaitResult;
+/// use homestar_core::workflow::pointer::AwaitResult;
 ///
 /// let await_result = AwaitResult::Error;
 /// assert_eq!(await_result.branch(), "await/error");
@@ -69,6 +69,16 @@ pub enum AwaitResult {
     Ptr,
 }
 
+impl fmt::Display for AwaitResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AwaitResult::Error => write!(f, "await/error"),
+            AwaitResult::Ok => write!(f, "await/ok"),
+            AwaitResult::Ptr => write!(f, "await/*"),
+        }
+    }
+}
+
 /// Describes the eventual output of the referenced [Task invocation], either
 /// resolving to [OK_BRANCH], [ERR_BRANCH], or [PTR_BRANCH].
 ///
@@ -88,6 +98,16 @@ impl Await {
             result,
         }
     }
+
+    /// Return [Cid] for [InvokedTaskPointer].
+    pub fn task_cid(&self) -> Cid {
+        self.invoked_task.cid()
+    }
+
+    /// Return [AwaitResult] branch.
+    pub fn result(&self) -> &AwaitResult {
+        &self.result
+    }
 }
 
 impl From<Await> for Ipld {
@@ -99,6 +119,12 @@ impl From<Await> for Ipld {
     }
 }
 
+impl From<&Await> for Ipld {
+    fn from(await_promise: &Await) -> Self {
+        From::from(await_promise.to_owned())
+    }
+}
+
 impl TryFrom<Ipld> for Await {
     type Error = anyhow::Error;
 
@@ -106,8 +132,8 @@ impl TryFrom<Ipld> for Await {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
         ensure!(map.len() == 1, "unexpected keys inside awaited promise");
 
-        let (key, value) = map.iter().next().unwrap();
-        let invoked_task = InvokedTaskPointer::try_from(value.clone())?;
+        let (key, value) = map.into_iter().next().unwrap();
+        let invoked_task = InvokedTaskPointer::try_from(value)?;
 
         let result = match key.as_str() {
             OK_BRANCH => AwaitResult::Ok,
@@ -119,6 +145,14 @@ impl TryFrom<Ipld> for Await {
             invoked_task,
             result,
         })
+    }
+}
+
+impl TryFrom<&Ipld> for Await {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+        TryFrom::try_from(ipld.to_owned())
     }
 }
 

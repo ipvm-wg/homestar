@@ -4,7 +4,6 @@
 //! [workflow]: super
 //! [Invocations]: super::Invocation
 
-use homestar_wasm::wasmtime;
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, default::Default, time::Duration};
@@ -55,12 +54,6 @@ impl Resources {
     /// Set timeout.
     pub fn set_time(&mut self, time: Duration) {
         self.time = Some(time)
-    }
-}
-
-impl From<Resources> for wasmtime::State {
-    fn from(resources: Resources) -> wasmtime::State {
-        wasmtime::State::new(resources.fuel.unwrap_or(u64::MAX))
     }
 }
 

@@ -2,7 +2,7 @@
 
 mod ability;
 pub mod config;
-mod input;
+pub mod input;
 mod invocation;
 mod invocation_result;
 mod nonce;
@@ -12,8 +12,8 @@ pub mod receipt;
 pub mod task;
 
 pub use ability::*;
-pub use input::*;
+pub use input::Input;
 pub use invocation::*;
 pub use invocation_result::*;
 pub use nonce::*;
-pub use task::*;
+pub use task::Task;

@@ -4,8 +4,12 @@
 
 //! homestar-wasm is enables a Wasm runtime and execution engine for Homestar.
 
+///
+pub mod io;
+/// Test utilities.
+pub mod test_utils;
 /// All interaction with [wasmtime] runtime, types, and values.
 pub mod wasmtime;
 
-/// Test utilities.
-pub mod test_utils;
+///
+pub use homestar_core;

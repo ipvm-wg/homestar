@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 const OK: &str = "ok";
 const ERR: &str = "error";
+const JUST: &str = "just";
 
 /// Resultant output of an executed [Task].
 ///
@@ -28,6 +29,9 @@ pub enum InvocationResult<T> {
     Ok(T),
     /// `Error` branch.
     Error(T),
+    /// `Just` branch, meaning `just the value`. Used for
+    /// not incorporating ok/error into arg/param.
+    Just(T),
 }
 
 impl<T> InvocationResult<T> {
@@ -38,6 +42,7 @@ impl<T> InvocationResult<T> {
         match self {
             InvocationResult::Ok(inner) => inner,
             InvocationResult::Error(inner) => inner,
+            InvocationResult::Just(inner) => inner,
         }
     }
 
@@ -48,44 +53,54 @@ impl<T> InvocationResult<T> {
         match self {
             InvocationResult::Ok(inner) => inner,
             InvocationResult::Error(inner) => inner,
+            InvocationResult::Just(inner) => inner,
         }
     }
 }
 
 impl<T> From<InvocationResult<T>> for Ipld
 where
-    Ipld: TryFrom<T>,
     Ipld: From<T>,
 {
     fn from(result: InvocationResult<T>) -> Self {
         match result {
             InvocationResult::Ok(res) => Ipld::List(vec![OK.into(), res.into()]),
             InvocationResult::Error(res) => Ipld::List(vec![ERR.into(), res.into()]),
+            InvocationResult::Just(res) => Ipld::List(vec![JUST.into(), res.into()]),
         }
     }
 }
 
-impl TryFrom<Ipld> for InvocationResult<Ipld> {
+impl<T> TryFrom<Ipld> for InvocationResult<T>
+where
+    T: From<Ipld>,
+{
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, anyhow::Error> {
         if let Ipld::List(v) = ipld {
             match &v[..] {
                 [Ipld::String(result), res] if result == OK => {
-                    Ok(InvocationResult::Ok(res.to_owned()))
+                    Ok(InvocationResult::Ok(res.to_owned().try_into()?))
                 }
                 [Ipld::String(result), res] if result == ERR => {
-                    Ok(InvocationResult::Error(res.to_owned()))
+                    Ok(InvocationResult::Error(res.to_owned().try_into()?))
+                }
+                [Ipld::String(result), res] if result == JUST => {
+                    Ok(InvocationResult::Just(res.to_owned().try_into()?))
                 }
                 _ => Err(anyhow!("unexpected conversion type")),
             }
         } else {
-            Err(anyhow!("mismatched conversion type: {ipld:?}"))
+            Err(anyhow!("not convertible to Ipld"))
         }
     }
 }
 
-impl TryFrom<&Ipld> for InvocationResult<Ipld> {
+impl<T> TryFrom<&Ipld> for InvocationResult<T>
+where
+    T: From<Ipld>,
+{
     type Error = anyhow::Error;
 
     fn try_from(ipld: &Ipld) -> Result<Self, anyhow::Error> {
@@ -121,10 +136,22 @@ mod test {
 
     #[test]
     fn ipld_roundtrip() {
-        let res = InvocationResult::Error(Ipld::String("bad stuff".to_string()));
-        let ipld = Ipld::from(res.clone());
+        let res1 = InvocationResult::Error(Ipld::String("bad stuff".to_string()));
+        let res2 = InvocationResult::Ok(Ipld::String("ok stuff".to_string()));
+        let res3 = InvocationResult::Just(Ipld::String("just the right stuff".to_string()));
+        let ipld1 = Ipld::from(res1.clone());
+        let ipld2 = Ipld::from(res2.clone());
+        let ipld3 = Ipld::from(res3.clone());
 
-        assert_eq!(ipld, Ipld::List(vec!["error".into(), "bad stuff".into()]));
-        assert_eq!(res, ipld.try_into().unwrap());
+        assert_eq!(ipld1, Ipld::List(vec!["error".into(), "bad stuff".into()]));
+        assert_eq!(ipld2, Ipld::List(vec!["ok".into(), "ok stuff".into()]));
+        assert_eq!(
+            ipld3,
+            Ipld::List(vec!["just".into(), "just the right stuff".into()])
+        );
+
+        assert_eq!(res1, ipld1.try_into().unwrap());
+        assert_eq!(res2, ipld2.try_into().unwrap());
+        assert_eq!(res3, ipld3.try_into().unwrap());
     }
 }

@@ -1,5 +1,6 @@
 {
-  "homestar": "0.1.0",
+  "homestar-core": "0.1.0",
+  "homestar-runtime": "0.1.0",
   "homestar-guest-wasm": "0.1.0",
   "homestar-wasm": "0.1.0"
 }

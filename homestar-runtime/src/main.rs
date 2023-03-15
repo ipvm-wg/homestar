@@ -1,7 +1,11 @@
 use anyhow::{anyhow, bail, Result};
 use clap::Parser;
 use diesel::RunQueryDsl;
-use homestar::{
+use homestar_core::workflow::{
+    config::Resources, input::Parse, prf::UcanPrf, receipt::Receipt as LocalReceipt, Ability,
+    Input, Invocation, InvocationResult, Task,
+};
+use homestar_runtime::{
     cli::{Args, Argument},
     db::{self, schema},
     network::{
@@ -9,13 +13,7 @@ use homestar::{
         eventloop::{Event, RECEIPTS_TOPIC},
         swarm::{self, Topic, TopicMessage},
     },
-    workflow::{
-        config::Resources,
-        prf::UcanPrf,
-        receipt::{LocalReceipt, Receipt},
-        task::Task,
-        Ability, Input, Invocation, InvocationResult,
-    },
+    Receipt,
 };
 use homestar_wasm::wasmtime;
 use ipfs_api::{
@@ -29,13 +27,14 @@ use libipld::{
     Ipld,
 };
 use libp2p::{
-    core::PeerId,
     futures::{future, FutureExt, TryStreamExt},
     identity::Keypair,
     multiaddr::Protocol,
 };
+use libp2p_identity::PeerId;
 use std::{
-    io::{self, Cursor, Write},
+    collections::BTreeMap,
+    io::{stdout, Cursor, Write},
     str::{self, FromStr},
 };
 use url::Url;
@@ -99,7 +98,7 @@ async fn main() -> Result<()> {
                 .map_err(|_| anyhow!("none of the providers returned file"))?
                 .0;
 
-            io::stdout().write_all(&file_content)?
+            stdout().write_all(&file_content)?
         }
 
         Argument::Provide { wasm, fun, args } => {
@@ -149,24 +148,31 @@ async fn main() -> Result<()> {
             // TODO: Only works off happy path, but need to work with traps to
             // capture error.
             // TODO: State will derive from resources, other configuration.
-            let mut env =
-                wasmtime::World::instantiate(wasm_bytes, fun, wasmtime::State::default()).await?;
-            let res = env.execute(Ipld::List(ipld_args.clone())).await?;
             let resource = Url::parse(format!("ipfs://{wasm}").as_str()).expect("IPFS URL");
 
             let task = Task::new(
                 resource,
                 Ability::from("wasm/run"),
-                Input::Ipld(Ipld::List(ipld_args)),
+                Input::Ipld(Ipld::Map(BTreeMap::from([(
+                    "args".into(),
+                    Ipld::List(ipld_args),
+                )]))),
                 None,
             );
             let config = Resources::default();
-            let invocation =
-                Invocation::new(task.into(), config.clone().into(), UcanPrf::default())?;
+            let invocation = Invocation::new(
+                task.clone().into(),
+                config.clone().into(),
+                UcanPrf::default(),
+            )?;
+
+            let mut env =
+                wasmtime::World::instantiate(wasm_bytes, fun, wasmtime::State::default()).await?;
+            let res = env.execute(task.input().parse()?.try_into()?).await?;
 
             let local_receipt = LocalReceipt::new(
                 invocation.try_into()?,
-                InvocationResult::Ok(res),
+                InvocationResult::Ok(res.try_into()?),
                 Ipld::Null,
                 None,
                 UcanPrf::default(),
@@ -183,7 +189,7 @@ async fn main() -> Result<()> {
                 .await
                 .expect("a CID");
 
-            //Test for now
+            // //Test for now
             assert_eq!(cid.cid_string, receipt.cid());
 
             let mut conn = db::establish_connection();

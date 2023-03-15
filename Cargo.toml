@@ -1,7 +1,8 @@
 [workspace]
 members = [
-    "homestar",
+    "homestar-core",
     "homestar-guest-wasm",
+    "homestar-runtime",
     "homestar-wasm"
 ]
 
@@ -16,7 +17,15 @@ rust-version = "1.66.0"
 [profile.dev]
 split-debuginfo = "unpacked"
 
-[profile.release.package.homestar]
+[profile.release.package.homestar-core]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
+
+[profile.release.package.homestar-runtime]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
+
+[profile.release.package.homestar-wasm]
 # Tell `rustc` to optimize for small code size.
 opt-level = "s"
 
