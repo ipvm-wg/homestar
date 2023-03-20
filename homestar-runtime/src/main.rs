@@ -90,6 +90,7 @@ async fn main() -> Result<()> {
             let requests = providers.into_iter().map(|p| {
                 let mut client = client.clone();
                 let name = cid_string.clone();
+                #[allow(unknown_lints, clippy::redundant_async_block)]
                 Box::pin(async move { client.request_file(p, name).await })
             });
 
