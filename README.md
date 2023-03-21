@@ -63,16 +63,22 @@ also adhere to our [Code of Conduct](./CODE_OF_CONDUCT.md).
 ### Nix
 This repository contains a [Nix flake][nix-flake] that initiates both the Rust
 toolchain set in [rust-toolchain.toml](./rust-toolchain.toml) and a
-[pre-commit hook](#pre-commit-hook). It also installs helpful cargo binaries for
-development. Please install [nix][nix] and [direnv][direnv] to get started.
+[pre-commit hook](#pre-commit-hook). It also installs
+[external dependencies](#external-dependencies), as well as helpful cargo
+binaries for development. Please install [nix][nix] and [direnv][direnv] to get
+started.
 
 Run `nix develop` or `direnv allow` to load the `devShell` flake output,
 according to your preference.
 
+#### External Dependencies
+
+- [SQLite][sqlite]
+
 ### Formatting
 
-For formatting Rust in particular, please use `cargo +nightly fmt` as it uses
-specific nightly features we recommend by default.
+For formatting Rust in particular, we automatically format on `nightly`, as it
+uses specific nightly features we recommend by default.
 
 ### Pre-commit Hook
 
@@ -153,4 +159,5 @@ conditions.
 [nix]:https://nixos.org/download.html
 [nix-flake]: https://nixos.wiki/wiki/Flakes
 [pre-commit]: https://pre-commit.com/
+[sqlite]: https://sqlite.org/index.html
 [ucan-invocation]: https://github.com/ucan-wg/invocation
