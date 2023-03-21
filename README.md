@@ -115,10 +115,12 @@ We would be happy to try to answer your question or try opening a new issue on G
 ## External Resources
 
 - [What Is An IPVM][ipvm-wg]
-- [IPVM High-Level Spec][ipvm-spec]
+- [IPVM: High-Level Spec][ipvm-spec]
 - [IPVM: The Long-Fabled Execution Layer][cod-ipvm] by Brooklyn Zelenka
 - [IPVM - IPFS and WASM][ipfs-thing-ipvm] by Brooklyn Zelenka
+- [Breaking Down the Interplanetary Virtual Machine][blog-1]
 - [Ucan Invocation Spec][ucan-invocation]
+- [Wasm/Wit Demo - Februrary 2023][demo-1] by Zeeshan Lakhani
 
 ## License
 
@@ -134,12 +136,14 @@ conditions.
 
 
 [apache]: https://www.apache.org/licenses/LICENSE-2.0
+[blog-1]: https://fission.codes/blog/ipfs-thing-breaking-down-ipvm/
 [cargo-expand]: https://github.com/dtolnay/cargo-expand
 [cargo-udeps]: https://github.com/est31/cargo-udeps
 [cargo-watch]: https://github.com/watchexec/cargo-watch
 [cod-ipvm]: https://www.youtube.com/watch?v=3y1RB8wt_YY
 [commit-spec]: https://www.conventionalcommits.org/en/v1.0.0/#specification
 [commit-spec-site]: https://www.conventionalcommits.org/
+[demo-1]: https://www.loom.com/share/3204037368fe426ba3b4c952b0691c5c
 [direnv]:https://direnv.net/
 [ipfs-thing-ipvm]: https://www.youtube.com/watch?v=rzJWk1nlYvs
 [ipvm-spec]: https://github.com/ipvm-wg/spec
