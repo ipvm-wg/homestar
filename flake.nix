@@ -55,8 +55,10 @@
               nightly-rustfmt
               rust-toolchain
               rust-analyzer
+              pkg-config
               pre-commit
               protobuf
+              rustup
               sqlite
               diesel-cli
               direnv
@@ -69,6 +71,7 @@
               darwin.apple_sdk.frameworks.CoreFoundation
               darwin.apple_sdk.frameworks.Foundation
             ];
+          RUST_BACKTRACE = 1;
 
           shellHook = ''
             [ -e .git/hooks/pre-commit ] || pre-commit install --install-hooks && pre-commit install --hook-type commit-msg
