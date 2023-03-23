@@ -114,6 +114,47 @@ async fn test_append_string() {
 }
 
 #[tokio::test]
+async fn test_matrix_transpose() {
+    let ipld_inner = Ipld::List(vec![
+        Ipld::List(vec![Ipld::Integer(1), Ipld::Integer(2), Ipld::Integer(3)]),
+        Ipld::List(vec![Ipld::Integer(4), Ipld::Integer(5), Ipld::Integer(6)]),
+        Ipld::List(vec![Ipld::Integer(7), Ipld::Integer(8), Ipld::Integer(9)]),
+    ]);
+    let ipld = Input::Ipld(Ipld::Map(BTreeMap::from([(
+        "args".into(),
+        Ipld::List(vec![ipld_inner.clone()]),
+    )])));
+
+    let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
+    let mut env = World::instantiate(wasm, "transpose".to_string(), State::default())
+        .await
+        .unwrap();
+
+    let transposed = env
+        .execute(ipld.parse().unwrap().try_into().unwrap())
+        .await
+        .unwrap();
+
+    let transposed_ipld = Ipld::try_from(transposed).unwrap();
+
+    assert_ne!(transposed_ipld, ipld_inner);
+
+    let ipld_transposed_map = Input::Ipld(Ipld::Map(BTreeMap::from([(
+        "args".into(),
+        Ipld::List(vec![transposed_ipld]),
+    )])));
+
+    let retransposed = env
+        .execute(ipld_transposed_map.parse().unwrap().try_into().unwrap())
+        .await
+        .unwrap();
+
+    let retransposed_ipld = Ipld::try_from(retransposed).unwrap();
+
+    assert_eq!(retransposed_ipld, ipld_inner);
+}
+
+#[tokio::test]
 async fn test_execute_wasms_in_seq() {
     let ipld_int = Input::Ipld(Ipld::Map(BTreeMap::from([(
         "args".into(),

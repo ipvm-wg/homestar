@@ -1,4 +1,5 @@
 default world homestar {
   export add-one: func(a: s32) -> s32
   export append-string: func(a: string) -> string
+  export transpose: func(matrix: list<list<u8>>) -> list<list<u8>>
 }
