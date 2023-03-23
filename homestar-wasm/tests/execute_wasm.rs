@@ -126,7 +126,7 @@ async fn test_matrix_transpose() {
     )])));
 
     let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
-    let mut env = World::instantiate(wasm.clone(), "transpose".to_string(), State::default())
+    let mut env = World::instantiate(wasm, "transpose".to_string(), State::default())
         .await
         .unwrap();
 
@@ -141,7 +141,7 @@ async fn test_matrix_transpose() {
 
     let ipld_transposed_map = Input::Ipld(Ipld::Map(BTreeMap::from([(
         "args".into(),
-        Ipld::List(vec![transposed_ipld.clone()]),
+        Ipld::List(vec![transposed_ipld]),
     )])));
 
     let retransposed = env
