@@ -35,11 +35,11 @@ impl Homestar for Component {
         blurred.into_bytes()
     }
 
-    fn crop(data: Vec<u8>, x: u32, y: u32, width: u32, height: u32) -> Vec<u8> {
+    fn crop(data: Vec<u8>, x: u32, y: u32, target_width: u32, target_height: u32, width: u32, height: u32) -> Vec<u8> {
         let img_buf= image::RgbImage::from_vec(width, height, data).unwrap();
 
-        // Crop the bottom right rectangle
-        let cropped = DynamicImage::ImageRgb8(img_buf).crop(x, y, width, height);
+        // Crop this image delimited by the bounding rectangle
+        let cropped = DynamicImage::ImageRgb8(img_buf).crop(x, y, target_width, target_height);
         cropped.into_bytes()
     }
 
@@ -105,10 +105,10 @@ mod test {
         let (width, height) = (img.width(), img.height());
         let img_vec = img.into_bytes();
 
-        // Call component to crop the image to the bottom right corner
-        let result = Component::crop(img_vec, 200, 200, width, height);
+        // Call component to crop the image to a 200x200 square
+        let result = Component::crop(img_vec, 150, 350, 400, 400, width, height);
 
-        let processed_buf= image::RgbImage::from_vec(width - 200, height - 200, result).unwrap();
+        let processed_buf= image::RgbImage::from_vec(400,400, result).unwrap();
         let processed = DynamicImage::ImageRgb8(processed_buf);
         processed.save("./out/cropped.jpg").expect("Failed to write cropped.jpg to filesystem");
     }

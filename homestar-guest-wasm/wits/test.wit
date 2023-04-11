@@ -3,7 +3,7 @@ default world homestar {
   export append-string: func(a: string) -> string
   export transpose: func(matrix: list<list<u8>>) -> list<list<u8>>
   export blur: func(data: list<u8>, sigma: float32, width: u32, height: u32) -> list<u8>
-  export crop: func(data: list<u8>, x: u32, y: u32, width: u32, height: u32) -> list<u8>
+  export crop: func(data: list<u8>, x: u32, y: u32, target-width: u32, target-height: u32, width: u32, height: u32) -> list<u8>
   export grayscale: func(data: list<u8>, width: u32, height: u32) -> list<u8>
   export rotate90: func(data: list<u8>, width: u32, height: u32) -> list<u8>
 }
