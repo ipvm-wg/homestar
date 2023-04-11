@@ -16,6 +16,7 @@ private
 *.tmp
 .history
 .DS_Store
+homestar-guest-wasm/out/*.jpg
 
 # locks
 homestar-wasm/Cargo.lock

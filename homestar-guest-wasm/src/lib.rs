@@ -96,7 +96,7 @@ mod test {
 
         let processed_buf= image::RgbImage::from_vec(width, height, result).unwrap();
         let processed = DynamicImage::ImageRgb8(processed_buf);
-        processed.save("./fixtures/blurred.jpg").expect("Failed to write cropped.jpg to filesystem");
+        processed.save("./out/blurred.jpg").expect("Failed to write cropped.jpg to filesystem");
     }
 
     #[test]
@@ -110,7 +110,7 @@ mod test {
 
         let processed_buf= image::RgbImage::from_vec(width - 200, height - 200, result).unwrap();
         let processed = DynamicImage::ImageRgb8(processed_buf);
-        processed.save("./fixtures/cropped.jpg").expect("Failed to write cropped.jpg to filesystem");
+        processed.save("./out/cropped.jpg").expect("Failed to write cropped.jpg to filesystem");
     }
 
     #[test]
@@ -124,7 +124,7 @@ mod test {
 
         let processed_buf= image::RgbImage::from_vec(width, height, result).unwrap();
         let processed = DynamicImage::ImageRgb8(processed_buf);
-        processed.save("./fixtures/graycat.jpg").expect("Failed to write graycat.jpg to filesystem");
+        processed.save("./out/graycat.jpg").expect("Failed to write graycat.jpg to filesystem");
     }
 
     #[test]
@@ -138,6 +138,6 @@ mod test {
 
         let processed_buf= image::RgbImage::from_vec(width, height, result).unwrap();
         let processed = DynamicImage::ImageRgb8(processed_buf);
-        processed.save("./fixtures/rotated.jpg").expect("Failed to write graycat.jpg to filesystem");
+        processed.save("./out/rotated.jpg").expect("Failed to write graycat.jpg to filesystem");
     }
 }
