@@ -92,7 +92,7 @@ mod test {
         let img_vec = img.into_bytes();
 
         // Call component to blur the image
-        let result = Component::blur(img_vec, 10.0, width, height);
+        let result = Component::blur(img_vec, 100.0, width, height);
 
         let processed_buf= image::RgbImage::from_vec(width, height, result).unwrap();
         let processed = DynamicImage::ImageRgb8(processed_buf);
