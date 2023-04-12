@@ -1,3 +1,5 @@
+//! IO (input/output) types for the Wasm execution.
+
 use anyhow::anyhow;
 use enum_as_inner::EnumAsInner;
 use homestar_core::workflow::{
@@ -53,12 +55,17 @@ impl input::Parse<Arg> for Input<Arg> {
     fn parse(&self) -> anyhow::Result<Parsed<Arg>> {
         if let Input::Ipld(ref ipld) = self {
             let map = from_ipld::<BTreeMap<String, Ipld>>(ipld.to_owned())?;
+
+            let func = map
+                .get("func")
+                .ok_or_else(|| anyhow!("wrong task input format: {ipld:?}"))?;
+
             let wasm_args = map
                 .get("args")
                 .ok_or_else(|| anyhow!("wrong task input format: {ipld:?}"))?;
 
             let args: Args<Arg> = wasm_args.to_owned().try_into()?;
-            Ok(Parsed::with(args))
+            Ok(Parsed::with_fn(from_ipld::<String>(func.to_owned())?, args))
         } else {
             Err(anyhow!("unexpected task input"))
         }

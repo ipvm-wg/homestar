@@ -2,18 +2,40 @@
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![deny(unreachable_pub, private_in_public)]
 
-//! Homestar is a determistic Wasm runtime and effectful job system intended to
-//! embed inside IPFS.
+//! homestar-runtime is a determistic Wasm runtime and effectful workflow/job
+//! system intended to be embedded inside or run alongside IPFS.
+//!
 //! You can find a more complete description [here].
 //!
-//! [here]: https://github.com/ipvm-wg/spec.
+//!
+//! Related crates/packages:
+//!
+//! - [homestar-core]
+//! - [homestar-wasm]
+//!
+//! [here]: <https://github.com/ipvm-wg/spec>
+//! [homestar-core]: homestar_core
+//! [homestar-wasm]: homestar_wasm
 
 pub mod cli;
 pub mod db;
+pub mod logger;
 pub mod network;
 mod receipt;
+mod runtime;
+pub mod scheduler;
+pub mod settings;
+pub mod tasks;
+mod worker;
+pub mod workflow;
 
-pub use receipt::*;
+pub use db::Db;
+#[cfg(feature = "ipfs")]
+pub use network::ipfs::IpfsCli;
+pub use receipt::Receipt;
+pub use runtime::*;
+pub use worker::Worker;
+pub use workflow::Workflow;
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]

@@ -1,12 +1,11 @@
 [package]
 name = "homestar-wasm"
 version = "0.1.0"
-description = ""
-keywords = []
-categories = []
-
+description = "Homestar Wasm / Wasmtime implementation and IPLD <=> WIT interpreter"
+keywords = ["wasm", "wasmtime", "wit", "ipld", "ipvm"]
+categories = ["wasm", "execution-engines"]
 include = ["/src", "README.md", "LICENSE"]
-license = "Apache"
+license = { workspace = true }
 readme = "README.md"
 edition = { workspace = true }
 rust-version = { workspace = true }
@@ -21,7 +20,9 @@ doctest = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-anyhow = "1.0"
+# return to version.workspace = true after the following issue is fixed:
+# https://github.com/DevinR528/cargo-sort/issues/47
+anyhow = { workspace = true }
 atomic_refcell = "0.1"
 enum-as-inner = "0.5"
 heck = "0.4"
@@ -33,19 +34,25 @@ rust_decimal = "1.28"
 serde_ipld_dagcbor = "0.2"
 stacker = "0.1"
 thiserror = "1.0"
-tracing = "0.1"
-wasi-cap-std-sync = { git = "https://github.com/bytecodealliance/preview2-prototyping" }
-wasi-common = { git = "https://github.com/bytecodealliance/preview2-prototyping" }
-wasmparser = "0.101"
-wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", features = ["async", "component-model", "default"] }
-wasmtime-component-util = { git = "https://github.com/bytecodealliance/wasmtime" }
+tracing = { workspace = true }
+wasi-cap-std-sync = "8.0"
+wasi-common = "8.0"
+wasmparser = "0.104"
+wasmtime = { version = "8.0", features = ["async", "component-model", "default"] }
+wasmtime-component-util = "8.0"
 wat = "1.0"
-wit-component = "0.7"
+wit-component = "0.8"
 
 [dev-dependencies]
 criterion = "0.4"
+image = "0.24"
 tokio = { version = "1.25", default_features = false }
 tokio-test = "0.4"
 
 [features]
 default = []
+
+[package.metadata.docs.rs]
+all-features = true
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]

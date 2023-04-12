@@ -2,7 +2,7 @@
 # see https://diesel.rs/guides/configuring-diesel-cli
 
 [print_schema]
-file = "homestar/src/schema.rs"
+file = "homestar-runtime/src/db/schema.rs"
 
 [migrations_directory]
-dir = "migrations"
+dir = "homestar-runtime/migrations"

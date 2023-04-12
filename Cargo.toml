@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = [
     "homestar-core",
     "homestar-guest-wasm",
@@ -7,27 +8,38 @@ members = [
 ]
 
 [workspace.package]
-authors = ["Brooklyn Zelenka <hello@brooklynzelenka.com>", "Zeeshan Lakhani <zeeshan@fission.codes>"]
+authors = [
+    "Zeeshan Lakhani <zeeshan@fission.codes>",
+    "Brooklyn Zelenka <hello@brooklynzelenka.com>"
+]
 edition = "2021"
 license = "Apache"
 rust-version = "1.66.0"
 
+[workspace.dependencies]
+anyhow = { version = "1.0", features = ["backtrace"] }
+tracing = "0.1"
+
 # Speedup build on macOS
 # See https://blog.rust-lang.org/2021/03/25/Rust-1.51.0.html#splitting-debug-information
 [profile.dev]
+debug-assertions = true
 split-debuginfo = "unpacked"
 
 [profile.release.package.homestar-core]
 # Tell `rustc` to optimize for small code size.
 opt-level = "s"
+debug-assertions = false
 
 [profile.release.package.homestar-runtime]
 # Tell `rustc` to optimize for small code size.
-opt-level = "s"
+opt-level = "z"
+debug-assertions = false
 
 [profile.release.package.homestar-wasm]
 # Tell `rustc` to optimize for small code size.
 opt-level = "s"
+debug-assertions = false
 
 [profile.release.package.homestar-guest-wasm]
 # Perform optimizations on all codegen units.
@@ -40,3 +52,4 @@ strip = "symbols"
 # Amount of debug information.
 # 0/false: no debug info at all; 1: line tables only; 2/true: full debug info
 debug = false
+debug-assertions = false

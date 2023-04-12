@@ -1,60 +1,49 @@
 //! Sets up a [libp2p] [Swarm], containing the state of the network and the way
 //! it should behave.
 
-use crate::{
-    network::{
-        client::{FileRequest, FileResponse},
-        pubsub,
-    },
-    Receipt,
-};
+use crate::{network::pubsub, settings, Receipt};
 use anyhow::{anyhow, Result};
-use async_trait::async_trait;
 use libp2p::{
-    core::upgrade::{self, read_length_prefixed, write_length_prefixed, ProtocolName},
-    floodsub::{self, Floodsub, FloodsubEvent},
-    futures::{AsyncRead, AsyncWrite, AsyncWriteExt},
+    core::upgrade,
     gossipsub::{self, MessageId, SubscriptionError, TopicHash},
     identity::Keypair,
     kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
     mdns, noise,
-    request_response::{self, ProtocolSupport},
     swarm::{NetworkBehaviour, Swarm, SwarmBuilder},
-    tcp,
-    yamux::YamuxConfig,
-    Transport,
+    tcp, yamux, Transport,
 };
-use std::{fmt, io, iter};
+use std::fmt;
 
 /// Build a new [Swarm] with a given transport and a tokio executor.
-pub async fn new(keypair: Keypair) -> Result<Swarm<ComposedBehaviour>> {
+pub async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> {
+    let keypair = Keypair::generate_ed25519();
     let peer_id = keypair.public().to_peer_id();
 
     let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
-        .upgrade(upgrade::Version::V1)
+        .upgrade(upgrade::Version::V1Lazy)
         .authenticate(
-            noise::NoiseAuthenticated::xx(&keypair)
-                .expect("Signing libp2p-noise static DH keypair failed"),
+            noise::Config::new(&keypair).expect("Signing libp2p-noise static DH keypair failed"),
         )
-        .multiplex(YamuxConfig::default())
+        .multiplex(yamux::Config::default())
+        // TODO: configure
+        //.timeout(Duration::from_secs(5))
         .boxed();
 
-    Ok(SwarmBuilder::with_tokio_executor(
+    let mut swarm = SwarmBuilder::with_tokio_executor(
         transport,
         ComposedBehaviour {
-            floodsub: pubsub::new_floodsub(peer_id),
-            gossipsub: pubsub::new_gossipsub(keypair)?,
+            gossipsub: pubsub::new(keypair, settings)?,
             kademlia: Kademlia::new(peer_id, MemoryStore::new(peer_id)),
             mdns: mdns::Behaviour::new(mdns::Config::default(), peer_id)?,
-            request_response: request_response::Behaviour::new(
-                FileExchangeCodec(),
-                iter::once((FileExchangeProtocol(), ProtocolSupport::Full)),
-                Default::default(),
-            ),
         },
         peer_id,
     )
-    .build())
+    .build();
+
+    // Listen-on given address
+    swarm.listen_on(settings.network.listen_address.to_string().parse()?)?;
+
+    Ok(swarm)
 }
 
 /// Custom event types to listen for and respond to.
@@ -62,14 +51,10 @@ pub async fn new(keypair: Keypair) -> Result<Swarm<ComposedBehaviour>> {
 pub enum ComposedEvent {
     /// [gossipsub::Event] event.
     Gossipsub(gossipsub::Event),
-    /// [floodsub::FloodsubEvent] event.
-    Floodsub(FloodsubEvent),
     /// [KademliaEvent] event.
     Kademlia(KademliaEvent),
     /// [mdns::Event] event.
     Mdns(mdns::Event),
-    /// [request_response::Event] event.
-    RequestResponse(request_response::Event<FileRequest, FileResponse>),
 }
 
 /// Message topic.
@@ -93,7 +78,7 @@ impl Topic {
 #[derive(Debug)]
 pub enum TopicMessage {
     /// Receipt topic, wrapping [Receipt].
-    Receipt(Receipt),
+    CapturedReceipt(Receipt),
 }
 
 /// Custom behaviours for [Swarm].
@@ -103,33 +88,13 @@ pub enum TopicMessage {
 pub struct ComposedBehaviour {
     /// [gossipsub::Behaviour] behaviour.
     pub gossipsub: gossipsub::Behaviour,
-    /// [floodsub::Floodsub] behaviour.
-    pub floodsub: Floodsub,
     /// In-memory [kademlia: Kademlia] behaviour.
     pub kademlia: Kademlia<MemoryStore>,
     /// [mdns::tokio::Behaviour] behaviour.
     pub mdns: mdns::tokio::Behaviour,
-    /// [request_response::Behaviour] behaviour.
-    pub request_response: request_response::Behaviour<FileExchangeCodec>,
 }
 
 impl ComposedBehaviour {
-    /// Subscribe to [Floodsub] topic.
-    pub fn subscribe(&mut self, topic: &str) -> bool {
-        let topic = floodsub::Topic::new(topic);
-        self.floodsub.subscribe(topic)
-    }
-
-    /// Serialize [TopicMessage] and publish to [Floodsub] topic.
-    pub fn publish(&mut self, topic: &str, msg: TopicMessage) -> Result<()> {
-        let id_topic = floodsub::Topic::new(topic);
-        // Make this an or msg to match on other topics.
-        let TopicMessage::Receipt(receipt) = msg;
-        let msg_bytes: Vec<u8> = receipt.try_into()?;
-        self.floodsub.publish(id_topic, msg_bytes);
-        Ok(())
-    }
-
     /// Subscribe to [gossipsub] topic.
     pub fn gossip_subscribe(&mut self, topic: &str) -> Result<bool, SubscriptionError> {
         let topic = gossipsub::IdentTopic::new(topic);
@@ -139,8 +104,8 @@ impl ComposedBehaviour {
     /// Serialize [TopicMessage] and publish to [gossipsub] topic.
     pub fn gossip_publish(&mut self, topic: &str, msg: TopicMessage) -> Result<MessageId> {
         let id_topic = gossipsub::IdentTopic::new(topic);
-        // Make this an or msg to match on other topics.
-        let TopicMessage::Receipt(receipt) = msg;
+        // Make this a match once we have other topics.
+        let TopicMessage::CapturedReceipt(receipt) = msg;
         let msg_bytes: Vec<u8> = receipt.try_into()?;
         if self
             .gossipsub
@@ -165,12 +130,6 @@ impl From<gossipsub::Event> for ComposedEvent {
     }
 }
 
-impl From<FloodsubEvent> for ComposedEvent {
-    fn from(event: FloodsubEvent) -> Self {
-        ComposedEvent::Floodsub(event)
-    }
-}
-
 impl From<KademliaEvent> for ComposedEvent {
     fn from(event: KademliaEvent) -> Self {
         ComposedEvent::Kademlia(event)
@@ -180,96 +139,5 @@ impl From<KademliaEvent> for ComposedEvent {
 impl From<mdns::Event> for ComposedEvent {
     fn from(event: mdns::Event) -> Self {
         ComposedEvent::Mdns(event)
-    }
-}
-
-impl From<request_response::Event<FileRequest, FileResponse>> for ComposedEvent {
-    fn from(event: request_response::Event<FileRequest, FileResponse>) -> Self {
-        ComposedEvent::RequestResponse(event)
-    }
-}
-
-/// Simple file-exchange protocol.
-#[derive(Debug, Clone)]
-pub struct FileExchangeProtocol();
-
-/// File-exchange codec.
-#[derive(Debug, Clone)]
-pub struct FileExchangeCodec();
-
-impl ProtocolName for FileExchangeProtocol {
-    fn protocol_name(&self) -> &[u8] {
-        "/file-exchange/1".as_bytes()
-    }
-}
-
-#[async_trait]
-impl request_response::codec::Codec for FileExchangeCodec {
-    type Protocol = FileExchangeProtocol;
-    type Request = FileRequest;
-    type Response = FileResponse;
-
-    async fn read_request<T>(
-        &mut self,
-        _: &FileExchangeProtocol,
-        io: &mut T,
-    ) -> io::Result<Self::Request>
-    where
-        T: AsyncRead + Unpin + Send,
-    {
-        let vec = read_length_prefixed(io, 1_000_000).await?;
-
-        if vec.is_empty() {
-            return Err(io::ErrorKind::UnexpectedEof.into());
-        }
-
-        Ok(FileRequest(String::from_utf8(vec).unwrap()))
-    }
-
-    async fn read_response<T>(
-        &mut self,
-        _: &FileExchangeProtocol,
-        io: &mut T,
-    ) -> io::Result<Self::Response>
-    where
-        T: AsyncRead + Unpin + Send,
-    {
-        let vec = read_length_prefixed(io, 500_000_000).await?; // update transfer maximum
-
-        if vec.is_empty() {
-            return Err(io::ErrorKind::UnexpectedEof.into());
-        }
-
-        Ok(FileResponse(vec))
-    }
-
-    async fn write_request<T>(
-        &mut self,
-        _: &FileExchangeProtocol,
-        io: &mut T,
-        FileRequest(data): FileRequest,
-    ) -> io::Result<()>
-    where
-        T: AsyncWrite + Unpin + Send,
-    {
-        write_length_prefixed(io, data).await?;
-        io.close().await?;
-
-        Ok(())
-    }
-
-    async fn write_response<T>(
-        &mut self,
-        _: &FileExchangeProtocol,
-        io: &mut T,
-        FileResponse(data): FileResponse,
-    ) -> io::Result<()>
-    where
-        T: AsyncWrite + Unpin + Send,
-    {
-        write_length_prefixed(io, data).await?;
-        io.close().await?;
-
-        Ok(())
     }
 }

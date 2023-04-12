@@ -3,10 +3,16 @@ name = "homestar-guest-wasm"
 publish = false
 version = "0.1.0"
 edition = { workspace = true }
+rust-version = { workspace = true }
 
 [dependencies]
-image = "0.24"
+image = { version = "0.24", default-features = false, features = ["png"] }
 wit-bindgen = "0.4"
 
+[dev-dependencies]
+image = "0.24"
+
 [lib]
+doc = false
+bench = false
 crate-type = ["cdylib", "rlib"]

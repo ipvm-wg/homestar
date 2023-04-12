@@ -1,2 +1,3 @@
-/// Test-utilities for Wasm components.
+//! Test-utilities for Wasm components.
+
 pub mod component;

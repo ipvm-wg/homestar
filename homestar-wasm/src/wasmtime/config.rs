@@ -1,3 +1,5 @@
+//! Configuration for Wasm/wasmtime execution.
+
 use crate::wasmtime;
 use homestar_core::workflow::config::Resources;
 
