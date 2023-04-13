@@ -19,7 +19,7 @@ use libp2p::{
     kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
     mdns, noise,
     request_response::{self, ProtocolSupport},
-    swarm::{NetworkBehaviour, Swarm},
+    swarm::{NetworkBehaviour, Swarm, SwarmBuilder},
     tcp,
     yamux::YamuxConfig,
     Transport,
@@ -39,7 +39,7 @@ pub async fn new(keypair: Keypair) -> Result<Swarm<ComposedBehaviour>> {
         .multiplex(YamuxConfig::default())
         .boxed();
 
-    Ok(Swarm::with_tokio_executor(
+    Ok(SwarmBuilder::with_tokio_executor(
         transport,
         ComposedBehaviour {
             floodsub: pubsub::new_floodsub(peer_id),
@@ -53,7 +53,8 @@ pub async fn new(keypair: Keypair) -> Result<Swarm<ComposedBehaviour>> {
             ),
         },
         peer_id,
-    ))
+    )
+    .build())
 }
 
 /// Custom event types to listen for and respond to.
