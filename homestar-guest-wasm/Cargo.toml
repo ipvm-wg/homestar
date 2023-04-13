@@ -5,7 +5,7 @@ version = "0.1.0"
 edition = { workspace = true }
 
 [dependencies]
-image = { version = "0.24" }
+image = "0.24"
 wit-bindgen = "0.4"
 
 [lib]

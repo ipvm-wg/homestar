@@ -1,8 +1,6 @@
-use std::path::Path;
-use image::{
-    DynamicImage
-};
+#![allow(clippy::too_many_arguments)]
 
+use image::DynamicImage;
 
 wit_bindgen::generate!("test" in "./wits");
 
@@ -29,14 +27,22 @@ impl Homestar for Component {
     }
 
     fn blur(data: Vec<u8>, sigma: f32, width: u32, height: u32) -> Vec<u8> {
-        let img_buf= image::RgbImage::from_vec(width, height, data).unwrap();
+        let img_buf = image::RgbImage::from_vec(width, height, data).unwrap();
 
         let blurred = DynamicImage::ImageRgb8(img_buf).blur(sigma);
         blurred.into_bytes()
     }
 
-    fn crop(data: Vec<u8>, x: u32, y: u32, target_width: u32, target_height: u32, width: u32, height: u32) -> Vec<u8> {
-        let img_buf= image::RgbImage::from_vec(width, height, data).unwrap();
+    fn crop(
+        data: Vec<u8>,
+        x: u32,
+        y: u32,
+        target_width: u32,
+        target_height: u32,
+        width: u32,
+        height: u32,
+    ) -> Vec<u8> {
+        let img_buf = image::RgbImage::from_vec(width, height, data).unwrap();
 
         // Crop this image delimited by the bounding rectangle
         let cropped = DynamicImage::ImageRgb8(img_buf).crop(x, y, target_width, target_height);
@@ -44,14 +50,14 @@ impl Homestar for Component {
     }
 
     fn grayscale(data: Vec<u8>, width: u32, height: u32) -> Vec<u8> {
-        let img_buf= image::RgbImage::from_vec(width, height, data).unwrap();
+        let img_buf = image::RgbImage::from_vec(width, height, data).unwrap();
 
         let gray = DynamicImage::ImageRgb8(img_buf).grayscale();
         gray.to_rgb8().into_vec()
     }
 
     fn rotate90(data: Vec<u8>, width: u32, height: u32) -> Vec<u8> {
-        let img_buf= image::RgbImage::from_vec(width, height, data).unwrap();
+        let img_buf = image::RgbImage::from_vec(width, height, data).unwrap();
 
         let rotated = DynamicImage::ImageRgb8(img_buf).rotate90();
         rotated.into_bytes()
@@ -63,6 +69,7 @@ export_homestar!(Component);
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::path::Path;
 
     #[test]
     fn add_one() {
@@ -87,57 +94,65 @@ mod test {
 
     #[test]
     fn blur() {
-        let img = image::open(&Path::new("./fixtures/synthcat.jpg")).unwrap();
+        let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let (width, height) = (img.width(), img.height());
         let img_vec = img.into_bytes();
 
         // Call component to blur the image
-        let result = Component::blur(img_vec, 100.0, width, height);
+        let result = Component::blur(img_vec, 1.0, width, height);
 
-        let processed_buf= image::RgbImage::from_vec(width, height, result).unwrap();
+        let processed_buf = image::RgbImage::from_vec(width, height, result).unwrap();
         let processed = DynamicImage::ImageRgb8(processed_buf);
-        processed.save("./out/blurred.jpg").expect("Failed to write cropped.jpg to filesystem");
+        processed
+            .save("./out/blurred.jpg")
+            .expect("Failed to write cropped.jpg to filesystem");
     }
 
     #[test]
     fn crop() {
-        let img = image::open(&Path::new("./fixtures/synthcat.jpg")).unwrap();
+        let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let (width, height) = (img.width(), img.height());
         let img_vec = img.into_bytes();
 
         // Call component to crop the image to a 200x200 square
         let result = Component::crop(img_vec, 150, 350, 400, 400, width, height);
 
-        let processed_buf= image::RgbImage::from_vec(400,400, result).unwrap();
+        let processed_buf = image::RgbImage::from_vec(400, 400, result).unwrap();
         let processed = DynamicImage::ImageRgb8(processed_buf);
-        processed.save("./out/cropped.jpg").expect("Failed to write cropped.jpg to filesystem");
+        processed
+            .save("./out/cropped.jpg")
+            .expect("Failed to write cropped.jpg to filesystem");
     }
 
     #[test]
     fn grayscale() {
-        let img = image::open(&Path::new("./fixtures/synthcat.jpg")).unwrap();
+        let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let (width, height) = (img.width(), img.height());
         let img_vec = img.into_bytes();
 
         // Call component to grayscale the image
         let result = Component::grayscale(img_vec, width, height);
 
-        let processed_buf= image::RgbImage::from_vec(width, height, result).unwrap();
+        let processed_buf = image::RgbImage::from_vec(width, height, result).unwrap();
         let processed = DynamicImage::ImageRgb8(processed_buf);
-        processed.save("./out/graycat.jpg").expect("Failed to write graycat.jpg to filesystem");
+        processed
+            .save("./out/graycat.jpg")
+            .expect("Failed to write graycat.jpg to filesystem");
     }
 
     #[test]
     fn rotate() {
-        let img = image::open(&Path::new("./fixtures/synthcat.jpg")).unwrap();
+        let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let (width, height) = (img.width(), img.height());
         let img_vec = img.into_bytes();
 
         // Call component to rotate the image 90 deg clockwise
         let result = Component::rotate90(img_vec, width, height);
 
-        let processed_buf= image::RgbImage::from_vec(width, height, result).unwrap();
+        let processed_buf = image::RgbImage::from_vec(width, height, result).unwrap();
         let processed = DynamicImage::ImageRgb8(processed_buf);
-        processed.save("./out/rotated.jpg").expect("Failed to write graycat.jpg to filesystem");
+        processed
+            .save("./out/rotated.jpg")
+            .expect("Failed to write graycat.jpg to filesystem");
     }
 }
