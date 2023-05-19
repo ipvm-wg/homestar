@@ -1,12 +1,11 @@
 #![allow(clippy::too_many_arguments)]
 
-use image::DynamicImage;
-
+use std::io::Cursor;
 wit_bindgen::generate!("test" in "./wits");
 
 struct Component;
 
-type Matrix = Vec<Vec<u8>>;
+type Matrix = Vec<Vec<u16>>;
 
 impl Homestar for Component {
     fn add_one(a: i32) -> i32 {
@@ -18,6 +17,10 @@ impl Homestar for Component {
         [a, b.to_string()].join("\n")
     }
 
+    fn join_strings(a: String, b: String) -> String {
+        [a, b].join("")
+    }
+
     fn transpose(matrix: Matrix) -> Matrix {
         assert!(!matrix.is_empty());
         let len = matrix[0].len();
@@ -26,41 +29,55 @@ impl Homestar for Component {
             .collect()
     }
 
-    fn blur(data: Vec<u8>, sigma: f32, width: u32, height: u32) -> Vec<u8> {
-        let img_buf = image::RgbImage::from_vec(width, height, data).unwrap();
+    fn blur(data: Vec<u8>, sigma: f32) -> Vec<u8> {
+        let img = image::load_from_memory_with_format(&data, image::ImageFormat::Png).unwrap();
 
-        let blurred = DynamicImage::ImageRgb8(img_buf).blur(sigma);
-        blurred.into_bytes()
+        let blurred = img.blur(sigma);
+
+        let mut buffer: Vec<u8> = Vec::new();
+        blurred
+            .write_to(&mut Cursor::new(&mut buffer), image::ImageOutputFormat::Png)
+            .unwrap();
+
+        buffer
     }
 
-    fn crop(
-        data: Vec<u8>,
-        x: u32,
-        y: u32,
-        target_width: u32,
-        target_height: u32,
-        width: u32,
-        height: u32,
-    ) -> Vec<u8> {
-        let img_buf = image::RgbImage::from_vec(width, height, data).unwrap();
+    fn crop(data: Vec<u8>, x: u32, y: u32, target_width: u32, target_height: u32) -> Vec<u8> {
+        let mut img = image::load_from_memory_with_format(&data, image::ImageFormat::Png).unwrap();
 
         // Crop this image delimited by the bounding rectangle
-        let cropped = DynamicImage::ImageRgb8(img_buf).crop(x, y, target_width, target_height);
-        cropped.into_bytes()
+        let cropped = img.crop(x, y, target_width, target_height);
+
+        let mut buffer: Vec<u8> = Vec::new();
+        cropped
+            .write_to(&mut Cursor::new(&mut buffer), image::ImageOutputFormat::Png)
+            .unwrap();
+
+        buffer
     }
 
-    fn grayscale(data: Vec<u8>, width: u32, height: u32) -> Vec<u8> {
-        let img_buf = image::RgbImage::from_vec(width, height, data).unwrap();
+    fn grayscale(data: Vec<u8>) -> Vec<u8> {
+        let img = image::load_from_memory_with_format(&data, image::ImageFormat::Png).unwrap();
+        let gray = img.grayscale();
 
-        let gray = DynamicImage::ImageRgb8(img_buf).grayscale();
-        gray.to_rgb8().into_vec()
+        let mut buffer: Vec<u8> = Vec::new();
+        gray.write_to(&mut Cursor::new(&mut buffer), image::ImageOutputFormat::Png)
+            .unwrap();
+
+        buffer
     }
 
-    fn rotate90(data: Vec<u8>, width: u32, height: u32) -> Vec<u8> {
-        let img_buf = image::RgbImage::from_vec(width, height, data).unwrap();
+    fn rotate90(data: Vec<u8>) -> Vec<u8> {
+        let img = image::load_from_memory_with_format(&data, image::ImageFormat::Png).unwrap();
 
-        let rotated = DynamicImage::ImageRgb8(img_buf).rotate90();
-        rotated.into_bytes()
+        let rotated = img.rotate90();
+
+        let mut buffer: Vec<u8> = Vec::new();
+        rotated
+            .write_to(&mut Cursor::new(&mut buffer), image::ImageOutputFormat::Png)
+            .unwrap();
+
+        buffer
     }
 }
 
@@ -95,64 +112,98 @@ mod test {
     #[test]
     fn blur() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
-        let (width, height) = (img.width(), img.height());
-        let img_vec = img.into_bytes();
+        let mut buffer: Vec<u8> = Vec::new();
+        img.write_to(&mut Cursor::new(&mut buffer), image::ImageOutputFormat::Png)
+            .unwrap();
 
         // Call component to blur the image
-        let result = Component::blur(img_vec, 1.0, width, height);
+        let result = Component::blur(buffer, 0.3);
 
-        let processed_buf = image::RgbImage::from_vec(width, height, result).unwrap();
-        let processed = DynamicImage::ImageRgb8(processed_buf);
-        processed
-            .save("./out/blurred.jpg")
-            .expect("Failed to write cropped.jpg to filesystem");
+        let png_img = image::io::Reader::new(Cursor::new(&result))
+            .with_guessed_format()
+            .unwrap()
+            .decode()
+            .unwrap();
+
+        png_img
+            .save("./out/blurred.png")
+            .expect("Failed to write blurred.png to filesystem");
     }
 
     #[test]
     fn crop() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
-        let (width, height) = (img.width(), img.height());
-        let img_vec = img.into_bytes();
+        let mut buffer: Vec<u8> = Vec::new();
+        img.write_to(&mut Cursor::new(&mut buffer), image::ImageOutputFormat::Png)
+            .unwrap();
 
-        // Call component to crop the image to a 200x200 square
-        let result = Component::crop(img_vec, 150, 350, 400, 400, width, height);
+        // Call component to crop the image to a 400x400 square
+        let result = Component::crop(buffer, 150, 350, 400, 400);
 
-        let processed_buf = image::RgbImage::from_vec(400, 400, result).unwrap();
-        let processed = DynamicImage::ImageRgb8(processed_buf);
-        processed
-            .save("./out/cropped.jpg")
-            .expect("Failed to write cropped.jpg to filesystem");
+        let png_img = image::io::Reader::new(Cursor::new(&result))
+            .with_guessed_format()
+            .unwrap()
+            .decode()
+            .unwrap();
+
+        png_img
+            .save("./out/cropped.png")
+            .expect("Failed to write cropped.png to filesystem");
     }
 
     #[test]
     fn grayscale() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
-        let (width, height) = (img.width(), img.height());
-        let img_vec = img.into_bytes();
+        let mut buffer: Vec<u8> = Vec::new();
+        img.write_to(&mut Cursor::new(&mut buffer), image::ImageOutputFormat::Png)
+            .unwrap();
 
         // Call component to grayscale the image
-        let result = Component::grayscale(img_vec, width, height);
+        let result = Component::grayscale(buffer);
 
-        let processed_buf = image::RgbImage::from_vec(width, height, result).unwrap();
-        let processed = DynamicImage::ImageRgb8(processed_buf);
-        processed
-            .save("./out/graycat.jpg")
+        let png_img = image::io::Reader::new(Cursor::new(&result))
+            .with_guessed_format()
+            .unwrap()
+            .decode()
+            .unwrap();
+
+        png_img
+            .save("./out/graycat.png")
             .expect("Failed to write graycat.jpg to filesystem");
     }
 
     #[test]
     fn rotate() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
-        let (width, height) = (img.width(), img.height());
-        let img_vec = img.into_bytes();
+        let mut buffer: Vec<u8> = Vec::new();
+        img.write_to(&mut Cursor::new(&mut buffer), image::ImageOutputFormat::Png)
+            .unwrap();
 
         // Call component to rotate the image 90 deg clockwise
-        let result = Component::rotate90(img_vec, width, height);
+        let result = Component::rotate90(buffer);
 
-        let processed_buf = image::RgbImage::from_vec(width, height, result).unwrap();
-        let processed = DynamicImage::ImageRgb8(processed_buf);
-        processed
-            .save("./out/rotated.jpg")
+        let png_img = image::io::Reader::new(Cursor::new(&result))
+            .with_guessed_format()
+            .unwrap()
+            .decode()
+            .unwrap();
+
+        png_img
+            .save("./out/rotated.png")
             .expect("Failed to write graycat.jpg to filesystem");
+    }
+
+    #[test]
+    fn mixed() {
+        let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
+        let mut buffer: Vec<u8> = Vec::new();
+        img.write_to(&mut Cursor::new(&mut buffer), image::ImageOutputFormat::Png)
+            .unwrap();
+
+        // Call component to rotate the image 90 deg clockwise
+        let rotated = Component::rotate90(buffer);
+        let gray = Component::grayscale(rotated);
+        let cropped = Component::crop(gray, 150, 350, 400, 400);
+        Component::blur(cropped, 0.1);
     }
 }

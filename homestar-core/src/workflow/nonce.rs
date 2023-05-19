@@ -1,6 +1,6 @@
-//! [Task] Nonce parameter.
+//! [Instruction] nonce parameter.
 //!
-//! [Task]: super::Task
+//! [Instruction]: super::Instruction
 
 use anyhow::anyhow;
 use enum_as_inner::EnumAsInner;
@@ -8,7 +8,8 @@ use generic_array::{
     typenum::consts::{U12, U16},
     GenericArray,
 };
-use libipld::Ipld;
+use libipld::{multibase::Base::Base32HexLower, Ipld};
+use std::fmt;
 
 type Nonce96 = GenericArray<u8, U12>;
 type Nonce128 = GenericArray<u8, U16>;
@@ -20,12 +21,28 @@ pub enum Nonce {
     Nonce96(Nonce96),
     /// 129-bit, 16-byte nonce.
     Nonce128(Nonce128),
+    /// No Nonce attributed.
+    Empty,
 }
 
 impl Nonce {
     /// Default generator, outputting a [xid] nonce.
     pub fn generate() -> Nonce {
         Nonce::Nonce96(*GenericArray::from_slice(xid::new().as_bytes()))
+    }
+}
+
+impl fmt::Display for Nonce {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Nonce::Nonce96(nonce) => {
+                write!(f, "{}", Base32HexLower.encode(nonce.as_slice()))
+            }
+            Nonce::Nonce128(nonce) => {
+                write!(f, "{}", Base32HexLower.encode(nonce.as_slice()))
+            }
+            Nonce::Empty => write!(f, ""),
+        }
     }
 }
 
@@ -38,6 +55,7 @@ impl From<Nonce> for Ipld {
             Nonce::Nonce128(nonce) => {
                 Ipld::List(vec![Ipld::Integer(1), Ipld::Bytes(nonce.to_vec())])
             }
+            Nonce::Empty => Ipld::String("".to_string()),
         }
     }
 }
@@ -57,7 +75,7 @@ impl TryFrom<Ipld> for Nonce {
                 _ => Err(anyhow!("unexpected conversion type")),
             }
         } else {
-            Err(anyhow!("mismatched conversion type: {ipld:?}"))
+            Ok(Nonce::Empty)
         }
     }
 }

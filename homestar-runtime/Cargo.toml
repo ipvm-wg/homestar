@@ -1,10 +1,9 @@
 [package]
 name = "homestar-runtime"
 version = "0.1.0"
-description = ""
-keywords = []
-categories = []
-
+description = "Homestar runtime implementation"
+keywords = ["ipfs", "workflows", "ipld", "ipvm"]
+categories = ["workflow-engines", "distributed-systems", "runtimes", "networking"]
 include = ["/src", "README.md", "LICENSE"]
 license = { workspace = true }
 readme = "README.md"
@@ -27,31 +26,64 @@ doc = false
 bench = false
 
 [dependencies]
-anyhow = "1.0"
+ansi_term = { version = "0.12", optional = true, default-features = false }
+# return to version.workspace = true after the following issue is fixed:
+# https://github.com/DevinR528/cargo-sort/issues/47
+anyhow = { workspace = true }
 async-trait = "0.1"
+axum = { version = "0.6", features = ["ws", "headers"] }
+byte-unit = { version = "4.0", default-features = false }
 clap = { version = "4.1", features = ["derive"] }
-diesel = { version = "2.0", features = ["sqlite"] }
+concat-in-place = "1.1"
+config = "0.13"
+console-subscriber = { version = "0.1", default-features = false, features = [ "parking_lot" ], optional = true }
+crossbeam = "0.8"
+dagga = "0.2"
+diesel = { version = "2.0", features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"] }
 diesel_migrations = "2.0"
 dotenvy = "0.15"
-env_logger = "0.10"
+enum-assoc = "0.4"
+futures = "0.3"
+headers = "0.3"
 homestar-core = { version = "0.1", path = "../homestar-core" }
 homestar-wasm = { version = "0.1", path = "../homestar-wasm" }
-ipfs-api = "0.17"
-ipfs-api-backend-hyper = { version = "0.6", features = ["with-builder"] }
+http = "0.2"
+http-serde = "1.1"
+indexmap = "1.9"
+ipfs-api = { version = "0.17", optional = true }
+ipfs-api-backend-hyper = { version = "0.6", features = ["with-builder", "with-send-sync"], optional = true }
 itertools = "0.10"
+json = "0.12"
 libipld = "0.16"
-libp2p = { version = "0.51", features = ["kad", "request-response", "macros", "identify", "mdns", "floodsub", "gossipsub", "tokio", "dns", "tcp", "noise", "yamux", "websocket"] }
+libp2p = { version = "0.51", features = ["kad", "request-response", "macros", "identify", "mdns", "gossipsub", "tokio", "dns", "mplex", "tcp", "noise", "yamux", "websocket"] }
 libp2p-identity = "0.1"
 proptest = { version = "1.1", optional = true }
+reqwest = { version = "0.11", features = ["json"] }
+semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1.26", features = ["io-util", "io-std", "macros", "rt", "rt-multi-thread"] }
-tracing = "0.1"
-tracing-subscriber = "0.3"
+serde_with = "2.3"
+thiserror = "1.0"
+tokio = { version = "1.26", features = ["fs", "io-util", "io-std", "macros", "rt", "rt-multi-thread"] }
+tracing = { workspace = true }
+tracing-logfmt = { version = "0.3", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "parking_lot", "registry"] }
+tryhard = "0.5"
 url = "2.3"
 
 [dev-dependencies]
 criterion = "0.4"
+homestar-core = { version = "0.1", path = "../homestar-core", features = [ "test_utils" ] }
+tokio-tungstenite = "0.18"
 
 [features]
-default = []
+default = ["console", "ipfs", "logfmt"]
+ansi-logs = ["ansi_term"]
+console = ["console-subscriber"]
+ipfs = ["ipfs-api", "ipfs-api-backend-hyper"]
+logfmt = ["tracing-logfmt"]
 test_utils = ["proptest"]
+
+[package.metadata.docs.rs]
+all-features = true
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]

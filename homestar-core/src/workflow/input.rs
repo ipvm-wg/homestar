@@ -1,25 +1,17 @@
-//! Input paramters for [Task] execution and means to
+//! Input paramters for [Instruction] execution and means to
 //! generally [parse] and [resolve] them.
 //!
-//! [Task]: super::Task
+//! [Instruction]: super::Instruction
 //! [parse]: Parse::parse
 //! [resolve]: Args::resolve
 
 use super::{
-    pointer::{Await, AwaitResult, InvokedTaskPointer, ERR_BRANCH, OK_BRANCH, PTR_BRANCH},
-    InvocationResult,
+    pointer::{Await, AwaitResult, ERR_BRANCH, OK_BRANCH, PTR_BRANCH},
+    InstructionResult, Pointer,
 };
 use anyhow::anyhow;
 use libipld::{serde::from_ipld, Cid, Ipld};
-use std::{
-    collections::{btree_map::BTreeMap, HashMap},
-    result::Result,
-};
-
-/// Generic link, cid => T [HashMap] for storing
-/// invoked, raw values in-memory and using them to
-/// resolve other steps within a runtime's workflow.
-pub type LinkMap<T> = HashMap<Cid, T>;
+use std::{collections::btree_map::BTreeMap, result::Result};
 
 /// Parsed [Args] consisting of [Inputs] for execution flows, as well as an
 /// optional function name/definition.
@@ -47,6 +39,21 @@ impl<T> Parsed<T> {
             fun: Some(fun),
         }
     }
+
+    /// Parsed arguments.
+    pub fn args(&self) -> &Args<T> {
+        &self.args
+    }
+
+    /// Turn [Parsed] structure into owned [Args].
+    pub fn into_args(self) -> Args<T> {
+        self.args
+    }
+
+    /// Parsed function named.
+    pub fn fun(&self) -> Option<String> {
+        self.fun.as_ref().map(|f| f.to_string())
+    }
 }
 
 impl<T> From<Parsed<T>> for Args<T> {
@@ -55,15 +62,15 @@ impl<T> From<Parsed<T>> for Args<T> {
     }
 }
 
-/// Interface for [Task] implementations, relying on `core`
-/// to implement for custom parsing specifics.
+/// Interface for [Instruction] implementations, relying on `homestore-core`
+/// to implement custom parsing specifics.
 ///
 /// # Example
 ///
 /// ```
 /// use homestar_core::{
 ///     workflow::{
-///         input::{Args, Parse}, Ability, Input, Task,
+///         input::{Args, Parse}, Ability, Input, Instruction,
 ///     },
 ///     Unit,
 /// };
@@ -73,19 +80,19 @@ impl<T> From<Parsed<T>> for Args<T> {
 /// let wasm = "bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".to_string();
 /// let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
 ///
-/// let task = Task::unique(
+/// let inst = Instruction::unique(
 ///     resource,
 ///     Ability::from("wasm/run"),
 ///     Input::<Unit>::Ipld(Ipld::List(vec![Ipld::Bool(true)]))
 /// );
 ///
-/// let parsed = task.input().parse().unwrap();
+/// let parsed = inst.input().parse().unwrap();
 ///
 /// // turn into Args for invocation:
 /// let args: Args<Unit> = parsed.try_into().unwrap();
 /// ```
 ///
-/// [Task]: super::Task
+/// [Instruction]: super::Instruction
 pub trait Parse<T> {
     /// Function returning [Parsed] structure for execution/invocation.
     ///
@@ -98,10 +105,13 @@ pub trait Parse<T> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Args<T>(Vec<Input<T>>);
 
-impl<T> Args<T> {
+impl<T> Args<T>
+where
+    T: std::fmt::Debug,
+{
     /// Create an [Args] [Vec]-type.
     pub fn new(args: Vec<Input<T>>) -> Self {
-        Args(args)
+        Self(args)
     }
 
     /// Return wrapped [Vec] of [inputs].
@@ -118,6 +128,18 @@ impl<T> Args<T> {
         &self.0
     }
 
+    /// Return *only* deferred/awaited inputs.
+    pub fn deferreds(&self) -> Vec<Cid> {
+        self.0.iter().fold(vec![], |mut acc, input| {
+            if let Input::Deferred(awaited_promise) = input {
+                acc.push(awaited_promise.instruction_cid());
+                acc
+            } else {
+                acc
+            }
+        })
+    }
+
     /// Resolve [awaited promises] of [inputs] into task-specific [Input::Arg]'s,
     /// given a successful lookup function; otherwise, return [Input::Deferred]
     /// for unresolved promises, or just return [Input::Ipld],
@@ -128,7 +150,7 @@ impl<T> Args<T> {
     /// [resolving Ipld links]: resolve_links
     pub fn resolve<F>(self, lookup_fn: F) -> anyhow::Result<Self>
     where
-        F: Fn(Cid) -> anyhow::Result<InvocationResult<T>> + Clone,
+        F: Fn(Cid) -> anyhow::Result<InstructionResult<T>> + Clone,
         Ipld: From<T>,
         T: Clone,
     {
@@ -149,7 +171,7 @@ where
 
 impl<T> TryFrom<Ipld> for Args<T>
 where
-    InvocationResult<T>: TryFrom<Ipld>,
+    InstructionResult<T>: TryFrom<Ipld>,
 {
     type Error = anyhow::Error;
 
@@ -158,7 +180,7 @@ where
             let args = vec
                 .into_iter()
                 .fold(Vec::<Input<T>>::new(), |mut acc, ipld| {
-                    if let Ok(invocation_result) = InvocationResult::try_from(ipld.to_owned()) {
+                    if let Ok(invocation_result) = InstructionResult::try_from(ipld.to_owned()) {
                         acc.push(Input::Arg(invocation_result));
                     } else if let Ok(await_result) = Await::try_from(ipld.to_owned()) {
                         acc.push(Input::Deferred(await_result));
@@ -185,15 +207,15 @@ where
 pub enum Input<T> {
     /// [Ipld] Literals.
     Ipld(Ipld),
-    /// Promise-[links] awaiting the output of another [Task]'s invocation,
-    /// directly.
+    /// Promise-[links] awaiting the output of another [Instruction]'s
+    /// invocation, directly.
     ///
-    /// [links]: InvokedTaskPointer
-    /// [Task]: super::Task
+    /// [links]: Pointer
+    /// [Instruction]: super::Instruction
     Deferred(Await),
-    /// General argument, wrapping an [InvocationResult] over a task-specific
+    /// General argument, wrapping an [InstructionResult] over a task-specific
     /// implementation's own input type(s).
-    Arg(InvocationResult<T>),
+    Arg(InstructionResult<T>),
 }
 
 impl<T> Input<T> {
@@ -208,13 +230,13 @@ impl<T> Input<T> {
     /// [resolving Ipld links]: resolve_links
     pub fn resolve<F>(self, lookup_fn: F) -> Input<T>
     where
-        F: Fn(Cid) -> anyhow::Result<InvocationResult<T>> + Clone,
+        F: Fn(Cid) -> anyhow::Result<InstructionResult<T>> + Clone,
         Ipld: From<T>,
     {
         match self {
             Input::Ipld(ipld) => {
                 if let Ok(await_promise) = Await::try_from(&ipld) {
-                    if let Ok(func_ret) = lookup_fn(await_promise.task_cid()) {
+                    if let Ok(func_ret) = lookup_fn(await_promise.instruction_cid()) {
                         Input::Arg(func_ret)
                     } else {
                         Input::Deferred(await_promise)
@@ -225,7 +247,7 @@ impl<T> Input<T> {
             }
             Input::Arg(ref _arg) => self,
             Input::Deferred(await_promise) => {
-                if let Ok(func_ret) = lookup_fn(await_promise.task_cid()) {
+                if let Ok(func_ret) = lookup_fn(await_promise.instruction_cid()) {
                     Input::Arg(func_ret)
                 } else {
                     Input::Deferred(await_promise)
@@ -273,15 +295,15 @@ where
             .or_else(|| map.get_key_value(ERR_BRANCH))
             .or_else(|| map.get_key_value(PTR_BRANCH))
             .map_or(
-                if let Ok(invocation_result) = InvocationResult::try_from(ipld.to_owned()) {
+                if let Ok(invocation_result) = InstructionResult::try_from(ipld.to_owned()) {
                     Ok(Input::Arg(invocation_result))
                 } else {
                     Ok(Input::Ipld(ipld))
                 },
                 |(branch, ipld)| {
-                    let invoked_task = InvokedTaskPointer::try_from(ipld)?;
+                    let instruction = Pointer::try_from(ipld)?;
                     Ok(Input::Deferred(Await::new(
-                        invoked_task,
+                        instruction,
                         AwaitResult::result(branch)
                             .ok_or_else(|| anyhow!("wrong branch name: {branch}"))?,
                     )))
@@ -292,7 +314,7 @@ where
 
 fn resolve_args<T, F>(args: Vec<Input<T>>, lookup_fn: F) -> Vec<Input<T>>
 where
-    F: Fn(Cid) -> anyhow::Result<InvocationResult<T>> + Clone,
+    F: Fn(Cid) -> anyhow::Result<InstructionResult<T>> + Clone,
     Ipld: From<T>,
 {
     let args = args.into_iter().map(|v| v.resolve(lookup_fn.clone()));
@@ -304,7 +326,7 @@ where
 /// [awaited promises]: Await
 pub fn resolve_links<T, F>(ipld: Ipld, lookup_fn: F) -> Ipld
 where
-    F: Fn(Cid) -> anyhow::Result<InvocationResult<T>> + Clone,
+    F: Fn(Cid) -> anyhow::Result<InstructionResult<T>> + Clone,
     Ipld: From<T>,
 {
     match ipld {
@@ -357,24 +379,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{
-        workflow::{Ability, Nonce, Task},
-        Unit,
-    };
-    use url::Url;
-
-    fn task<'a, T>() -> Task<'a, T> {
-        let wasm = "bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".to_string();
-        let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
-        let nonce = Nonce::generate();
-
-        Task::new(
-            resource,
-            Ability::from("wasm/run"),
-            Input::Ipld(Ipld::List(vec![Ipld::Integer(88)])),
-            Some(nonce),
-        )
-    }
+    use crate::{test_utils, Unit};
 
     #[test]
     fn input_ipld_ipld_rountrip() {
@@ -387,8 +392,8 @@ mod test {
 
     #[test]
     fn input_deferred_ipld_rountrip() {
-        let task: Task<'_, Unit> = task();
-        let ptr: InvokedTaskPointer = task.try_into().unwrap();
+        let instruction = test_utils::workflow::instruction::<Unit>();
+        let ptr: Pointer = instruction.try_into().unwrap();
         let input: Input<Unit> = Input::Deferred(Await::new(ptr.clone(), AwaitResult::Ptr));
         let ipld = Ipld::from(input.clone());
 
@@ -401,7 +406,7 @@ mod test {
 
     #[test]
     fn input_arg_ipld_rountrip() {
-        let input: Input<Ipld> = Input::Arg(InvocationResult::Just(Ipld::Bool(false)));
+        let input: Input<Ipld> = Input::Arg(InstructionResult::Just(Ipld::Bool(false)));
         let ipld = Ipld::from(input.clone());
 
         assert_eq!(

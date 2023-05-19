@@ -1,7 +1,7 @@
 //! [UCAN Ability] for a given [Resource].
 //!
 //! [Resource]: url::Url
-//! [UCAN Ability]: https://github.com/ucan-wg/spec/#23-ability
+//! [UCAN Ability]: <https://github.com/ucan-wg/spec/#23-ability>
 
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
@@ -34,7 +34,7 @@ use std::{borrow::Cow, fmt};
 /// assert_eq!(ability.to_string(), "example/test".to_string());
 /// ```
 ///
-/// [UCAN Ability]: https://github.com/ucan-wg/spec/#23-ability
+/// [UCAN Ability]: <https://github.com/ucan-wg/spec/#23-ability>
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Ability(String);
 

@@ -1,5 +1,5 @@
 ignore:
-  - "homestar/tests"
+  - "*/tests/*"
   - "homestar/src/test_utils"
   - "homestar-guest-wasm"
   - "homestar-wasm/src/test_utils"

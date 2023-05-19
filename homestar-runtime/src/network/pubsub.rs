@@ -1,11 +1,9 @@
-//! [gossipsub] and [Floodsub] initializers for PubSub across connected peers.
+//! [gossipsub] initializer for PubSub across connected peers.
 
 use anyhow::Result;
 use libp2p::{
-    floodsub::Floodsub,
     gossipsub::{self, ConfigBuilder, Message, MessageAuthenticity, MessageId, ValidationMode},
     identity::Keypair,
-    PeerId,
 };
 use std::{
     collections::hash_map::DefaultHasher,
@@ -13,13 +11,10 @@ use std::{
     time::Duration,
 };
 
-/// Setup direct [Floodsub] protocol with a given [PeerId].
-pub fn new_floodsub(peer_id: PeerId) -> Floodsub {
-    Floodsub::new(peer_id)
-}
+use crate::settings;
 
 /// Setup [gossipsub] mesh protocol with default configuration.
-pub fn new_gossipsub(keypair: Keypair) -> Result<gossipsub::Behaviour> {
+pub fn new(keypair: Keypair, settings: &settings::Node) -> Result<gossipsub::Behaviour> {
     // To content-address message, we can take the hash of message and use it as an ID.
     let message_id_fn = |message: &Message| {
         let mut s = DefaultHasher::new();
@@ -27,9 +22,8 @@ pub fn new_gossipsub(keypair: Keypair) -> Result<gossipsub::Behaviour> {
         MessageId::from(s.finish().to_string())
     };
 
-    // TODO: Make configurable
     let gossipsub_config = ConfigBuilder::default()
-        .heartbeat_interval(Duration::from_secs(10))
+        .heartbeat_interval(Duration::from_secs(settings.network.pubsub_heartbeat_secs))
         // This sets the kind of message validation. The default is Strict (enforce message signing).
         .validation_mode(ValidationMode::Strict)
         .mesh_n_low(1)

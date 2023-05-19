@@ -1,16 +1,15 @@
 [package]
 name = "homestar-core"
 version = "0.1.0"
-description = ""
-keywords = []
-categories = []
-
+description = "Homestar core library for working with tasks, instructions, etc"
+keywords = ["ipld", "tasks", "receipts", "ipvm"]
+categories = ["workflow-engines", "core", "libraries"]
 include = ["/src", "README.md", "LICENSE"]
 license = { workspace = true }
 readme = "README.md"
 edition = { workspace = true }
 rust-version = { workspace = true }
-documentation = "https://docs.rs/homestar"
+documentation = "https://docs.rs/homestar-core"
 repository = "https://github.com/ipvm-wg/homestar"
 authors = { workspace = true }
 
@@ -21,18 +20,20 @@ doctest = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-anyhow = "1.0"
+# return to version.workspace = true after the following issue is fixed:
+# https://github.com/DevinR528/cargo-sort/issues/47
+anyhow = { workspace = true }
 diesel = { version = "2.0", features = ["sqlite"] }
 enum-as-inner = "0.5"
 enum-assoc = "0.4"
 generic-array = "0.14"
+indexmap = "1.9"
 libipld = "0.16"
 proptest = { version = "1.1", optional = true }
-semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 signature = "2.0"
 thiserror = "1.0"
-tracing = "0.1"
+tracing = { workspace = true }
 ucan = "0.1"
 url = "2.3"
 xid = "1.0"
@@ -43,3 +44,8 @@ criterion = "0.4"
 [features]
 default = []
 test_utils = ["proptest"]
+
+[package.metadata.docs.rs]
+all-features = true
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]

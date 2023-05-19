@@ -14,9 +14,10 @@ use diesel::{
 use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld, Link};
 use ucan::ipld::UcanIpld;
 
-/// Proof container, containing links to UCANs for a particular [Task].
+/// Proof container, containing links to UCANs for a particular [Task] or [Receipt].
 ///
 /// [Task]: super::Task
+/// [Receipt]: super::Receipt
 #[derive(Clone, Debug, Default, PartialEq, AsExpression, FromSqlRow)]
 #[diesel(sql_type = Binary)]
 pub struct UcanPrf(Vec<Link<UcanIpld>>);

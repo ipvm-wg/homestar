@@ -79,7 +79,7 @@ jobs:
         if: ${{ matrix.rust-toolchain == 'stable' && github.event_name == 'push' }}
         run: cargo build --release
 
-  run-tests:
+  run-tests-all-features:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -112,3 +112,40 @@ jobs:
 
       - name: Run Tests
         run: cargo test --all-features
+
+      - name: Run Tests
+        run: cargo test --no-default-features
+
+  run-tests-no-default-features:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust-toolchain:
+          - stable
+          - nightly
+    steps:
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Install Environment Packages
+        run: |
+          sudo apt-get update -qqy
+          sudo apt-get install jq
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Rust Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          override: true
+          toolchain: ${{ matrix.rust-toolchain }}
+
+      - name: Run Tests
+        run: cargo test --no-default-features

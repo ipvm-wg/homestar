@@ -4,9 +4,11 @@ diesel::table! {
     receipts (cid) {
         cid -> Text,
         ran -> Text,
+        instruction -> Text,
         out -> Binary,
         meta -> Binary,
-        iss -> Nullable<Text>,
+        issuer -> Nullable<Text>,
         prf -> Binary,
+        version -> Text,
     }
 }

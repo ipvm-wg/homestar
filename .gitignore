@@ -14,9 +14,12 @@ private
 *.temp
 *.db
 *.tmp
+*.png
+*.dot
 .history
 .DS_Store
 homestar-guest-wasm/out
+homestar-wasm/out
 
 # locks
 homestar-wasm/Cargo.lock

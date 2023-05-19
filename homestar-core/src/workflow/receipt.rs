@@ -1,14 +1,7 @@
 //! Output of an invocation, referenced by its invocation pointer.
 
-use super::{pointer::InvocationPointer, prf::UcanPrf, InvocationResult};
-use diesel::{
-    backend::RawValue,
-    deserialize::{self, FromSql},
-    serialize::{self, IsNull, Output, ToSql},
-    sql_types::Text,
-    sqlite::Sqlite,
-    AsExpression, FromSqlRow,
-};
+use super::{prf::UcanPrf, InstructionResult, Issuer, Pointer};
+use anyhow::anyhow;
 use libipld::{
     cbor::DagCborCodec,
     cid::{
@@ -16,10 +9,10 @@ use libipld::{
         Cid,
     },
     prelude::Codec,
+    serde::from_ipld,
     Ipld,
 };
-use std::{borrow::Cow, collections::BTreeMap, fmt, str::FromStr};
-use ucan::ipld::Principle;
+use std::collections::BTreeMap;
 
 const RAN_KEY: &str = "ran";
 const OUT_KEY: &str = "out";
@@ -27,82 +20,51 @@ const ISSUER_KEY: &str = "iss";
 const METADATA_KEY: &str = "meta";
 const PROOF_KEY: &str = "prf";
 
-/// [Principal] that issued this receipt. If omitted issuer is
-/// inferred from the [invocation] [task] audience.
-///
-/// [invocation]: super::Invocation
-/// [task]: suepr::Task
-#[derive(Clone, Debug, AsExpression, FromSqlRow, PartialEq)]
-#[diesel(sql_type = Text)]
-pub struct Issuer(Principle);
-
-impl fmt::Display for Issuer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let did_as_string = self.0.to_string();
-        write!(f, "{did_as_string}")
-    }
-}
-
-impl Issuer {
-    /// Create a new [Issuer], wrapping a [Principle].
-    pub fn new(principle: Principle) -> Self {
-        Issuer(principle)
-    }
-}
-
-/// A Receipt is an attestation of the [Result] and requested [Effects] by a
-/// [Task Invocation].
-///
-/// A Receipt MUST be signed by the Executor or it's delegate. If signed by the
-/// delegate, the proof of delegation from the [Executor] to the delegate
-/// MUST be provided in prf.
+/// A Receipt is a cryptographically signed description of the [Invocation]
+/// and its [resulting output] and requested effects.
 ///
 /// TODO: Effects et al.
 ///
-/// [Result]: InvocationResult
-/// [Effects]: https://github.com/ucan-wg/invocation#7-effect
-/// [Task Invocation]: super::Invocation
-/// [Executor]: Issuer
+/// [resulting output]: InstructionResult
+/// [Invocation]: super::Invocation
 #[derive(Debug, Clone, PartialEq)]
-pub struct Receipt<'a, T> {
-    ran: Cow<'a, InvocationPointer>,
-    out: InvocationResult<T>,
+pub struct Receipt<T> {
+    ran: Pointer,
+    out: InstructionResult<T>,
     meta: Ipld,
-    iss: Option<Issuer>,
+    issuer: Option<Issuer>,
     prf: UcanPrf,
 }
 
-impl<'a, T> Receipt<'a, T> {
+impl<T> Receipt<T> {
     ///
     pub fn new(
-        ran: InvocationPointer,
-        result: InvocationResult<T>,
+        ran: Pointer,
+        result: InstructionResult<T>,
         metadata: Ipld,
         issuer: Option<Issuer>,
         proof: UcanPrf,
     ) -> Self {
         Self {
-            ran: Cow::from(ran),
+            ran,
             out: result,
             meta: metadata,
-            iss: issuer,
+            issuer,
             prf: proof,
         }
     }
 }
 
-impl<T> Receipt<'_, T> {
-    /// [InvocationPointer] for [Task] ran.
+impl<T> Receipt<T> {
+    /// [Pointer] for [Invocation] ran.
     ///
-    /// [Task]: super::Task
-    pub fn ran(&self) -> &InvocationPointer {
+    /// [Invocation]: super::Invocation
+    pub fn ran(&self) -> &Pointer {
         &self.ran
     }
 
-    /// [InvocationResult] output from [Task] invocation/execution.
-    ///
-    /// [Task]: super::Task
-    pub fn out(&self) -> &InvocationResult<T> {
+    /// [InstructionResult] output from invocation/execution.
+    pub fn out(&self) -> &InstructionResult<T> {
         &self.out
     }
 
@@ -113,7 +75,7 @@ impl<T> Receipt<'_, T> {
 
     /// Optional [Issuer] for [Receipt].
     pub fn issuer(&self) -> &Option<Issuer> {
-        &self.iss
+        &self.issuer
     }
 
     /// [UcanPrf] delegation chain.
@@ -122,27 +84,36 @@ impl<T> Receipt<'_, T> {
     }
 }
 
-impl TryFrom<Receipt<'_, Ipld>> for Vec<u8> {
+impl TryFrom<Receipt<Ipld>> for Vec<u8> {
     type Error = anyhow::Error;
 
-    fn try_from(receipt: Receipt<'_, Ipld>) -> Result<Self, Self::Error> {
+    fn try_from(receipt: Receipt<Ipld>) -> Result<Self, Self::Error> {
         let receipt_ipld = Ipld::from(&receipt);
         DagCborCodec.encode(&receipt_ipld)
     }
 }
 
-impl TryFrom<Receipt<'_, Ipld>> for Cid {
+impl TryFrom<Vec<u8>> for Receipt<Ipld> {
     type Error = anyhow::Error;
 
-    fn try_from(receipt: Receipt<'_, Ipld>) -> Result<Self, Self::Error> {
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        let ipld: Ipld = DagCborCodec.decode(&bytes)?;
+        ipld.try_into()
+    }
+}
+
+impl TryFrom<Receipt<Ipld>> for Cid {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: Receipt<Ipld>) -> Result<Self, Self::Error> {
         TryFrom::try_from(&receipt)
     }
 }
 
-impl TryFrom<&Receipt<'_, Ipld>> for Cid {
+impl TryFrom<&Receipt<Ipld>> for Cid {
     type Error = anyhow::Error;
 
-    fn try_from(receipt: &Receipt<'_, Ipld>) -> Result<Self, Self::Error> {
+    fn try_from(receipt: &Receipt<Ipld>) -> Result<Self, Self::Error> {
         let ipld = Ipld::from(receipt);
         let bytes = DagCborCodec.encode(&ipld)?;
         let hash = Code::Sha3_256.digest(&bytes);
@@ -150,24 +121,18 @@ impl TryFrom<&Receipt<'_, Ipld>> for Cid {
     }
 }
 
-impl From<Receipt<'_, Ipld>> for Ipld {
-    fn from(receipt: Receipt<'_, Ipld>) -> Self {
-        From::from(&receipt)
-    }
-}
-
-impl From<&Receipt<'_, Ipld>> for Ipld {
-    fn from(receipt: &Receipt<'_, Ipld>) -> Self {
+impl From<&Receipt<Ipld>> for Ipld {
+    fn from(receipt: &Receipt<Ipld>) -> Self {
         Ipld::Map(BTreeMap::from([
-            (RAN_KEY.into(), receipt.ran.as_ref().to_owned().into()),
+            (RAN_KEY.into(), receipt.ran.to_owned().into()),
             (OUT_KEY.into(), receipt.out.to_owned().into()),
             (METADATA_KEY.into(), receipt.meta.to_owned()),
             (
                 ISSUER_KEY.into(),
                 receipt
-                    .iss
+                    .issuer
                     .as_ref()
-                    .map(|iss| iss.to_string().into())
+                    .map(|issuer| issuer.to_string().into())
                     .unwrap_or(Ipld::Null),
             ),
             (PROOF_KEY.into(), receipt.prf.to_owned().into()),
@@ -175,16 +140,58 @@ impl From<&Receipt<'_, Ipld>> for Ipld {
     }
 }
 
-impl ToSql<Text, Sqlite> for Issuer {
-    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
-        out.set_value(self.0.to_string());
-        Ok(IsNull::No)
+impl From<Receipt<Ipld>> for Ipld {
+    fn from(receipt: Receipt<Ipld>) -> Self {
+        From::from(&receipt)
     }
 }
 
-impl FromSql<Text, Sqlite> for Issuer {
-    fn from_sql(bytes: RawValue<'_, Sqlite>) -> deserialize::Result<Self> {
-        let s = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
-        Ok(Issuer(Principle::from_str(&s)?))
+impl TryFrom<Ipld> for Receipt<Ipld> {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let ran = map
+            .get(RAN_KEY)
+            .ok_or_else(|| anyhow!("missing {RAN_KEY}"))?
+            .try_into()?;
+
+        let out = map
+            .get(OUT_KEY)
+            .ok_or_else(|| anyhow!("missing {OUT_KEY}"))?;
+
+        let meta = map
+            .get(METADATA_KEY)
+            .ok_or_else(|| anyhow!("missing {METADATA_KEY}"))?;
+
+        let issuer = map
+            .get(ISSUER_KEY)
+            .and_then(|ipld| match ipld {
+                Ipld::Null => None,
+                ipld => Some(ipld),
+            })
+            .and_then(|ipld| from_ipld(ipld.to_owned()).ok())
+            .map(Issuer::new);
+
+        let prf = map
+            .get(PROOF_KEY)
+            .ok_or_else(|| anyhow!("missing {PROOF_KEY}"))?;
+
+        Ok(Receipt {
+            ran,
+            out: InstructionResult::try_from(out)?,
+            meta: meta.to_owned(),
+            issuer,
+            prf: UcanPrf::try_from(prf)?,
+        })
+    }
+}
+
+impl TryFrom<Receipt<Ipld>> for Pointer {
+    type Error = anyhow::Error;
+
+    fn try_from(receipt: Receipt<Ipld>) -> Result<Self, Self::Error> {
+        Ok(Pointer::new(Cid::try_from(receipt)?))
     }
 }

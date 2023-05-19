@@ -80,16 +80,16 @@
 
         packages.irust = pkgs.rustPlatform.buildRustPackage rec {
           pname = "irust";
-          version = "1.66.0";
+          version = "1.70.0";
           src = pkgs.fetchFromGitHub {
             owner = "sigmaSd";
             repo = "IRust";
             rev = "v${version}";
-            sha256 = "sha256-tqNTh8ojTT80kl9jDCMq289jSfPz82gQ37UFAmnfsOw=";
+            sha256 = "sha256-chZKesbmvGHXwhnJRZbXyX7B8OwJL9dJh0O1Axz/n2E=";
           };
 
           doCheck = false;
-          cargoSha256 = "sha256-LXBQkiNU4vP6PIW+5iaEzonNGrpwnTMeVaosqLJoGCg=";
+          cargoSha256 = "sha256-FmsD3ajMqpPrTkXCX2anC+cmm0a2xuP+3FHqzj56Ma4=";
         };
       }
     );

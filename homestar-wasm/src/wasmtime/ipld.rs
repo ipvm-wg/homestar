@@ -1,5 +1,9 @@
 //! Convert (bidirectionally) between [Ipld] and [wasmtime::component::Val]s
 //! and [wasmtime::component::Type]s.
+//!
+//! tl;dr: [Ipld] <=> [wasmtime::component::Val] IR.
+//!
+//! [Ipld]: libipld::Ipld
 
 use anyhow::{anyhow, Result};
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
@@ -305,6 +309,22 @@ impl RuntimeVal {
                     _ => RuntimeVal::new(Val::Float64(v)),
                 },
                 Ipld::String(v) => RuntimeVal::new(Val::String(Box::from(v))),
+                Ipld::Bytes(v) if matches!(interface_ty.inner(), Some(Type::List(_))) => {
+                    let inner = interface_ty
+                        .inner()
+                        .ok_or_else(|| anyhow!("component type mismatch: expected <list<u8>>"))?;
+
+                    // already pattern matched against
+                    let list_inst = inner.unwrap_list();
+
+                    let vec = v.into_iter().fold(vec![], |mut acc, elem| {
+                        let RuntimeVal(value, _tags) = RuntimeVal::new(Val::U8(elem));
+                        acc.push(value);
+                        acc
+                    });
+
+                    RuntimeVal::new(list_inst.new_val(vec.into_boxed_slice())?)
+                }
                 Ipld::Bytes(v) => RuntimeVal::new(Val::String(Box::from(Base::Base64.encode(v)))),
                 Ipld::Link(v) => match v.version() {
                     cid::Version::V0 => RuntimeVal::new(Val::String(Box::from(
@@ -454,15 +474,29 @@ impl TryFrom<RuntimeVal> for Ipld {
                     })?;
                     Ipld::Map(inner)
                 }
-                RuntimeVal(Val::List(v), _) => {
-                    let inner = v.iter().try_fold(vec![], |mut acc, elem| {
-                        let ipld = Ipld::try_from(RuntimeVal::new(elem.to_owned()))?;
-                        acc.push(ipld);
-                        Ok::<_, Self::Error>(acc)
-                    })?;
+                RuntimeVal(Val::List(v), _) => match v.first() {
+                    Some(Val::U8(_)) => {
+                        let inner = v.iter().try_fold(vec![], |mut acc, elem| {
+                            if let Val::U8(v) = elem {
+                                acc.push(v.to_owned());
+                                Ok::<_, Self::Error>(acc)
+                            } else {
+                                Err(anyhow!("expected all u8 types"))?
+                            }
+                        })?;
 
-                    Ipld::List(inner)
-                }
+                        Ipld::Bytes(inner)
+                    }
+                    Some(_) => {
+                        let inner = v.iter().try_fold(vec![], |mut acc, elem| {
+                            let ipld = Ipld::try_from(RuntimeVal::new(elem.to_owned()))?;
+                            acc.push(ipld);
+                            Ok::<_, Self::Error>(acc)
+                        })?;
+                        Ipld::List(inner)
+                    }
+                    None => Ipld::List(vec![]),
+                },
                 RuntimeVal(Val::Union(u), tags) if !tags.empty() => {
                     let inner = Ipld::try_from(RuntimeVal::new(u.payload().to_owned()))?;
 
