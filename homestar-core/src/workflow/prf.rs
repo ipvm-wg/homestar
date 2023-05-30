@@ -4,7 +4,7 @@
 //! [Task]: super::Task
 
 use diesel::{
-    backend::RawValue,
+    backend::Backend,
     deserialize::{self, FromSql},
     serialize::{self, IsNull, Output, ToSql},
     sql_types::Binary,
@@ -77,9 +77,13 @@ impl ToSql<Binary, Sqlite> for UcanPrf {
     }
 }
 
-impl FromSql<Binary, Sqlite> for UcanPrf {
-    fn from_sql(bytes: RawValue<'_, Sqlite>) -> deserialize::Result<Self> {
-        let raw_bytes = <*const [u8] as FromSql<Binary, Sqlite>>::from_sql(bytes)?;
+impl<DB> FromSql<Binary, DB> for UcanPrf
+where
+    DB: Backend,
+    *const [u8]: FromSql<Binary, DB>,
+{
+    fn from_sql(bytes: DB::RawValue<'_>) -> deserialize::Result<Self> {
+        let raw_bytes = <*const [u8] as FromSql<Binary, DB>>::from_sql(bytes)?;
         let raw_bytes: &[u8] = unsafe { &*raw_bytes };
         let decoded = DagCborCodec.decode(raw_bytes)?;
         Ok(UcanPrf::new(decoded))

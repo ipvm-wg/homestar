@@ -11,43 +11,45 @@ FROM builder-$TARGETARCH as builder
 
 RUN adduser --disabled-password --disabled-login --gecos "" --no-create-home homestar
 
-RUN apt update && apt install -y protobuf-compiler sqlite
-
 RUN cargo init
+RUN rm -Rf src
 
-# touch lib.rs as we combine both
-RUN touch src/lib.rs
+RUN cargo init --lib homestar-core && \
+    cargo init --lib homestar-guest-wasm && \
+    cargo init --lib homestar-wasm && \
+    cargo init --lib homestar-runtime
 
-# touch benches as it's part of Cargo.toml
-RUN mkdir benches
-RUN touch benches/a_benchmark.rs
+RUN echo "fn main() {}" > ./homestar-runtime/src/main.rs
 
 # copy cargo.*
-COPY Cargo.lock ./Cargo.lock
-COPY Cargo.toml ./Cargo.toml
+COPY Cargo.lock Cargo.toml .env diesel.toml ./
+COPY ../homestar-core/Cargo.toml ./homestar-core/
+COPY ../homestar-guest-wasm/Cargo.toml ./homestar-guest-wasm/
+COPY ../homestar-wasm/Cargo.toml ./homestar-wasm/
+COPY ../homestar-runtime/Cargo.toml ../homestar-runtime/migrations ./homestar-runtime/
 
 # cache depencies
 RUN mkdir .cargo
 RUN cargo vendor > .cargo/config
-RUN --mount=type=cache,target=$CARGO_HOME/registry \
-    --mount=type=cache,target=$CARGO_HOME/.git \
-    --mount=type=cache,target=homestar-runtime/target,sharing=locked \
-    cargo build --target $CARGO_BUILD_TARGET --release
+RUN cargo install diesel_cli --no-default-features --features "sqlite-bundled"
+RUN diesel setup
+RUN diesel migration run
+RUN --mount=type=cache,id=cargo,target=$CARGO_HOME/registry \
+    --mount=type=cache,id=git,target=$CARGO_HOME/.git \
+    --mount=type=cache,id=target,target=./target,sharing=locked \
+    cargo build --workspace --target $CARGO_BUILD_TARGET --release
 
-# copy src
-COPY src ./src
-# copy benches
-COPY benches ./benches
+# copy workspace
+COPY . ./
 
 # final build for release
-RUN rm ./target/$CARGO_BUILD_TARGET/release/deps/*homestar*
-RUN --mount=type=cache,target=$CARGO_HOME/registry \
-    --mount=type=cache,target=$CARGO_HOME/.git \
-    --mount=type=cache,target=homestar/target,sharing=locked \
-    cargo build --target $CARGO_BUILD_TARGET --bin homestar-runtime --release
-
+RUN cargo build --workspace --target $CARGO_BUILD_TARGET --release
 RUN musl-strip ./target/$CARGO_BUILD_TARGET/release/homestar-runtime
-RUN mv ./target/$CARGO_BUILD_TARGET/release/homestar-runtime /usr/local/bin
+RUN mv ./target/$CARGO_BUILD_TARGET/release/homestar-runtime /usr/local/bin/homestar-runtime
+
+RUN mv ./*.db /etc/
+RUN mv ./homestar-runtime/config /etc/config
+RUN mv $CARGO_HOME/bin/diesel /usr/local/bin/diesel
 
 FROM scratch
 
@@ -57,7 +59,11 @@ ARG log_level=info
 ENV RUST_BACKTRACE=${backtrace} \
     RUST_LOG=${log_level}
 
-COPY --from=builder /usr/local/bin/homestar
+COPY ../homestar-runtime/migrations .env diesel.toml ./
+COPY --from=builder /usr/local/bin/homestar-runtime ./homestar
+COPY --from=builder /usr/local/bin/diesel /usr/local/bin/diesel
+COPY --from=builder /etc/*.db ./
+COPY --from=builder /etc/config ./config
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
 

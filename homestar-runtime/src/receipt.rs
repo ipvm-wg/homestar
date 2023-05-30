@@ -3,7 +3,7 @@
 use crate::db::schema::receipts;
 use anyhow::anyhow;
 use diesel::{
-    backend::RawValue,
+    backend::Backend,
     deserialize::{self, FromSql},
     serialize::{self, IsNull, Output, ToSql},
     sql_types::Binary,
@@ -315,9 +315,13 @@ where
     }
 }
 
-impl FromSql<Binary, Sqlite> for LocalIpld {
-    fn from_sql(bytes: RawValue<'_, Sqlite>) -> deserialize::Result<Self> {
-        let raw_bytes = <*const [u8] as FromSql<Binary, Sqlite>>::from_sql(bytes)?;
+impl<DB> FromSql<Binary, DB> for LocalIpld
+where
+    DB: Backend,
+    *const [u8]: FromSql<Binary, DB>,
+{
+    fn from_sql(bytes: DB::RawValue<'_>) -> deserialize::Result<Self> {
+        let raw_bytes = <*const [u8] as FromSql<Binary, DB>>::from_sql(bytes)?;
         let raw_bytes: &[u8] = unsafe { &*raw_bytes };
         let decoded = DagCborCodec.decode(raw_bytes)?;
         Ok(LocalIpld(decoded))

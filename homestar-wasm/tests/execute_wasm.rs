@@ -26,7 +26,7 @@ async fn test_execute_wat() {
         ("func".into(), Ipld::String("add_one".to_string())),
         ("args".into(), Ipld::List(vec![Ipld::Integer(1)])),
     ])));
-
+    // TODO: Replace this with updated versions and guest_wasm code.
     let wat = fs::read(fixtures("add_one_component.wat")).unwrap();
     let mut env = World::instantiate(wat, "add-one", State::default())
         .await
@@ -52,7 +52,7 @@ async fn test_execute_wasm_underscore() {
         ("args".into(), Ipld::List(vec![Ipld::Integer(1)])),
     ])));
 
-    let wasm = fs::read(fixtures("add_one.wasm")).unwrap();
+    let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
     let mut env = World::instantiate(wasm, "add_one", State::default())
         .await
         .unwrap();
@@ -70,7 +70,7 @@ async fn test_execute_wasm_hyphen() {
         ("args".into(), Ipld::List(vec![Ipld::Integer(10)])),
     ])));
 
-    let wasm = fs::read(fixtures("add_one.wasm")).unwrap();
+    let wasm = fs::read(fixtures("homestar-guest-wasm.wasm")).unwrap();
     let mut env = World::instantiate(wasm, "add-one", State::default())
         .await
         .unwrap();
@@ -83,7 +83,7 @@ async fn test_execute_wasm_hyphen() {
 
 #[tokio::test]
 async fn test_wasm_wrong_fun() {
-    let wasm = fs::read(fixtures("add_one.wasm")).unwrap();
+    let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
     let env = World::instantiate(wasm, "add-onez", State::default()).await;
     assert!(env.is_err());
 }
@@ -172,10 +172,9 @@ async fn test_execute_wasms_in_seq() {
         ),
     ])));
 
-    let wasm1 = fs::read(fixtures("add_one.wasm")).unwrap();
-    let wasm2 = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
+    let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
 
-    let mut env = World::instantiate(wasm1, "add_one", State::default())
+    let mut env = World::instantiate(wasm.clone(), "add_one", State::default())
         .await
         .unwrap();
 
@@ -186,7 +185,7 @@ async fn test_execute_wasms_in_seq() {
 
     assert_eq!(res, Output::Value(wasmtime::component::Val::S32(2)));
 
-    let env2 = World::instantiate_with_current_env(wasm2, "append_string", &mut env)
+    let env2 = World::instantiate_with_current_env(wasm, "append_string", &mut env)
         .await
         .unwrap();
 

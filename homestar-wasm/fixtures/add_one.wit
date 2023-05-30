@@ -1,3 +1,0 @@
-default world homestar {
-  export add-one: func(a: s32) -> s32
-}

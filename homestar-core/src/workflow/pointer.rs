@@ -10,7 +10,7 @@
 
 use anyhow::ensure;
 use diesel::{
-    backend::RawValue,
+    backend::Backend,
     deserialize::{self, FromSql},
     serialize::{self, IsNull, Output, ToSql},
     sql_types::Text,
@@ -233,9 +233,13 @@ impl ToSql<Text, Sqlite> for Pointer {
     }
 }
 
-impl FromSql<Text, Sqlite> for Pointer {
-    fn from_sql(bytes: RawValue<'_, Sqlite>) -> deserialize::Result<Self> {
-        let s = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
+impl<DB> FromSql<Text, DB> for Pointer
+where
+    DB: Backend,
+    String: FromSql<Text, DB>,
+{
+    fn from_sql(bytes: DB::RawValue<'_>) -> deserialize::Result<Self> {
+        let s = String::from_sql(bytes)?;
         Ok(Pointer::new(Cid::from_str(&s)?))
     }
 }

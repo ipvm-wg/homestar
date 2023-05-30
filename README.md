@@ -71,10 +71,6 @@ started.
 Run `nix develop` or `direnv allow` to load the `devShell` flake output,
 according to your preference.
 
-#### External Dependencies
-
-- [SQLite][sqlite]
-
 ### Formatting
 
 For formatting Rust in particular, we automatically format on `nightly`, as it
