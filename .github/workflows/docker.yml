@@ -1,20 +1,12 @@
 name: 🐳 Docker
 
 on:
-  push:
-    branches: [ main ]
-
-  pull_request:
-    branches: [ '**' ]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  schedule:
+    - cron: '0 0 * * *'
 
 jobs:
   build-docker:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'pull_request' }}
 
     env:
       DOCKER_BUILDKIT: 1
