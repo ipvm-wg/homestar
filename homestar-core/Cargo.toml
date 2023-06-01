@@ -17,7 +17,6 @@ authors = { workspace = true }
 path = "src/lib.rs"
 bench = false
 doctest = true
-crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # return to version.workspace = true after the following issue is fixed:
@@ -29,6 +28,7 @@ enum-assoc = "0.4"
 generic-array = "0.14"
 indexmap = "1.9"
 libipld = "0.16"
+libsqlite3-sys = { version = "0.26", features = ["bundled"] }
 proptest = { version = "1.1", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 signature = "2.0"

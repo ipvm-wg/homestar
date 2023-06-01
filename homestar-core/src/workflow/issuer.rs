@@ -2,7 +2,7 @@
 //! a receipt.
 
 use diesel::{
-    backend::RawValue,
+    backend::Backend,
     deserialize::{self, FromSql},
     serialize::{self, IsNull, Output, ToSql},
     sql_types::Text,
@@ -61,9 +61,13 @@ impl ToSql<Text, Sqlite> for Issuer {
     }
 }
 
-impl FromSql<Text, Sqlite> for Issuer {
-    fn from_sql(bytes: RawValue<'_, Sqlite>) -> deserialize::Result<Self> {
-        let s = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
+impl<DB> FromSql<Text, DB> for Issuer
+where
+    DB: Backend,
+    String: FromSql<Text, DB>,
+{
+    fn from_sql(bytes: DB::RawValue<'_>) -> deserialize::Result<Self> {
+        let s = String::from_sql(bytes)?;
         Ok(Issuer(Principle::from_str(&s)?))
     }
 }

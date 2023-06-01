@@ -59,7 +59,6 @@
               pre-commit
               protobuf
               rustup
-              sqlite
               diesel-cli
               direnv
               self.packages.${system}.irust

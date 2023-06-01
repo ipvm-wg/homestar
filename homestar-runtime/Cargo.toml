@@ -39,8 +39,8 @@ config = "0.13"
 console-subscriber = { version = "0.1", default-features = false, features = [ "parking_lot" ], optional = true }
 crossbeam = "0.8"
 dagga = "0.2"
-diesel = { version = "2.0", features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"] }
-diesel_migrations = "2.0"
+diesel = { version = "2.1", features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"] }
+diesel_migrations = "2.1"
 dotenvy = "0.15"
 enum-assoc = "0.4"
 futures = "0.3"
@@ -57,13 +57,15 @@ json = "0.12"
 libipld = "0.16"
 libp2p = { version = "0.51", features = ["kad", "request-response", "macros", "identify", "mdns", "gossipsub", "tokio", "dns", "mplex", "tcp", "noise", "yamux", "websocket"] }
 libp2p-identity = "0.1"
+libsqlite3-sys = { version = "0.26", features = ["bundled"] }
+openssl = { version = "0.10", features = ["vendored"] }
 proptest = { version = "1.1", optional = true }
 reqwest = { version = "0.11", features = ["json"] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_with = "2.3"
 thiserror = "1.0"
-tokio = { version = "1.26", features = ["fs", "io-util", "io-std", "macros", "rt", "rt-multi-thread"] }
+tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-logfmt = { version = "0.3", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "parking_lot", "registry"] }

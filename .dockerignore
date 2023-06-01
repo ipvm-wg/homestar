@@ -2,8 +2,9 @@
 
 !**/Cargo.toml
 !**/Cargo.lock
-
-# only include runtime binary
-homestar-core
-homestar-guest-wasm
-homestar-wasm
+!**/src
+!**/config
+!**/migrations
+!.env
+!diesel.toml
+!**/wits

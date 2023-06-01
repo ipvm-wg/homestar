@@ -5,7 +5,7 @@
 
 use anyhow::anyhow;
 use diesel::{
-    backend::RawValue,
+    backend::Backend,
     deserialize::{self, FromSql},
     serialize::{self, IsNull, Output, ToSql},
     sql_types::Binary,
@@ -122,9 +122,13 @@ where
 }
 
 /// Diesel, [Sqlite] [FromSql] implementation.
-impl FromSql<Binary, Sqlite> for InstructionResult<Ipld> {
-    fn from_sql(bytes: RawValue<'_, Sqlite>) -> deserialize::Result<Self> {
-        let raw_bytes = <*const [u8] as FromSql<Binary, Sqlite>>::from_sql(bytes)?;
+impl<DB> FromSql<Binary, DB> for InstructionResult<Ipld>
+where
+    DB: Backend,
+    *const [u8]: FromSql<Binary, DB>,
+{
+    fn from_sql(bytes: DB::RawValue<'_>) -> deserialize::Result<Self> {
+        let raw_bytes = <*const [u8] as FromSql<Binary, DB>>::from_sql(bytes)?;
         let raw_bytes: &[u8] = unsafe { &*raw_bytes };
         let decoded: Ipld = DagCborCodec.decode(raw_bytes)?;
         Ok(InstructionResult::try_from(decoded)?)
