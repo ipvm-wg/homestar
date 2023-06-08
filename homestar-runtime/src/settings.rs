@@ -43,7 +43,7 @@ impl Settings {
 
 /// Network-related settings for a homestar node.
 #[derive(Clone, Debug, Deserialize)]
-pub struct Network {
+pub(crate) struct Network {
     ///
     pub(crate) events_buffer_len: usize,
     /// Address for [Swarm] to listen on.
@@ -67,7 +67,7 @@ pub struct Network {
 
 /// Database-related settings for a homestar node.
 #[derive(Clone, Debug, Deserialize)]
-pub struct Database {
+pub(crate) struct Database {
     /// Maximum number of connections managed by the [pool].
     ///
     /// [pool]: crate::db::Pool

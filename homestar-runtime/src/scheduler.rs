@@ -43,12 +43,14 @@ pub struct ExecutionGraph<'a> {
 pub struct TaskScheduler<'a> {
     /// In-memory map of task/instruction results.
     pub(crate) linkmap: LinkMap<InstructionResult<Arg>>,
-    /// [ExecutionGraph] of what's been run so far for a [Workflow] of [Tasks].
+    /// [ExecutionGraph] of what's been run so far for a [Workflow] of `batched`
+    /// [Tasks].
     ///
     /// [Tasks]: homestar_core::workflow::Task
     pub(crate) ran: Option<Schedule<'a>>,
 
-    /// [ExecutionGraph] of what's left to run for a [Workflow] of [Tasks].
+    /// [ExecutionGraph] of what's left to run for a [Workflow] of `batched`
+    /// [Tasks].
     ///
     /// [Tasks]: homestar_core::workflow::Task
     pub(crate) run: Schedule<'a>,
@@ -70,7 +72,7 @@ impl<'a> TaskScheduler<'a> {
     /// [Receipt]: crate::Receipt
     pub async fn init<F>(
         workflow: Workflow<'a, Arg>,
-        mut conn: Connection,
+        conn: &mut Connection,
         fetch_fn: F,
     ) -> Result<TaskScheduler<'a>>
     where
@@ -92,7 +94,7 @@ impl<'a> TaskScheduler<'a> {
                 });
 
                 if let Ok(pointers) = folded_pointers {
-                    match Db::find_instructions(pointers, &mut conn) {
+                    match Db::find_instructions(pointers, conn) {
                         Ok(found) => {
                             let linkmap = found.iter().fold(
                                 LinkMap::<InstructionResult<Arg>>::new(),
@@ -177,11 +179,14 @@ mod test {
             UcanPrf::default(),
         );
 
-        let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node());
-        let conn = db.conn().unwrap();
+        let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
+            .unwrap();
+        let mut conn = db.conn().unwrap();
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let fetch_fn = |_rscs: Vec<Resource>| { async { Ok(IndexMap::default()) } }.boxed();
-        let scheduler = TaskScheduler::init(workflow, conn, fetch_fn).await.unwrap();
+        let scheduler = TaskScheduler::init(workflow, &mut conn, fetch_fn)
+            .await
+            .unwrap();
 
         assert!(scheduler.linkmap.is_empty());
         assert!(scheduler.ran.is_none());
@@ -218,7 +223,8 @@ mod test {
         )
         .unwrap();
 
-        let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node());
+        let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
+            .unwrap();
         let mut conn = db.conn().unwrap();
 
         let stored_receipt =
@@ -228,7 +234,9 @@ mod test {
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let fetch_fn = |_rscs: Vec<Resource>| { async { Ok(IndexMap::default()) } }.boxed();
-        let scheduler = TaskScheduler::init(workflow, conn, fetch_fn).await.unwrap();
+        let scheduler = TaskScheduler::init(workflow, &mut conn, fetch_fn)
+            .await
+            .unwrap();
         let ran = scheduler.ran.as_ref().unwrap();
 
         assert_eq!(scheduler.linkmap.len(), 1);
@@ -284,7 +292,8 @@ mod test {
         )
         .unwrap();
 
-        let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node());
+        let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
+            .unwrap();
         let mut conn = db.conn().unwrap();
 
         let rows_inserted =
@@ -294,7 +303,9 @@ mod test {
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let fetch_fn = |_rscs: Vec<Resource>| { async { Ok(IndexMap::default()) } }.boxed();
-        let scheduler = TaskScheduler::init(workflow, conn, fetch_fn).await.unwrap();
+        let scheduler = TaskScheduler::init(workflow, &mut conn, fetch_fn)
+            .await
+            .unwrap();
         let ran = scheduler.ran.as_ref().unwrap();
 
         assert_eq!(scheduler.linkmap.len(), 1);

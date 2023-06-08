@@ -24,15 +24,17 @@ use libipld::{
 use std::{collections::BTreeMap, path::Path};
 use url::Url;
 
+mod info;
 pub(crate) mod settings;
+pub use info::Info;
+pub(crate) use info::{Stored, StoredReceipt};
+#[allow(unused_imports)]
+pub(crate) use settings::Settings;
 
 type Dag<'a> = dagga::Dag<Vertex<'a>, usize>;
 
 const DAG_CBOR: u64 = 0x71;
-const CID_KEY: &str = "cid";
 const TASKS_KEY: &str = "tasks";
-const PROGRESS_KEY: &str = "progress";
-const NUM_TASKS_KEY: &str = "num_tasks";
 
 /// A resource can refer to a [URI] or [Cid]
 /// being accessed.
@@ -98,117 +100,6 @@ impl<'a> Vertex<'a> {
     }
 }
 
-/// Associated [Workflow] information, separated from [Workflow] struct in order
-/// to relate to it as a key-value relationship of (workflow)
-/// cid => [WorkflowInfo].
-///
-/// TODO: map of task cids completed
-#[derive(Debug, Clone, PartialEq)]
-pub struct WorkflowInfo {
-    pub(crate) cid: Cid,
-    pub(crate) progress: usize,
-    pub(crate) num_tasks: usize,
-}
-
-impl WorkflowInfo {
-    /// Create a new [WorkflowInfo] given a [Cid], progress / step, and number
-    /// of tasks.
-    pub fn new(cid: Cid, progress: usize, num_tasks: usize) -> Self {
-        Self {
-            cid,
-            progress,
-            num_tasks,
-        }
-    }
-
-    /// Create a default [WorkflowInfo] given a [Cid] and number of tasks.
-    pub fn default(cid: Cid, num_tasks: usize) -> Self {
-        Self {
-            cid,
-            progress: 0,
-            num_tasks,
-        }
-    }
-
-    /// Get the [Cid] of a [Workflow] as a [String].
-    pub fn cid(&self) -> String {
-        self.cid.to_string()
-    }
-
-    /// Set the progress / step of the [WorkflowInfo].
-    pub fn set_progress(&mut self, progress: usize) {
-        self.progress = progress;
-    }
-
-    /// Increment the progress / step of the [WorkflowInfo].
-    pub fn increment_progress(&mut self) {
-        self.progress += 1;
-    }
-}
-
-impl From<WorkflowInfo> for Ipld {
-    fn from(workflow: WorkflowInfo) -> Self {
-        Ipld::Map(BTreeMap::from([
-            (CID_KEY.into(), Ipld::Link(workflow.cid)),
-            (
-                PROGRESS_KEY.into(),
-                Ipld::Integer(workflow.progress as i128),
-            ),
-            (
-                NUM_TASKS_KEY.into(),
-                Ipld::Integer(workflow.num_tasks as i128),
-            ),
-        ]))
-    }
-}
-
-impl TryFrom<Ipld> for WorkflowInfo {
-    type Error = anyhow::Error;
-
-    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
-        let cid = from_ipld(
-            map.get(CID_KEY)
-                .ok_or_else(|| anyhow!("no `cid` set"))?
-                .to_owned(),
-        )?;
-        let progress = from_ipld(
-            map.get(PROGRESS_KEY)
-                .ok_or_else(|| anyhow!("no `progress` set"))?
-                .to_owned(),
-        )?;
-        let num_tasks = from_ipld(
-            map.get(NUM_TASKS_KEY)
-                .ok_or_else(|| anyhow!("no `num_tasks` set"))?
-                .to_owned(),
-        )?;
-
-        Ok(Self {
-            cid,
-            progress,
-            num_tasks,
-        })
-    }
-}
-
-impl TryFrom<WorkflowInfo> for Vec<u8> {
-    type Error = anyhow::Error;
-
-    fn try_from(receipt: WorkflowInfo) -> Result<Self, Self::Error> {
-        let receipt_ipld = Ipld::from(receipt);
-        DagCborCodec.encode(&receipt_ipld)
-    }
-}
-
-impl TryFrom<Vec<u8>> for WorkflowInfo {
-    type Error = anyhow::Error;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        let ipld: Ipld = DagCborCodec.decode(&bytes)?;
-        ipld.try_into()
-    }
-}
-
 /// Workflow composed of [tasks].
 ///
 /// [tasks]: Task
@@ -226,8 +117,8 @@ impl<'a> Workflow<'a, Arg> {
     /// Length of workflow given a series of [tasks].
     ///
     /// [tasks]: Task
-    pub fn len(&self) -> usize {
-        self.tasks.len()
+    pub fn len(&self) -> u32 {
+        self.tasks.len() as u32
     }
 
     /// Whether [Workflow] contains [tasks] or not.
@@ -420,7 +311,7 @@ mod test {
         let instr1 = task1.instruction_cid().unwrap().to_string();
         let instr2 = task2.instruction_cid().unwrap().to_string();
 
-        dagga::assert_batches(&[format!("{}, {}", instr2, instr1).as_str()], dag);
+        dagga::assert_batches(&[format!("{instr2}, {instr1}").as_str()], dag);
     }
 
     #[test]
@@ -505,11 +396,11 @@ mod test {
         assert!(
             nodes
                 == vec![
-                    format!("{}, {}", instr1, instr4),
+                    format!("{instr1}, {instr4}"),
                     instr2.clone(),
                     instr3.clone()
                 ]
-                || nodes == vec![format!("{}, {}", instr4, instr1), instr2, instr3]
+                || nodes == vec![format!("{instr4}, {instr1}"), instr2, instr3]
         );
     }
 
@@ -557,31 +448,5 @@ mod test {
         let ipld = Ipld::from(workflow.clone());
 
         assert_eq!(workflow, ipld.try_into().unwrap())
-    }
-
-    #[test]
-    fn ipld_roundtrip_workflow_info() {
-        let config = Resources::default();
-        let (instruction1, instruction2, _) =
-            test_utils::workflow::related_wasm_instructions::<Arg>();
-        let task1 = Task::new(
-            RunInstruction::Expanded(instruction1),
-            config.clone().into(),
-            UcanPrf::default(),
-        );
-        let task2 = Task::new(
-            RunInstruction::Expanded(instruction2),
-            config.into(),
-            UcanPrf::default(),
-        );
-
-        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let mut workflow_info =
-            WorkflowInfo::default(Cid::try_from(workflow.clone()).unwrap(), workflow.len());
-        let ipld = Ipld::from(workflow_info.clone());
-        assert_eq!(workflow_info, ipld.try_into().unwrap());
-        workflow_info.increment_progress();
-        workflow_info.increment_progress();
-        assert_eq!(workflow_info.progress, 2);
     }
 }

@@ -86,6 +86,7 @@ export_homestar!(Component);
 #[cfg(test)]
 mod test {
     use super::*;
+    #[cfg(feature = "run_image_tests")]
     use std::path::Path;
 
     #[test]
@@ -110,6 +111,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "run_image_tests")]
     fn blur() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let mut buffer: Vec<u8> = Vec::new();
@@ -131,6 +133,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "run_image_tests")]
     fn crop() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let mut buffer: Vec<u8> = Vec::new();
@@ -152,6 +155,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "run_image_tests")]
     fn grayscale() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let mut buffer: Vec<u8> = Vec::new();
@@ -173,6 +177,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "run_image_tests")]
     fn rotate() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let mut buffer: Vec<u8> = Vec::new();
@@ -194,6 +199,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "run_image_tests")]
     fn mixed() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let mut buffer: Vec<u8> = Vec::new();

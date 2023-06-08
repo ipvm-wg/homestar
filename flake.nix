@@ -38,10 +38,12 @@
         cargo-installs = with pkgs; [
           cargo-deny
           cargo-expand
+          cargo-nextest
           cargo-outdated
           cargo-sort
           cargo-udeps
           cargo-watch
+          twiggy
         ];
       in rec
       {

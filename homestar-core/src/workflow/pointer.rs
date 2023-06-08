@@ -159,7 +159,7 @@ impl TryFrom<&Ipld> for Await {
 /// [Task]: super::Task
 /// [Instruction]: super::Instruction
 /// [Receipt]: super::Receipt
-#[derive(Clone, Debug, AsExpression, FromSqlRow, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, AsExpression, FromSqlRow, PartialEq, Eq, Serialize, Deserialize, Hash)]
 #[diesel(sql_type = Text)]
 pub struct Pointer(Cid);
 
@@ -228,7 +228,7 @@ impl<'a> From<&'a Pointer> for Cow<'a, Pointer> {
 
 impl ToSql<Text, Sqlite> for Pointer {
     fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
-        out.set_value(self.cid().to_string_of_base(Base::Base32Lower)?);
+        out.set_value(self.cid().to_string());
         Ok(IsNull::No)
     }
 }

@@ -1,6 +1,9 @@
 //! Ipfs Client container for an [Arc]'ed [IpfsClient].
 
+#[cfg(test)]
+use crate::tasks::{FileLoad, WasmContext};
 use anyhow::Result;
+#[cfg(not(test))]
 use futures::TryStreamExt;
 use homestar_core::workflow::Receipt;
 use ipfs_api::{
@@ -9,6 +12,8 @@ use ipfs_api::{
     IpfsApi, IpfsClient,
 };
 use libipld::{Cid, Ipld};
+#[cfg(test)]
+use std::path::PathBuf;
 use std::{io::Cursor, sync::Arc};
 use url::Url;
 
@@ -31,13 +36,14 @@ impl Default for IpfsCli {
 }
 
 impl IpfsCli {
-    /// Retrieve content from a [Url].
+    /// Retrieve content from a IPFS [Url].
     pub async fn get_resource(&self, url: &Url) -> Result<Vec<u8>> {
         let cid = Cid::try_from(url.to_string())?;
         self.get_cid(cid).await
     }
 
     /// Retrieve content from a [Cid].
+    #[cfg(not(test))]
     pub async fn get_cid(&self, cid: Cid) -> Result<Vec<u8>> {
         self.0
             .cat(&cid.to_string())
@@ -45,6 +51,16 @@ impl IpfsCli {
             .try_concat()
             .await
             .map_err(Into::into)
+    }
+
+    /// Load known content from a [Cid].
+    #[cfg(test)]
+    pub async fn get_cid(&self, _cid: Cid) -> Result<Vec<u8>> {
+        let path = PathBuf::from(format!(
+            "{}/../homestar-wasm/fixtures/homestar_guest_wasm.wasm",
+            env!("CARGO_MANIFEST_DIR")
+        ));
+        WasmContext::load(path).await
     }
 
     /// Put/Write [Receipt] into IPFS.

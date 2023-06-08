@@ -110,11 +110,14 @@ jobs:
           override: true
           toolchain: ${{ matrix.rust-toolchain }}
 
-      - name: Run Tests
-        run: cargo test --all-features
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
 
       - name: Run Tests
-        run: cargo test --no-default-features
+        run: cargo nextest run --all-features
+
+      - name: Run Doc Tests
+        run: cargo test --doc
 
   run-tests-no-default-features:
     runs-on: ubuntu-latest
@@ -147,5 +150,8 @@ jobs:
           override: true
           toolchain: ${{ matrix.rust-toolchain }}
 
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Run Tests
-        run: cargo test --no-default-features
+        run: cargo nextest run --no-default-features

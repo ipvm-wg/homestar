@@ -5,11 +5,9 @@ use super::swarm::TopicMessage;
 #[cfg(feature = "ipfs")]
 use crate::IpfsCli;
 use crate::{
-    db::{Database, Db},
+    db::{Connection, Database, Db},
     network::swarm::{ComposedBehaviour, ComposedEvent},
-    settings,
-    workflow::WorkflowInfo,
-    Receipt,
+    settings, workflow, Receipt,
 };
 use anyhow::{anyhow, Result};
 use concat_in_place::veccat;
@@ -38,7 +36,7 @@ use tokio::sync::mpsc;
 /// [Receipt]: homestar_core::workflow::receipt
 pub const RECEIPTS_TOPIC: &str = "receipts";
 
-type WorkerSender = channel::Sender<(Cid, Receipt)>;
+type WorkerSender = channel::Sender<(Cid, FoundEvent)>;
 
 /// Event loop handler for [libp2p] network events and commands.
 #[allow(missing_debug_implementations)]
@@ -80,7 +78,7 @@ impl EventLoop {
         loop {
             tokio::select! {
                 swarm_event = self.swarm.select_next_some() => self.handle_event(swarm_event, db.clone()).await,
-                runtime_event = self.receiver.recv() => if let Some(ev) = runtime_event { self.handle_runtime_event(ev).await },
+                runtime_event = self.receiver.recv() => if let Some(ev) = runtime_event { self.handle_runtime_event(ev, db.clone()).await },
             }
         }
     }
@@ -93,74 +91,85 @@ impl EventLoop {
         loop {
             tokio::select! {
                 swarm_event = self.swarm.select_next_some() => self.handle_event(swarm_event, db.clone()).await,
-                runtime_event = self.receiver.recv() => if let Some(ev) = runtime_event { self.handle_runtime_event(ev, ipfs.clone()).await },
+                runtime_event = self.receiver.recv() => if let Some(ev) = runtime_event { self.handle_runtime_event(ev, db.clone(), ipfs.clone()).await },
             }
         }
     }
 
     #[cfg(not(feature = "ipfs"))]
-    async fn handle_runtime_event(&mut self, event: Event) {
+    async fn handle_runtime_event(&mut self, event: Event, db: impl Database) {
         match event {
             Event::CapturedReceipt(receipt, workflow_info) => {
-                match self.on_capture(receipt, workflow_info) {
-                    Ok((cid, _bytes)) => {
-                        tracing::debug!(
-                            cid = cid,
-                            "record replicated with quorum {}",
-                            self.receipt_quorum
-                        )
-                    }
+                if let Ok(conn) = db.conn().as_mut() {
+                    match self.on_capture(receipt, workflow_info, conn) {
+                        Ok((cid, _bytes)) => {
+                            tracing::debug!(
+                                cid = cid.to_string(),
+                                "record replicated with quorum {}",
+                                self.receipt_quorum
+                            )
+                        }
 
-                    Err(err) => {
-                        tracing::error!(error=?err, "error putting record on DHT with quorum {}", self.receipt_quorum)
+                        Err(err) => {
+                            tracing::error!(error=?err, "error putting record on DHT with quorum {}", self.receipt_quorum)
+                        }
                     }
+                } else {
+                    tracing::error!("database connection not available")
                 }
             }
             Event::FindReceipt(cid, sender) => self.on_find_receipt(cid, sender),
+            Event::FindWorkflow(cid, sender) => self.on_find_workflow(cid, sender),
         }
     }
 
     #[cfg(feature = "ipfs")]
-    async fn handle_runtime_event(&mut self, event: Event, ipfs: IpfsCli) {
+    async fn handle_runtime_event(&mut self, event: Event, db: impl Database, ipfs: IpfsCli) {
         match event {
             Event::CapturedReceipt(receipt, workflow_info) => {
-                match self.on_capture(receipt, workflow_info) {
-                    Ok((cid, bytes)) => {
-                        tracing::debug!(
-                            cid = cid,
-                            "record replicated with quorum {}",
-                            self.receipt_quorum
-                        );
+                if let Ok(conn) = db.conn().as_mut() {
+                    match self.on_capture(receipt, workflow_info, conn) {
+                        Ok((cid, bytes)) => {
+                            tracing::debug!(
+                                cid = cid.to_string(),
+                                "record replicated with quorum {}",
+                                self.receipt_quorum
+                            );
 
-                        // Spawn client call in background, without awaiting.
-                        tokio::spawn(async move {
-                            match ipfs.put_receipt_bytes(bytes.to_vec()).await {
-                                Ok(put_cid) => {
-                                    tracing::info!(cid = put_cid, "IPLD DAG node stored");
+                            // Spawn client call in background, without awaiting.
+                            tokio::spawn(async move {
+                                match ipfs.put_receipt_bytes(bytes.to_vec()).await {
+                                    Ok(put_cid) => {
+                                        tracing::info!(cid = put_cid, "IPLD DAG node stored");
 
-                                    #[cfg(debug_assertions)]
-                                    debug_assert_eq!(put_cid, cid);
+                                        #[cfg(debug_assertions)]
+                                        debug_assert_eq!(put_cid, cid.to_string());
+                                    }
+                                    Err(err) => {
+                                        tracing::info!(error=?err, cid=cid.to_string(), "Failed to store IPLD DAG node")
+                                    }
                                 }
-                                Err(err) => {
-                                    tracing::info!(error=?err, cid=cid, "Failed to store IPLD DAG node")
-                                }
-                            }
-                        });
+                            });
+                        }
+                        Err(err) => {
+                            tracing::error!(error=?err, "error putting record on DHT with quorum {}", self.receipt_quorum)
+                        }
                     }
-                    Err(err) => {
-                        tracing::error!(error=?err, "error putting record on DHT with quorum {}", self.receipt_quorum)
-                    }
+                } else {
+                    tracing::error!("database connection not available")
                 }
             }
             Event::FindReceipt(cid, sender) => self.on_find_receipt(cid, sender),
+            Event::FindWorkflow(cid, sender) => self.on_find_workflow(cid, sender),
         }
     }
 
     fn on_capture(
         &mut self,
         receipt: Receipt,
-        mut workflow_info: WorkflowInfo,
-    ) -> Result<(String, Vec<u8>)> {
+        mut workflow_info: workflow::Info,
+        conn: &mut Connection,
+    ) -> Result<(Cid, Vec<u8>)> {
         let receipt_cid = receipt.cid();
         let invocation_receipt = InvocationReceipt::from(&receipt);
         let instruction_bytes = receipt.instruction_cid_as_bytes();
@@ -187,8 +196,9 @@ impl EventLoop {
                 .put_record(Record::new(instruction_bytes, value.to_vec()), quorum)
                 .map_err(anyhow::Error::msg)?;
 
-            // increment progress with capture
-            workflow_info.increment_progress();
+            // Store workflow_receipt join information.
+            let _ = Db::store_workflow_receipt(workflow_info.cid, receipt_cid, conn);
+            workflow_info.increment_progress(receipt_cid);
             let _id = self
                 .swarm
                 .behaviour_mut()
@@ -214,23 +224,34 @@ impl EventLoop {
         self.worker_senders.insert(id, sender);
     }
 
-    fn on_found_record(key_cid: Cid, value: Vec<u8>) -> Result<Receipt> {
-        if value.starts_with(consts::INVOCATION_VERSION.as_bytes()) {
-            let receipt_bytes = &value[consts::INVOCATION_VERSION.as_bytes().len()..];
-            let invocation_receipt = InvocationReceipt::try_from(receipt_bytes.to_vec())?;
-            Receipt::try_with(Pointer::new(key_cid), &invocation_receipt)
-        } else {
-            Err(anyhow!(
-                "receipt version mismatch, current version: {}",
+    fn on_find_workflow(&mut self, workflow_cid: Cid, sender: WorkerSender) {
+        let id = self
+            .swarm
+            .behaviour_mut()
+            .kademlia
+            .get_record(Key::new(&workflow_cid.to_bytes()));
+        self.worker_senders.insert(id, sender);
+    }
+
+    fn on_found_record(key_cid: Cid, value: Vec<u8>) -> Result<FoundEvent> {
+        match value {
+            value if value.starts_with(consts::INVOCATION_VERSION.as_bytes()) => {
+                let receipt_bytes = &value[consts::INVOCATION_VERSION.as_bytes().len()..];
+                let invocation_receipt = InvocationReceipt::try_from(receipt_bytes.to_vec())?;
+                let receipt = Receipt::try_with(Pointer::new(key_cid), &invocation_receipt)?;
+                Ok(FoundEvent::Receipt(receipt))
+            }
+            _ => Err(anyhow!(
+                "record version mismatch, current version: {}",
                 consts::INVOCATION_VERSION
-            ))
+            )),
         }
     }
 
     async fn handle_event<THandlerErr: fmt::Debug>(
         &mut self,
         event: SwarmEvent<ComposedEvent, THandlerErr>,
-        db: Db,
+        db: impl Database,
     ) {
         match event {
             SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossipsub::Event::Message {
@@ -289,10 +310,18 @@ impl EventLoop {
                     tracing::debug!("found record {key:#?}, published by {publisher:?}");
                     if let Ok(cid) = Cid::try_from(key.as_ref()) {
                         match Self::on_found_record(cid, value) {
-                            Ok(receipt) => {
+                            Ok(FoundEvent::Receipt(receipt)) => {
                                 tracing::info!("found receipt: {receipt}");
                                 if let Some(sender) = self.worker_senders.remove(&id) {
-                                    let _ = sender.send((cid, receipt));
+                                    let _ = sender.send((cid, FoundEvent::Receipt(receipt)));
+                                } else {
+                                    tracing::error!("error converting key {key:#?} to cid")
+                                }
+                            }
+                            Ok(FoundEvent::Workflow(wf)) => {
+                                tracing::info!("found workflow info: {wf:?}");
+                                if let Some(sender) = self.worker_senders.remove(&id) {
+                                    let _ = sender.send((cid, FoundEvent::Workflow(wf)));
                                 } else {
                                     tracing::error!("error converting key {key:#?} to cid")
                                 }
@@ -357,11 +386,24 @@ impl EventLoop {
 #[derive(Debug, Clone)]
 pub enum Event {
     /// [Receipt] stored and captured event.
-    CapturedReceipt(Receipt, WorkflowInfo),
+    CapturedReceipt(Receipt, workflow::Info),
     /// Find a [Receipt] stored in the DHT.
     ///
     /// [Receipt]: InvocationReceipt
     FindReceipt(Cid, WorkerSender),
+    /// Find a [Workflow], stored as [workflow::Info], in the DHT.
+    ///
+    /// [Workflow]: crate::Workflow
+    FindWorkflow(Cid, WorkerSender),
+}
+
+/// Internal events related to finding results on the DHT.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FoundEvent {
+    /// Found [Receipt] on the DHT.
+    Receipt(Receipt),
+    /// Found [workflow::Info] on the DHT.
+    Workflow(workflow::Info),
 }
 
 #[cfg(test)]
@@ -370,7 +412,7 @@ mod test {
     use crate::test_utils;
 
     #[test]
-    fn found_record() {
+    fn found_receipt_record() {
         let (invocation_receipt, receipt) = test_utils::receipt::receipts();
         let instruction_bytes = receipt.instruction_cid_as_bytes();
         let bytes = Vec::try_from(invocation_receipt).unwrap();
@@ -378,10 +420,13 @@ mod test {
         let value = veccat!(consts::INVOCATION_VERSION.as_bytes() ref_bytes);
         let record = Record::new(instruction_bytes, value.to_vec());
         let record_value = record.value;
-        let found_receipt =
+        if let FoundEvent::Receipt(found_receipt) =
             EventLoop::on_found_record(Cid::try_from(receipt.instruction()).unwrap(), record_value)
-                .unwrap();
-
-        assert_eq!(found_receipt, receipt);
+                .unwrap()
+        {
+            assert_eq!(found_receipt, receipt);
+        } else {
+            panic!("Incorrect event type")
+        }
     }
 }

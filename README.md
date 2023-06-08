@@ -39,19 +39,79 @@
 
 ## Outline
 
+- [Workspace](#workspace)
 - [Testing the Project](#testing-the-project)
+- [Running the Runtime on Docker](#running-the-runtime-on-docker)
 - [Contributing](#contributing)
 - [Getting Help](#getting-help)
 - [External Resources](#external-resources)
 - [License](#license)
 
+## Workspace
+
+This repository is comprised of a few library packages and a binary that
+represents the `homestar` runtime.
+
+### Core Crates
+
+- [homestar-core](./homestar-core)
+- [homestar-wasm](./homestar-wasm)
+
+### Runtime Crate
+
+- [homestar-runtime](./homestar-runtime)
+
+### Non-published, Helper Crates
+
+- [homestar-guest-wasm](./homestar-guest-wasm)
 
 ## Testing the Project
 
-- Run tests
+- Running the tests:
+
+We recommend using [cargo nextest][cargo-nextest], which is installed via
+[our Nix flake](#nix) or can be [installed separately][cargo-nextest-install].
 
   ```console
-  cargo test --all-features
+  cargo nextest run --all-features --no-capture
+  ```
+
+Otherwise, the above command looks like this using the default `cargo test`:
+
+  ```console
+  cargo test --all-features -- --nocapture
+  ```
+
+## Running the Runtime on Docker
+
+We recommend setting your [Docker Engine][docker-engine] configuration
+with `experimental` and `buildkit` set to `true`, for example:
+
+``` json
+{
+  "builder": {
+    "gc": {
+      "defaultKeepStorage": "20GB",
+      "enabled": true
+    }
+  },
+  "experimental": true,
+  "features": {
+    "buildkit": true
+  }
+}
+```
+
+- Build a multi-plaform Docker image via [buildx][buildx]:
+
+  ```console
+  docker buildx build --platform=linux/amd64,linux/arm64 -t homestar-runtime --progress=plain .
+  ```
+
+- Run a Docker image (depending on your platform):
+
+  ```console
+  docker run --platform=linux/arm64 -t homestar-runtime
   ```
 
 ## Contributing
@@ -89,7 +149,7 @@ hooks. Please run this before every commit and/or push.
 
 - We recommend leveraging [cargo-watch][cargo-watch],
   [cargo-expand][cargo-expand] and [irust][irust] for Rust development.
-- We recommend using [cargo-udeps][cargo-udeps] for removing unused dependencies
+- We also recommend using [cargo-udeps][cargo-udeps] for removing unused dependencies
   before commits and pull-requests.
 
 ### Conventional Commits
@@ -138,10 +198,11 @@ submitted for inclusion in the work by you, as defined in the Apache-2.0
 license, shall be dual licensed as above, without any additional terms or
 conditions.
 
-
 [apache]: https://www.apache.org/licenses/LICENSE-2.0
 [blog-1]: https://fission.codes/blog/ipfs-thing-breaking-down-ipvm/
 [cargo-expand]: https://github.com/dtolnay/cargo-expand
+[cargo-nextest]: https://nexte.st/index.html
+[cargo-nextest-install]: https://nexte.st/book/installation.html
 [cargo-udeps]: https://github.com/est31/cargo-udeps
 [cargo-watch]: https://github.com/watchexec/cargo-watch
 [cod-ipvm]: https://www.youtube.com/watch?v=3y1RB8wt_YY

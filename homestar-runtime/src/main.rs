@@ -11,7 +11,7 @@ use homestar_runtime::{
         swarm,
         ws::WebSocket,
     },
-    settings::Settings,
+    Settings,
 };
 use std::sync::Arc;
 
@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
                 Settings::load()
             }?;
 
-            let db = Db::setup_connection_pool(settings.node());
+            let db = Db::setup_connection_pool(settings.node())?;
             let mut swarm = swarm::new(settings.node()).await?;
 
             // subscribe to `receipts` topic
