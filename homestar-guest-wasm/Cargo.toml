@@ -16,3 +16,7 @@ image = "0.24"
 doc = false
 bench = false
 crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+run_image_tests = []

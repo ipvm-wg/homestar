@@ -8,7 +8,7 @@ use diesel::{
     serialize::{self, IsNull, Output, ToSql},
     sql_types::Binary,
     sqlite::Sqlite,
-    AsExpression, FromSqlRow, Insertable, Queryable,
+    AsExpression, FromSqlRow, Identifiable, Insertable, Queryable, Selectable,
 };
 use homestar_core::{
     consts,
@@ -38,7 +38,8 @@ const VERSION_KEY: &str = "version";
 ///
 /// [Invocation]: homestar_core::workflow::Invocation
 /// [Instruction]: homestar_core::workflow::Instruction
-#[derive(Debug, Clone, PartialEq, Queryable, Insertable)]
+#[derive(Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Selectable)]
+#[diesel(primary_key(cid))]
 pub struct Receipt {
     cid: Pointer,
     ran: Pointer,
@@ -54,8 +55,8 @@ impl fmt::Display for Receipt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Receipt: [cid: {}, instruction: {}, ran: {}, output: {:?}, metadata: {:?}, issuer: {:?}]",
-            self.cid, self.instruction, self.ran, self.out, self.meta.0, self.issuer
+            "Receipt: [cid: {}, instruction: {}, ran: {}, output: {:?}, metadata: {:?}, issuer: {:?}, version: {}]",
+            self.cid, self.instruction, self.ran, self.out, self.meta.0, self.issuer, self.version,
         )
     }
 }
@@ -103,13 +104,18 @@ impl Receipt {
     }
 
     /// Get unique identifier of receipt.
-    pub fn cid(&self) -> String {
-        self.cid.to_string()
+    pub fn cid(&self) -> Cid {
+        self.cid.cid()
+    }
+
+    /// Get unique identifier of receipt as a [String].
+    pub fn cid_as_string(&self) -> String {
+        self.cid().to_string()
     }
 
     /// Get inner [Cid] as bytes.
     pub fn cid_as_bytes(&self) -> Vec<u8> {
-        self.cid.cid().to_bytes()
+        self.cid().to_bytes()
     }
 
     /// Return the [Cid] of the [Receipt]'s associated [Instruction].
@@ -358,6 +364,7 @@ mod test {
     fn receipt_sql_roundtrip() {
         let mut conn =
             test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
+                .unwrap()
                 .conn()
                 .unwrap();
         let (_, receipt) = test_utils::receipt::receipts();

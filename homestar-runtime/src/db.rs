@@ -3,14 +3,31 @@
 #[allow(missing_docs, unused_imports)]
 pub mod schema;
 
-use crate::{settings, Receipt};
+use crate::{
+    settings,
+    workflow::{self, StoredReceipt},
+    Receipt,
+};
 use anyhow::Result;
 use byte_unit::{AdjustedByte, Byte, ByteUnit};
-use diesel::{prelude::*, r2d2};
+use diesel::{
+    prelude::*,
+    r2d2::{self, CustomizeConnection, ManageConnection},
+    BelongingToDsl, RunQueryDsl, SqliteConnection,
+};
 use dotenvy::dotenv;
 use homestar_core::workflow::Pointer;
+use libipld::Cid;
 use std::{env, sync::Arc, time::Duration};
 use tokio::fs;
+
+const PRAGMAS: &str = "
+PRAGMA journal_mode = WAL;          -- better write-concurrency
+PRAGMA synchronous = NORMAL;        -- fsync only in critical moments
+PRAGMA wal_autocheckpoint = 1000;   -- write WAL changes back every 1000 pages, for an in average 1MB WAL file. May affect readers if number is increased
+PRAGMA busy_timeout = 1000;         -- sleep if the database is busy
+PRAGMA foreign_keys = ON;           -- enforce foreign keys
+";
 
 /// A Sqlite connection [pool].
 ///
@@ -54,7 +71,9 @@ impl Db {
 /// [connection]: Connection
 pub trait Database {
     /// Establish a pooled connection to Sqlite database.
-    fn setup_connection_pool(settings: &settings::Node) -> Self;
+    fn setup_connection_pool(settings: &settings::Node) -> Result<Self>
+    where
+        Self: Sized;
     /// Get a [pooled connection] for the database.
     ///
     /// [pooled connection]: Connection
@@ -101,11 +120,71 @@ pub trait Database {
             .first(conn)?;
         Ok(found_receipt)
     }
+
+    /// Store localized workflow cid and information, e.g. number of tasks.
+    fn store_workflow(workflow: workflow::Stored, conn: &mut Connection) -> Result<usize> {
+        diesel::insert_into(schema::workflows::table)
+            .values(&workflow)
+            .on_conflict(schema::workflows::cid)
+            .do_nothing()
+            .execute(conn)
+            .map_err(Into::into)
+    }
+
+    /// Store workflow [Cid] and [Receipt] [Cid] in the database for inner join.
+    fn store_workflow_receipt(
+        workflow_cid: Cid,
+        receipt_cid: Cid,
+        conn: &mut Connection,
+    ) -> Result<usize> {
+        let value = StoredReceipt::new(Pointer::new(workflow_cid), Pointer::new(receipt_cid));
+        diesel::insert_into(schema::workflows_receipts::table)
+            .values(&value)
+            .on_conflict((
+                schema::workflows_receipts::workflow_cid,
+                schema::workflows_receipts::receipt_cid,
+            ))
+            .do_nothing()
+            .execute(conn)
+            .map_err(Into::into)
+    }
+
+    /// Select workflow given a [Cid] to the workflow.
+    fn select_workflow(cid: Cid, conn: &mut Connection) -> Result<workflow::Stored> {
+        let wf = schema::workflows::dsl::workflows
+            .filter(schema::workflows::cid.eq(Pointer::new(cid)))
+            .select(workflow::Stored::as_select())
+            .get_result(conn)?;
+        Ok(wf)
+    }
+
+    /// Join workflow information with number of receipts emitted.
+    fn join_workflow_with_receipts(
+        workflow_cid: Cid,
+        conn: &mut Connection,
+    ) -> Result<(workflow::Stored, Vec<Cid>)> {
+        let wf = Self::select_workflow(workflow_cid, conn)?;
+        let associated_receipts = workflow::StoredReceipt::belonging_to(&wf)
+            .inner_join(schema::receipts::dsl::receipts)
+            .select(schema::receipts::dsl::cid)
+            .load(conn)?;
+
+        let cids = associated_receipts
+            .into_iter()
+            .map(|pointer: Pointer| pointer.cid())
+            .collect();
+        Ok((wf, cids))
+    }
 }
 
 impl Database for Db {
-    fn setup_connection_pool(settings: &settings::Node) -> Self {
+    fn setup_connection_pool(settings: &settings::Node) -> Result<Self> {
         let manager = r2d2::ConnectionManager::<SqliteConnection>::new(Db::url());
+
+        // setup PRAGMAs
+        manager
+            .connect()
+            .and_then(|mut conn| ConnectionCustomizer.on_acquire(&mut conn))?;
 
         let pool = r2d2::Pool::builder()
             // Max number of conns.
@@ -114,13 +193,58 @@ impl Database for Db {
             .min_idle(Some(0))
             // Close connections after 30 seconds of idle time
             .idle_timeout(Some(Duration::from_secs(30)))
+            .connection_customizer(Box::new(ConnectionCustomizer))
             .build(manager)
             .expect("DATABASE_URL must be set to an SQLite DB file");
-        Db(Arc::new(pool))
+        Ok(Db(Arc::new(pool)))
     }
 
     fn conn(&self) -> Result<Connection> {
         let conn = self.0.get()?;
         Ok(conn)
+    }
+}
+
+/// Database connection options.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConnectionCustomizer;
+
+impl<C> CustomizeConnection<C, r2d2::Error> for ConnectionCustomizer
+where
+    C: diesel::Connection,
+{
+    fn on_acquire(&self, conn: &mut C) -> Result<(), r2d2::Error> {
+        conn.batch_execute(PRAGMAS).map_err(r2d2::Error::QueryError)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::{settings::Settings, test_utils};
+
+    #[tokio::test]
+    async fn check_pragmas_memory_db() {
+        let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
+            .unwrap();
+        let mut conn = db.conn().unwrap();
+
+        let journal_mode = diesel::dsl::sql::<diesel::sql_types::Text>("PRAGMA journal_mode")
+            .load::<String>(&mut conn)
+            .unwrap();
+
+        assert_eq!(journal_mode, vec!["memory".to_string()]);
+
+        let fk_mode = diesel::dsl::sql::<diesel::sql_types::Text>("PRAGMA foreign_keys")
+            .load::<String>(&mut conn)
+            .unwrap();
+
+        assert_eq!(fk_mode, vec!["1".to_string()]);
+
+        let busy_timeout = diesel::dsl::sql::<diesel::sql_types::Text>("PRAGMA busy_timeout")
+            .load::<String>(&mut conn)
+            .unwrap();
+
+        assert_eq!(busy_timeout, vec!["1000".to_string()]);
     }
 }

@@ -10,6 +10,7 @@ pub struct Settings {
     pub(crate) p2p_timeout_secs: u64,
 }
 
+#[cfg(not(test))]
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -18,6 +19,19 @@ impl Default for Settings {
             retry_max_delay_secs: 60,
             retry_initial_delay_ms: 500,
             p2p_timeout_secs: 60,
+        }
+    }
+}
+
+#[cfg(test)]
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            retries: 1,
+            retry_backoff_strategy: BackoffStrategy::Exponential,
+            retry_max_delay_secs: 1,
+            retry_initial_delay_ms: 50,
+            p2p_timeout_secs: 1,
         }
     }
 }

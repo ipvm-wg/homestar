@@ -12,3 +12,22 @@ diesel::table! {
         version -> Text,
     }
 }
+
+diesel::table! {
+    workflows (cid) {
+        cid -> Text,
+        num_tasks -> Integer,
+    }
+}
+
+diesel::table! {
+    workflows_receipts (workflow_cid, receipt_cid) {
+        workflow_cid -> Text,
+        receipt_cid -> Text,
+    }
+}
+
+diesel::joinable!(workflows_receipts -> receipts (receipt_cid));
+diesel::joinable!(workflows_receipts -> workflows (workflow_cid));
+
+diesel::allow_tables_to_appear_in_same_query!(receipts, workflows, workflows_receipts,);

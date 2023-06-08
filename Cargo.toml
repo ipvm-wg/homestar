@@ -27,6 +27,10 @@ tracing = "0.1"
 debug-assertions = true
 split-debuginfo = "unpacked"
 
+[profile.release]
+# compiling with link time optimizations (LTO)
+lto = true
+
 [profile.release.package.homestar-core]
 # Tell `rustc` to optimize for small code size.
 opt-level = "s"
@@ -46,7 +50,7 @@ debug-assertions = false
 # Perform optimizations on all codegen units.
 codegen-units = 1
 # Tell `rustc` to optimize for small code size.
-opt-level = "z" # or 'z' to optimize "aggressively" for size
+opt-level = "z" # 'z' to optimize "aggressively" for size
 # Strip debug symbols
 # "symbols" issue: https://github.com/rust-lang/rust/issues/93294
 strip = "symbols"

@@ -4,10 +4,10 @@ use crate::workflow::settings::BackoffStrategy;
 use crate::IpfsCli;
 use crate::{
     db::{Connection, Database},
-    network::eventloop::Event,
+    network::eventloop::{Event, FoundEvent},
     scheduler::TaskScheduler,
     tasks::{RegisteredTasks, WasmContext},
-    workflow::{settings::Settings, Resource, WorkflowInfo},
+    workflow::{self, Resource},
     Db, Receipt, Workflow,
 };
 use anyhow::{anyhow, bail, Result};
@@ -34,7 +34,8 @@ use tryhard::RetryFutureConfig;
 #[derive(Debug)]
 pub struct Worker<'a> {
     pub(crate) scheduler: TaskScheduler<'a>,
-    pub(crate) workflow_info: WorkflowInfo,
+    pub(crate) event_sender: Arc<mpsc::Sender<Event>>,
+    pub(crate) workflow_info: workflow::Info,
 }
 
 impl<'a> Worker<'a> {
@@ -42,24 +43,24 @@ impl<'a> Worker<'a> {
     #[cfg(not(feature = "ipfs"))]
     pub async fn new(
         workflow: Workflow<'a, Arg>,
-        workflow_settings: &'a Settings,
-        conn: Connection,
+        workflow_settings: &'a workflow::Settings,
+        event_sender: Arc<mpsc::Sender<Event>>,
+        mut conn: Connection,
     ) -> Result<Worker<'a>> {
         let fetch_fn = |rscs: Vec<Resource>| {
             async { Self::get_resources(rscs, workflow_settings).await }.boxed()
         };
 
-        let scheduler = TaskScheduler::init(workflow.clone(), conn, fetch_fn).await?;
-        let workflow_len = workflow.len();
-        let workflow_cid = Cid::try_from(workflow)?;
-        let workflow_info = WorkflowInfo::new(
-            workflow_cid,
-            scheduler.resume_step.map_or(0, |step| step),
-            workflow_len,
-        );
+        let scheduler = TaskScheduler::init(workflow.clone(), &mut conn, fetch_fn).await?;
+
+        let workflow_info =
+            Worker::get_workflow_info(workflow, workflow_settings, &event_sender, &mut conn)
+                .await?;
+
         Ok(Self {
             scheduler,
             workflow_info,
+            event_sender,
         })
     }
 
@@ -67,50 +68,110 @@ impl<'a> Worker<'a> {
     #[cfg(feature = "ipfs")]
     pub async fn new(
         workflow: Workflow<'a, Arg>,
-        workflow_settings: &'a Settings,
-        conn: Connection,
+        workflow_settings: &'a workflow::Settings,
+        event_sender: Arc<mpsc::Sender<Event>>,
+        mut conn: Connection,
         ipfs: &'a IpfsCli,
     ) -> Result<Worker<'a>> {
         let fetch_fn = |rscs: Vec<Resource>| {
             async { Self::get_resources(rscs, workflow_settings, ipfs).await }.boxed()
         };
 
-        let scheduler = TaskScheduler::init(workflow.clone(), conn, fetch_fn).await?;
-        let workflow_len = workflow.len();
-        let workflow_cid = Cid::try_from(workflow)?;
-        let workflow_info = WorkflowInfo::new(
-            workflow_cid,
-            scheduler.resume_step.map_or(0, |step| step),
-            workflow_len,
-        );
+        let scheduler = TaskScheduler::init(workflow.clone(), &mut conn, fetch_fn).await?;
+
+        let workflow_info =
+            Worker::get_workflow_info(workflow, workflow_settings, &event_sender, &mut conn)
+                .await?;
+
         Ok(Self {
             scheduler,
             workflow_info,
+            event_sender,
         })
     }
 
     /// Run [Worker]'s tasks in task-queue with access to the [Db] object
     /// to use a connection from the Database pool per run.
-    pub async fn run(
-        self,
-        db: Db,
-        event_sender: Arc<mpsc::Sender<Event>>,
-        settings: Settings,
-    ) -> Result<()> {
-        self.run_queue(db, event_sender, settings).await
+    pub async fn run(self, db: impl Database, settings: workflow::Settings) -> Result<()> {
+        self.run_queue(db, settings).await
+    }
+
+    async fn get_workflow_info(
+        workflow: Workflow<'_, Arg>,
+        workflow_settings: &'a workflow::Settings,
+        event_sender: &'a Arc<mpsc::Sender<Event>>,
+        conn: &mut Connection,
+    ) -> Result<workflow::Info> {
+        let workflow_len = workflow.len();
+        let workflow_cid = Cid::try_from(workflow)?;
+
+        let workflow_info = match Db::join_workflow_with_receipts(workflow_cid, conn) {
+            Ok((wf_info, receipts)) => {
+                workflow::Info::new(workflow_cid, receipts, wf_info.num_tasks as u32)
+            }
+            Err(_err) => {
+                tracing::debug!("workflow information not available in the database");
+                let (sender, receiver) = channel::bounded(1);
+                event_sender
+                    .send(Event::FindWorkflow(workflow_cid, sender))
+                    .await?;
+
+                match receiver.recv_deadline(
+                    Instant::now() + Duration::from_secs(workflow_settings.p2p_timeout_secs),
+                ) {
+                    Ok((found_cid, FoundEvent::Workflow(workflow_info)))
+                        if found_cid == workflow_cid =>
+                    {
+                        // store workflow from info
+                        Db::store_workflow(
+                            workflow::Stored::new(
+                                Pointer::new(workflow_info.cid),
+                                workflow_info.num_tasks as i32,
+                            ),
+                            conn,
+                        )?;
+
+                        workflow_info
+                    }
+                    Ok((found_cid, event)) => {
+                        bail!("received unexpected event {event:?} for workflow {found_cid}")
+                    }
+                    Err(err) => {
+                        tracing::info!(error=?err, "error returning invocation receipt for {workflow_cid}");
+                        let workflow_info = workflow::Info::default(workflow_cid, workflow_len);
+                        // store workflow from info
+                        Db::store_workflow(
+                            workflow::Stored::new(
+                                Pointer::new(workflow_info.cid),
+                                workflow_info.num_tasks as i32,
+                            ),
+                            conn,
+                        )?;
+
+                        workflow_info
+                    }
+                }
+            }
+        };
+
+        Ok(workflow_info)
     }
 
     #[cfg(feature = "ipfs")]
     async fn get_resources(
         resources: Vec<Resource>,
-        settings: &'a Settings,
+        settings: &'a workflow::Settings,
         ipfs: &'a IpfsCli,
     ) -> Result<IndexMap<Resource, Vec<u8>>> {
-        async fn fetch(rsc: Resource, client: IpfsCli) -> (Resource, Result<Vec<u8>>) {
+        /// TODO: http(s) calls
+        async fn fetch(rsc: Resource, client: IpfsCli) -> Result<(Resource, Result<Vec<u8>>)> {
             match rsc {
                 Resource::Url(url) => {
                     let bytes = match (url.scheme(), url.domain(), url.path()) {
-                        ("ipfs", _, _) => client.get_resource(&url).await,
+                        ("ipfs", Some(cid), _) => {
+                            let cid = Cid::try_from(cid)?;
+                            client.get_cid(cid).await
+                        }
                         (_, Some("ipfs.io"), _) => client.get_resource(&url).await,
                         (_, _, path) if path.contains("/ipfs/") || path.contains("/ipns/") => {
                             client.get_resource(&url).await
@@ -129,12 +190,12 @@ impl<'a> Worker<'a> {
                         // TODO: reqwest call
                         (_, _, _) => todo!(),
                     };
-                    (Resource::Url(url), bytes)
+                    Ok((Resource::Url(url), bytes))
                 }
 
                 Resource::Cid(cid) => {
                     let bytes = client.get_cid(cid).await;
-                    (Resource::Cid(cid), bytes)
+                    Ok((Resource::Cid(cid), bytes))
                 }
             }
         }
@@ -200,7 +261,7 @@ impl<'a> Worker<'a> {
         .await
         .into_iter()
         .try_fold(IndexMap::default(), |mut acc, res| {
-            let inner = res?;
+            let inner = res??;
             let answer = inner.1?;
             acc.insert(inner.0, answer);
             Ok::<_, anyhow::Error>(acc)
@@ -211,17 +272,12 @@ impl<'a> Worker<'a> {
     #[cfg(not(feature = "ipfs"))]
     async fn get_resources<T>(
         _resources: Vec<Resource>,
-        _settings: &'a Settings,
+        _settings: &'a workflow::Settings,
     ) -> Result<IndexMap<Resource, T>> {
         Ok(IndexMap::default())
     }
 
-    async fn run_queue(
-        mut self,
-        db: Db,
-        event_sender: Arc<mpsc::Sender<Event>>,
-        settings: Settings,
-    ) -> Result<()> {
+    async fn run_queue(mut self, db: impl Database, settings: workflow::Settings) -> Result<()> {
         for batch in self.scheduler.run.into_iter() {
             let (mut set, _handles) = batch.into_iter().try_fold(
                 (JoinSet::new(), vec![]),
@@ -264,14 +320,14 @@ impl<'a> Worker<'a> {
                                                 "no related instruction receipt found in the DB"
                                             );
                                             let (sender, receiver) = channel::bounded(1);
-                                            event_sender.blocking_send(Event::FindReceipt(
+                                            self.event_sender.blocking_send(Event::FindReceipt(
                                                 cid,
                                                 sender,
                                             ))?;
                                             let found = match receiver.recv_deadline(
                                                 Instant::now() + Duration::from_secs(settings.p2p_timeout_secs),
                                             ) {
-                                                Ok((found_cid, found)) if found_cid == cid => {
+                                                Ok((found_cid, FoundEvent::Receipt(found))) if found_cid == cid => {
                                                     found
                                                 }
                                                 Ok(_) => bail!("only one worker channel per worker"),
@@ -326,7 +382,7 @@ impl<'a> Worker<'a> {
                 let stored_receipt = Db::store_receipt(receipt, &mut db.conn()?)?;
 
                 // send internal event
-                event_sender
+                self.event_sender
                     .send(Event::CapturedReceipt(
                         stored_receipt,
                         self.workflow_info.clone(),
@@ -335,5 +391,373 @@ impl<'a> Worker<'a> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[cfg(feature = "ipfs")]
+    use crate::IpfsCli;
+
+    use crate::{
+        db::Database, network::eventloop::EventLoop, settings::Settings, test_utils, workflow as wf,
+    };
+    use homestar_core::{
+        test_utils::workflow as workflow_test_utils,
+        workflow::{
+            config::Resources, instruction::RunInstruction, prf::UcanPrf, Invocation, Task,
+        },
+    };
+
+    #[tokio::test]
+    async fn initialize_worker() {
+        let config = Resources::default();
+        let (instruction1, instruction2, _) =
+            workflow_test_utils::related_wasm_instructions::<Arg>();
+        let task1 = Task::new(
+            RunInstruction::Expanded(instruction1),
+            config.clone().into(),
+            UcanPrf::default(),
+        );
+        let task2 = Task::new(
+            RunInstruction::Expanded(instruction2),
+            config.into(),
+            UcanPrf::default(),
+        );
+
+        let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
+            .unwrap();
+        let conn = db.conn().unwrap();
+
+        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+        let workflow_cid = Cid::try_from(workflow.clone()).unwrap();
+        let workflow_settings = wf::Settings::default();
+        let wf_settings = workflow_settings.clone();
+        let settings = Settings::load().unwrap();
+
+        #[cfg(feature = "ipfs")]
+        let (tx, mut rx) = EventLoop::setup_channel(settings.node());
+        #[cfg(not(feature = "ipfs"))]
+        let (tx, mut _rx) = EventLoop::setup_channel(settings.node());
+
+        #[cfg(feature = "ipfs")]
+        let ipfs = IpfsCli::default();
+
+        #[cfg(feature = "ipfs")]
+        let worker = Worker::new(workflow, &wf_settings, tx.into(), conn, &ipfs)
+            .await
+            .unwrap();
+        #[cfg(not(feature = "ipfs"))]
+        let worker = Worker::new(workflow, &wf_settings, tx.into(), conn)
+            .await
+            .unwrap();
+
+        assert!(worker.scheduler.linkmap.is_empty());
+        assert!(worker.scheduler.ran.is_none());
+        assert_eq!(worker.scheduler.run.len(), 2);
+        assert_eq!(worker.scheduler.resume_step, None);
+        assert_eq!(worker.workflow_info.cid, workflow_cid);
+        assert_eq!(worker.workflow_info.num_tasks, 2);
+
+        #[cfg(feature = "ipfs")]
+        {
+            let worker_workflow_cid = worker.workflow_info.cid;
+            worker.run(db.clone(), workflow_settings).await.unwrap();
+
+            // first time check DHT for workflow info
+            let workflow_info_event = rx.recv().await.unwrap();
+            // we should have received 2 receipts
+            let next_run_receipt = rx.recv().await.unwrap();
+            let next_next_run_receipt = rx.recv().await.unwrap();
+
+            match workflow_info_event {
+                Event::FindWorkflow(cid, _) => assert_eq!(cid, worker_workflow_cid),
+                _ => panic!("Wrong event type"),
+            };
+
+            let (next_receipt, _wf_info) = match next_run_receipt {
+                Event::CapturedReceipt(next_receipt, _) => {
+                    let mut conn = db.conn().unwrap();
+                    let _ = Db::store_workflow_receipt(workflow_cid, next_receipt.cid(), &mut conn);
+                    let mut info = workflow::Info::default(workflow_cid, 2);
+                    info.increment_progress(next_receipt.cid());
+
+                    (next_receipt, info)
+                }
+                _ => panic!("Wrong event type"),
+            };
+
+            let (_next_next_receipt, wf_info) = match next_next_run_receipt {
+                Event::CapturedReceipt(next_next_receipt, _) => {
+                    let mut conn = db.conn().unwrap();
+                    let _ = Db::store_workflow_receipt(
+                        workflow_cid,
+                        next_next_receipt.cid(),
+                        &mut conn,
+                    );
+                    let mut info = workflow::Info::default(workflow_cid, 2);
+                    info.increment_progress(next_next_receipt.cid());
+
+                    assert_ne!(next_next_receipt, next_receipt);
+
+                    (next_next_receipt, info)
+                }
+                _ => panic!("Wrong event type"),
+            };
+
+            assert!(rx.recv().await.is_none());
+
+            let mut conn = db.conn().unwrap();
+            let (stored_info, receipt_cids) =
+                test_utils::db::MemoryDb::join_workflow_with_receipts(workflow_cid, &mut conn)
+                    .unwrap();
+
+            assert_eq!(stored_info.num_tasks, 2);
+            assert_eq!(stored_info.cid.cid(), workflow_cid);
+            assert_eq!(receipt_cids.len(), 2);
+            assert_eq!(wf_info.progress_count, 2);
+        }
+    }
+
+    #[tokio::test]
+    async fn initialize_worker_with_run_instructions_and_run() {
+        let config = Resources::default();
+        let (instruction1, instruction2, _) =
+            workflow_test_utils::related_wasm_instructions::<Arg>();
+        let task1 = Task::new(
+            RunInstruction::Expanded(instruction1.clone()),
+            config.clone().into(),
+            UcanPrf::default(),
+        );
+        let task2 = Task::new(
+            RunInstruction::Expanded(instruction2),
+            config.into(),
+            UcanPrf::default(),
+        );
+
+        let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
+            .unwrap();
+        let mut conn = db.conn().unwrap();
+
+        let invocation_receipt = InvocationReceipt::new(
+            Invocation::new(task1.clone()).try_into().unwrap(),
+            InstructionResult::Ok(Ipld::Integer(4)),
+            Ipld::Null,
+            None,
+            UcanPrf::default(),
+        );
+        let receipt = Receipt::try_with(
+            instruction1.clone().try_into().unwrap(),
+            &invocation_receipt,
+        )
+        .unwrap();
+
+        let _ = test_utils::db::MemoryDb::store_receipt(receipt.clone(), &mut conn).unwrap();
+
+        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+        let workflow_cid = Cid::try_from(workflow.clone()).unwrap();
+        let workflow_settings = wf::Settings::default();
+        let wf_settings = workflow_settings.clone();
+        let settings = Settings::load().unwrap();
+
+        // already have stored workflow information (from a previous run)
+        let _ = test_utils::db::MemoryDb::store_workflow(
+            workflow::Stored::new(Pointer::new(workflow_cid), workflow.len() as i32),
+            &mut conn,
+        )
+        .unwrap();
+        let _ = test_utils::db::MemoryDb::store_workflow_receipt(
+            workflow_cid,
+            receipt.cid(),
+            &mut conn,
+        )
+        .unwrap();
+
+        #[cfg(feature = "ipfs")]
+        let (tx, mut rx) = EventLoop::setup_channel(settings.node());
+        #[cfg(not(feature = "ipfs"))]
+        let (tx, mut _rx) = EventLoop::setup_channel(settings.node());
+
+        #[cfg(feature = "ipfs")]
+        let ipfs = IpfsCli::default();
+
+        #[cfg(feature = "ipfs")]
+        let worker = Worker::new(workflow, &wf_settings, tx.into(), conn, &ipfs)
+            .await
+            .unwrap();
+        #[cfg(not(feature = "ipfs"))]
+        let worker = Worker::new(workflow, &wf_settings, tx.into(), conn)
+            .await
+            .unwrap();
+
+        assert_eq!(worker.scheduler.linkmap.len(), 1);
+        assert!(worker
+            .scheduler
+            .linkmap
+            .contains_key(&Cid::try_from(instruction1).unwrap()));
+        assert_eq!(worker.scheduler.ran.as_ref().unwrap().len(), 1);
+        assert_eq!(worker.scheduler.run.len(), 1);
+        assert_eq!(worker.scheduler.resume_step, Some(1));
+        assert_eq!(worker.workflow_info.cid, workflow_cid);
+        assert_eq!(worker.workflow_info.num_tasks, 2);
+
+        #[cfg(feature = "ipfs")]
+        {
+            worker.run(db.clone(), workflow_settings).await.unwrap();
+
+            // we should have received 1 receipt
+            let next_run_receipt = rx.recv().await.unwrap();
+
+            let (_next_receipt, wf_info) = match next_run_receipt {
+                Event::CapturedReceipt(next_receipt, _) => {
+                    let mut conn = db.conn().unwrap();
+                    let _ = Db::store_workflow_receipt(workflow_cid, next_receipt.cid(), &mut conn);
+                    let mut info = workflow::Info::default(workflow_cid, 2);
+                    info.increment_progress(next_receipt.cid());
+
+                    assert_ne!(next_receipt, receipt);
+
+                    (next_receipt, info)
+                }
+                _ => panic!("Wrong event type"),
+            };
+
+            assert!(rx.recv().await.is_none());
+
+            let mut conn = db.conn().unwrap();
+            let (stored_info, receipt_cids) =
+                test_utils::db::MemoryDb::join_workflow_with_receipts(workflow_cid, &mut conn)
+                    .unwrap();
+
+            assert_eq!(stored_info.num_tasks, 2);
+            assert_eq!(stored_info.cid.cid(), workflow_cid);
+            assert_eq!(receipt_cids.len(), 2);
+            assert_eq!(wf_info.progress_count, 2);
+        }
+    }
+
+    #[tokio::test]
+    async fn initialize_wroker_with_all_receipted_instruction() {
+        let config = Resources::default();
+        let (instruction1, instruction2, _) =
+            workflow_test_utils::related_wasm_instructions::<Arg>();
+
+        let task1 = Task::new(
+            RunInstruction::Expanded(instruction1.clone()),
+            config.clone().into(),
+            UcanPrf::default(),
+        );
+
+        let task2 = Task::new(
+            RunInstruction::Expanded(instruction2.clone()),
+            config.into(),
+            UcanPrf::default(),
+        );
+
+        let invocation_receipt1 = InvocationReceipt::new(
+            Invocation::new(task1.clone()).try_into().unwrap(),
+            InstructionResult::Ok(Ipld::Integer(4)),
+            Ipld::Null,
+            None,
+            UcanPrf::default(),
+        );
+        let receipt1 = Receipt::try_with(
+            instruction1.clone().try_into().unwrap(),
+            &invocation_receipt1,
+        )
+        .unwrap();
+
+        let invocation_receipt2 = InvocationReceipt::new(
+            Invocation::new(task2.clone()).try_into().unwrap(),
+            InstructionResult::Ok(Ipld::Integer(44)),
+            Ipld::Null,
+            None,
+            UcanPrf::default(),
+        );
+        let receipt2 = Receipt::try_with(
+            instruction2.clone().try_into().unwrap(),
+            &invocation_receipt2,
+        )
+        .unwrap();
+
+        let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
+            .unwrap();
+        let mut conn = db.conn().unwrap();
+
+        let rows_inserted = test_utils::db::MemoryDb::store_receipts(
+            vec![receipt1.clone(), receipt2.clone()],
+            &mut conn,
+        )
+        .unwrap();
+
+        assert_eq!(2, rows_inserted);
+
+        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+        let workflow_cid = Cid::try_from(workflow.clone()).unwrap();
+        let workflow_settings = wf::Settings::default();
+        let wf_settings = workflow_settings.clone();
+        let settings = Settings::load().unwrap();
+
+        // already have stored workflow information (from a previous run)
+        let _ = test_utils::db::MemoryDb::store_workflow(
+            workflow::Stored::new(Pointer::new(workflow_cid), workflow.len() as i32),
+            &mut conn,
+        )
+        .unwrap();
+        let _ = test_utils::db::MemoryDb::store_workflow_receipt(
+            workflow_cid,
+            receipt1.cid(),
+            &mut conn,
+        )
+        .unwrap();
+        let _ = test_utils::db::MemoryDb::store_workflow_receipt(
+            workflow_cid,
+            receipt2.cid(),
+            &mut conn,
+        )
+        .unwrap();
+
+        #[cfg(feature = "ipfs")]
+        let (tx, mut rx) = EventLoop::setup_channel(settings.node());
+        #[cfg(not(feature = "ipfs"))]
+        let (tx, mut rx) = EventLoop::setup_channel(settings.node());
+
+        #[cfg(feature = "ipfs")]
+        let ipfs = IpfsCli::default();
+
+        #[cfg(feature = "ipfs")]
+        let worker = Worker::new(workflow, &wf_settings, tx.into(), conn, &ipfs)
+            .await
+            .unwrap();
+        #[cfg(not(feature = "ipfs"))]
+        let worker = Worker::new(workflow, &wf_settings, tx.into(), conn)
+            .await
+            .unwrap();
+
+        assert_eq!(worker.scheduler.linkmap.len(), 1);
+        assert!(!worker
+            .scheduler
+            .linkmap
+            .contains_key(&Cid::try_from(instruction1).unwrap()),);
+        assert!(worker
+            .scheduler
+            .linkmap
+            .contains_key(&Cid::try_from(instruction2).unwrap()));
+        assert_eq!(worker.scheduler.ran.as_ref().unwrap().len(), 2);
+        assert!(worker.scheduler.run.is_empty());
+        assert_eq!(worker.scheduler.resume_step, None);
+        assert_eq!(worker.workflow_info.cid, workflow_cid);
+        assert_eq!(worker.workflow_info.num_tasks, 2);
+
+        let mut conn = db.conn().unwrap();
+        let (stored_info, receipt_cids) =
+            test_utils::db::MemoryDb::join_workflow_with_receipts(workflow_cid, &mut conn).unwrap();
+
+        assert_eq!(stored_info.num_tasks, 2);
+        assert_eq!(stored_info.cid.cid(), workflow_cid);
+        assert_eq!(receipt_cids.len(), 2);
+
+        assert!(rx.try_recv().is_err())
     }
 }

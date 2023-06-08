@@ -24,7 +24,7 @@ pub mod network;
 mod receipt;
 mod runtime;
 pub mod scheduler;
-pub mod settings;
+mod settings;
 pub mod tasks;
 mod worker;
 pub mod workflow;
@@ -34,6 +34,7 @@ pub use db::Db;
 pub use network::ipfs::IpfsCli;
 pub use receipt::Receipt;
 pub use runtime::*;
+pub use settings::Settings;
 pub use worker::Worker;
 pub use workflow::Workflow;
 
