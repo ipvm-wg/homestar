@@ -36,7 +36,6 @@ pub use receipt::Receipt;
 pub use runtime::*;
 pub use settings::Settings;
 pub use worker::Worker;
-pub use workflow::Workflow;
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]

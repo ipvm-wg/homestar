@@ -2,7 +2,7 @@
 //!
 //! [Instruction]: super::Instruction
 
-use anyhow::anyhow;
+use crate::{workflow, Unit};
 use enum_as_inner::EnumAsInner;
 use generic_array::{
     typenum::consts::{U12, U16},
@@ -61,7 +61,7 @@ impl From<Nonce> for Ipld {
 }
 
 impl TryFrom<Ipld> for Nonce {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         if let Ipld::List(v) = ipld {
@@ -72,7 +72,9 @@ impl TryFrom<Ipld> for Nonce {
                 [Ipld::Integer(1), Ipld::Bytes(nonce)] => {
                     Ok(Nonce::Nonce128(*GenericArray::from_slice(nonce)))
                 }
-                _ => Err(anyhow!("unexpected conversion type")),
+                other_ipld => Err(workflow::Error::unexpected_ipld(
+                    other_ipld.to_owned().into(),
+                )),
             }
         } else {
             Ok(Nonce::Empty)
@@ -81,7 +83,7 @@ impl TryFrom<Ipld> for Nonce {
 }
 
 impl TryFrom<&Ipld> for Nonce {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
     fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
         TryFrom::try_from(ipld.to_owned())

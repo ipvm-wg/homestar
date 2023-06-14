@@ -14,6 +14,7 @@
 //! [homestar-runtime]: <https://docs.rs/homestar-runtime>
 //! [Wasmtime]: <https://wasmtime.dev/>
 
+pub mod error;
 pub mod io;
 pub mod test_utils;
 pub mod wasmtime;

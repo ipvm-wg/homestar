@@ -1,8 +1,11 @@
 //! An [Instruction] is the smallest unit of work that can be requested from a
 //! UCAN, described via `resource`, `ability`.
 
-use super::{Ability, Input, Nonce, Pointer};
-use anyhow::anyhow;
+use crate::{
+    consts::DAG_CBOR,
+    workflow::{Ability, Error as WorkflowError, Input, Nonce, Pointer},
+    Unit,
+};
 use libipld::{
     cbor::DagCborCodec,
     cid::{
@@ -17,7 +20,6 @@ use libipld::{
 use std::{borrow::Cow, collections::BTreeMap, fmt};
 use url::Url;
 
-const DAG_CBOR: u64 = 0x71;
 const RESOURCE_KEY: &str = "rsc";
 const OP_KEY: &str = "op";
 const INPUT_KEY: &str = "input";
@@ -43,12 +45,12 @@ impl<'a, T> TryFrom<RunInstruction<'a, T>> for Instruction<'a, T>
 where
     T: fmt::Debug,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<RunInstruction<'a, T>>;
 
     fn try_from(run: RunInstruction<'a, T>) -> Result<Self, Self::Error> {
         match run {
             RunInstruction::Expanded(instruction) => Ok(instruction),
-            e => Err(anyhow!("wrong discriminant: {e:?}")),
+            e => Err(WorkflowError::InvalidDiscriminant(e)),
         }
     }
 }
@@ -63,12 +65,12 @@ impl<'a, T> TryFrom<RunInstruction<'a, T>> for Pointer
 where
     T: fmt::Debug,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<RunInstruction<'a, T>>;
 
     fn try_from(run: RunInstruction<'a, T>) -> Result<Self, Self::Error> {
         match run {
             RunInstruction::Ptr(ptr) => Ok(ptr),
-            e => Err(anyhow!("wrong discriminant: {e:?}")),
+            e => Err(WorkflowError::InvalidDiscriminant(e)),
         }
     }
 }
@@ -77,12 +79,12 @@ impl<'a, 'b, T> TryFrom<&'b RunInstruction<'a, T>> for &'b Pointer
 where
     T: fmt::Debug,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<&'b RunInstruction<'a, T>>;
 
     fn try_from(run: &'b RunInstruction<'a, T>) -> Result<Self, Self::Error> {
         match run {
             RunInstruction::Ptr(ptr) => Ok(ptr),
-            e => Err(anyhow!("wrong discriminant: {e:?}")),
+            e => Err(WorkflowError::InvalidDiscriminant(e)),
         }
     }
 }
@@ -91,12 +93,12 @@ impl<'a, 'b, T> TryFrom<&'b RunInstruction<'a, T>> for Pointer
 where
     T: fmt::Debug,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<&'b RunInstruction<'a, T>>;
 
     fn try_from(run: &'b RunInstruction<'a, T>) -> Result<Self, Self::Error> {
         match run {
             RunInstruction::Ptr(ptr) => Ok(ptr.to_owned()),
-            e => Err(anyhow!("wrong discriminant: {e:?}")),
+            e => Err(WorkflowError::InvalidDiscriminant(e)),
         }
     }
 }
@@ -117,13 +119,13 @@ impl<T> TryFrom<Ipld> for RunInstruction<'_, T>
 where
     T: From<Ipld>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from<'a>(ipld: Ipld) -> Result<Self, Self::Error> {
         match ipld {
             Ipld::Map(_) => Ok(RunInstruction::Expanded(Instruction::try_from(ipld)?)),
             Ipld::Link(_) => Ok(RunInstruction::Ptr(Pointer::try_from(ipld)?)),
-            _ => Err(anyhow!("unexpected conversion type")),
+            other_ipld => Err(WorkflowError::unexpected_ipld(other_ipld)),
         }
     }
 }
@@ -241,7 +243,7 @@ impl<T> TryFrom<Instruction<'_, T>> for Pointer
 where
     Ipld: From<T>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(instruction: Instruction<'_, T>) -> Result<Self, Self::Error> {
         Ok(Pointer::new(Cid::try_from(instruction)?))
@@ -252,7 +254,7 @@ impl<T> TryFrom<Instruction<'_, T>> for Cid
 where
     Ipld: From<T>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(instruction: Instruction<'_, T>) -> Result<Self, Self::Error> {
         let ipld: Ipld = instruction.into();
@@ -280,7 +282,7 @@ impl<T> TryFrom<&Ipld> for Instruction<'_, T>
 where
     T: From<Ipld>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
         TryFrom::try_from(ipld.to_owned())
@@ -291,35 +293,37 @@ impl<T> TryFrom<Ipld> for Instruction<'_, T>
 where
     T: From<Ipld>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
 
         let rsc = match map.get(RESOURCE_KEY) {
             Some(Ipld::Link(cid)) => cid
-                .to_string_of_base(Base::Base32Lower)
-                .map_err(|e| anyhow!("failed to encode CID into multibase string: {e}"))
+                .to_string_of_base(Base::Base32Lower) // Cid v1
+                .map_err(WorkflowError::<Unit>::CidError)
                 .and_then(|txt| {
                     Url::parse(format!("{}{}", "ipfs://", txt).as_str())
-                        .map_err(|e| anyhow!("failed to parse URL: {e}"))
+                        .map_err(WorkflowError::ParseResourceError)
                 }),
             Some(Ipld::String(txt)) => {
-                Url::parse(txt.as_str()).map_err(|e| anyhow!("failed to parse URL: {e}"))
+                Url::parse(txt.as_str()).map_err(WorkflowError::ParseResourceError)
             }
-            _ => Err(anyhow!("no resource/with set.")),
+            _ => Err(WorkflowError::MissingFieldError(RESOURCE_KEY.to_string())),
         }?;
 
         Ok(Self {
             rsc,
             op: from_ipld(
                 map.get(OP_KEY)
-                    .ok_or_else(|| anyhow!("no `op` field set"))?
+                    .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(OP_KEY.to_string()))?
                     .to_owned(),
             )?,
             input: Input::try_from(
                 map.get(INPUT_KEY)
-                    .ok_or_else(|| anyhow!("no `input` field set"))?
+                    .ok_or_else(|| {
+                        WorkflowError::<String>::MissingFieldError(INPUT_KEY.to_string())
+                    })?
                     .to_owned(),
             )?,
             nnc: Nonce::try_from(

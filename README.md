@@ -12,20 +12,32 @@
     <a href="https://crates.io/crates/homestar-wasm">
       <img src="https://img.shields.io/crates/v/homestar-wasm?label=crates" alt="Crate">
     </a>
+    <a href="https://crates.io/crates/homestar-runtime">
+      <img src="https://img.shields.io/crates/v/homestar-runtime?label=crates" alt="Crate">
+    </a>
     <a href="https://codecov.io/gh/ipvm-wg/homestar">
       <img src="https://codecov.io/gh/ipvm-wg/homestar/branch/main/graph/badge.svg?token=SOMETOKEN" alt="Code Coverage"/>
     </a>
-    <a href="https://github.com/ipvm-wg/homestar/actions?query=">
-      <img src="https://github.com/ipvm-wg/homestar/actions/workflows/tests_and_checks.yml/badge.svg" alt="Build Status">
+    <a href="https://github.com/ipvm-wg/homestar/actions/workflows/tests_and_checks.yml">
+      <img src="https://github.com/ipvm-wg/homestar/actions/workflows/tests_and_checks.yml/badge.svg" alt="Tests and Checks Status">
+    </a>
+    <a href="https://github.com/ipvm-wg/homestar/actions/workflows/docker.yml">
+      <img src="https://github.com/ipvm-wg/homestar/actions/workflows/docker.yml/badge.svg" alt="Build Docker Status">
+    </a>
+    <a href="https://github.com/ipvm-wg/homestar/actions/workflows/audit.yml">
+      <img src="https://github.com/ipvm-wg/homestar/actions/workflows/audit.yml/badge.svg" alt="Cargo Audit Status">
     </a>
     <a href="https://github.com/ipvm-wg/homestar/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
     </a>
     <a href="https://docs.rs/homestar-core">
-      <img src="https://img.shields.io/static/v1?label=Docs&message=core.docs.rs&color=blue" alt="Docs">
+      <img src="https://img.shields.io/static/v1?label=Docs&message=core.docs.rs&color=pink" alt="Docs">
     </a>
     <a href="https://docs.rs/homestar-wasm">
-      <img src="https://img.shields.io/static/v1?label=Docs&message=wasm.docs.rs&color=blue" alt="Docs">
+      <img src="https://img.shields.io/static/v1?label=Docs&message=wasm.docs.rs&color=pink" alt="Docs">
+    </a>
+    <a href="https://docs.rs/homestar-runtime">
+      <img src="https://img.shields.io/static/v1?label=Docs&message=runtime.docs.rs&color=pink" alt="Docs">
     </a>
     <a href="https://discord.gg/fissioncodes">
       <img src="https://img.shields.io/static/v1?label=Discord&message=join%20us!&color=mediumslateblue" alt="Discord">
@@ -69,14 +81,14 @@ represents the `homestar` runtime.
 
 - Running the tests:
 
-We recommend using [cargo nextest][cargo-nextest], which is installed via
-[our Nix flake](#nix) or can be [installed separately][cargo-nextest-install].
+We recommend using [cargo nextest][cargo-nextest], which is installed by default
+in our [Nix flake](#nix) or can be [installed separately][cargo-nextest-install].
 
   ```console
   cargo nextest run --all-features --no-capture
   ```
 
-Otherwise, the above command looks like this using the default `cargo test`:
+The above command translates to this using the default `cargo test`:
 
   ```console
   cargo test --all-features -- --nocapture
@@ -105,7 +117,7 @@ with `experimental` and `buildkit` set to `true`, for example:
 - Build a multi-plaform Docker image via [buildx][buildx]:
 
   ```console
-  docker buildx build --platform=linux/amd64,linux/arm64 -t homestar-runtime --progress=plain .
+  docker buildx build --file docker/Dockerfile --platform=linux/amd64,linux/arm64 -t homestar-runtime --progress=plain .
   ```
 
 - Run a Docker image (depending on your platform):
@@ -149,8 +161,27 @@ hooks. Please run this before every commit and/or push.
 
 - We recommend leveraging [cargo-watch][cargo-watch],
   [cargo-expand][cargo-expand] and [irust][irust] for Rust development.
-- We also recommend using [cargo-udeps][cargo-udeps] for removing unused dependencies
-  before commits and pull-requests.
+- We also recommend using [cargo-udeps][cargo-udeps] for removing unused
+  dependencies before commits and pull-requests.
+- If using our [Nix flake][nix-flake], there are a number of handy
+  command shortcuts available for working with `cargo-watch`, `diesel`, and
+  other binaries, including:
+  * `ci`, which runs a sequence of commands to check formatting, lints, release
+    builds, and tests
+  * `db` and `db-reset` for running `diesel` setup and migrations
+  * `compile-wasm` for compiling [homestar-guest-wasm](./homestar-guest-wasm),
+    a [wit-bindgen][]-driven example, to the `wasm32-unknown-unknown` target
+  * `docker-<amd64,arm64>` for running docker builds
+  * `nx-test`, which translates to `cargo nextest run && cargo test --doc`
+  * `x-test` for testing continuously as files change, translating to
+    `cargo watch -c -s "cargo nextest run && cargo test --doc"`
+  * `x-<build,check,run,clippy>` for running a variety of `cargo watch`
+    execution stages
+  * `nx-test-<all,0>`, which is just like `nx-test`, but adds `all` or `0`
+    for running tests either with the `all-features` flag or
+    `no-default-features` flag, respectively.
+  * `x-<build,check,run,clippy,test>-<core,wasm,runtime>` for package-specific
+    builds, tests, etc.
 
 ### Conventional Commits
 
@@ -221,3 +252,4 @@ conditions.
 [pre-commit]: https://pre-commit.com/
 [seamless-services]: https://youtu.be/Kr3B3sXh_VA
 [ucan-invocation]: https://github.com/ucan-wg/invocation
+[wit-bindgen]: https://github.com/bytecodealliance/wit-bindgen

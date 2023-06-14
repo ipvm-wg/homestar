@@ -32,7 +32,7 @@ libsqlite3-sys = { version = "0.26", features = ["bundled"] }
 proptest = { version = "1.1", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 signature = "2.0"
-thiserror = "1.0"
+thiserror = { workspace = true }
 tracing = { workspace = true }
 ucan = "0.1"
 url = "2.3"
@@ -40,6 +40,7 @@ xid = "1.0"
 
 [dev-dependencies]
 criterion = "0.4"
+json = "0.12"
 
 [features]
 default = []

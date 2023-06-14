@@ -3,6 +3,7 @@
 //! [Resource]: url::Url
 //! [UCAN Ability]: <https://github.com/ucan-wg/spec/#23-ability>
 
+use crate::{workflow, Unit};
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, fmt};
@@ -63,7 +64,7 @@ impl From<Ability> for Ipld {
 }
 
 impl TryFrom<Ipld> for Ability {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let ability = from_ipld::<String>(ipld)?;

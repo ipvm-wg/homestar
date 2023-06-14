@@ -1,12 +1,11 @@
 //! [EventLoop] implementation for handling network events and messages, as well
 //! as commands for the running [libp2p] node.
 
-use super::swarm::TopicMessage;
 #[cfg(feature = "ipfs")]
 use crate::IpfsCli;
 use crate::{
     db::{Connection, Database, Db},
-    network::swarm::{ComposedBehaviour, ComposedEvent},
+    network::swarm::{ComposedBehaviour, ComposedEvent, TopicMessage},
     settings, workflow, Receipt,
 };
 use anyhow::{anyhow, Result};
@@ -35,6 +34,9 @@ use tokio::sync::mpsc;
 ///
 /// [Receipt]: homestar_core::workflow::receipt
 pub const RECEIPTS_TOPIC: &str = "receipts";
+
+const RECEIPT_CODE: &[u8; 16] = b"homestar_receipt";
+const WORKFLOW_INFO_CODE: &[u8; 17] = b"homestar_workflow";
 
 type WorkerSender = channel::Sender<(Cid, FoundEvent)>;
 
@@ -188,25 +190,31 @@ impl EventLoop {
 
         if let Ok(receipt_bytes) = Vec::try_from(invocation_receipt) {
             let ref_bytes = &receipt_bytes;
-            let value = veccat!(consts::INVOCATION_VERSION.as_bytes() ref_bytes);
-            let _id = self
-                .swarm
-                .behaviour_mut()
-                .kademlia
-                .put_record(Record::new(instruction_bytes, value.to_vec()), quorum)
-                .map_err(anyhow::Error::msg)?;
-
-            // Store workflow_receipt join information.
-            let _ = Db::store_workflow_receipt(workflow_info.cid, receipt_cid, conn);
-            workflow_info.increment_progress(receipt_cid);
+            let receipt_value =
+                veccat!(consts::INVOCATION_VERSION.as_bytes() RECEIPT_CODE ref_bytes);
             let _id = self
                 .swarm
                 .behaviour_mut()
                 .kademlia
                 .put_record(
-                    Record::new(workflow_info.cid.to_bytes(), Vec::try_from(workflow_info)?),
+                    Record::new(instruction_bytes, receipt_value.to_vec()),
                     quorum,
                 )
+                .map_err(anyhow::Error::msg)?;
+
+            // Store workflow_receipt join information.
+            let _ = Db::store_workflow_receipt(workflow_info.cid, receipt_cid, conn);
+            workflow_info.increment_progress(receipt_cid);
+
+            let wf_cid_bytes = workflow_info.cid_as_bytes();
+            let wf_bytes = &Vec::try_from(workflow_info)?;
+            let wf_value = veccat!(WORKFLOW_INFO_CODE wf_bytes);
+
+            let _id = self
+                .swarm
+                .behaviour_mut()
+                .kademlia
+                .put_record(Record::new(wf_cid_bytes, wf_value), quorum)
                 .map_err(anyhow::Error::msg)?;
 
             Ok((receipt_cid, receipt_bytes))
@@ -235,11 +243,20 @@ impl EventLoop {
 
     fn on_found_record(key_cid: Cid, value: Vec<u8>) -> Result<FoundEvent> {
         match value {
-            value if value.starts_with(consts::INVOCATION_VERSION.as_bytes()) => {
-                let receipt_bytes = &value[consts::INVOCATION_VERSION.as_bytes().len()..];
+            value
+                if value
+                    .starts_with(&veccat!(consts::INVOCATION_VERSION.as_bytes() RECEIPT_CODE)) =>
+            {
+                let receipt_bytes =
+                    &value[consts::INVOCATION_VERSION.as_bytes().len() + RECEIPT_CODE.len()..];
                 let invocation_receipt = InvocationReceipt::try_from(receipt_bytes.to_vec())?;
                 let receipt = Receipt::try_with(Pointer::new(key_cid), &invocation_receipt)?;
                 Ok(FoundEvent::Receipt(receipt))
+            }
+            value if value.starts_with(WORKFLOW_INFO_CODE) => {
+                let workflow_info_bytes = &value[WORKFLOW_INFO_CODE.len()..];
+                let workflow_info = workflow::Info::try_from(workflow_info_bytes.to_vec())?;
+                Ok(FoundEvent::Workflow(workflow_info))
             }
             _ => Err(anyhow!(
                 "record version mismatch, current version: {}",
@@ -393,7 +410,7 @@ pub enum Event {
     FindReceipt(Cid, WorkerSender),
     /// Find a [Workflow], stored as [workflow::Info], in the DHT.
     ///
-    /// [Workflow]: crate::Workflow
+    /// [Workflow]: homestar_core::Workflow
     FindWorkflow(Cid, WorkerSender),
 }
 
@@ -409,7 +426,13 @@ pub enum FoundEvent {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test_utils;
+    use crate::{test_utils, workflow};
+    use homestar_core::{
+        test_utils::workflow as workflow_test_utils,
+        workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
+        Workflow,
+    };
+    use homestar_wasm::io::Arg;
 
     #[test]
     fn found_receipt_record() {
@@ -417,7 +440,7 @@ mod test {
         let instruction_bytes = receipt.instruction_cid_as_bytes();
         let bytes = Vec::try_from(invocation_receipt).unwrap();
         let ref_bytes = &bytes;
-        let value = veccat!(consts::INVOCATION_VERSION.as_bytes() ref_bytes);
+        let value = veccat!(consts::INVOCATION_VERSION.as_bytes() RECEIPT_CODE ref_bytes);
         let record = Record::new(instruction_bytes, value.to_vec());
         let record_value = record.value;
         if let FoundEvent::Receipt(found_receipt) =
@@ -425,6 +448,40 @@ mod test {
                 .unwrap()
         {
             assert_eq!(found_receipt, receipt);
+        } else {
+            panic!("Incorrect event type")
+        }
+    }
+
+    #[test]
+    fn found_workflow_record() {
+        let config = Resources::default();
+        let (instruction1, instruction2, _) =
+            workflow_test_utils::related_wasm_instructions::<Arg>();
+        let task1 = Task::new(
+            RunInstruction::Expanded(instruction1.clone()),
+            config.clone().into(),
+            UcanPrf::default(),
+        );
+        let task2 = Task::new(
+            RunInstruction::Expanded(instruction2),
+            config.into(),
+            UcanPrf::default(),
+        );
+
+        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+        let workflow_info =
+            workflow::Info::default(Cid::try_from(workflow.clone()).unwrap(), workflow.len());
+        let workflow_cid_bytes = workflow_info.cid_as_bytes();
+        let bytes = Vec::try_from(workflow_info.clone()).unwrap();
+        let ref_bytes = &bytes;
+        let value = veccat!(WORKFLOW_INFO_CODE ref_bytes);
+        let record = Record::new(workflow_cid_bytes, value.to_vec());
+        let record_value = record.value;
+        if let FoundEvent::Workflow(found_workflow) =
+            EventLoop::on_found_record(Cid::try_from(workflow).unwrap(), record_value).unwrap()
+        {
+            assert_eq!(found_workflow, workflow_info);
         } else {
             panic!("Incorrect event type")
         }

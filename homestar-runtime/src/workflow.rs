@@ -6,22 +6,18 @@
 use crate::scheduler::ExecutionGraph;
 use anyhow::{anyhow, bail};
 use dagga::{self, dot::DagLegend, Node};
-use homestar_core::workflow::{
-    input::{Parse, Parsed},
-    instruction::RunInstruction,
-    Instruction, Invocation, Pointer, Task,
+use homestar_core::{
+    workflow::{
+        input::{Parse, Parsed},
+        instruction::RunInstruction,
+        Instruction, Invocation, Pointer,
+    },
+    Workflow,
 };
 use homestar_wasm::io::Arg;
 use indexmap::IndexMap;
-use libipld::{
-    cbor::DagCborCodec,
-    json::DagJsonCodec,
-    multihash::{Code, MultihashDigest},
-    prelude::Codec,
-    serde::from_ipld,
-    Cid, Ipld,
-};
-use std::{collections::BTreeMap, path::Path};
+use libipld::Cid;
+use std::path::Path;
 use url::Url;
 
 mod info;
@@ -33,8 +29,9 @@ pub(crate) use settings::Settings;
 
 type Dag<'a> = dagga::Dag<Vertex<'a>, usize>;
 
-const DAG_CBOR: u64 = 0x71;
-const TASKS_KEY: &str = "tasks";
+/// A [Workflow] [Builder] wrapper for the runtime.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Builder<'a>(Workflow<'a, Arg>);
 
 /// A resource can refer to a [URI] or [Cid]
 /// being accessed.
@@ -54,6 +51,7 @@ pub enum Resource {
 /// ahead-of-time.
 ///
 /// [Dag]: dagga::Dag
+/// [Task]: homestar_core::workflow::Task
 #[derive(Debug, Clone)]
 pub struct AOTContext<'a> {
     dag: Dag<'a>,
@@ -100,32 +98,20 @@ impl<'a> Vertex<'a> {
     }
 }
 
-/// Workflow composed of [tasks].
-///
-/// [tasks]: Task
-#[derive(Debug, Clone, PartialEq)]
-pub struct Workflow<'a, T> {
-    tasks: Vec<Task<'a, T>>,
-}
-
-impl<'a> Workflow<'a, Arg> {
-    /// Create a new [Workflow] given a set of tasks.
-    pub fn new(tasks: Vec<Task<'a, Arg>>) -> Self {
-        Self { tasks }
+impl<'a> Builder<'a> {
+    /// Create a new [Workflow] [Builder] given a [Workflow].
+    pub fn new(workflow: Workflow<'a, Arg>) -> Builder<'a> {
+        Builder(workflow)
     }
 
-    /// Length of workflow given a series of [tasks].
-    ///
-    /// [tasks]: Task
-    pub fn len(&self) -> u32 {
-        self.tasks.len() as u32
+    /// Return an owned [Workflow] from the [Builder].
+    pub fn into_inner(self) -> Workflow<'a, Arg> {
+        self.0
     }
 
-    /// Whether [Workflow] contains [tasks] or not.
-    ///
-    /// [tasks]: Task
-    pub fn is_empty(&self) -> bool {
-        self.tasks.is_empty()
+    /// Return a referenced [Workflow] from the [Builder].
+    pub fn inner(&self) -> &Workflow<'a, Arg> {
+        &self.0
     }
 
     /// Convert the [Workflow] into an batch-separated [ExecutionGraph].
@@ -140,24 +126,16 @@ impl<'a> Workflow<'a, Arg> {
         }
     }
 
-    /// Return workflow as stringified Json.
-    pub fn to_json(&self) -> anyhow::Result<String> {
-        let encoded = DagJsonCodec.encode(&Ipld::from(self.to_owned()))?;
-        let s = std::str::from_utf8(&encoded)
-            .map_err(|e| anyhow!("cannot stringify encoded value: {e}"))?;
-        Ok(s.to_string())
-    }
-
     fn aot(self) -> anyhow::Result<AOTContext<'a>> {
         let lookup_table = self.lookup_table()?;
 
         let (dag, resources) =
-            self.tasks.into_iter().enumerate().try_fold(
+            self.into_inner().tasks().into_iter().enumerate().try_fold(
                 (Dag::default(), vec![]),
                 |(mut dag, mut resources), (i, task)| {
+                    let instr_cid = task.instruction_cid()?.to_string();
                     // Clone as we're owning the struct going backward.
                     let ptr: Pointer = Invocation::<Arg>::from(task.clone()).try_into()?;
-                    let instr_cid = task.instruction_cid()?.to_string();
 
                     let RunInstruction::Expanded(instr) =  task.into_instruction() else {
                     bail!("workflow tasks/instructions must be expanded / inlined")
@@ -196,7 +174,8 @@ impl<'a> Workflow<'a, Arg> {
     /// Generate an [IndexMap] lookup table of task instruction CIDs to a
     /// unique enumeration.
     fn lookup_table(&self) -> anyhow::Result<IndexMap<Cid, usize>> {
-        self.tasks
+        self.inner()
+            .tasks_ref()
             .iter()
             .enumerate()
             .try_fold(IndexMap::new(), |mut acc, (i, t)| {
@@ -206,61 +185,12 @@ impl<'a> Workflow<'a, Arg> {
     }
 }
 
-impl From<Workflow<'_, Arg>> for Ipld {
-    fn from(workflow: Workflow<'_, Arg>) -> Self {
-        Ipld::Map(BTreeMap::from([(
-            TASKS_KEY.into(),
-            Ipld::List(
-                workflow
-                    .tasks
-                    .into_iter()
-                    .map(Ipld::from)
-                    .collect::<Vec<Ipld>>(),
-            ),
-        )]))
-    }
-}
-
-impl TryFrom<Ipld> for Workflow<'_, Arg> {
-    type Error = anyhow::Error;
-
-    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
-        let ipld = map
-            .get(TASKS_KEY)
-            .ok_or_else(|| anyhow!("no `tasks` set"))?;
-
-        let tasks = if let Ipld::List(tasks) = ipld {
-            let tasks = tasks.iter().fold(vec![], |mut acc, ipld| {
-                acc.push(ipld.try_into().unwrap());
-                acc
-            });
-            tasks
-        } else {
-            bail!("unexpected conversion type")
-        };
-
-        Ok(Self { tasks })
-    }
-}
-
-impl TryFrom<Workflow<'_, Arg>> for Cid {
-    type Error = anyhow::Error;
-
-    fn try_from(workflow: Workflow<'_, Arg>) -> Result<Self, Self::Error> {
-        let ipld: Ipld = workflow.into();
-        let bytes = DagCborCodec.encode(&ipld)?;
-        let hash = Code::Sha3_256.digest(&bytes);
-        Ok(Cid::new_v1(DAG_CBOR, hash))
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
     use homestar_core::{
         test_utils,
-        workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf},
+        workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
     };
     use std::path::Path;
 
@@ -281,7 +211,8 @@ mod test {
         );
 
         let workflow = Workflow::new(vec![task1, task2]);
-        let aot = workflow.aot().unwrap();
+        let builder = Builder::new(workflow);
+        let aot = builder.aot().unwrap();
 
         aot.dot("test", Path::new("test.dot")).unwrap();
         assert!(Path::new("test.dot").exists());
@@ -306,7 +237,8 @@ mod test {
         let tasks = vec![task1.clone(), task2.clone()];
 
         let workflow = Workflow::new(tasks);
-        let dag = workflow.aot().unwrap().dag;
+        let builder = Builder::new(workflow);
+        let dag = builder.aot().unwrap().dag;
 
         let instr1 = task1.instruction_cid().unwrap().to_string();
         let instr2 = task2.instruction_cid().unwrap().to_string();
@@ -331,7 +263,8 @@ mod test {
         );
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let dag = workflow.aot().unwrap().dag;
+        let builder = Builder::new(workflow);
+        let dag = builder.aot().unwrap().dag;
 
         let instr1 = task1.instruction_cid().unwrap().to_string();
         let instr2 = task2.instruction_cid().unwrap().to_string();
@@ -376,7 +309,8 @@ mod test {
         let instr3 = task3.instruction_cid().unwrap().to_string();
         let instr4 = task4.instruction_cid().unwrap().to_string();
 
-        let schedule = workflow.graph().unwrap().schedule;
+        let builder = Builder::new(workflow);
+        let schedule = builder.graph().unwrap().schedule;
         let nodes = schedule
             .into_iter()
             .fold(vec![], |mut acc: Vec<String>, vec| {
@@ -402,51 +336,5 @@ mod test {
                 ]
                 || nodes == vec![format!("{instr4}, {instr1}"), instr2, instr3]
         );
-    }
-
-    #[test]
-    fn workflow_to_json() {
-        let config = Resources::default();
-        let (instruction1, instruction2, _) =
-            test_utils::workflow::related_wasm_instructions::<Arg>();
-        let task1 = Task::new(
-            RunInstruction::Expanded(instruction1),
-            config.clone().into(),
-            UcanPrf::default(),
-        );
-        let task2 = Task::new(
-            RunInstruction::Expanded(instruction2),
-            config.into(),
-            UcanPrf::default(),
-        );
-
-        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-
-        let json_string = workflow.to_json().unwrap();
-
-        let json_val = json::from(json_string.clone());
-        assert_eq!(json_string, json_val.to_string());
-    }
-
-    #[test]
-    fn ipld_roundtrip_workflow() {
-        let config = Resources::default();
-        let (instruction1, instruction2, _) =
-            test_utils::workflow::related_wasm_instructions::<Arg>();
-        let task1 = Task::new(
-            RunInstruction::Expanded(instruction1),
-            config.clone().into(),
-            UcanPrf::default(),
-        );
-        let task2 = Task::new(
-            RunInstruction::Expanded(instruction2),
-            config.into(),
-            UcanPrf::default(),
-        );
-
-        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let ipld = Ipld::from(workflow.clone());
-
-        assert_eq!(workflow, ipld.try_into().unwrap())
     }
 }

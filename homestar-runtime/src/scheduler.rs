@@ -5,13 +5,16 @@
 
 use crate::{
     db::{Connection, Database},
-    workflow::{Resource, Vertex},
-    Db, Workflow,
+    workflow::{Builder, Resource, Vertex},
+    Db,
 };
 use anyhow::Result;
 use dagga::Node;
 use futures::future::BoxFuture;
-use homestar_core::workflow::{InstructionResult, LinkMap, Pointer};
+use homestar_core::{
+    workflow::{InstructionResult, LinkMap, Pointer},
+    Workflow,
+};
 use homestar_wasm::io::Arg;
 use indexmap::IndexMap;
 use libipld::Cid;
@@ -78,7 +81,8 @@ impl<'a> TaskScheduler<'a> {
     where
         F: FnOnce(Vec<Resource>) -> BoxFuture<'a, Result<IndexMap<Resource, Vec<u8>>>>,
     {
-        let graph = workflow.graph()?;
+        let builder = Builder::new(workflow);
+        let graph = builder.graph()?;
         let mut schedule = graph.schedule;
         let schedule_length = schedule.len();
         let fetched = fetch_fn(graph.resources).await?;

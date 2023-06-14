@@ -3,11 +3,18 @@
 //!
 //! [Wasmtime]: <https://docs.rs/wasmtime/latest/wasmtime/>
 
-use super::ipld::{InterfaceType, RuntimeVal};
-use crate::io::{Arg, Output};
-use anyhow::{anyhow, bail, Result};
+use crate::{
+    io::{Arg, Output},
+    wasmtime::{
+        ipld::{InterfaceType, RuntimeVal},
+        Error,
+    },
+};
 use heck::{ToKebabCase, ToSnakeCase};
-use homestar_core::workflow::{input::Args, Input};
+use homestar_core::{
+    bail,
+    workflow::{error::ResolveError, input::Args, Input},
+};
 use std::iter;
 use wasmtime::{
     component::{self, Component, Func, Instance, Linker},
@@ -81,20 +88,20 @@ impl<T> Env<T> {
     ///
     /// [Wit]: <https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md>
     /// [Ipld]: libipld::Ipld
-    pub async fn execute(&mut self, args: Args<Arg>) -> Result<Output>
+    pub async fn execute(&mut self, args: Args<Arg>) -> Result<Output, Error>
     where
         T: Send,
     {
         let param_types = self
             .bindings
             .as_mut()
-            .ok_or_else(|| anyhow!("bindings not yet instantiated for wasm environment"))?
+            .ok_or(Error::WasmInstantiationError)?
             .func()
             .params(&self.store);
         let result_types = self
             .bindings
             .as_mut()
-            .ok_or_else(|| anyhow!("bindings not yet instantiated for wasm environment"))?
+            .ok_or(Error::WasmInstantiationError)?
             .func()
             .results(&self.store);
 
@@ -103,22 +110,27 @@ impl<T> Env<T> {
             args.into_inner().into_iter(),
         )
         .try_fold(vec![], |mut acc, (typ, arg)| {
+            // Remove unwraps
             let v = match arg {
-                Input::Ipld(ipld) => RuntimeVal::try_from(ipld, &InterfaceType::from(typ))?.value(),
+                Input::Ipld(ipld) => RuntimeVal::try_from(ipld, &InterfaceType::from(typ))
+                    .unwrap()
+                    .value(),
                 Input::Arg(val) => match val.into_inner() {
-                    Arg::Ipld(ipld) => {
-                        RuntimeVal::try_from(ipld, &InterfaceType::from(typ))?.value()
-                    }
+                    Arg::Ipld(ipld) => RuntimeVal::try_from(ipld, &InterfaceType::from(typ))
+                        .unwrap()
+                        .value(),
                     Arg::Value(v) => v,
                 },
-                Input::Deferred(await_promise) => bail!(anyhow!(
-                    "deferred task not yet resolved for {}: {}",
-                    await_promise.result(),
-                    await_promise.instruction_cid()
+                Input::Deferred(await_promise) => bail!(Error::PromiseError(
+                    ResolveError::UnresolvedCidError(format!(
+                        "deferred task not yet resolved for {}: {}",
+                        await_promise.result(),
+                        await_promise.instruction_cid()
+                    ))
                 )),
             };
             acc.push(v);
-            Ok::<_, anyhow::Error>(acc)
+            Ok::<_, Error>(acc)
         })?;
 
         let mut results_alloc: Vec<component::Val> = result_types
@@ -128,14 +140,14 @@ impl<T> Env<T> {
 
         self.bindings
             .as_mut()
-            .ok_or_else(|| anyhow!("bindings not yet instantiated for wasm environment"))?
+            .ok_or(Error::WasmInstantiationError)?
             .func()
             .call_async(&mut self.store, &params, &mut results_alloc)
             .await?;
 
         self.bindings
             .as_mut()
-            .ok_or_else(|| anyhow!("bindings not yet instantiated for wasm environment"))?
+            .ok_or(Error::WasmInstantiationError)?
             .func()
             .post_return_async(&mut self.store)
             .await?;
@@ -181,7 +193,7 @@ impl World {
     /// for a [World], given [State].
     ///
     /// [environment]: Env
-    pub fn default(data: State) -> Result<Env<State>> {
+    pub fn default(data: State) -> Result<Env<State>, Error> {
         let config = Self::configure();
         let engine = Engine::new(&config)?;
         let linker = Self::define_linker(&engine);
@@ -203,7 +215,11 @@ impl World {
     /// for future invocations to use the already-initialized linker, store.
     ///
     /// Used when first initiating a module of a workflow.
-    pub async fn instantiate(bytes: Vec<u8>, fun_name: &str, data: State) -> Result<Env<State>> {
+    pub async fn instantiate(
+        bytes: Vec<u8>,
+        fun_name: &str,
+        data: State,
+    ) -> Result<Env<State>, Error> {
         let config = Self::configure();
         let engine = Engine::new(&config)?;
         let linker = Self::define_linker(&engine);
@@ -236,7 +252,7 @@ impl World {
         bytes: Vec<u8>,
         fun_name: &'a str,
         env: &'a mut Env<T>,
-    ) -> Result<&'a mut Env<T>>
+    ) -> Result<&'a mut Env<T>, Error>
     where
         T: Send,
     {
@@ -291,7 +307,7 @@ impl World {
         mut store: impl wasmtime::AsContextMut,
         instance: &Instance,
         fun_name: &str,
-    ) -> Result<Self> {
+    ) -> Result<Self, Error> {
         let mut store_ctx = store.as_context_mut();
         let mut exports = instance.exports(&mut store_ctx);
         let mut __exports = exports.root();
@@ -299,14 +315,14 @@ impl World {
             .func(fun_name)
             .or_else(|| __exports.func(&fun_name.to_kebab_case()))
             .or_else(|| __exports.func(&fun_name.to_snake_case()))
-            .ok_or_else(|| anyhow!("function not found"))?;
+            .ok_or_else(|| Error::WasmFunctionNotFoundError(fun_name.to_string()))?;
 
         Ok(World(func))
     }
 }
 
 /// Turn bytes into a Wasm [Component] module.
-fn component_from_bytes(bytes: &[u8], engine: Engine) -> Result<Component> {
+fn component_from_bytes(bytes: &[u8], engine: Engine) -> Result<Component, Error> {
     fn is_component(chunk: wasmparser::Chunk<'_>) -> bool {
         matches!(
             chunk,
@@ -322,21 +338,23 @@ fn component_from_bytes(bytes: &[u8], engine: Engine) -> Result<Component> {
     match wasmparser::Parser::new(0).parse(bytes, true) {
         Ok(chunk) => {
             if is_component(chunk) {
-                Component::from_binary(&engine, bytes)
+                Component::from_binary(&engine, bytes).map_err(Error::IntoWasmComponentError)
             } else {
                 let component = ComponentEncoder::default()
                     .module(bytes)?
                     .validate(true)
                     .encode()?;
-                Component::from_binary(&engine, &component)
+                Component::from_binary(&engine, &component).map_err(Error::IntoWasmComponentError)
             }
         }
         Err(_) => {
             let wasm_bytes = wat::parse_bytes(bytes)?;
             if is_component(wasmparser::Parser::new(0).parse(&wasm_bytes, true)?) {
-                Component::from_binary(&engine, &wasm_bytes)
+                Component::from_binary(&engine, &wasm_bytes).map_err(Error::IntoWasmComponentError)
             } else {
-                Err(anyhow!("WAT must reference a Wasm component."))
+                Err(Error::WatComponentError(
+                    "WAT must reference a Wasm component.".to_string(),
+                ))
             }
         }
     }

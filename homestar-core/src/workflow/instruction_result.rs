@@ -3,7 +3,7 @@
 //!
 //!  [Instruction]: super::Instruction
 
-use anyhow::anyhow;
+use crate::{workflow, Unit};
 use diesel::{
     backend::Backend,
     deserialize::{self, FromSql},
@@ -76,9 +76,9 @@ impl<T> TryFrom<Ipld> for InstructionResult<T>
 where
     T: From<Ipld>,
 {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
-    fn try_from(ipld: Ipld) -> Result<Self, anyhow::Error> {
+    fn try_from(ipld: Ipld) -> Result<Self, workflow::Error<Unit>> {
         if let Ipld::List(v) = ipld {
             match &v[..] {
                 [Ipld::String(result), res] if result == OK => {
@@ -90,10 +90,12 @@ where
                 [Ipld::String(result), res] if result == JUST => {
                     Ok(InstructionResult::Just(res.to_owned().try_into()?))
                 }
-                _ => Err(anyhow!("unexpected conversion type")),
+                other_ipld => Err(workflow::Error::unexpected_ipld(
+                    other_ipld.to_owned().into(),
+                )),
             }
         } else {
-            Err(anyhow!("not convertible to Ipld"))
+            Err(workflow::Error::not_an_ipld_list())
         }
     }
 }
@@ -102,9 +104,9 @@ impl<T> TryFrom<&Ipld> for InstructionResult<T>
 where
     T: From<Ipld>,
 {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
-    fn try_from(ipld: &Ipld) -> Result<Self, anyhow::Error> {
+    fn try_from(ipld: &Ipld) -> Result<Self, workflow::Error<Unit>> {
         TryFrom::try_from(ipld.to_owned())
     }
 }

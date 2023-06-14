@@ -1,7 +1,9 @@
 //! Output of an invocation, referenced by its invocation pointer.
 
-use super::{prf::UcanPrf, InstructionResult, Issuer, Pointer};
-use anyhow::anyhow;
+use crate::{
+    workflow::{prf::UcanPrf, Error as WorkflowError, InstructionResult, Issuer, Pointer},
+    Unit,
+};
 use libipld::{
     cbor::DagCborCodec,
     cid::{
@@ -85,16 +87,17 @@ impl<T> Receipt<T> {
 }
 
 impl TryFrom<Receipt<Ipld>> for Vec<u8> {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(receipt: Receipt<Ipld>) -> Result<Self, Self::Error> {
         let receipt_ipld = Ipld::from(&receipt);
-        DagCborCodec.encode(&receipt_ipld)
+        let encoded = DagCborCodec.encode(&receipt_ipld)?;
+        Ok(encoded)
     }
 }
 
 impl TryFrom<Vec<u8>> for Receipt<Ipld> {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
         let ipld: Ipld = DagCborCodec.decode(&bytes)?;
@@ -103,7 +106,7 @@ impl TryFrom<Vec<u8>> for Receipt<Ipld> {
 }
 
 impl TryFrom<Receipt<Ipld>> for Cid {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(receipt: Receipt<Ipld>) -> Result<Self, Self::Error> {
         TryFrom::try_from(&receipt)
@@ -111,7 +114,7 @@ impl TryFrom<Receipt<Ipld>> for Cid {
 }
 
 impl TryFrom<&Receipt<Ipld>> for Cid {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(receipt: &Receipt<Ipld>) -> Result<Self, Self::Error> {
         let ipld = Ipld::from(receipt);
@@ -147,23 +150,23 @@ impl From<Receipt<Ipld>> for Ipld {
 }
 
 impl TryFrom<Ipld> for Receipt<Ipld> {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
 
         let ran = map
             .get(RAN_KEY)
-            .ok_or_else(|| anyhow!("missing {RAN_KEY}"))?
+            .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(RAN_KEY.to_string()))?
             .try_into()?;
 
         let out = map
             .get(OUT_KEY)
-            .ok_or_else(|| anyhow!("missing {OUT_KEY}"))?;
+            .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(OUT_KEY.to_string()))?;
 
         let meta = map
             .get(METADATA_KEY)
-            .ok_or_else(|| anyhow!("missing {METADATA_KEY}"))?;
+            .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(METADATA_KEY.to_string()))?;
 
         let issuer = map
             .get(ISSUER_KEY)
@@ -176,7 +179,7 @@ impl TryFrom<Ipld> for Receipt<Ipld> {
 
         let prf = map
             .get(PROOF_KEY)
-            .ok_or_else(|| anyhow!("missing {PROOF_KEY}"))?;
+            .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(PROOF_KEY.to_string()))?;
 
         Ok(Receipt {
             ran,
@@ -189,7 +192,7 @@ impl TryFrom<Ipld> for Receipt<Ipld> {
 }
 
 impl TryFrom<Receipt<Ipld>> for Pointer {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(receipt: Receipt<Ipld>) -> Result<Self, Self::Error> {
         Ok(Pointer::new(Cid::try_from(receipt)?))

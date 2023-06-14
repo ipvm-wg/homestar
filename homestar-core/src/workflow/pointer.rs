@@ -8,7 +8,7 @@
 //! [Instructions]: super::Instruction
 //! [Receipts]: super::Receipt
 
-use anyhow::ensure;
+use crate::{ensure, workflow, Unit};
 use diesel::{
     backend::Backend,
     deserialize::{self, FromSql},
@@ -122,11 +122,16 @@ impl From<&Await> for Ipld {
 }
 
 impl TryFrom<Ipld> for Await {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
-        ensure!(map.len() == 1, "unexpected keys inside awaited promise");
+        ensure!(
+            map.len() == 1,
+            workflow::Error::ConditionNotMet(
+                "await promise must jave only a single key ain a map".to_string()
+            )
+        );
 
         let (key, value) = map.into_iter().next().unwrap();
         let instruction = Pointer::try_from(value)?;
@@ -145,7 +150,7 @@ impl TryFrom<Ipld> for Await {
 }
 
 impl TryFrom<&Ipld> for Await {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
     fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
         TryFrom::try_from(ipld.to_owned())
@@ -198,7 +203,7 @@ impl From<Pointer> for Ipld {
 }
 
 impl TryFrom<Ipld> for Pointer {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let s: Cid = from_ipld(ipld)?;
@@ -207,7 +212,7 @@ impl TryFrom<Ipld> for Pointer {
 }
 
 impl TryFrom<&Ipld> for Pointer {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
     fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
         TryFrom::try_from(ipld.to_owned())

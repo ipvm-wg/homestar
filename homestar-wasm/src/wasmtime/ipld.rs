@@ -5,7 +5,7 @@
 //!
 //! [Ipld]: libipld::Ipld
 
-use anyhow::{anyhow, Result};
+use crate::error::{InterpreterError, TagsError};
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 use itertools::{
     FoldWhile::{Continue, Done},
@@ -98,8 +98,8 @@ impl Tags {
         self.0.borrow_mut()
     }
 
-    fn try_borrow_mut(&self) -> Result<AtomicRefMut<'_, VecDeque<String>>> {
-        self.0.try_borrow_mut().map_err(|e| anyhow!(e))
+    fn try_borrow_mut(&self) -> Result<AtomicRefMut<'_, VecDeque<String>>, TagsError> {
+        Ok(self.0.try_borrow_mut()?)
     }
 
     fn borrow(&self) -> AtomicRef<'_, VecDeque<String>> {
@@ -107,19 +107,19 @@ impl Tags {
     }
 
     #[allow(dead_code)]
-    fn try_borrow(&self) -> Result<AtomicRef<'_, VecDeque<String>>> {
-        self.0.try_borrow().map_err(|e| anyhow!(e))
+    fn try_borrow(&self) -> Result<AtomicRef<'_, VecDeque<String>>, TagsError> {
+        Ok(self.0.try_borrow()?)
     }
 
-    fn push(&mut self, tag: String) -> Result<()> {
+    fn push(&mut self, tag: String) -> Result<(), TagsError> {
         self.try_borrow_mut()?.push_front(tag);
         Ok(())
     }
 
-    fn pop(&self) -> Result<String> {
+    fn pop(&self) -> Result<String, TagsError> {
         self.try_borrow_mut()?
             .pop_front()
-            .ok_or_else(|| anyhow!("tags should be > 1"))
+            .ok_or(TagsError::TagsEmptyError)
     }
 
     fn empty(&self) -> bool {
@@ -171,22 +171,30 @@ impl RuntimeVal {
     ///  * Enums
     ///  * Structs / Records
     ///  * Results / Options
-    pub fn try_from(ipld: Ipld, interface_ty: &InterfaceType<'_>) -> Result<Self> {
+    pub fn try_from(
+        ipld: Ipld,
+        interface_ty: &InterfaceType<'_>,
+    ) -> Result<Self, InterpreterError> {
         // TODO: Configure for recursion.
         stacker::maybe_grow(64 * 1024, 1024 * 1024, || {
             let dyn_type = match ipld {
                 Ipld::Map(mut v)
                     if matches!(interface_ty.inner(), Some(Type::Union(_))) && v.len() == 1 =>
                 {
-                    let inner = interface_ty
-                        .inner()
-                        .ok_or_else(|| anyhow!("component type mismatch: expected <union>"))?;
+                    let inner = interface_ty.inner().ok_or_else(|| {
+                        InterpreterError::TypeMismatchError {
+                            expected: "<union>".to_string(),
+                            given: interface_ty.inner().map(|t| format!("{t:#?}")),
+                        }
+                    })?;
 
                     // already pattern matched against
                     let union_inst = inner.unwrap_union();
 
                     let (key, elem) = v.pop_first().ok_or_else(|| {
-                        anyhow!("ipld map must contain at least one discriminant")
+                        InterpreterError::MapTypeError(
+                            "IPLD map must contain at least one discriminant".to_string(),
+                        )
                     })?;
 
                     let (discriminant, mut tags) = union_inst
@@ -205,9 +213,11 @@ impl RuntimeVal {
                                         Continue(acc)
                                     }
                                 }
-                                Err(e) => {
+                                Err(err) => {
                                     if is_last {
-                                        Done(Err(anyhow!("No match within <union>: {e:?}")))
+                                        Done(Err(InterpreterError::NoDiscriminantMatched(
+                                            err.to_string(),
+                                        )))
                                     } else {
                                         Continue(acc)
                                     }
@@ -221,9 +231,12 @@ impl RuntimeVal {
                     RuntimeVal::new_with_tags(discriminant?, tags)
                 }
                 v if matches!(interface_ty.inner(), Some(Type::Union(_))) => {
-                    let inner = interface_ty
-                        .inner()
-                        .ok_or_else(|| anyhow!("component type mismatch: expected <union>"))?;
+                    let inner = interface_ty.inner().ok_or_else(|| {
+                        InterpreterError::TypeMismatchError {
+                            expected: "<union>".to_string(),
+                            given: interface_ty.inner().map(|t| format!("{t:#?}")),
+                        }
+                    })?;
 
                     // already pattern matched against
                     let union_inst = inner.unwrap_union();
@@ -244,9 +257,12 @@ impl RuntimeVal {
                                         Continue(acc)
                                     }
                                 }
-                                Err(e) => {
+                                Err(err) => {
                                     if is_last {
-                                        Done(Err(anyhow!("No match within <union>: {e:?}")))
+                                        Done(Err(InterpreterError::NoDiscriminantMatched(
+                                            err.to_string(),
+                                        )
+                                        .into()))
                                     } else {
                                         Continue(acc)
                                     }
@@ -261,16 +277,13 @@ impl RuntimeVal {
                     InterfaceType::Type(Type::String)
                     | InterfaceType::TypeRef(Type::String)
                     | InterfaceType::Any => RuntimeVal::new(Val::String(Box::from("null"))),
-                    _ => Err(anyhow!("no compatible Wit type for {:?}", Ipld::Null))?,
+                    _ => Err(InterpreterError::WitToIpldError(Ipld::Null))?,
                 },
                 Ipld::Bool(v) => match interface_ty {
                     InterfaceType::Type(Type::Bool)
                     | InterfaceType::TypeRef(Type::Bool)
                     | InterfaceType::Any => RuntimeVal::new(Val::Bool(v)),
-                    _ => Err(anyhow!(
-                        "no compatible Wit type for Ipld <bool> type of {:?}",
-                        v
-                    ))?,
+                    _ => Err(InterpreterError::WitToIpldError(Ipld::Bool(v)))?,
                 },
                 Ipld::Integer(v) => match interface_ty {
                     InterfaceType::Type(Type::U8) | InterfaceType::TypeRef(Type::U8) => {
@@ -297,10 +310,7 @@ impl RuntimeVal {
                     InterfaceType::Any
                     | InterfaceType::Type(Type::S64)
                     | InterfaceType::TypeRef(Type::S64) => RuntimeVal::new(Val::S64(v.try_into()?)),
-                    _ => Err(anyhow!(
-                        "no compatible Wit type for Ipld <integer> type of {:?}",
-                        v
-                    ))?,
+                    _ => Err(InterpreterError::WitToIpldError(Ipld::Integer(v)))?,
                 },
                 Ipld::Float(v) => match interface_ty {
                     InterfaceType::Type(Type::Float32) | InterfaceType::TypeRef(Type::Float32) => {
@@ -310,9 +320,12 @@ impl RuntimeVal {
                 },
                 Ipld::String(v) => RuntimeVal::new(Val::String(Box::from(v))),
                 Ipld::Bytes(v) if matches!(interface_ty.inner(), Some(Type::List(_))) => {
-                    let inner = interface_ty
-                        .inner()
-                        .ok_or_else(|| anyhow!("component type mismatch: expected <list<u8>>"))?;
+                    let inner = interface_ty.inner().ok_or_else(|| {
+                        InterpreterError::TypeMismatchError {
+                            expected: "<list<u8>>".to_string(),
+                            given: interface_ty.inner().map(|t| format!("{t:#?}")),
+                        }
+                    })?;
 
                     // already pattern matched against
                     let list_inst = inner.unwrap_list();
@@ -335,9 +348,12 @@ impl RuntimeVal {
                     ))),
                 },
                 Ipld::List(v) if matches!(interface_ty.inner(), Some(Type::List(_))) => {
-                    let inner = interface_ty
-                        .inner()
-                        .ok_or_else(|| anyhow!("component type mismatch: expected <list>"))?;
+                    let inner = interface_ty.inner().ok_or_else(|| {
+                        InterpreterError::TypeMismatchError {
+                            expected: "<list>".to_string(),
+                            given: interface_ty.inner().map(|t| format!("{t:#?}")),
+                        }
+                    })?;
 
                     // already pattern matched against
                     let list_inst = inner.unwrap_list();
@@ -346,7 +362,7 @@ impl RuntimeVal {
                         let RuntimeVal(value, _tags) =
                             RuntimeVal::try_from(elem, &InterfaceType::Type(list_inst.ty()))?;
                         acc.push(value);
-                        Ok::<_, anyhow::Error>(acc)
+                        Ok::<_, InterpreterError>(acc)
                     })?;
 
                     RuntimeVal::new(list_inst.new_val(vec.into_boxed_slice())?)
@@ -358,29 +374,39 @@ impl RuntimeVal {
                     .fold_while(Ok(RuntimeVal::new(Val::Bool(false))), |_acc, elem| {
                         match RuntimeVal::try_from(elem, interface_ty) {
                             Ok(runtime_val) => Done(Ok(runtime_val)),
-                            Err(e) => Done(Err(anyhow!(e))),
+                            Err(e) => Done(Err(e)),
                         }
                     })
                     .into_inner()?,
 
                 Ipld::Map(v) => {
-                    let inner = interface_ty
-                        .inner()
-                        .ok_or_else(|| anyhow!("component type mismatch: expected <List>"))?;
+                    let inner = interface_ty.inner().ok_or_else(|| {
+                        InterpreterError::TypeMismatchError {
+                            expected: "<List>".to_string(),
+                            given: interface_ty.inner().map(|t| format!("{t:#?}")),
+                        }
+                    })?;
 
                     let list_inst = matches!(inner, Type::List(_))
                         .then_some(inner.unwrap_list())
-                        .ok_or_else(|| anyhow!("{inner:?} must be a <list>"))?;
+                        .ok_or_else(|| InterpreterError::TypeMismatchError {
+                            expected: "<list>".to_string(),
+                            given: Some(format!("{inner:#?}")),
+                        })?;
 
                     let tuple_inst = matches!(list_inst.ty(), Type::Tuple(_))
                         .then_some(list_inst.ty().unwrap_tuple())
-                        .ok_or_else(|| anyhow!("{inner:?} must be a <list>"))?
+                        .ok_or_else(|| InterpreterError::TypeMismatchError {
+                            expected: "<list>".to_string(),
+                            given: Some(format!("{inner:#?}")),
+                        })?
                         .to_owned();
 
-                    let ty = tuple_inst
-                        .types()
-                        .nth(1)
-                        .ok_or_else(|| anyhow!("a map has tuples of two elements"))?;
+                    let ty = tuple_inst.types().nth(1).ok_or_else(|| {
+                        InterpreterError::MapTypeError(
+                            "IPLD map must have tuples of two elements".to_string(),
+                        )
+                    })?;
 
                     let (vec, tags) = v.into_iter().try_fold(
                         (vec![], VecDeque::new()),
@@ -393,7 +419,7 @@ impl RuntimeVal {
                             acc_tuples.push(new_tuple);
                             let mut tags = tags.try_borrow_mut()?;
                             (acc_tags).append(&mut tags);
-                            Ok::<_, anyhow::Error>((acc_tuples, acc_tags))
+                            Ok::<_, InterpreterError>((acc_tuples, acc_tags))
                         },
                     )?;
                     RuntimeVal::new_with_tags(
@@ -409,7 +435,7 @@ impl RuntimeVal {
 }
 
 impl TryFrom<RuntimeVal> for Ipld {
-    type Error = anyhow::Error;
+    type Error = InterpreterError;
 
     fn try_from(val: RuntimeVal) -> Result<Self, Self::Error> {
         fn base_64_bytes(s: &str) -> Result<Vec<u8>, multibase::Error> {
@@ -447,10 +473,10 @@ impl TryFrom<RuntimeVal> for Ipld {
                     // Convert to decimal for handling precision issues going from
                     // f32 => f64.
                     let dec = Decimal::from_f32(v)
-                        .ok_or_else(|| anyhow!("failed conversion to decimal"))?;
+                        .ok_or_else(|| InterpreterError::FloatToDecimalError(v))?;
                     Ipld::Float(
                         dec.to_f64()
-                            .ok_or_else(|| anyhow!("failed conversion from decimal"))?,
+                            .ok_or_else(|| InterpreterError::DecimalToFloatError(dec))?,
                     )
                 }
                 RuntimeVal(Val::Float64(v), _) => Ipld::Float(v),
@@ -466,10 +492,16 @@ impl TryFrom<RuntimeVal> for Ipld {
                                 acc.insert(s.to_string(), ipld);
                                 Ok::<_, Self::Error>(acc)
                             } else {
-                                Err(anyhow!("mismatched types: {:?}", tup_values))?
+                                Err(InterpreterError::TypeMismatchError {
+                                    expected: "<tuple> of (<string>, <&wasmtime::Val>)".to_string(),
+                                    given: Some(format!("{tup_values:#?}")),
+                                })?
                             }
                         } else {
-                            Err(anyhow!("mismatched types: {elem:?}"))?
+                            Err(InterpreterError::TypeMismatchError {
+                                expected: "<tuple>".to_string(),
+                                given: Some(format!("{elem:#?}")),
+                            })?
                         }
                     })?;
                     Ipld::Map(inner)
@@ -481,7 +513,10 @@ impl TryFrom<RuntimeVal> for Ipld {
                                 acc.push(v.to_owned());
                                 Ok::<_, Self::Error>(acc)
                             } else {
-                                Err(anyhow!("expected all u8 types"))?
+                                Err(InterpreterError::TypeMismatchError {
+                                    expected: "all <u8> types".to_string(),
+                                    given: Some(format!("{elem:#?}")),
+                                })?
                             }
                         })?;
 
@@ -508,7 +543,7 @@ impl TryFrom<RuntimeVal> for Ipld {
                     Ipld::try_from(RuntimeVal::new(u.payload().to_owned()))?
                 }
                 // Rest of Wit types are unhandled going to Ipld.
-                v => Err(anyhow!("no compatible Ipld type for {:?}", v))?,
+                v => Err(InterpreterError::IpldToWitError(format!("{v:#?}")))?,
             };
 
             Ok(ipld)

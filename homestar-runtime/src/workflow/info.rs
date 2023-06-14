@@ -12,7 +12,7 @@ const NUM_TASKS_KEY: &str = "num_tasks";
 
 /// [Workflow] information stored in the database.
 ///
-/// [Workflow]: crate::Workflow
+/// [Workflow]: homestar_core::Workflow
 #[derive(Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Selectable, Hash)]
 #[diesel(table_name = crate::db::schema::workflows, primary_key(cid))]
 pub struct Stored {
@@ -28,7 +28,7 @@ impl Stored {
 
 /// [Workflow] information stored in the database, tied to [receipts].
 ///
-/// [Workflow]: crate::Workflow
+/// [Workflow]: homestar_core::Workflow
 /// [receipts]: crate::Receipt
 #[derive(Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Associations, Hash)]
 #[diesel(belongs_to(Receipt, foreign_key = receipt_cid))]
@@ -52,7 +52,7 @@ impl StoredReceipt {
 /// to relate to it as a key-value relationship of (workflow)
 /// cid => [Info].
 ///
-/// [Workflow]: crate::Workflow
+/// [Workflow]: homestar_core::Workflow
 #[derive(Debug, Clone, PartialEq)]
 pub struct Info {
     pub(crate) cid: Cid,
@@ -84,11 +84,25 @@ impl Info {
         }
     }
 
+    /// Get unique identifier, [Cid], of [Workflow].
+    ///
+    /// [Workflow]: homestar_core::Workflow
+    pub fn cid(&self) -> Cid {
+        self.cid
+    }
+
     /// Get the [Cid] of a [Workflow] as a [String].
     ///
-    /// [Workflow]: crate::Workflow
-    pub fn cid(&self) -> String {
+    /// [Workflow]: homestar_core::Workflow
+    pub fn cid_as_string(&self) -> String {
         self.cid.to_string()
+    }
+
+    /// Get the [Cid] of a [Workflow] as bytes.
+    ///
+    /// [Workflow]: homestar_core::Workflow
+    pub fn cid_as_bytes(&self) -> Vec<u8> {
+        self.cid().to_bytes()
     }
 
     /// Set the progress / step of the [Info].
@@ -174,10 +188,10 @@ impl TryFrom<Vec<u8>> for Info {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::Workflow;
     use homestar_core::{
         test_utils,
         workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
+        Workflow,
     };
     use homestar_wasm::io::Arg;
 

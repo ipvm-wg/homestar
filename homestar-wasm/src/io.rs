@@ -1,23 +1,27 @@
 //! IO (input/output) types for the Wasm execution.
 
-use anyhow::anyhow;
+use crate::{error::InterpreterError, wasmtime::ipld::RuntimeVal};
 use enum_as_inner::EnumAsInner;
 use homestar_core::workflow::{
+    error::InputParseError,
     input::{self, Args, Parsed},
-    Input,
+    Error as WorkflowError, Input,
 };
 use libipld::{serde::from_ipld, Ipld};
 use std::{collections::btree_map::BTreeMap, fmt};
 use wasmtime;
 
-use crate::wasmtime::ipld::RuntimeVal;
-
-///
+/// Argument for Wasm execution, which can either be
+/// an [Ipld] structure or a [wasmtime::component::Val].
 #[derive(Clone, Debug, PartialEq, EnumAsInner)]
 pub enum Arg {
+    /// [Ipld] structure, which can be interpreted into a Wasm [Val].
     ///
+    /// [Val]: wasmtime::component::Val
     Ipld(Ipld),
+    /// A direct [Wasm value] as argument input.
     ///
+    /// [Wasm value]: wasmtime::component::Val
     Value(wasmtime::component::Val),
 }
 
@@ -52,39 +56,43 @@ impl From<Arg> for Ipld {
 }
 
 impl input::Parse<Arg> for Input<Arg> {
-    fn parse(&self) -> anyhow::Result<Parsed<Arg>> {
+    fn parse(&self) -> Result<Parsed<Arg>, InputParseError<Arg>> {
         if let Input::Ipld(ref ipld) = self {
             let map = from_ipld::<BTreeMap<String, Ipld>>(ipld.to_owned())?;
 
-            let func = map
-                .get("func")
-                .ok_or_else(|| anyhow!("wrong task input format: {ipld:?}"))?;
+            let func = map.get("func").ok_or_else(|| {
+                InputParseError::WorkflowError(WorkflowError::MissingFieldError("func".to_string()))
+            })?;
 
-            let wasm_args = map
-                .get("args")
-                .ok_or_else(|| anyhow!("wrong task input format: {ipld:?}"))?;
+            let wasm_args = map.get("args").ok_or_else(|| {
+                InputParseError::WorkflowError(WorkflowError::MissingFieldError("args".to_string()))
+            })?;
 
             let args: Args<Arg> = wasm_args.to_owned().try_into()?;
             Ok(Parsed::with_fn(from_ipld::<String>(func.to_owned())?, args))
         } else {
-            Err(anyhow!("unexpected task input"))
+            Err(InputParseError::UnexpectedTaskInput(self.clone()))
         }
     }
 }
 
-///
+/// Enumeration of possible outputs from Wasm execution.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Output {
+    /// A singular [Wasm value] as output.
     ///
+    /// [Wasm value]: wasmtime::component::Val
     Value(wasmtime::component::Val),
+    /// A list of [Wasm values] as output.
     ///
+    /// [Wasm value]: wasmtime::component::Val
     Values(Vec<wasmtime::component::Val>),
-    ///
+    /// No output, treated as `void`.
     Void,
 }
 
 impl TryFrom<Output> for Ipld {
-    type Error = anyhow::Error;
+    type Error = InterpreterError;
 
     fn try_from(output: Output) -> Result<Self, Self::Error> {
         match output {
