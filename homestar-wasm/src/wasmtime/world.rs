@@ -95,13 +95,13 @@ impl<T> Env<T> {
         let param_types = self
             .bindings
             .as_mut()
-            .ok_or_else(|| Error::WasmInstantiationError)?
+            .ok_or(Error::WasmInstantiationError)?
             .func()
             .params(&self.store);
         let result_types = self
             .bindings
             .as_mut()
-            .ok_or_else(|| Error::WasmInstantiationError)?
+            .ok_or(Error::WasmInstantiationError)?
             .func()
             .results(&self.store);
 
@@ -140,14 +140,14 @@ impl<T> Env<T> {
 
         self.bindings
             .as_mut()
-            .ok_or_else(|| Error::WasmInstantiationError)?
+            .ok_or(Error::WasmInstantiationError)?
             .func()
             .call_async(&mut self.store, &params, &mut results_alloc)
             .await?;
 
         self.bindings
             .as_mut()
-            .ok_or_else(|| Error::WasmInstantiationError)?
+            .ok_or(Error::WasmInstantiationError)?
             .func()
             .post_return_async(&mut self.store)
             .await?;
