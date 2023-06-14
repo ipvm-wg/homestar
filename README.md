@@ -163,7 +163,7 @@ hooks. Please run this before every commit and/or push.
   [cargo-expand][cargo-expand] and [irust][irust] for Rust development.
 - We also recommend using [cargo-udeps][cargo-udeps] for removing unused
   dependencies before commits and pull-requests.
-- If using our [Nix flake][nix-flake], there are a number of handy
+- If using our [Nix flake](./flake.nix), there are a number of handy
   command shortcuts available for working with `cargo-watch`, `diesel`, and
   other binaries, including:
   * **`ci`**, which runs a sequence of commands to check formatting, lints, release
@@ -179,7 +179,7 @@ hooks. Please run this before every commit and/or push.
     execution stages
   * **`nx-test-<all,0>`**, which is just like `nx-test`, but adds `all` or `0`
     for running tests either with the `all-features` flag or
-    `no-default-features` flag, respectively.
+    `no-default-features` flag, respectively
   * **`x-<build,check,run,clippy,test>-<core,wasm,runtime>`** for package-specific
     builds, tests, etc.
 
