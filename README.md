@@ -12,20 +12,32 @@
     <a href="https://crates.io/crates/homestar-wasm">
       <img src="https://img.shields.io/crates/v/homestar-wasm?label=crates" alt="Crate">
     </a>
+    <a href="https://crates.io/crates/homestar-runtime">
+      <img src="https://img.shields.io/crates/v/homestar-runtime?label=crates" alt="Crate">
+    </a>
     <a href="https://codecov.io/gh/ipvm-wg/homestar">
       <img src="https://codecov.io/gh/ipvm-wg/homestar/branch/main/graph/badge.svg?token=SOMETOKEN" alt="Code Coverage"/>
     </a>
-    <a href="https://github.com/ipvm-wg/homestar/actions?query=">
-      <img src="https://github.com/ipvm-wg/homestar/actions/workflows/tests_and_checks.yml/badge.svg" alt="Build Status">
+    <a href="https://github.com/ipvm-wg/homestar/actions/workflows/tests_and_checks.yml">
+      <img src="https://github.com/ipvm-wg/homestar/actions/workflows/tests_and_checks.yml/badge.svg" alt="Tests and Checks Status">
+    </a>
+    <a href="https://github.com/ipvm-wg/homestar/actions/workflows/docker.yml">
+      <img src="https://github.com/ipvm-wg/homestar/actions/workflows/docker.yml/badge.svg" alt="Build Docker Status">
+    </a>
+    <a href="https://github.com/ipvm-wg/homestar/actions/workflows/audit.yml">
+      <img src="https://github.com/ipvm-wg/homestar/actions/workflows/audit.yml/badge.svg" alt="Cargo Audit Status">
     </a>
     <a href="https://github.com/ipvm-wg/homestar/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
     </a>
     <a href="https://docs.rs/homestar-core">
-      <img src="https://img.shields.io/static/v1?label=Docs&message=core.docs.rs&color=blue" alt="Docs">
+      <img src="https://img.shields.io/static/v1?label=Docs&message=core.docs.rs&color=pink" alt="Docs">
     </a>
     <a href="https://docs.rs/homestar-wasm">
-      <img src="https://img.shields.io/static/v1?label=Docs&message=wasm.docs.rs&color=blue" alt="Docs">
+      <img src="https://img.shields.io/static/v1?label=Docs&message=wasm.docs.rs&color=pink" alt="Docs">
+    </a>
+    <a href="https://docs.rs/homestar-runtime">
+      <img src="https://img.shields.io/static/v1?label=Docs&message=runtime.docs.rs&color=pink" alt="Docs">
     </a>
     <a href="https://discord.gg/fissioncodes">
       <img src="https://img.shields.io/static/v1?label=Discord&message=join%20us!&color=mediumslateblue" alt="Discord">
