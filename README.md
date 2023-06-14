@@ -166,21 +166,21 @@ hooks. Please run this before every commit and/or push.
 - If using our [Nix flake][nix-flake], there are a number of handy
   command shortcuts available for working with `cargo-watch`, `diesel`, and
   other binaries, including:
-  * `ci`, which runs a sequence of commands to check formatting, lints, release
+  * **`ci`**, which runs a sequence of commands to check formatting, lints, release
     builds, and tests
-  * `db` and `db-reset` for running `diesel` setup and migrations
-  * `compile-wasm` for compiling [homestar-guest-wasm](./homestar-guest-wasm),
+  * **`db`** and **`db-reset`** for running `diesel` setup and migrations
+  * **`compile-wasm`** for compiling [homestar-guest-wasm](./homestar-guest-wasm),
     a [wit-bindgen][]-driven example, to the `wasm32-unknown-unknown` target
-  * `docker-<amd64,arm64>` for running docker builds
-  * `nx-test`, which translates to `cargo nextest run && cargo test --doc`
-  * `x-test` for testing continuously as files change, translating to
+  * **`docker-<amd64,arm64>`** for running docker builds
+  * **`nx-test`**, which translates to `cargo nextest run && cargo test --doc`
+  * **`x-test`** for testing continuously as files change, translating to
     `cargo watch -c -s "cargo nextest run && cargo test --doc"`
-  * `x-<build,check,run,clippy>` for running a variety of `cargo watch`
+  * **`x-<build,check,run,clippy>`** for running a variety of `cargo watch`
     execution stages
-  * `nx-test-<all,0>`, which is just like `nx-test`, but adds `all` or `0`
+  * **`nx-test-<all,0>`**, which is just like `nx-test`, but adds `all` or `0`
     for running tests either with the `all-features` flag or
     `no-default-features` flag, respectively.
-  * `x-<build,check,run,clippy,test>-<core,wasm,runtime>` for package-specific
+  * **`x-<build,check,run,clippy,test>-<core,wasm,runtime>`** for package-specific
     builds, tests, etc.
 
 ### Conventional Commits
