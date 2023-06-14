@@ -15,6 +15,7 @@ use homestar_runtime::{
 };
 use std::sync::Arc;
 
+/// TODO: All
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
     logger::init()?;

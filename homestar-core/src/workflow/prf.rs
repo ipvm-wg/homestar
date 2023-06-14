@@ -3,6 +3,7 @@
 //!
 //! [Task]: super::Task
 
+use crate::{workflow, Unit};
 use diesel::{
     backend::Backend,
     deserialize::{self, FromSql},
@@ -46,7 +47,7 @@ impl From<UcanPrf> for Ipld {
 }
 
 impl TryFrom<Ipld> for UcanPrf {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         if let Ipld::List(inner) = ipld {
@@ -63,7 +64,7 @@ impl TryFrom<Ipld> for UcanPrf {
 }
 
 impl TryFrom<&Ipld> for UcanPrf {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
     fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
         TryFrom::try_from(ipld.to_owned())

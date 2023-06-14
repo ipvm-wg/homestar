@@ -1,0 +1,16 @@
+# cargo-watch ignores
+
+docker
+flake.lock
+release-please-config.json
+deny.toml
+diesel.toml
+LICENSE
+*.nix
+*.md
+
+.envrc
+.dockerignore
+.gitignore
+.release-please-manifest.json
+.pre-commit-config.yaml

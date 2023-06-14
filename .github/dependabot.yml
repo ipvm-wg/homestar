@@ -9,7 +9,7 @@ updates:
   - package-ecosystem: "cargo"
     directory: "/homestar-core"
     commit-message:
-      prefix: "chore"
+      prefix: "[chore(core)]"
       include: "scope"
     target-branch: "main"
     schedule:
@@ -18,7 +18,7 @@ updates:
   - package-ecosystem: "cargo"
     directory: "/homestar-runtime"
     commit-message:
-      prefix: "chore"
+      prefix: "[chore(runtime)]"
       include: "scope"
     target-branch: "main"
     schedule:
@@ -27,7 +27,7 @@ updates:
   - package-ecosystem: "cargo"
     directory: "/homestar-guest-wasm"
     commit-message:
-      prefix: "chore"
+      prefix: "[chore(guest-wasm)]"
       include: "scope"
     target-branch: "main"
     schedule:
@@ -36,7 +36,7 @@ updates:
   - package-ecosystem: "cargo"
     directory: "/homestar-wasm"
     commit-message:
-      prefix: "chore"
+      prefix: "[chore(wasm)]"
       include: "scope"
     target-branch: "main"
     schedule:
@@ -45,7 +45,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     commit-message:
-      prefix: "chore(ci)"
+      prefix: "[chore(ci)]"
       include: "scope"
     target-branch: "main"
     schedule:

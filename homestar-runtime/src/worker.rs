@@ -8,15 +8,18 @@ use crate::{
     scheduler::TaskScheduler,
     tasks::{RegisteredTasks, WasmContext},
     workflow::{self, Resource},
-    Db, Receipt, Workflow,
+    Db, Receipt,
 };
 use anyhow::{anyhow, bail, Result};
 use crossbeam::channel;
 use futures::FutureExt;
 #[cfg(feature = "ipfs")]
 use futures::StreamExt;
-use homestar_core::workflow::{
-    prf::UcanPrf, InstructionResult, Pointer, Receipt as InvocationReceipt,
+use homestar_core::{
+    workflow::{
+        error::ResolveError, prf::UcanPrf, InstructionResult, Pointer, Receipt as InvocationReceipt,
+    },
+    Workflow,
 };
 use homestar_wasm::{io::Arg, wasmtime::State};
 use indexmap::IndexMap;
@@ -323,15 +326,22 @@ impl<'a> Worker<'a> {
                                             self.event_sender.blocking_send(Event::FindReceipt(
                                                 cid,
                                                 sender,
-                                            ))?;
+                                            )).map_err(|err| ResolveError::TransportError(err.to_string()))?;
                                             let found = match receiver.recv_deadline(
                                                 Instant::now() + Duration::from_secs(settings.p2p_timeout_secs),
                                             ) {
                                                 Ok((found_cid, FoundEvent::Receipt(found))) if found_cid == cid => {
                                                     found
                                                 }
-                                                Ok(_) => bail!("only one worker channel per worker"),
-                                                Err(err) => bail!("error returning invocation receipt for {cid}: {err}"),
+                                                Ok(_) =>
+                                                    homestar_core::bail!(
+                                                        ResolveError::UnresolvedCidError(
+                                                            "wrong or unexpected event message received".to_string())
+                                                    ),
+                                                Err(err) =>
+                                                    homestar_core::bail!(ResolveError::UnresolvedCidError(
+                                                        format!("timeout deadline reached for invocation receipt @ {cid}: {err}"))
+                                                    ),
                                             };
 
                                             Ok(found.output_as_arg())

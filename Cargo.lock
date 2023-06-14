@@ -2580,6 +2580,7 @@ dependencies = [
  "enum-assoc",
  "generic-array",
  "indexmap",
+ "json",
  "libipld",
  "libsqlite3-sys",
  "proptest",

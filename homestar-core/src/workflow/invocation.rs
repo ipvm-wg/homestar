@@ -2,8 +2,11 @@
 //!
 //! [Task]: super::Task
 
-use super::{Pointer, Task};
-use anyhow::anyhow;
+use crate::{
+    consts::DAG_CBOR,
+    workflow::{Error as WorkflowError, Pointer, Task},
+    Unit,
+};
 use libipld::{
     cbor::DagCborCodec,
     cid::{
@@ -16,7 +19,6 @@ use libipld::{
 };
 use std::collections::BTreeMap;
 
-const DAG_CBOR: u64 = 0x71;
 const TASK_KEY: &str = "task";
 
 /// A signed [Task] wrapper/container.
@@ -48,7 +50,7 @@ impl<T> TryFrom<Invocation<'_, T>> for Ipld
 where
     Ipld: From<T>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(invocation: Invocation<'_, T>) -> Result<Self, Self::Error> {
         let map = Ipld::Map(BTreeMap::from([(
@@ -64,7 +66,7 @@ impl<T> TryFrom<Ipld> for Invocation<'_, T>
 where
     T: From<Ipld>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
@@ -72,7 +74,7 @@ where
         Ok(Self {
             task: Task::try_from(
                 map.get(TASK_KEY)
-                    .ok_or_else(|| anyhow!("no `task` set"))?
+                    .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(TASK_KEY.to_string()))?
                     .to_owned(),
             )?,
         })
@@ -83,7 +85,7 @@ impl<T> TryFrom<Invocation<'_, T>> for Pointer
 where
     Ipld: From<T>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(invocation: Invocation<'_, T>) -> Result<Self, Self::Error> {
         Ok(Pointer::new(Cid::try_from(invocation)?))
@@ -94,7 +96,7 @@ impl<T> TryFrom<Invocation<'_, T>> for Cid
 where
     Ipld: From<T>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(invocation: Invocation<'_, T>) -> Result<Self, Self::Error> {
         let ipld: Ipld = invocation.try_into()?;

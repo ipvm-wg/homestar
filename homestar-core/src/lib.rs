@@ -18,10 +18,13 @@
 //! [Ucan invocation]: <https://github.com/ucan-wg/invocation>
 
 pub mod consts;
+pub mod macros;
 #[cfg(any(test, feature = "test_utils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "test_utils")))]
 pub mod test_utils;
 mod unit;
+
 pub mod workflow;
 pub use consts::*;
 pub use unit::*;
+pub use workflow::Workflow;

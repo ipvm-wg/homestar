@@ -1,4 +1,6 @@
-//! Workflow settings for a worker's run/execution.
+//! [Workflow] settings for a worker's run/execution.
+//!
+//! [Workflow]: crate::Workflow
 
 /// Workflow settings.
 #[derive(Debug, Clone, PartialEq)]

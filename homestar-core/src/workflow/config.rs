@@ -4,6 +4,7 @@
 //! [workflow]: super
 //! [Invocations]: super::Invocation
 
+use crate::{workflow, Unit};
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, default::Default, time::Duration};
@@ -76,7 +77,7 @@ impl From<Resources> for Ipld {
 }
 
 impl<'a> TryFrom<&'a Ipld> for Resources {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
     fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
         Resources::try_from(ipld.to_owned())
@@ -84,7 +85,7 @@ impl<'a> TryFrom<&'a Ipld> for Resources {
 }
 
 impl TryFrom<Ipld> for Resources {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;

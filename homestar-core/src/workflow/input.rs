@@ -5,101 +5,17 @@
 //! [parse]: Parse::parse
 //! [resolve]: Args::resolve
 
-use super::{
+use crate::workflow::{
+    self,
+    error::ResolveError,
     pointer::{Await, AwaitResult, ERR_BRANCH, OK_BRANCH, PTR_BRANCH},
     InstructionResult, Pointer,
 };
-use anyhow::anyhow;
 use libipld::{serde::from_ipld, Cid, Ipld};
 use std::{collections::btree_map::BTreeMap, result::Result};
 
-/// Parsed [Args] consisting of [Inputs] for execution flows, as well as an
-/// optional function name/definition.
-///
-/// TODO: Extend via enumeration for singular objects/values.
-///
-/// [Inputs]: super::Input
-#[derive(Clone, Debug, PartialEq)]
-pub struct Parsed<T> {
-    args: Args<T>,
-    fun: Option<String>,
-}
-
-impl<T> Parsed<T> {
-    /// Initiate [Parsed] data structure with only [Args].
-    pub fn with(args: Args<T>) -> Self {
-        Parsed { args, fun: None }
-    }
-
-    /// Initiate [Parsed] data structure with a function name and
-    /// [Args].
-    pub fn with_fn(fun: String, args: Args<T>) -> Self {
-        Parsed {
-            args,
-            fun: Some(fun),
-        }
-    }
-
-    /// Parsed arguments.
-    pub fn args(&self) -> &Args<T> {
-        &self.args
-    }
-
-    /// Turn [Parsed] structure into owned [Args].
-    pub fn into_args(self) -> Args<T> {
-        self.args
-    }
-
-    /// Parsed function named.
-    pub fn fun(&self) -> Option<String> {
-        self.fun.as_ref().map(|f| f.to_string())
-    }
-}
-
-impl<T> From<Parsed<T>> for Args<T> {
-    fn from(apply: Parsed<T>) -> Self {
-        apply.args
-    }
-}
-
-/// Interface for [Instruction] implementations, relying on `homestore-core`
-/// to implement custom parsing specifics.
-///
-/// # Example
-///
-/// ```
-/// use homestar_core::{
-///     workflow::{
-///         input::{Args, Parse}, Ability, Input, Instruction,
-///     },
-///     Unit,
-/// };
-/// use libipld::Ipld;
-/// use url::Url;
-///
-/// let wasm = "bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".to_string();
-/// let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
-///
-/// let inst = Instruction::unique(
-///     resource,
-///     Ability::from("wasm/run"),
-///     Input::<Unit>::Ipld(Ipld::List(vec![Ipld::Bool(true)]))
-/// );
-///
-/// let parsed = inst.input().parse().unwrap();
-///
-/// // turn into Args for invocation:
-/// let args: Args<Unit> = parsed.try_into().unwrap();
-/// ```
-///
-/// [Instruction]: super::Instruction
-pub trait Parse<T> {
-    /// Function returning [Parsed] structure for execution/invocation.
-    ///
-    /// Note: meant to come before the `resolve` step
-    /// during runtime execution.
-    fn parse(&self) -> anyhow::Result<Parsed<T>>;
-}
+mod parse;
+pub use parse::*;
 
 /// A list of ordered [Input] arguments/parameters.
 #[derive(Clone, Debug, PartialEq)]
@@ -148,9 +64,9 @@ where
     /// [awaited promises]: Await
     /// [inputs]: Input
     /// [resolving Ipld links]: resolve_links
-    pub fn resolve<F>(self, lookup_fn: F) -> anyhow::Result<Self>
+    pub fn resolve<F>(self, lookup_fn: F) -> Result<Self, ResolveError>
     where
-        F: Fn(Cid) -> anyhow::Result<InstructionResult<T>> + Clone,
+        F: Fn(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
         Ipld: From<T>,
         T: Clone,
     {
@@ -173,9 +89,9 @@ impl<T> TryFrom<Ipld> for Args<T>
 where
     InstructionResult<T>: TryFrom<Ipld>,
 {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<T>;
 
-    fn try_from(ipld: Ipld) -> Result<Self, anyhow::Error> {
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         if let Ipld::List(vec) = ipld {
             let args = vec
                 .into_iter()
@@ -192,7 +108,7 @@ where
                 });
             Ok(Args(args))
         } else {
-            Err(anyhow!("unexpected conversion type"))
+            Err(workflow::Error::not_an_ipld_list())
         }
     }
 }
@@ -230,7 +146,7 @@ impl<T> Input<T> {
     /// [resolving Ipld links]: resolve_links
     pub fn resolve<F>(self, lookup_fn: F) -> Input<T>
     where
-        F: Fn(Cid) -> anyhow::Result<InstructionResult<T>> + Clone,
+        F: Fn(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
         Ipld: From<T>,
     {
         match self {
@@ -280,7 +196,7 @@ impl<T> TryFrom<Ipld> for Input<T>
 where
     T: From<Ipld>,
 {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<String>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let Ok(map) = from_ipld::<BTreeMap<String, Ipld>>(ipld.to_owned()) else {
@@ -304,8 +220,9 @@ where
                     let instruction = Pointer::try_from(ipld)?;
                     Ok(Input::Deferred(Await::new(
                         instruction,
-                        AwaitResult::result(branch)
-                            .ok_or_else(|| anyhow!("wrong branch name: {branch}"))?,
+                        AwaitResult::result(branch).ok_or_else(|| {
+                            workflow::Error::InvalidDiscriminant(branch.to_string())
+                        })?,
                     )))
                 },
             )
@@ -314,7 +231,7 @@ where
 
 fn resolve_args<T, F>(args: Vec<Input<T>>, lookup_fn: F) -> Vec<Input<T>>
 where
-    F: Fn(Cid) -> anyhow::Result<InstructionResult<T>> + Clone,
+    F: Fn(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
     Ipld: From<T>,
 {
     let args = args.into_iter().map(|v| v.resolve(lookup_fn.clone()));
@@ -326,7 +243,7 @@ where
 /// [awaited promises]: Await
 pub fn resolve_links<T, F>(ipld: Ipld, lookup_fn: F) -> Ipld
 where
-    F: Fn(Cid) -> anyhow::Result<InstructionResult<T>> + Clone,
+    F: Fn(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
     Ipld: From<T>,
 {
     match ipld {

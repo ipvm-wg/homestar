@@ -1,10 +1,9 @@
 use super::FileLoad;
-use anyhow::Result;
 use async_trait::async_trait;
 use homestar_core::workflow::input::Args;
 use homestar_wasm::{
     io::{Arg, Output},
-    wasmtime::{world::Env, State, World},
+    wasmtime::{world::Env, Error as WasmRuntimeError, State, World},
 };
 
 #[allow(missing_debug_implementations)]
@@ -13,7 +12,7 @@ pub(crate) struct WasmContext {
 }
 
 impl WasmContext {
-    pub(crate) fn new(data: State) -> Result<Self> {
+    pub(crate) fn new(data: State) -> Result<Self, WasmRuntimeError> {
         Ok(Self {
             env: World::default(data)?,
         })
@@ -25,7 +24,7 @@ impl WasmContext {
         bytes: Vec<u8>,
         fun_name: &'a str,
         args: Args<Arg>,
-    ) -> Result<Output> {
+    ) -> Result<Output, WasmRuntimeError> {
         let env = World::instantiate_with_current_env(bytes, fun_name, &mut self.env).await?;
         env.execute(args).await
     }

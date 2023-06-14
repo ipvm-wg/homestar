@@ -1,7 +1,10 @@
 //! A [Task] is the smallest unit of work that can be requested from a UCAN.
 
-use super::{instruction::RunInstruction, prf::UcanPrf, Pointer};
-use anyhow::anyhow;
+use crate::{
+    consts::DAG_CBOR,
+    workflow::{instruction::RunInstruction, prf::UcanPrf, Error as WorkflowError, Pointer},
+    Unit,
+};
 use libipld::{
     cbor::DagCborCodec,
     cid::{
@@ -14,7 +17,6 @@ use libipld::{
 };
 use std::collections::BTreeMap;
 
-const DAG_CBOR: u64 = 0x71;
 const RUN_KEY: &str = "run";
 const CAUSE_KEY: &str = "cause";
 const METADATA_KEY: &str = "meta";
@@ -84,7 +86,7 @@ where
     /// Return the [Cid] of the contained [Instruction].
     ///
     /// [Instruction]: super::Instruction
-    pub fn instruction_cid(&self) -> anyhow::Result<Cid> {
+    pub fn instruction_cid(&self) -> Result<Cid, WorkflowError<Unit>> {
         match &self.run {
             RunInstruction::Expanded(instruction) => Ok(Cid::try_from(instruction.to_owned())?),
             RunInstruction::Ptr(instruction_ptr) => Ok(instruction_ptr.cid()),
@@ -113,7 +115,7 @@ impl<T> TryFrom<Ipld> for Task<'_, T>
 where
     T: From<Ipld>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
@@ -121,7 +123,7 @@ where
         Ok(Self {
             run: RunInstruction::try_from(
                 map.get(RUN_KEY)
-                    .ok_or_else(|| anyhow!("no `run` set"))?
+                    .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(RUN_KEY.to_string()))?
                     .to_owned(),
             )?,
             cause: map
@@ -133,11 +135,11 @@ where
                 .and_then(|ipld| ipld.to_owned().try_into().ok()),
             meta: map
                 .get(METADATA_KEY)
-                .ok_or_else(|| anyhow!("no `metadata` field set"))?
+                .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(METADATA_KEY.to_string()))?
                 .to_owned(),
             prf: UcanPrf::try_from(
                 map.get(PROOF_KEY)
-                    .ok_or_else(|| anyhow!("no proof field set"))?
+                    .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(PROOF_KEY.to_string()))?
                     .to_owned(),
             )?,
         })
@@ -148,7 +150,7 @@ impl<T> TryFrom<&Ipld> for Task<'_, T>
 where
     T: From<Ipld>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from<'a>(ipld: &Ipld) -> Result<Self, Self::Error> {
         TryFrom::try_from(ipld.to_owned())
@@ -159,7 +161,7 @@ impl<T> TryFrom<Task<'_, T>> for Pointer
 where
     Ipld: From<T>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(task: Task<'_, T>) -> Result<Self, Self::Error> {
         Ok(Pointer::new(Cid::try_from(task)?))
@@ -170,7 +172,7 @@ impl<T> TryFrom<Task<'_, T>> for Cid
 where
     Ipld: From<T>,
 {
-    type Error = anyhow::Error;
+    type Error = WorkflowError<Unit>;
 
     fn try_from(task: Task<'_, T>) -> Result<Self, Self::Error> {
         let ipld: Ipld = task.into();

@@ -1,6 +1,7 @@
 //! Issuer referring to a principal (principal of least authority) that issues
 //! a receipt.
 
+use crate::{workflow, Unit};
 use diesel::{
     backend::Backend,
     deserialize::{self, FromSql},
@@ -46,7 +47,7 @@ impl From<Issuer> for Ipld {
 }
 
 impl TryFrom<Ipld> for Issuer {
-    type Error = anyhow::Error;
+    type Error = workflow::Error<Unit>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let s = from_ipld::<String>(ipld)?;

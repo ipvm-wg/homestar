@@ -4,10 +4,12 @@
 //! [Tasks]: crate::workflow::Task
 //! [Inputs]: crate::workflow::Input
 //! [Invocations]: crate::workflow::Invocation
+//!
 
 use crate::workflow::{
+    error::InputParseError,
     input::{self, Args, Parsed},
-    Input,
+    Error, Input,
 };
 use libipld::Ipld;
 
@@ -30,12 +32,18 @@ impl From<Ipld> for Unit {
 
 // Default implementation.
 impl input::Parse<Unit> for Input<Unit> {
-    fn parse(&self) -> anyhow::Result<Parsed<Unit>> {
+    fn parse(&self) -> Result<Parsed<Unit>, InputParseError<Unit>> {
         let args = match Ipld::try_from(self.to_owned())? {
             Ipld::List(v) => Ipld::List(v).try_into()?,
             ipld => Args::new(vec![ipld.try_into()?]),
         };
 
         Ok(Parsed::with(args))
+    }
+}
+
+impl From<Error<String>> for InputParseError<Unit> {
+    fn from(err: Error<String>) -> Self {
+        InputParseError::WorkflowError(err.into())
     }
 }

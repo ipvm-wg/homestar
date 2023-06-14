@@ -1,7 +1,7 @@
 [package]
 name = "homestar-runtime"
 version = "0.1.0"
-description = "Homestar runtime implementation"
+description = "Homestar CLI"
 keywords = ["ipfs", "workflows", "ipld", "ipvm"]
 categories = ["workflow-engines", "distributed-systems", "runtimes", "networking"]
 include = ["/src", "README.md", "LICENSE"]
@@ -33,14 +33,13 @@ anyhow = { workspace = true }
 async-trait = "0.1"
 axum = { version = "0.6", features = ["ws", "headers"] }
 byte-unit = { version = "4.0", default-features = false }
-clap = { version = "4.1", features = ["derive"] }
+clap = { version = "4.1", features = ["derive", "color", "help"] }
 concat-in-place = "1.1"
 config = "0.13"
 console-subscriber = { version = "0.1", default-features = false, features = [ "parking_lot" ], optional = true }
 crossbeam = "0.8"
 dagga = "0.2"
 diesel = { version = "2.1", features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"] }
-diesel_migrations = "2.1"
 dotenvy = "0.15"
 enum-assoc = "0.4"
 futures = "0.3"
@@ -53,7 +52,6 @@ indexmap = "1.9"
 ipfs-api = { version = "0.17", optional = true }
 ipfs-api-backend-hyper = { version = "0.6", features = ["with-builder", "with-send-sync"], optional = true }
 itertools = "0.10"
-json = "0.12"
 libipld = "0.16"
 libp2p = { version = "0.51", features = ["kad", "request-response", "macros", "identify", "mdns", "gossipsub", "tokio", "dns", "mplex", "tcp", "noise", "yamux", "websocket"] }
 libp2p-identity = "0.1"
@@ -74,7 +72,9 @@ url = "2.3"
 
 [dev-dependencies]
 criterion = "0.4"
+diesel_migrations = "2.1"
 homestar-core = { version = "0.1", path = "../homestar-core", features = [ "test_utils" ] }
+json = "0.12"
 tokio-tungstenite = "0.18"
 
 [features]
