@@ -23,23 +23,24 @@ doctest = true
 # https://github.com/DevinR528/cargo-sort/issues/47
 anyhow = { workspace = true }
 diesel = { version = "2.0", features = ["sqlite"] }
-enum-as-inner = "0.5"
-enum-assoc = "0.4"
-generic-array = "0.14"
+enum-as-inner = { workspace = true }
+enum-assoc = { workspace = true }
+generic-array = { version = "0.14", features = ["serde"] }
 indexmap = "1.9"
-libipld = "0.16"
+libipld = { version = "0.16", features = ["serde-codec"] }
 libsqlite3-sys = { version = "0.26", features = ["bundled"] }
-proptest = { version = "1.1", optional = true }
+proptest = { version = "1.2", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 signature = "2.0"
 thiserror = { workspace = true }
 tracing = { workspace = true }
-ucan = "0.1"
-url = "2.3"
+ucan = "0.3"
+url = { version = "2.3", features = ["serde"] }
+uuid = { version = "1.3", default-features = false, features = ["v4", "fast-rng"] }
 xid = "1.0"
 
 [dev-dependencies]
-criterion = "0.4"
+criterion = "0.5"
 json = "0.12"
 
 [features]

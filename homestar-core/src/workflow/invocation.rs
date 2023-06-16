@@ -3,20 +3,11 @@
 //! [Task]: super::Task
 
 use crate::{
-    consts::DAG_CBOR,
+    ipld::DagCbor,
     workflow::{Error as WorkflowError, Pointer, Task},
     Unit,
 };
-use libipld::{
-    cbor::DagCborCodec,
-    cid::{
-        multihash::{Code, MultihashDigest},
-        Cid,
-    },
-    prelude::Codec,
-    serde::from_ipld,
-    Ipld,
-};
+use libipld::{self, serde::from_ipld, Ipld};
 use std::collections::BTreeMap;
 
 const TASK_KEY: &str = "task";
@@ -46,19 +37,12 @@ where
     }
 }
 
-impl<T> TryFrom<Invocation<'_, T>> for Ipld
+impl<T> From<Invocation<'_, T>> for Ipld
 where
     Ipld: From<T>,
 {
-    type Error = WorkflowError<Unit>;
-
-    fn try_from(invocation: Invocation<'_, T>) -> Result<Self, Self::Error> {
-        let map = Ipld::Map(BTreeMap::from([(
-            TASK_KEY.into(),
-            invocation.task.try_into()?,
-        )]));
-
-        Ok(map)
+    fn from(invocation: Invocation<'_, T>) -> Self {
+        Ipld::Map(BTreeMap::from([(TASK_KEY.into(), invocation.task.into())]))
     }
 }
 
@@ -88,23 +72,11 @@ where
     type Error = WorkflowError<Unit>;
 
     fn try_from(invocation: Invocation<'_, T>) -> Result<Self, Self::Error> {
-        Ok(Pointer::new(Cid::try_from(invocation)?))
+        Ok(Pointer::new(invocation.to_cid()?))
     }
 }
 
-impl<T> TryFrom<Invocation<'_, T>> for Cid
-where
-    Ipld: From<T>,
-{
-    type Error = WorkflowError<Unit>;
-
-    fn try_from(invocation: Invocation<'_, T>) -> Result<Self, Self::Error> {
-        let ipld: Ipld = invocation.try_into()?;
-        let bytes = DagCborCodec.encode(&ipld)?;
-        let hash = Code::Sha3_256.digest(&bytes);
-        Ok(Cid::new_v1(DAG_CBOR, hash))
-    }
-}
+impl<'a, T> DagCbor for Invocation<'a, T> where Ipld: From<T> {}
 
 #[cfg(test)]
 mod test {

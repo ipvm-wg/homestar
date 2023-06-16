@@ -12,6 +12,7 @@ use crate::workflow::{
     InstructionResult, Pointer,
 };
 use libipld::{serde::from_ipld, Cid, Ipld};
+use serde::{Deserialize, Serialize};
 use std::{collections::btree_map::BTreeMap, result::Result};
 
 mod parse;
@@ -119,7 +120,7 @@ where
 ///
 /// [URI]: [url::Url]
 /// [Ability]: super::Ability
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum Input<T> {
     /// [Ipld] Literals.
     Ipld(Ipld),

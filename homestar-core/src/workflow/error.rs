@@ -30,7 +30,10 @@ pub enum Error<T> {
     /// [DagCborCodec]: libipld::cbor::DagCborCodec
     #[error("failed to decode/encode DAG-CBOR: {0}")]
     DagCborTranslationError(#[from] anyhow::Error),
-    /// Error converting from [Ipld] structure.
+    /// Error converting from [Ipld] structure via [serde].
+    ///
+    /// Transparently forwards from [libipld::error::SerdeError]'s `source` and
+    /// `Display` methods through to an underlying error.
     #[error("cannot convert from Ipld structure: {0}")]
     FromIpldError(#[from] libipld::error::SerdeError),
     /// Invalid match discriminant or enumeration.
@@ -51,6 +54,9 @@ pub enum Error<T> {
     /// Generic unknown error.
     #[error("unknown error")]
     UnknownError,
+    /// Unexpcted [Ipld] type.
+    #[error("unexpected Ipld type: {0:#?}")]
+    UnexpectedIpldTypeError(Ipld),
     /// Error when attempting to interpret a sequence of [u8]
     /// as a string.
     ///
@@ -66,9 +72,7 @@ impl<T> Error<T> {
     ///
     /// [SerdeError]: libipld::error::SerdeError
     pub fn unexpected_ipld(ipld: Ipld) -> Self {
-        Error::FromIpldError(libipld::error::SerdeError::custom(format!(
-            "unexpected Ipld conversion: {ipld:#?}"
-        )))
+        Error::UnexpectedIpldTypeError(ipld)
     }
 
     /// Return an `invalid type` [SerdeError] when not matching an expected
@@ -106,7 +110,10 @@ impl<T> From<std::convert::Infallible> for Error<T> {
 /// [Workflow]: crate::Workflow
 #[derive(thiserror::Error, Debug)]
 pub enum InputParseError<T> {
-    /// Error converting from [Ipld] structure.
+    /// Error converting from [Ipld] structure via [serde].
+    ///
+    /// Transparently forwards from [libipld::error::SerdeError]'s `source` and
+    /// `Display` methods through to an underlying error.
     #[error("cannot convert from Ipld structure: {0}")]
     FromIpldError(#[from] libipld::error::SerdeError),
     /// Error converting from [Ipld] structure into [Args].

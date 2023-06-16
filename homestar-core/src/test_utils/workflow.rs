@@ -2,10 +2,13 @@
 //!
 //! [workflow]: crate::workflow
 
-use crate::workflow::{
-    pointer::{Await, AwaitResult},
-    prf::UcanPrf,
-    Ability, Input, Instruction, InstructionResult, Nonce, Pointer, Receipt,
+use crate::{
+    ipld::DagCbor,
+    workflow::{
+        pointer::{Await, AwaitResult},
+        prf::UcanPrf,
+        Ability, Input, Instruction, InstructionResult, Nonce, Pointer, Receipt,
+    },
 };
 use libipld::{
     cid::Cid,
@@ -55,7 +58,7 @@ where
     );
 
     let promise = Await::new(
-        Pointer::new(Cid::try_from(instr.clone()).unwrap()),
+        Pointer::new(instr.clone().to_cid().unwrap()),
         AwaitResult::Ok,
     );
 
@@ -72,7 +75,7 @@ where
     );
 
     let another_promise = Await::new(
-        Pointer::new(Cid::try_from(dep_instr1.clone()).unwrap()),
+        Pointer::new(dep_instr1.clone().to_cid().unwrap()),
         AwaitResult::Ok,
     );
 

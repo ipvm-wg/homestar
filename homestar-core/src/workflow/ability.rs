@@ -37,6 +37,7 @@ use std::{borrow::Cow, fmt};
 ///
 /// [UCAN Ability]: <https://github.com/ucan-wg/spec/#23-ability>
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[repr(transparent)]
 pub struct Ability(String);
 
 impl fmt::Display for Ability {

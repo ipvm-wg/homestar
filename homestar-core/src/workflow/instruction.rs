@@ -2,21 +2,12 @@
 //! UCAN, described via `resource`, `ability`.
 
 use crate::{
-    consts::DAG_CBOR,
+    ipld::DagCbor,
     workflow::{Ability, Error as WorkflowError, Input, Nonce, Pointer},
     Unit,
 };
-use libipld::{
-    cbor::DagCborCodec,
-    cid::{
-        multibase::Base,
-        multihash::{Code, MultihashDigest},
-        Cid,
-    },
-    prelude::Codec,
-    serde::from_ipld,
-    Ipld,
-};
+use libipld::{cid::multibase::Base, serde::from_ipld, Ipld};
+use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::BTreeMap, fmt};
 use url::Url;
 
@@ -27,7 +18,9 @@ const NNC_KEY: &str = "nnc";
 
 /// Enumerator for `either` an expanded [Instruction] structure or
 /// an [Pointer] ([Cid] wrapper).
-#[derive(Debug, Clone, PartialEq)]
+///
+/// [Cid]: libipld::Cid
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RunInstruction<'a, T> {
     /// [Instruction] as an expanded structure.
     Expanded(Instruction<'a, T>),
@@ -179,7 +172,7 @@ where
 /// let ptr = Pointer::try_from(instr).unwrap();
 /// ```
 /// [deferred promise]: super::pointer::Await
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Instruction<'a, T> {
     rsc: Url,
     op: Cow<'a, Ability>,
@@ -246,21 +239,7 @@ where
     type Error = WorkflowError<Unit>;
 
     fn try_from(instruction: Instruction<'_, T>) -> Result<Self, Self::Error> {
-        Ok(Pointer::new(Cid::try_from(instruction)?))
-    }
-}
-
-impl<T> TryFrom<Instruction<'_, T>> for Cid
-where
-    Ipld: From<T>,
-{
-    type Error = WorkflowError<Unit>;
-
-    fn try_from(instruction: Instruction<'_, T>) -> Result<Self, Self::Error> {
-        let ipld: Ipld = instruction.into();
-        let bytes = DagCborCodec.encode(&ipld)?;
-        let hash = Code::Sha3_256.digest(&bytes);
-        Ok(Cid::new_v1(DAG_CBOR, hash))
+        Ok(Pointer::new(instruction.to_cid()?))
     }
 }
 
@@ -335,6 +314,8 @@ where
     }
 }
 
+impl<'a, T> DagCbor for Instruction<'a, T> where Ipld: From<T> {}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -356,10 +337,7 @@ mod test {
                 ),
                 (OP_KEY.into(), Ipld::String("ipld/fun".to_string())),
                 (INPUT_KEY.into(), Ipld::List(vec![Ipld::Bool(true)])),
-                (
-                    NNC_KEY.into(),
-                    Ipld::List(vec![Ipld::Integer(0), Ipld::Bytes(bytes)])
-                )
+                (NNC_KEY.into(), Ipld::Bytes(bytes))
             ]))
         );
         assert_eq!(instruction, ipld.try_into().unwrap())

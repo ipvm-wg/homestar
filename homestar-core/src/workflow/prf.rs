@@ -3,7 +3,7 @@
 //!
 //! [Task]: super::Task
 
-use crate::{workflow, Unit};
+use crate::{ipld::Link, workflow, Unit};
 use diesel::{
     backend::Backend,
     deserialize::{self, FromSql},
@@ -12,15 +12,17 @@ use diesel::{
     sqlite::Sqlite,
     AsExpression, FromSqlRow,
 };
-use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld, Link};
+use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld};
+use serde::{Deserialize, Serialize};
 use ucan::ipld::UcanIpld;
 
 /// Proof container, containing links to UCANs for a particular [Task] or [Receipt].
 ///
 /// [Task]: super::Task
 /// [Receipt]: super::Receipt
-#[derive(Clone, Debug, Default, PartialEq, AsExpression, FromSqlRow)]
+#[derive(Clone, Debug, Default, PartialEq, AsExpression, FromSqlRow, Serialize, Deserialize)]
 #[diesel(sql_type = Binary)]
+#[repr(transparent)]
 pub struct UcanPrf(Vec<Link<UcanIpld>>);
 
 impl UcanPrf {

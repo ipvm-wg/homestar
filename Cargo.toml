@@ -18,6 +18,8 @@ rust-version = "1.66.0"
 
 [workspace.dependencies]
 anyhow = { version = "1.0", features = ["backtrace"] }
+enum-assoc = " 1.1"
+enum-as-inner = "0.6"
 thiserror = "1.0"
 tokio = { version = "1.26", features = ["fs", "io-util", "io-std", "macros", "rt", "rt-multi-thread"] }
 tracing = "0.1"

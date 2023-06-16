@@ -12,10 +12,11 @@ use crate::workflow::{
     Error, Input,
 };
 use libipld::Ipld;
+use serde::{Deserialize, Serialize};
 
 /// Unit type, which allows only one value (and thusly holds
 /// no information). Essentially a wrapper over `()`, but one we control.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Unit;
 
 impl From<Unit> for Ipld {

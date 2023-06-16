@@ -3,7 +3,7 @@
 /// Error types related for [Ipld] to/from [Wasm value] interpretation.
 ///
 /// [Ipld]: libipld::Ipld
-/// [Wasm value]: wasmtime::component:Val
+/// [Wasm value]: wasmtime::component::Val
 #[derive(thiserror::Error, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum InterpreterError {

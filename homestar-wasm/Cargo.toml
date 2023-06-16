@@ -23,13 +23,13 @@ doctest = true
 # https://github.com/DevinR528/cargo-sort/issues/47
 anyhow = { workspace = true }
 atomic_refcell = "0.1"
-enum-as-inner = "0.5"
+enum-as-inner = { workspace = true }
 heck = "0.4"
 homestar-core = { version = "0.1", path = "../homestar-core" }
 itertools = "0.10"
 libipld = "0.16"
 libipld-core = { version = "0.16", features = ["serde-codec", "serde"] }
-rust_decimal = "1.28"
+rust_decimal = "1.30"
 stacker = "0.1"
 thiserror = { workspace = true }
 tracing = { workspace = true }
@@ -41,9 +41,9 @@ wat = "1.0"
 wit-component = "0.8"
 
 [dev-dependencies]
-criterion = "0.4"
+criterion = "0.5"
 image = "0.24"
-serde_ipld_dagcbor = "0.2"
+serde_ipld_dagcbor = "0.3"
 tokio = { workspace = true }
 
 [features]

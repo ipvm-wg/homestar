@@ -16,6 +16,7 @@ use futures::FutureExt;
 #[cfg(feature = "ipfs")]
 use futures::StreamExt;
 use homestar_core::{
+    ipld::DagCbor,
     workflow::{
         error::ResolveError, prf::UcanPrf, InstructionResult, Pointer, Receipt as InvocationReceipt,
     },
@@ -106,7 +107,7 @@ impl<'a> Worker<'a> {
         conn: &mut Connection,
     ) -> Result<workflow::Info> {
         let workflow_len = workflow.len();
-        let workflow_cid = Cid::try_from(workflow)?;
+        let workflow_cid = workflow.to_cid()?;
 
         let workflow_info = match Db::join_workflow_with_receipts(workflow_cid, conn) {
             Ok((wf_info, receipts)) => {
@@ -414,6 +415,7 @@ mod test {
         db::Database, network::eventloop::EventLoop, settings::Settings, test_utils, workflow as wf,
     };
     use homestar_core::{
+        ipld::DagCbor,
         test_utils::workflow as workflow_test_utils,
         workflow::{
             config::Resources, instruction::RunInstruction, prf::UcanPrf, Invocation, Task,
@@ -441,7 +443,7 @@ mod test {
         let conn = db.conn().unwrap();
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let workflow_cid = Cid::try_from(workflow.clone()).unwrap();
+        let workflow_cid = workflow.clone().to_cid().unwrap();
         let workflow_settings = wf::Settings::default();
         let wf_settings = workflow_settings.clone();
         let settings = Settings::load().unwrap();
@@ -566,7 +568,7 @@ mod test {
         let _ = test_utils::db::MemoryDb::store_receipt(receipt.clone(), &mut conn).unwrap();
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let workflow_cid = Cid::try_from(workflow.clone()).unwrap();
+        let workflow_cid = workflow.clone().to_cid().unwrap();
         let workflow_settings = wf::Settings::default();
         let wf_settings = workflow_settings.clone();
         let settings = Settings::load().unwrap();
@@ -605,7 +607,7 @@ mod test {
         assert!(worker
             .scheduler
             .linkmap
-            .contains_key(&Cid::try_from(instruction1).unwrap()));
+            .contains_key(&instruction1.to_cid().unwrap()));
         assert_eq!(worker.scheduler.ran.as_ref().unwrap().len(), 1);
         assert_eq!(worker.scheduler.run.len(), 1);
         assert_eq!(worker.scheduler.resume_step, Some(1));
@@ -704,7 +706,7 @@ mod test {
         assert_eq!(2, rows_inserted);
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let workflow_cid = Cid::try_from(workflow.clone()).unwrap();
+        let workflow_cid = workflow.clone().to_cid().unwrap();
         let workflow_settings = wf::Settings::default();
         let wf_settings = workflow_settings.clone();
         let settings = Settings::load().unwrap();
@@ -749,11 +751,11 @@ mod test {
         assert!(!worker
             .scheduler
             .linkmap
-            .contains_key(&Cid::try_from(instruction1).unwrap()),);
+            .contains_key(&instruction1.to_cid().unwrap()));
         assert!(worker
             .scheduler
             .linkmap
-            .contains_key(&Cid::try_from(instruction2).unwrap()));
+            .contains_key(&instruction2.to_cid().unwrap()));
         assert_eq!(worker.scheduler.ran.as_ref().unwrap().len(), 2);
         assert!(worker.scheduler.run.is_empty());
         assert_eq!(worker.scheduler.resume_step, None);

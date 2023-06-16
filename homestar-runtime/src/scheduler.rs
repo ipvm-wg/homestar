@@ -159,6 +159,7 @@ mod test {
     use crate::{db::Database, settings::Settings, test_utils, Receipt};
     use futures::FutureExt;
     use homestar_core::{
+        ipld::DagCbor,
         test_utils::workflow as workflow_test_utils,
         workflow::{
             config::Resources, instruction::RunInstruction, prf::UcanPrf, Invocation,
@@ -246,7 +247,7 @@ mod test {
         assert_eq!(scheduler.linkmap.len(), 1);
         assert!(scheduler
             .linkmap
-            .contains_key(&Cid::try_from(instruction1).unwrap()));
+            .contains_key(&instruction1.to_cid().unwrap()));
         assert_eq!(ran.len(), 1);
         assert_eq!(scheduler.run.len(), 1);
         assert_eq!(scheduler.resume_step, Some(1));
@@ -315,10 +316,10 @@ mod test {
         assert_eq!(scheduler.linkmap.len(), 1);
         assert!(!scheduler
             .linkmap
-            .contains_key(&Cid::try_from(instruction1).unwrap()),);
+            .contains_key(&instruction1.to_cid().unwrap()));
         assert!(scheduler
             .linkmap
-            .contains_key(&Cid::try_from(instruction2).unwrap()));
+            .contains_key(&instruction2.to_cid().unwrap()));
         assert_eq!(ran.len(), 2);
         assert!(scheduler.run.is_empty());
         assert_eq!(scheduler.resume_step, None);
