@@ -3,15 +3,13 @@
 //! [Ucan invocation]: <https://github.com/ucan-wg/invocation>
 
 use self::Error as WorkflowError;
-use crate::{bail, Unit, DAG_CBOR};
-use libipld::{
-    cbor::DagCborCodec,
-    json::DagJsonCodec,
-    multihash::{Code, MultihashDigest},
-    prelude::Codec,
-    serde::from_ipld,
-    Cid, Ipld,
+use crate::{
+    bail,
+    ipld::{DagCbor, DagJson},
+    Unit,
 };
+use libipld::{serde::from_ipld, Ipld};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 mod ability;
@@ -52,7 +50,7 @@ pub type LinkMap<T> = indexmap::IndexMap<libipld::Cid, T>;
 /// Workflow composed of [tasks].
 ///
 /// [tasks]: Task
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Workflow<'a, T> {
     tasks: Vec<Task<'a, T>>,
 }
@@ -89,16 +87,6 @@ impl<'a, T> Workflow<'a, T> {
     /// [tasks]: Task
     pub fn is_empty(&self) -> bool {
         self.tasks.is_empty()
-    }
-
-    /// Return workflow as stringified Json.
-    pub fn to_json(self) -> Result<String, WorkflowError<Unit>>
-    where
-        Ipld: From<Workflow<'a, T>>,
-    {
-        let encoded = DagJsonCodec.encode(&Ipld::from(self))?;
-        let s = std::str::from_utf8(&encoded)?;
-        Ok(s.to_string())
     }
 }
 
@@ -145,22 +133,24 @@ where
     }
 }
 
-impl<'a, T> TryFrom<Workflow<'a, T>> for Cid
+impl<'a, T> DagCbor for Workflow<'a, T>
 where
-    Ipld: From<Workflow<'a, T>>,
+    T: Clone,
+    Ipld: From<T>,
 {
-    type Error = WorkflowError<Unit>;
+}
 
-    fn try_from(workflow: Workflow<'a, T>) -> Result<Self, Self::Error> {
-        let ipld: Ipld = workflow.into();
-        let bytes = DagCborCodec.encode(&ipld)?;
-        let hash = Code::Sha3_256.digest(&bytes);
-        Ok(Cid::new_v1(DAG_CBOR, hash))
-    }
+impl<'a, T> DagJson for Workflow<'a, T>
+where
+    T: From<Ipld> + Clone,
+    Ipld: From<T>,
+{
 }
 
 #[cfg(test)]
 mod test {
+    use std::assert_eq;
+
     use super::*;
     use crate::{
         test_utils,
@@ -169,10 +159,11 @@ mod test {
     };
 
     #[test]
-    fn workflow_to_json() {
+    fn workflow_to_json_roundtrip() {
         let config = Resources::default();
-        let (instruction1, instruction2, _) =
-            test_utils::workflow::related_wasm_instructions::<Unit>();
+        let instruction1 = test_utils::workflow::instruction::<Unit>();
+        let (instruction2, _) = test_utils::workflow::wasm_instruction_with_nonce::<Unit>();
+
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1),
             config.clone().into(),
@@ -186,10 +177,16 @@ mod test {
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
 
-        let json_string = workflow.to_json().unwrap();
+        let json_bytes = workflow.to_json().unwrap();
+        let json_string = workflow.to_json_string().unwrap();
 
         let json_val = json::from(json_string.clone());
         assert_eq!(json_string, json_val.to_string());
+        assert_eq!(json_bytes, json_string.as_bytes());
+        let wf_from_json1: Workflow<'_, Unit> = DagJson::from_json(json_string.as_bytes()).unwrap();
+        assert_eq!(workflow, wf_from_json1);
+        let wf_from_json2: Workflow<'_, Unit> = DagJson::from_json_string(json_string).unwrap();
+        assert_eq!(workflow, wf_from_json2);
     }
 
     #[test]

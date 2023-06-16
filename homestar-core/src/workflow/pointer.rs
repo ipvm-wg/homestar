@@ -47,7 +47,7 @@ pub const PTR_BRANCH: &str = "await/*";
 /// assert_eq!(await_result.branch(), "await/error");
 /// assert_eq!(AwaitResult::result("await/*").unwrap(), AwaitResult::Ptr);
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq, Assoc)]
+#[derive(Clone, Debug, PartialEq, Eq, Assoc, Deserialize, Serialize)]
 #[func(pub const fn branch(&self) -> &'static str)]
 #[func(pub fn result(s: &str) -> Option<Self>)]
 pub enum AwaitResult {
@@ -80,7 +80,7 @@ impl fmt::Display for AwaitResult {
 /// result of a [PTR_BRANCH].
 ///
 /// [Instruction]: super::Instruction
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Await {
     instruction: Pointer,
     result: AwaitResult,
@@ -166,6 +166,7 @@ impl TryFrom<&Ipld> for Await {
 /// [Receipt]: super::Receipt
 #[derive(Clone, Debug, AsExpression, FromSqlRow, PartialEq, Eq, Serialize, Deserialize, Hash)]
 #[diesel(sql_type = Text)]
+#[repr(transparent)]
 pub struct Pointer(Cid);
 
 impl fmt::Display for Pointer {

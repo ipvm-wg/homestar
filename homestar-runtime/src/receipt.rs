@@ -12,12 +12,11 @@ use diesel::{
 };
 use homestar_core::{
     consts,
+    ipld::{DagCborRef, DagJson},
     workflow::{prf::UcanPrf, InstructionResult, Issuer, Pointer, Receipt as InvocationReceipt},
 };
 use homestar_wasm::io::Arg;
-use libipld::{
-    cbor::DagCborCodec, cid::Cid, json::DagJsonCodec, prelude::Codec, serde::from_ipld, Ipld,
-};
+use libipld::{cbor::DagCborCodec, cid::Cid, prelude::Codec, serde::from_ipld, Ipld};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt};
@@ -89,7 +88,7 @@ impl Receipt {
         instruction: Pointer,
         invocation_receipt: &InvocationReceipt<Ipld>,
     ) -> anyhow::Result<Self> {
-        let cid = Cid::try_from(invocation_receipt)?;
+        let cid = invocation_receipt.to_cid()?;
         Ok(Receipt::new(cid, instruction, invocation_receipt))
     }
 
@@ -158,14 +157,6 @@ impl Receipt {
     /// Return semver [Version] of [Receipt].
     pub fn version(&self) -> Result<Version, semver::Error> {
         Version::parse(&self.version)
-    }
-
-    /// Return runtime receipt as stringified Json.
-    pub fn to_json(&self) -> anyhow::Result<String> {
-        let encoded = DagJsonCodec.encode(&Ipld::from(self.to_owned()))?;
-        let s = std::str::from_utf8(&encoded)
-            .map_err(|e| anyhow!("cannot stringify encoded value: {e}"))?;
-        Ok(s.to_string())
     }
 }
 
@@ -294,6 +285,8 @@ impl TryFrom<Ipld> for Receipt {
     }
 }
 
+impl DagJson for Receipt where Ipld: From<Receipt> {}
+
 /// Wrapper-type for [Ipld] in order integrate to/from for local storage/db.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, AsExpression, FromSqlRow)]
 #[diesel(sql_type = Binary)]
@@ -385,7 +378,7 @@ mod test {
     fn receipt_to_json() {
         let (_, receipt) = test_utils::receipt::receipts();
         assert_eq!(
-            receipt.to_json().unwrap(),
+            receipt.to_json_string().unwrap(),
             format!(
                 r#"{{"cid":{{"/":"{}"}},"instruction":{{"/":"{}"}},"iss":null,"meta":null,"out":["ok",true],"prf":[],"ran":{{"/":"{}"}},"version":"{}"}}"#,
                 receipt.cid(),

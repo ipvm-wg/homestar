@@ -428,6 +428,7 @@ mod test {
     use super::*;
     use crate::{test_utils, workflow};
     use homestar_core::{
+        ipld::DagCbor,
         test_utils::workflow as workflow_test_utils,
         workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
         Workflow,
@@ -471,7 +472,7 @@ mod test {
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let workflow_info =
-            workflow::Info::default(Cid::try_from(workflow.clone()).unwrap(), workflow.len());
+            workflow::Info::default(workflow.clone().to_cid().unwrap(), workflow.len());
         let workflow_cid_bytes = workflow_info.cid_as_bytes();
         let bytes = Vec::try_from(workflow_info.clone()).unwrap();
         let ref_bytes = &bytes;
@@ -479,7 +480,7 @@ mod test {
         let record = Record::new(workflow_cid_bytes, value.to_vec());
         let record_value = record.value;
         if let FoundEvent::Workflow(found_workflow) =
-            EventLoop::on_found_record(Cid::try_from(workflow).unwrap(), record_value).unwrap()
+            EventLoop::on_found_record(workflow.to_cid().unwrap(), record_value).unwrap()
         {
             assert_eq!(found_workflow, workflow_info);
         } else {

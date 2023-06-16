@@ -93,7 +93,7 @@
           '';
 
         xFuncTest = pkgs.writeScriptBin "x-test" ''
-          cargo watch -c -s "cargo nextest run && cargo test --doc"
+          cargo watch -c -s "cargo nextest run --nocapture && cargo test --doc"
         '';
 
         xFuncTestAll = pkgs.writeScriptBin "x-test-all" ''

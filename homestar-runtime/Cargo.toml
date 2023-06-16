@@ -33,7 +33,7 @@ anyhow = { workspace = true }
 async-trait = "0.1"
 axum = { version = "0.6", features = ["ws", "headers"] }
 byte-unit = { version = "4.0", default-features = false }
-clap = { version = "4.1", features = ["derive", "color", "help"] }
+clap = { version = "4.3", features = ["derive", "color", "help"] }
 concat-in-place = "1.1"
 config = "0.13"
 console-subscriber = { version = "0.1", default-features = false, features = [ "parking_lot" ], optional = true }
@@ -41,7 +41,7 @@ crossbeam = "0.8"
 dagga = "0.2"
 diesel = { version = "2.1", features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"] }
 dotenvy = "0.15"
-enum-assoc = "0.4"
+enum-assoc = { workspace = true }
 futures = "0.3"
 headers = "0.3"
 homestar-core = { version = "0.1", path = "../homestar-core" }
@@ -54,28 +54,26 @@ ipfs-api-backend-hyper = { version = "0.6", features = ["with-builder", "with-se
 itertools = "0.10"
 libipld = "0.16"
 libp2p = { version = "0.51", features = ["kad", "request-response", "macros", "identify", "mdns", "gossipsub", "tokio", "dns", "mplex", "tcp", "noise", "yamux", "websocket"] }
-libp2p-identity = "0.1"
 libsqlite3-sys = { version = "0.26", features = ["bundled"] }
 openssl = { version = "0.10", features = ["vendored"] }
-proptest = { version = "1.1", optional = true }
+proptest = { version = "1.2", optional = true }
 reqwest = { version = "0.11", features = ["json"] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-serde_with = "2.3"
 thiserror = "1.0"
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-logfmt = { version = "0.3", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "parking_lot", "registry"] }
 tryhard = "0.5"
-url = "2.3"
+url = "2.4"
 
 [dev-dependencies]
-criterion = "0.4"
+criterion = "0.5"
 diesel_migrations = "2.1"
 homestar-core = { version = "0.1", path = "../homestar-core", features = [ "test_utils" ] }
 json = "0.12"
-tokio-tungstenite = "0.18"
+tokio-tungstenite = "0.19"
 
 [features]
 default = ["console", "ipfs", "logfmt"]

@@ -1,19 +1,11 @@
 //! Output of an invocation, referenced by its invocation pointer.
 
 use crate::{
+    ipld::{DagCbor, DagCborRef, DagJson},
     workflow::{prf::UcanPrf, Error as WorkflowError, InstructionResult, Issuer, Pointer},
     Unit,
 };
-use libipld::{
-    cbor::DagCborCodec,
-    cid::{
-        multihash::{Code, MultihashDigest},
-        Cid,
-    },
-    prelude::Codec,
-    serde::from_ipld,
-    Ipld,
-};
+use libipld::{self, cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld};
 use std::collections::BTreeMap;
 
 const RAN_KEY: &str = "ran";
@@ -86,6 +78,8 @@ impl<T> Receipt<T> {
     }
 }
 
+impl DagJson for Receipt<Ipld> {}
+
 impl TryFrom<Receipt<Ipld>> for Vec<u8> {
     type Error = WorkflowError<Unit>;
 
@@ -105,24 +99,8 @@ impl TryFrom<Vec<u8>> for Receipt<Ipld> {
     }
 }
 
-impl TryFrom<Receipt<Ipld>> for Cid {
-    type Error = WorkflowError<Unit>;
-
-    fn try_from(receipt: Receipt<Ipld>) -> Result<Self, Self::Error> {
-        TryFrom::try_from(&receipt)
-    }
-}
-
-impl TryFrom<&Receipt<Ipld>> for Cid {
-    type Error = WorkflowError<Unit>;
-
-    fn try_from(receipt: &Receipt<Ipld>) -> Result<Self, Self::Error> {
-        let ipld = Ipld::from(receipt);
-        let bytes = DagCborCodec.encode(&ipld)?;
-        let hash = Code::Sha3_256.digest(&bytes);
-        Ok(Cid::new_v1(0x71, hash))
-    }
-}
+impl DagCbor for Receipt<Ipld> {}
+impl DagCborRef for Receipt<Ipld> {}
 
 impl From<&Receipt<Ipld>> for Ipld {
     fn from(receipt: &Receipt<Ipld>) -> Self {
@@ -195,6 +173,6 @@ impl TryFrom<Receipt<Ipld>> for Pointer {
     type Error = WorkflowError<Unit>;
 
     fn try_from(receipt: Receipt<Ipld>) -> Result<Self, Self::Error> {
-        Ok(Pointer::new(Cid::try_from(receipt)?))
+        Ok(Pointer::new(receipt.to_cid()?))
     }
 }

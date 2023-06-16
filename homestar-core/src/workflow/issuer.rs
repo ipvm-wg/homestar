@@ -23,6 +23,7 @@ use ucan::ipld::Principle;
 /// [Principal]: Principle
 #[derive(Clone, Debug, Deserialize, Serialize, AsExpression, FromSqlRow, PartialEq)]
 #[diesel(sql_type = Text)]
+#[repr(transparent)]
 pub struct Issuer(Principle);
 
 impl Issuer {

@@ -1,20 +1,12 @@
 //! A [Task] is the smallest unit of work that can be requested from a UCAN.
 
 use crate::{
-    consts::DAG_CBOR,
+    ipld::{DagCbor, DagJson},
     workflow::{instruction::RunInstruction, prf::UcanPrf, Error as WorkflowError, Pointer},
     Unit,
 };
-use libipld::{
-    cbor::DagCborCodec,
-    cid::{
-        multihash::{Code, MultihashDigest},
-        Cid,
-    },
-    prelude::Codec,
-    serde::from_ipld,
-    Ipld,
-};
+use libipld::{cid::Cid, serde::from_ipld, Ipld};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 const RUN_KEY: &str = "run";
@@ -27,7 +19,7 @@ const PROOF_KEY: &str = "prf";
 ///
 /// [Instruction]: super::Instruction
 /// [Receipt]: super::Receipt
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Task<'a, T> {
     run: RunInstruction<'a, T>,
     cause: Option<Pointer>,
@@ -88,7 +80,7 @@ where
     /// [Instruction]: super::Instruction
     pub fn instruction_cid(&self) -> Result<Cid, WorkflowError<Unit>> {
         match &self.run {
-            RunInstruction::Expanded(instruction) => Ok(Cid::try_from(instruction.to_owned())?),
+            RunInstruction::Expanded(instruction) => Ok(instruction.to_owned().to_cid()?),
             RunInstruction::Ptr(instruction_ptr) => Ok(instruction_ptr.cid()),
         }
     }
@@ -164,22 +156,17 @@ where
     type Error = WorkflowError<Unit>;
 
     fn try_from(task: Task<'_, T>) -> Result<Self, Self::Error> {
-        Ok(Pointer::new(Cid::try_from(task)?))
+        Ok(Pointer::new(task.to_cid()?))
     }
 }
 
-impl<T> TryFrom<Task<'_, T>> for Cid
+impl<'a, T> DagCbor for Task<'a, T> where Ipld: From<T> {}
+
+impl<T> DagJson for Task<'_, T>
 where
+    T: From<Ipld> + Clone,
     Ipld: From<T>,
 {
-    type Error = WorkflowError<Unit>;
-
-    fn try_from(task: Task<'_, T>) -> Result<Self, Self::Error> {
-        let ipld: Ipld = task.into();
-        let bytes = DagCborCodec.encode(&ipld)?;
-        let hash = Code::Sha3_256.digest(&bytes);
-        Ok(Cid::new_v1(DAG_CBOR, hash))
-    }
 }
 
 #[cfg(test)]
@@ -244,10 +231,7 @@ mod test {
             ipld2,
             Ipld::Map(BTreeMap::from([
                 (RUN_KEY.into(), Ipld::Link(task2.instruction_cid().unwrap())),
-                (
-                    CAUSE_KEY.into(),
-                    Ipld::Link(Cid::try_from(receipt).unwrap())
-                ),
+                (CAUSE_KEY.into(), Ipld::Link(receipt.to_cid().unwrap())),
                 (
                     METADATA_KEY.into(),
                     Ipld::Map(BTreeMap::from([

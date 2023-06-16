@@ -189,6 +189,7 @@ impl TryFrom<Vec<u8>> for Info {
 mod test {
     use super::*;
     use homestar_core::{
+        ipld::DagCbor,
         test_utils,
         workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
         Workflow,
@@ -212,10 +213,9 @@ mod test {
         );
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let mut workflow_info =
-            Info::default(Cid::try_from(workflow.clone()).unwrap(), workflow.len());
-        workflow_info.increment_progress(Cid::try_from(task1).unwrap());
-        workflow_info.increment_progress(Cid::try_from(task2).unwrap());
+        let mut workflow_info = Info::default(workflow.clone().to_cid().unwrap(), workflow.len());
+        workflow_info.increment_progress(task1.to_cid().unwrap());
+        workflow_info.increment_progress(task2.to_cid().unwrap());
         let ipld = Ipld::from(workflow_info.clone());
         assert_eq!(workflow_info, ipld.try_into().unwrap());
     }

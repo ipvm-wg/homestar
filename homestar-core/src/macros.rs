@@ -32,7 +32,7 @@ macro_rules! bail {
     };
 }
 
-/// /// Return early with an error if a condition is not satisfied.
+/// Return early with an error if a condition is not satisfied.
 ///
 /// Analogously to `assert!`, `ensure!` takes a condition and exits the function
 /// if the condition fails. Unlike `assert!`, `ensure!` returns an `Error`
