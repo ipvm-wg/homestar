@@ -8,6 +8,8 @@ use crate::{
 use libipld::{self, cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld};
 use std::collections::BTreeMap;
 
+pub mod metadata;
+
 const RAN_KEY: &str = "ran";
 const OUT_KEY: &str = "out";
 const ISSUER_KEY: &str = "iss";

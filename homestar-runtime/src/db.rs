@@ -104,7 +104,7 @@ pub trait Database {
     /// work across vecs/arrays.
     ///
     /// [Instruction]: homestar_core::workflow::Instruction
-    fn find_instructions(pointers: Vec<Pointer>, conn: &mut Connection) -> Result<Vec<Receipt>> {
+    fn find_instructions(pointers: &Vec<Pointer>, conn: &mut Connection) -> Result<Vec<Receipt>> {
         let found_receipts = schema::receipts::dsl::receipts
             .filter(schema::receipts::instruction.eq_any(pointers))
             .load(conn)?;

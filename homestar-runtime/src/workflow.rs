@@ -22,10 +22,10 @@ use url::Url;
 
 mod info;
 pub(crate) mod settings;
-pub use info::Info;
+pub use info::{Info, WORKFLOW_TAG};
 pub(crate) use info::{Stored, StoredReceipt};
 #[allow(unused_imports)]
-pub(crate) use settings::Settings;
+pub use settings::Settings;
 
 type Dag<'a> = dagga::Dag<Vertex<'a>, usize>;
 

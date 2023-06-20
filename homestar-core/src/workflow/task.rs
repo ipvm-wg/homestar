@@ -172,7 +172,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{test_utils, workflow::config::Resources, Unit};
+    use crate::{consts::WASM_MAX_MEMORY, test_utils, workflow::config::Resources, Unit};
 
     #[test]
     fn ipld_roundtrip() {
@@ -207,6 +207,7 @@ mod test {
                     METADATA_KEY.into(),
                     Ipld::Map(BTreeMap::from([
                         ("fuel".into(), Ipld::Integer(u64::MAX.into())),
+                        ("memory".into(), Ipld::Integer(WASM_MAX_MEMORY.into())),
                         ("time".into(), Ipld::Integer(100_000))
                     ]))
                 ),
@@ -236,6 +237,7 @@ mod test {
                     METADATA_KEY.into(),
                     Ipld::Map(BTreeMap::from([
                         ("fuel".into(), Ipld::Integer(u64::MAX.into())),
+                        ("memory".into(), Ipld::Integer(WASM_MAX_MEMORY.into())),
                         ("time".into(), Ipld::Integer(100_000))
                     ]))
                 ),

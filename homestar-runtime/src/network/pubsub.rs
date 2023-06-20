@@ -24,6 +24,9 @@ pub fn new(keypair: Keypair, settings: &settings::Node) -> Result<gossipsub::Beh
 
     let gossipsub_config = ConfigBuilder::default()
         .heartbeat_interval(Duration::from_secs(settings.network.pubsub_heartbeat_secs))
+        .idle_timeout(Duration::from_secs(
+            settings.network.pubsub_idle_timeout_secs,
+        ))
         // This sets the kind of message validation. The default is Strict (enforce message signing).
         .validation_mode(ValidationMode::Strict)
         .mesh_n_low(1)
@@ -31,6 +34,10 @@ pub fn new(keypair: Keypair, settings: &settings::Node) -> Result<gossipsub::Beh
         .mesh_n(2)
         // Content-address messages. No two messages of the same content will be propagated.
         .message_id_fn(message_id_fn)
+        .duplicate_cache_time(Duration::from_secs(
+            settings.network.pubsub_duplication_cache_secs,
+        ))
+        .support_floodsub()
         .build()
         .map_err(anyhow::Error::msg)?;
 

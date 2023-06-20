@@ -5,7 +5,7 @@ use homestar_core::workflow::{
 };
 use homestar_wasm::{
     io::{Arg, Output},
-    wasmtime::{State, World},
+    wasmtime::{limits::StoreLimitsAsync, Error, State, World},
 };
 use libipld::{
     cid::{
@@ -18,6 +18,25 @@ use std::{collections::BTreeMap, fs, path::PathBuf};
 
 fn fixtures(file: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("fixtures/{file}"))
+}
+
+#[tokio::test]
+async fn test_wasm_exceeds_max_memory() {
+    let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
+    let env = World::instantiate(
+        wasm,
+        "add_one",
+        State::new(u64::MAX, StoreLimitsAsync::new(Some(10), None)),
+    )
+    .await;
+
+    if let Err(Error::WasmRuntimeError(err)) = env {
+        assert!(err.to_string().contains("exceeds memory limits"));
+    } else {
+        panic!("Expected WasmRuntimeError")
+    }
+
+    //assert()
 }
 
 #[tokio::test]

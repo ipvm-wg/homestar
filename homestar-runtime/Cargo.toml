@@ -32,7 +32,7 @@ ansi_term = { version = "0.12", optional = true, default-features = false }
 anyhow = { workspace = true }
 async-trait = "0.1"
 axum = { version = "0.6", features = ["ws", "headers"] }
-byte-unit = { version = "4.0", default-features = false }
+byte-unit = { workspace = true }
 clap = { version = "4.3", features = ["derive", "color", "help"] }
 concat-in-place = "1.1"
 config = "0.13"
@@ -52,18 +52,20 @@ indexmap = "1.9"
 ipfs-api = { version = "0.17", optional = true }
 ipfs-api-backend-hyper = { version = "0.6", features = ["with-builder", "with-send-sync"], optional = true }
 itertools = "0.10"
-libipld = "0.16"
-libp2p = { version = "0.51", features = ["kad", "request-response", "macros", "identify", "mdns", "gossipsub", "tokio", "dns", "mplex", "tcp", "noise", "yamux", "websocket"] }
+libipld = { workspace = true }
+libp2p = { version = "0.51", default-features = false, features = ["kad", "request-response", "macros", "identify", "mdns", "gossipsub", "tokio", "dns", "mplex", "tcp", "noise", "yamux", "websocket"] }
 libsqlite3-sys = { version = "0.26", features = ["bundled"] }
 openssl = { version = "0.10", features = ["vendored"] }
 proptest = { version = "1.2", optional = true }
 reqwest = { version = "0.11", features = ["json"] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+serde_ipld_dagcbor = { workspace = true }
 thiserror = "1.0"
 tokio = { workspace = true }
 tracing = { workspace = true }
-tracing-logfmt = { version = "0.3", optional = true }
+tracing-appender = "0.2"
+tracing-logfmt = "0.3"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "parking_lot", "registry"] }
 tryhard = "0.5"
 url = "2.4"
@@ -76,11 +78,10 @@ json = "0.12"
 tokio-tungstenite = "0.19"
 
 [features]
-default = ["console", "ipfs", "logfmt"]
+default = ["ipfs"]
 ansi-logs = ["ansi_term"]
 console = ["console-subscriber"]
 ipfs = ["ipfs-api", "ipfs-api-backend-hyper"]
-logfmt = ["tracing-logfmt"]
 test_utils = ["proptest"]
 
 [package.metadata.docs.rs]

@@ -9,6 +9,7 @@ pub struct Settings {
     pub(crate) retry_backoff_strategy: BackoffStrategy,
     pub(crate) retry_max_delay_secs: u64,
     pub(crate) retry_initial_delay_ms: u64,
+    pub(crate) p2p_check_timeout_secs: u64,
     pub(crate) p2p_timeout_secs: u64,
 }
 
@@ -20,7 +21,8 @@ impl Default for Settings {
             retry_backoff_strategy: BackoffStrategy::Exponential,
             retry_max_delay_secs: 60,
             retry_initial_delay_ms: 500,
-            p2p_timeout_secs: 60,
+            p2p_check_timeout_secs: 5,
+            p2p_timeout_secs: 120,
         }
     }
 }
@@ -33,6 +35,7 @@ impl Default for Settings {
             retry_backoff_strategy: BackoffStrategy::Exponential,
             retry_max_delay_secs: 1,
             retry_initial_delay_ms: 50,
+            p2p_check_timeout_secs: 1,
             p2p_timeout_secs: 1,
         }
     }

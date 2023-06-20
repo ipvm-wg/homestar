@@ -50,6 +50,7 @@
           cargo clippy
           cargo build --release
           nx-test
+          nx-test-0
         '';
 
         db = pkgs.writeScriptBin "db" ''
