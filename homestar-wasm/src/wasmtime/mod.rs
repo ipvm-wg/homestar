@@ -7,6 +7,7 @@
 pub mod config;
 mod error;
 pub mod ipld;
+pub mod limits;
 pub mod world;
 
 pub use error::*;

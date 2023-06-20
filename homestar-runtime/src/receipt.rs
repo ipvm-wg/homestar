@@ -21,6 +21,11 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt};
 
+/// General version key for receipts.
+pub const VERSION_KEY: &str = "version";
+/// [Receipt] header tag, for sharing over libp2p.
+pub const RECEIPT_TAG: &str = "ipvm/receipt";
+
 const CID_KEY: &str = "cid";
 const INSTRUCTION_KEY: &str = "instruction";
 const RAN_KEY: &str = "ran";
@@ -28,7 +33,6 @@ const OUT_KEY: &str = "out";
 const ISSUER_KEY: &str = "iss";
 const METADATA_KEY: &str = "meta";
 const PROOF_KEY: &str = "prf";
-const VERSION_KEY: &str = "version";
 
 /// Receipt for [Invocation], including it's own [Cid] and a [Cid] for an [Instruction].
 ///
@@ -90,6 +94,27 @@ impl Receipt {
     ) -> anyhow::Result<Self> {
         let cid = invocation_receipt.to_cid()?;
         Ok(Receipt::new(cid, instruction, invocation_receipt))
+    }
+
+    /// Capsule-wrapper for [InvocationReceipt] to to be shared over libp2p as
+    /// [DagCbor] encoded bytes.
+    ///
+    /// [DagCbor]: DagCborCodec
+    pub fn invocation_capsule(
+        invocation_receipt: InvocationReceipt<Ipld>,
+    ) -> anyhow::Result<Vec<u8>> {
+        let receipt_ipld = Ipld::from(&invocation_receipt);
+        let capsule = if let Ipld::Map(mut map) = receipt_ipld {
+            map.insert(VERSION_KEY.into(), consts::INVOCATION_VERSION.into());
+            Ok(Ipld::Map(BTreeMap::from([(
+                RECEIPT_TAG.into(),
+                Ipld::Map(map),
+            )])))
+        } else {
+            Err(anyhow!("receipt to Ipld conversion is not a map"))
+        }?;
+
+        DagCborCodec.encode(&capsule)
     }
 
     /// Get [Ipld] metadata on a [Receipt].

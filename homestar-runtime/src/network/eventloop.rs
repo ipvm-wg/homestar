@@ -6,16 +6,18 @@ use crate::IpfsCli;
 use crate::{
     db::{Connection, Database, Db},
     network::swarm::{ComposedBehaviour, ComposedEvent, TopicMessage},
-    settings, workflow, Receipt,
+    receipt::{RECEIPT_TAG, VERSION_KEY},
+    settings, workflow,
+    workflow::WORKFLOW_TAG,
+    Receipt,
 };
 use anyhow::{anyhow, Result};
-use concat_in_place::veccat;
 use crossbeam::channel;
 use homestar_core::{
     consts,
     workflow::{Pointer, Receipt as InvocationReceipt},
 };
-use libipld::Cid;
+use libipld::{Cid, Ipld};
 use libp2p::{
     futures::StreamExt,
     gossipsub,
@@ -35,9 +37,6 @@ use tokio::sync::mpsc;
 /// [Receipt]: homestar_core::workflow::receipt
 pub const RECEIPTS_TOPIC: &str = "receipts";
 
-const RECEIPT_CODE: &[u8; 16] = b"homestar_receipt";
-const WORKFLOW_INFO_CODE: &[u8; 17] = b"homestar_workflow";
-
 type WorkerSender = channel::Sender<(Cid, FoundEvent)>;
 
 /// Event loop handler for [libp2p] network events and commands.
@@ -45,8 +44,9 @@ type WorkerSender = channel::Sender<(Cid, FoundEvent)>;
 pub struct EventLoop {
     receiver: mpsc::Receiver<Event>,
     receipt_quorum: usize,
-    worker_senders: HashMap<QueryId, WorkerSender>,
+    workflow_quorum: usize,
     swarm: Swarm<ComposedBehaviour>,
+    worker_senders: HashMap<QueryId, WorkerSender>,
 }
 
 impl EventLoop {
@@ -67,6 +67,7 @@ impl EventLoop {
         Self {
             receiver,
             receipt_quorum: settings.network.receipt_quorum,
+            workflow_quorum: settings.network.workflow_quorum,
             worker_senders: HashMap::new(),
             swarm,
         }
@@ -154,7 +155,7 @@ impl EventLoop {
                             });
                         }
                         Err(err) => {
-                            tracing::error!(error=?err, "error putting record on DHT with quorum {}", self.receipt_quorum)
+                            tracing::error!(error=?err, "error putting record(s) on DHT with quorum {}", self.receipt_quorum)
                         }
                     }
                 } else {
@@ -182,23 +183,26 @@ impl EventLoop {
                         Err(err) => tracing::error!(error=?err, "message not published on {RECEIPTS_TOPIC} for receipt with cid: {receipt_cid}")
                     }
 
-        let quorum = if self.receipt_quorum > 0 {
+        let receipt_quorum = if self.receipt_quorum > 0 {
             unsafe { Quorum::N(NonZeroUsize::new_unchecked(self.receipt_quorum)) }
         } else {
             Quorum::One
         };
 
-        if let Ok(receipt_bytes) = Vec::try_from(invocation_receipt) {
-            let ref_bytes = &receipt_bytes;
-            let receipt_value =
-                veccat!(consts::INVOCATION_VERSION.as_bytes() RECEIPT_CODE ref_bytes);
+        let workflow_quorum = if self.workflow_quorum > 0 {
+            unsafe { Quorum::N(NonZeroUsize::new_unchecked(self.receipt_quorum)) }
+        } else {
+            Quorum::One
+        };
+
+        if let Ok(receipt_bytes) = Receipt::invocation_capsule(invocation_receipt) {
             let _id = self
                 .swarm
                 .behaviour_mut()
                 .kademlia
                 .put_record(
-                    Record::new(instruction_bytes, receipt_value.to_vec()),
-                    quorum,
+                    Record::new(instruction_bytes, receipt_bytes.to_vec()),
+                    receipt_quorum,
                 )
                 .map_err(anyhow::Error::msg)?;
 
@@ -207,17 +211,16 @@ impl EventLoop {
             workflow_info.increment_progress(receipt_cid);
 
             let wf_cid_bytes = workflow_info.cid_as_bytes();
-            let wf_bytes = &Vec::try_from(workflow_info)?;
-            let wf_value = veccat!(WORKFLOW_INFO_CODE wf_bytes);
+            let wf_bytes = workflow_info.capsule()?;
 
             let _id = self
                 .swarm
                 .behaviour_mut()
                 .kademlia
-                .put_record(Record::new(wf_cid_bytes, wf_value), quorum)
+                .put_record(Record::new(wf_cid_bytes, wf_bytes), workflow_quorum)
                 .map_err(anyhow::Error::msg)?;
 
-            Ok((receipt_cid, receipt_bytes))
+            Ok((receipt_cid, receipt_bytes.to_vec()))
         } else {
             Err(anyhow!("cannot convert receipt {receipt_cid} to bytes"))
         }
@@ -242,26 +245,37 @@ impl EventLoop {
     }
 
     fn on_found_record(key_cid: Cid, value: Vec<u8>) -> Result<FoundEvent> {
-        match value {
-            value
-                if value
-                    .starts_with(&veccat!(consts::INVOCATION_VERSION.as_bytes() RECEIPT_CODE)) =>
-            {
-                let receipt_bytes =
-                    &value[consts::INVOCATION_VERSION.as_bytes().len() + RECEIPT_CODE.len()..];
-                let invocation_receipt = InvocationReceipt::try_from(receipt_bytes.to_vec())?;
-                let receipt = Receipt::try_with(Pointer::new(key_cid), &invocation_receipt)?;
-                Ok(FoundEvent::Receipt(receipt))
-            }
-            value if value.starts_with(WORKFLOW_INFO_CODE) => {
-                let workflow_info_bytes = &value[WORKFLOW_INFO_CODE.len()..];
-                let workflow_info = workflow::Info::try_from(workflow_info_bytes.to_vec())?;
-                Ok(FoundEvent::Workflow(workflow_info))
-            }
-            _ => Err(anyhow!(
-                "record version mismatch, current version: {}",
-                consts::INVOCATION_VERSION
+        match serde_ipld_dagcbor::de::from_reader(&*value) {
+            Ok(Ipld::Map(mut map)) => match map.pop_first() {
+                Some((code, Ipld::Map(mut rest))) if code == RECEIPT_TAG => {
+                    if rest.remove(VERSION_KEY)
+                        == Some(Ipld::String(consts::INVOCATION_VERSION.to_string()))
+                    {
+                        let invocation_receipt = InvocationReceipt::try_from(Ipld::Map(rest))?;
+                        let receipt =
+                            Receipt::try_with(Pointer::new(key_cid), &invocation_receipt)?;
+                        Ok(FoundEvent::Receipt(receipt))
+                    } else {
+                        Err(anyhow!(
+                            "record version mismatch, current version: {}",
+                            consts::INVOCATION_VERSION
+                        ))
+                    }
+                }
+                Some((code, Ipld::Map(rest))) if code == WORKFLOW_TAG => {
+                    let workflow_info = workflow::Info::try_from(Ipld::Map(rest))?;
+                    Ok(FoundEvent::Workflow(workflow_info))
+                }
+                Some((code, _)) => Err(anyhow!("decode mismatch: {code} is not known")),
+                None => Err(anyhow!("invalid record value")),
+            },
+            Ok(ipld) => Err(anyhow!(
+                "decode mismatch: expected an Ipld map, got {ipld:#?}",
             )),
+            Err(err) => {
+                tracing::error!(error=?err, "error deserializing record value");
+                Err(anyhow!("error deserializing record value"))
+            }
         }
     }
 
@@ -343,7 +357,7 @@ impl EventLoop {
                                     tracing::error!("error converting key {key:#?} to cid")
                                 }
                             }
-                            Err(err) => tracing::error!(err=?err, "error retrieving receipt"),
+                            Err(err) => tracing::error!(err=?err, "error retrieving record"),
                         }
                     }
                 }
@@ -365,7 +379,6 @@ impl EventLoop {
                 }
                 _ => {}
             },
-            SwarmEvent::Behaviour(ComposedEvent::Kademlia(_)) => {}
             SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Discovered(list))) => {
                 for (peer_id, _multiaddr) in list {
                     tracing::info!("mDNS discovered a new peer: {peer_id}");
@@ -439,10 +452,8 @@ mod test {
     fn found_receipt_record() {
         let (invocation_receipt, receipt) = test_utils::receipt::receipts();
         let instruction_bytes = receipt.instruction_cid_as_bytes();
-        let bytes = Vec::try_from(invocation_receipt).unwrap();
-        let ref_bytes = &bytes;
-        let value = veccat!(consts::INVOCATION_VERSION.as_bytes() RECEIPT_CODE ref_bytes);
-        let record = Record::new(instruction_bytes, value.to_vec());
+        let bytes = Receipt::invocation_capsule(invocation_receipt).unwrap();
+        let record = Record::new(instruction_bytes, bytes);
         let record_value = record.value;
         if let FoundEvent::Receipt(found_receipt) =
             EventLoop::on_found_record(Cid::try_from(receipt.instruction()).unwrap(), record_value)
@@ -474,10 +485,8 @@ mod test {
         let workflow_info =
             workflow::Info::default(workflow.clone().to_cid().unwrap(), workflow.len());
         let workflow_cid_bytes = workflow_info.cid_as_bytes();
-        let bytes = Vec::try_from(workflow_info.clone()).unwrap();
-        let ref_bytes = &bytes;
-        let value = veccat!(WORKFLOW_INFO_CODE ref_bytes);
-        let record = Record::new(workflow_cid_bytes, value.to_vec());
+        let bytes = workflow_info.capsule().unwrap();
+        let record = Record::new(workflow_cid_bytes, bytes);
         let record_value = record.value;
         if let FoundEvent::Workflow(found_workflow) =
             EventLoop::on_found_record(workflow.to_cid().unwrap(), record_value).unwrap()

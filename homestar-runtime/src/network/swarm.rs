@@ -1,7 +1,10 @@
 //! Sets up a [libp2p] [Swarm], containing the state of the network and the way
 //! it should behave.
 
-use crate::{network::pubsub, settings, Receipt};
+use crate::{
+    network::{eventloop::RECEIPTS_TOPIC, pubsub},
+    settings, Receipt,
+};
 use anyhow::{anyhow, Result};
 use libp2p::{
     core::upgrade,
@@ -12,7 +15,7 @@ use libp2p::{
     swarm::{NetworkBehaviour, Swarm, SwarmBuilder},
     tcp, yamux, Transport,
 };
-use std::fmt;
+use std::{fmt, time::Duration};
 
 /// Build a new [Swarm] with a given transport and a tokio executor.
 pub async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> {
@@ -21,12 +24,11 @@ pub async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> 
 
     let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
         .upgrade(upgrade::Version::V1Lazy)
-        .authenticate(
-            noise::Config::new(&keypair).expect("Signing libp2p-noise static DH keypair failed"),
-        )
+        .authenticate(noise::Config::new(&keypair)?)
         .multiplex(yamux::Config::default())
-        // TODO: configure
-        //.timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(
+            settings.network.transport_connection_timeout_secs,
+        ))
         .boxed();
 
     let mut swarm = SwarmBuilder::with_tokio_executor(
@@ -42,6 +44,9 @@ pub async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> 
 
     // Listen-on given address
     swarm.listen_on(settings.network.listen_address.to_string().parse()?)?;
+
+    // subscribe to `receipts` topic
+    swarm.behaviour_mut().gossip_subscribe(RECEIPTS_TOPIC)?;
 
     Ok(swarm)
 }

@@ -1,9 +1,25 @@
-use crate::Receipt;
-use anyhow::anyhow;
+use crate::{
+    db::{Connection, Database},
+    network::eventloop::{Event, FoundEvent},
+    Db, Receipt,
+};
+use anyhow::{anyhow, bail, Result};
+use crossbeam::channel;
 use diesel::{Associations, Identifiable, Insertable, Queryable, Selectable};
-use homestar_core::workflow::Pointer;
+use homestar_core::{ipld::DagCbor, workflow::Pointer, Workflow};
+use homestar_wasm::io::Arg;
 use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Cid, Ipld};
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+use tokio::sync::mpsc;
+
+/// [Workflow Info] header tag, for sharing over libp2p.
+///
+/// [Workflow Info]: Info
+pub const WORKFLOW_TAG: &str = "ipvm/workflow";
 
 const CID_KEY: &str = "cid";
 const PROGRESS_KEY: &str = "progress";
@@ -105,10 +121,97 @@ impl Info {
         self.cid().to_bytes()
     }
 
+    /// Set the progress / step of the [Workflow] completed, which
+    /// may not be the same as the `progress` vector of [Cid]s.
+    pub fn set_progress_count(&mut self, progress_count: u32) {
+        self.progress_count = progress_count;
+    }
+
     /// Set the progress / step of the [Info].
     pub fn increment_progress(&mut self, new_cid: Cid) {
         self.progress.push(new_cid);
         self.progress_count = self.progress.len() as u32 + 1;
+    }
+
+    /// Capsule-wrapper for [Info] to to be shared over libp2p as
+    /// [DagCbor] encoded bytes.
+    ///
+    /// [DagCbor]: DagCborCodec
+    pub fn capsule(&self) -> anyhow::Result<Vec<u8>> {
+        let info_ipld = Ipld::from(self.to_owned());
+        let capsule = if let Ipld::Map(map) = info_ipld {
+            Ok(Ipld::Map(BTreeMap::from([(
+                WORKFLOW_TAG.into(),
+                Ipld::Map(map),
+            )])))
+        } else {
+            Err(anyhow!("workflow info to Ipld conversion is not a map"))
+        }?;
+
+        DagCborCodec.encode(&capsule)
+    }
+
+    /// Gather available [Info] from the database or [libp2p] given a
+    /// [Workflow] and [workflow settings].
+    ///
+    /// [workflow settings]: super::Settings
+    pub async fn gather<'a>(
+        workflow: Workflow<'_, Arg>,
+        workflow_settings: &'a super::Settings,
+        event_sender: &'a Arc<mpsc::Sender<Event>>,
+        conn: &mut Connection,
+    ) -> Result<Self> {
+        let workflow_len = workflow.len();
+        let workflow_cid = workflow.to_cid()?;
+
+        let workflow_info = match Db::join_workflow_with_receipts(workflow_cid, conn) {
+            Ok((wf_info, receipts)) => Info::new(workflow_cid, receipts, wf_info.num_tasks as u32),
+            Err(_err) => {
+                tracing::info!("workflow information not available in the database");
+                let (sender, receiver) = channel::bounded(1);
+                event_sender
+                    .send(Event::FindWorkflow(workflow_cid, sender))
+                    .await?;
+
+                match receiver.recv_deadline(
+                    Instant::now() + Duration::from_secs(workflow_settings.p2p_timeout_secs),
+                ) {
+                    Ok((found_cid, FoundEvent::Workflow(workflow_info)))
+                        if found_cid == workflow_cid =>
+                    {
+                        // store workflow from info
+                        Db::store_workflow(
+                            Stored::new(
+                                Pointer::new(workflow_info.cid),
+                                workflow_info.num_tasks as i32,
+                            ),
+                            conn,
+                        )?;
+
+                        workflow_info
+                    }
+                    Ok((found_cid, event)) => {
+                        bail!("received unexpected event {event:?} for workflow {found_cid}")
+                    }
+                    Err(err) => {
+                        tracing::info!(error=?err, "no information found for {workflow_cid}, setting default");
+                        let workflow_info = Info::default(workflow_cid, workflow_len);
+                        // store workflow from info
+                        Db::store_workflow(
+                            Stored::new(
+                                Pointer::new(workflow_info.cid),
+                                workflow_info.num_tasks as i32,
+                            ),
+                            conn,
+                        )?;
+
+                        workflow_info
+                    }
+                }
+            }
+        };
+
+        Ok(workflow_info)
     }
 }
 
@@ -170,9 +273,9 @@ impl TryFrom<Ipld> for Info {
 impl TryFrom<Info> for Vec<u8> {
     type Error = anyhow::Error;
 
-    fn try_from(receipt: Info) -> Result<Self, Self::Error> {
-        let receipt_ipld = Ipld::from(receipt);
-        DagCborCodec.encode(&receipt_ipld)
+    fn try_from(workflow_info: Info) -> Result<Self, Self::Error> {
+        let info_ipld = Ipld::from(workflow_info);
+        DagCborCodec.encode(&info_ipld)
     }
 }
 

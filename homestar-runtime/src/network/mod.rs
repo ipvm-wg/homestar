@@ -10,3 +10,5 @@ pub mod ipfs;
 pub mod pubsub;
 pub mod swarm;
 pub mod ws;
+
+pub use eventloop::EventLoop;

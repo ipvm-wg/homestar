@@ -7,12 +7,13 @@ use crate::{
     io::{Arg, Output},
     wasmtime::{
         ipld::{InterfaceType, RuntimeVal},
+        limits::StoreLimitsAsync,
         Error,
     },
 };
 use heck::{ToKebabCase, ToSnakeCase};
 use homestar_core::{
-    bail,
+    bail, consts,
     workflow::{error::ResolveError, input::Args, Input},
 };
 use std::iter;
@@ -29,21 +30,25 @@ const UNIT_OF_COMPUTE_INSTRUCTIONS: u64 = 100_000;
 // our error set.
 
 /// Incoming `state` from host runtime.
-#[derive(Clone, Debug, PartialEq)]
+#[allow(missing_debug_implementations)]
 pub struct State {
     fuel: u64,
+    limits: StoreLimitsAsync,
 }
 
 impl Default for State {
     fn default() -> Self {
-        Self { fuel: u64::MAX }
+        Self {
+            fuel: u64::MAX,
+            limits: StoreLimitsAsync::new(Some(consts::WASM_MAX_MEMORY as usize), None),
+        }
     }
 }
 
 impl State {
     /// Create a new [State] object.
-    pub fn new(fuel: u64) -> Self {
-        Self { fuel }
+    pub fn new(fuel: u64, limits: StoreLimitsAsync) -> Self {
+        Self { fuel, limits }
     }
 
     /// Set fuel add.
@@ -225,6 +230,7 @@ impl World {
         let linker = Self::define_linker(&engine);
 
         let mut store = Store::new(&engine, data);
+        store.limiter_async(|s| &mut s.limits);
         store.add_fuel(store.data().fuel)?;
 
         // Configures a `Store` to yield execution of async WebAssembly code
@@ -235,10 +241,12 @@ impl World {
         let component = component_from_bytes(&bytes, engine.clone())?;
 
         let instance = linker.instantiate_async(&mut store, &component).await?;
+
         let bindings = Self::new(&mut store, &instance, fun_name)?;
         let mut env = Env::new(engine, linker, store);
         env.set_bindings(bindings);
         env.set_instance(instance);
+
         Ok(env)
     }
 

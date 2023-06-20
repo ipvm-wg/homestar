@@ -51,10 +51,16 @@ pub(crate) struct Network {
     /// [Swarm]: libp2p::swarm::Swarm
     #[serde(with = "http_serde::uri")]
     pub(crate) listen_address: Uri,
+    /// Pub/sub duplicate cache time.
+    pub(crate) pubsub_duplication_cache_secs: u64,
     /// Pub/sub hearbeat interval for mesh configuration.
     pub(crate) pubsub_heartbeat_secs: u64,
+    /// Pub/sub idle timeout
+    pub(crate) pubsub_idle_timeout_secs: u64,
     /// Quorum for receipt records on the DHT.
     pub(crate) receipt_quorum: usize,
+    /// Transport connection timeout.
+    pub(crate) transport_connection_timeout_secs: u64,
     /// Websocket-server host address.
     #[serde(with = "http_serde::uri")]
     pub(crate) websocket_host: Uri,
@@ -63,6 +69,10 @@ pub(crate) struct Network {
     /// Number of *bounded* clients to send messages to, used for a
     /// [tokio::sync::broadcast::channel]
     pub(crate) websocket_capacity: usize,
+    /// Quorum for [workflow::Info] records on the DHT.
+    ///
+    /// [workflow::Info]: crate::workflow::Info
+    pub(crate) workflow_quorum: usize,
 }
 
 /// Database-related settings for a homestar node.
@@ -79,11 +89,15 @@ impl Default for Network {
         Self {
             events_buffer_len: 100,
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
-            pubsub_heartbeat_secs: 10,
+            pubsub_duplication_cache_secs: 1,
+            pubsub_heartbeat_secs: 60,
+            pubsub_idle_timeout_secs: 60 * 60 * 24,
             receipt_quorum: 2,
+            transport_connection_timeout_secs: 20,
             websocket_host: Uri::from_static("127.0.0.1"),
             websocket_port: 1337,
             websocket_capacity: 100,
+            workflow_quorum: 3,
         }
     }
 }

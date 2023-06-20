@@ -4,18 +4,20 @@
 //! [workflow]: super
 //! [Invocations]: super::Invocation
 
-use crate::{workflow, Unit};
+use crate::{consts, workflow, Unit};
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, default::Default, time::Duration};
 
 const FUEL_KEY: &str = "fuel";
+const MEMORY_KEY: &str = "memory";
 const TIMEOUT_KEY: &str = "time";
 
 /// Resource configuration for defining fuel quota, timeout, etc.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Resources {
     fuel: Option<u64>,
+    memory: Option<u64>,
     time: Option<Duration>,
 }
 
@@ -23,6 +25,7 @@ impl Default for Resources {
     fn default() -> Self {
         Self {
             fuel: Some(u64::MAX),
+            memory: Some(consts::WASM_MAX_MEMORY),
             time: Some(Duration::from_millis(100_000)),
         }
     }
@@ -30,9 +33,10 @@ impl Default for Resources {
 
 impl Resources {
     /// Create new [Resources] configuration.
-    pub fn new(fuel: u64, time: Duration) -> Self {
+    pub fn new(fuel: u64, memory: u64, time: Duration) -> Self {
         Self {
             fuel: Some(fuel),
+            memory: Some(memory),
             time: Some(time),
         }
     }
@@ -56,6 +60,16 @@ impl Resources {
     pub fn set_time(&mut self, time: Duration) {
         self.time = Some(time)
     }
+
+    /// Get max memory.
+    pub fn memory(&self) -> Option<u64> {
+        self.memory
+    }
+
+    /// Set max memory.
+    pub fn set_memory(&mut self, memory: u64) {
+        self.memory = Some(memory)
+    }
 }
 
 impl From<Resources> for Ipld {
@@ -64,6 +78,10 @@ impl From<Resources> for Ipld {
             (
                 FUEL_KEY.into(),
                 resources.fuel().map(Ipld::from).unwrap_or(Ipld::Null),
+            ),
+            (
+                MEMORY_KEY.into(),
+                resources.memory().map(Ipld::from).unwrap_or(Ipld::Null),
             ),
             (
                 TIMEOUT_KEY.into(),
@@ -95,6 +113,11 @@ impl TryFrom<Ipld> for Resources {
             ipld => from_ipld(ipld.to_owned()).ok(),
         });
 
+        let memory = map.get(MEMORY_KEY).and_then(|ipld| match ipld {
+            Ipld::Null => None,
+            ipld => from_ipld(ipld.to_owned()).ok(),
+        });
+
         let time = map.get(TIMEOUT_KEY).and_then(|ipld| match ipld {
             Ipld::Null => None,
             ipld => {
@@ -103,7 +126,7 @@ impl TryFrom<Ipld> for Resources {
             }
         });
 
-        Ok(Resources { fuel, time })
+        Ok(Resources { fuel, memory, time })
     }
 }
 
@@ -121,6 +144,10 @@ mod test {
             ipld,
             Ipld::Map(BTreeMap::from([
                 (FUEL_KEY.into(), Ipld::Integer(u64::MAX.into())),
+                (
+                    MEMORY_KEY.into(),
+                    Ipld::Integer(consts::WASM_MAX_MEMORY.into())
+                ),
                 (TIMEOUT_KEY.into(), Ipld::Integer(100_000))
             ]))
         );

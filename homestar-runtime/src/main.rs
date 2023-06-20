@@ -6,19 +6,15 @@ use homestar_runtime::{
     cli::{Args, Argument},
     db::{Database, Db},
     logger,
-    network::{
-        eventloop::{EventLoop, RECEIPTS_TOPIC},
-        swarm,
-        ws::WebSocket,
-    },
+    network::{eventloop::EventLoop, swarm, ws::WebSocket},
     Settings,
 };
 use std::sync::Arc;
 
-/// TODO: All
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
-    logger::init()?;
+    let (stdout_writer, _stdout_guard) = tracing_appender::non_blocking(std::io::stdout());
+    logger::init(stdout_writer)?;
 
     let opts = Args::parse();
 
@@ -34,10 +30,7 @@ async fn main() -> Result<()> {
             }?;
 
             let db = Db::setup_connection_pool(settings.node())?;
-            let mut swarm = swarm::new(settings.node()).await?;
-
-            // subscribe to `receipts` topic
-            swarm.behaviour_mut().gossip_subscribe(RECEIPTS_TOPIC)?;
+            let swarm = swarm::new(settings.node()).await?;
 
             let (_tx, rx) = EventLoop::setup_channel(settings.node());
             // instantiate and start event-loop for events
@@ -53,7 +46,8 @@ async fn main() -> Result<()> {
             let ws_sender = Arc::new(ws_tx);
             let ws_receiver = Arc::new(ws_rx);
             WebSocket::start_server(ws_sender, ws_receiver, settings.node()).await?;
-            Ok(())
         }
     }
+
+    Ok(())
 }

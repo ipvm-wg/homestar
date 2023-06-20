@@ -32,7 +32,7 @@ pub mod workflow;
 pub use db::Db;
 #[cfg(feature = "ipfs")]
 pub use network::ipfs::IpfsCli;
-pub use receipt::Receipt;
+pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};
 pub use runtime::*;
 pub use settings::Settings;
 pub use worker::Worker;

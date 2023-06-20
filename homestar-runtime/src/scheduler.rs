@@ -5,10 +5,12 @@
 
 use crate::{
     db::{Connection, Database},
-    workflow::{Builder, Resource, Vertex},
+    network::eventloop::{Event, FoundEvent},
+    workflow::{self, Builder, Resource, Vertex},
     Db,
 };
 use anyhow::Result;
+use crossbeam::channel;
 use dagga::Node;
 use futures::future::BoxFuture;
 use homestar_core::{
@@ -18,7 +20,13 @@ use homestar_core::{
 use homestar_wasm::io::Arg;
 use indexmap::IndexMap;
 use libipld::Cid;
-use std::{ops::ControlFlow, str::FromStr};
+use std::{
+    ops::ControlFlow,
+    str::FromStr,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+use tokio::sync::mpsc;
 
 type Schedule<'a> = Vec<Vec<Node<Vertex<'a>, usize>>>;
 
@@ -26,7 +34,7 @@ type Schedule<'a> = Vec<Vec<Node<Vertex<'a>, usize>>>;
 /// resources.
 ///
 /// [instruction]: homestar_core::workflow::Instruction
-#[allow(missing_debug_implementations)]
+#[derive(Debug, Clone, Default)]
 pub struct ExecutionGraph<'a> {
     /// A built-up [Dag] [Schedule] of batches.
     ///
@@ -42,7 +50,7 @@ pub struct ExecutionGraph<'a> {
 /// what's left to run, and data structures to track resources
 /// and what's been executed in memory.
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct TaskScheduler<'a> {
     /// In-memory map of task/instruction results.
     pub(crate) linkmap: LinkMap<InstructionResult<Arg>>,
@@ -62,7 +70,8 @@ pub struct TaskScheduler<'a> {
     pub(crate) resume_step: Option<usize>,
 
     /// Resources that tasks within a [Workflow] rely on, retrieved
-    /// through IPFS Client or the DHT directly ahead-of-time.
+    /// through the IPFS Client, or over HTTP, or thorugh the DHT directly
+    /// ahead-of-time.
     ///
     /// This is transferred from the [ExecutionGraph] for actually executing the
     /// schedule.
@@ -75,6 +84,8 @@ impl<'a> TaskScheduler<'a> {
     /// [Receipt]: crate::Receipt
     pub async fn init<F>(
         workflow: Workflow<'a, Arg>,
+        settings: &'a workflow::Settings,
+        event_sender: Arc<mpsc::Sender<Event>>,
         conn: &mut Connection,
         fetch_fn: F,
     ) -> Result<TaskScheduler<'a>>
@@ -98,7 +109,8 @@ impl<'a> TaskScheduler<'a> {
                 });
 
                 if let Ok(pointers) = folded_pointers {
-                    match Db::find_instructions(pointers, conn) {
+                    let pointers_len = pointers.len();
+                    match Db::find_instructions(&pointers, conn) {
                         Ok(found) => {
                             let linkmap = found.iter().fold(
                                 LinkMap::<InstructionResult<Arg>>::new(),
@@ -118,7 +130,38 @@ impl<'a> TaskScheduler<'a> {
                                 ControlFlow::Continue(())
                             }
                         }
-                        _ => ControlFlow::Continue(()),
+                        Err(_) => {
+                            tracing::info!("receipt not available in the database");
+                            let (sender, receiver) = channel::bounded(pointers_len);
+                            for ptr in &pointers {
+                                let _ = event_sender
+                                    .blocking_send(Event::FindReceipt(ptr.cid(), sender.clone()));
+                            }
+
+                            let mut linkmap = LinkMap::<InstructionResult<Arg>>::new();
+                            let mut counter = 0;
+                            while let Ok((found_cid, FoundEvent::Receipt(found))) = receiver
+                                .recv_deadline(
+                                    Instant::now()
+                                        + Duration::from_secs(settings.p2p_check_timeout_secs),
+                                )
+                            {
+                                if pointers.contains(&Pointer::new(found_cid)) {
+                                    if let Ok(cid) = found.instruction().try_into() {
+                                        let _ = linkmap.insert(cid, found.output_as_arg());
+                                        counter += 1;
+                                    }
+                                }
+                            }
+
+                            if counter == pointers_len {
+                                ControlFlow::Break((idx + 1, linkmap))
+                            } else if counter > 0 && counter < pointers_len {
+                                ControlFlow::Break((idx, linkmap))
+                            } else {
+                                ControlFlow::Continue(())
+                            }
+                        }
                     }
                 } else {
                     ControlFlow::Continue(())
@@ -156,7 +199,9 @@ impl<'a> TaskScheduler<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{db::Database, settings::Settings, test_utils, Receipt};
+    use crate::{
+        db::Database, network::EventLoop, settings::Settings, test_utils, workflow as wf, Receipt,
+    };
     use futures::FutureExt;
     use homestar_core::{
         ipld::DagCbor,
@@ -184,14 +229,20 @@ mod test {
             UcanPrf::default(),
         );
 
+        let settings = Settings::load().unwrap();
         let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
             .unwrap();
         let mut conn = db.conn().unwrap();
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+        let workflow_settings = wf::Settings::default();
         let fetch_fn = |_rscs: Vec<Resource>| { async { Ok(IndexMap::default()) } }.boxed();
-        let scheduler = TaskScheduler::init(workflow, &mut conn, fetch_fn)
-            .await
-            .unwrap();
+
+        let (tx, mut _rx) = EventLoop::setup_channel(settings.node());
+
+        let scheduler =
+            TaskScheduler::init(workflow, &workflow_settings, tx.into(), &mut conn, fetch_fn)
+                .await
+                .unwrap();
 
         assert!(scheduler.linkmap.is_empty());
         assert!(scheduler.ran.is_none());
@@ -228,6 +279,7 @@ mod test {
         )
         .unwrap();
 
+        let settings = Settings::load().unwrap();
         let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
             .unwrap();
         let mut conn = db.conn().unwrap();
@@ -238,10 +290,16 @@ mod test {
         assert_eq!(receipt, stored_receipt);
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+        let workflow_settings = wf::Settings::default();
         let fetch_fn = |_rscs: Vec<Resource>| { async { Ok(IndexMap::default()) } }.boxed();
-        let scheduler = TaskScheduler::init(workflow, &mut conn, fetch_fn)
-            .await
-            .unwrap();
+
+        let (tx, mut _rx) = EventLoop::setup_channel(settings.node());
+
+        let scheduler =
+            TaskScheduler::init(workflow, &workflow_settings, tx.into(), &mut conn, fetch_fn)
+                .await
+                .unwrap();
+
         let ran = scheduler.ran.as_ref().unwrap();
 
         assert_eq!(scheduler.linkmap.len(), 1);
@@ -297,6 +355,7 @@ mod test {
         )
         .unwrap();
 
+        let settings = Settings::load().unwrap();
         let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
             .unwrap();
         let mut conn = db.conn().unwrap();
@@ -307,10 +366,16 @@ mod test {
         assert_eq!(2, rows_inserted);
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+        let workflow_settings = wf::Settings::default();
         let fetch_fn = |_rscs: Vec<Resource>| { async { Ok(IndexMap::default()) } }.boxed();
-        let scheduler = TaskScheduler::init(workflow, &mut conn, fetch_fn)
-            .await
-            .unwrap();
+
+        let (tx, mut _rx) = EventLoop::setup_channel(settings.node());
+
+        let scheduler =
+            TaskScheduler::init(workflow, &workflow_settings, tx.into(), &mut conn, fetch_fn)
+                .await
+                .unwrap();
+
         let ran = scheduler.ran.as_ref().unwrap();
 
         assert_eq!(scheduler.linkmap.len(), 1);

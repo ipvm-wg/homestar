@@ -2384,6 +2384,7 @@ name = "homestar-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "byte-unit",
  "criterion",
  "diesel",
  "enum-as-inner 0.6.0",
@@ -2451,10 +2452,12 @@ dependencies = [
  "reqwest",
  "semver",
  "serde",
+ "serde_ipld_dagcbor",
  "thiserror",
  "tokio",
  "tokio-tungstenite 0.19.0",
  "tracing",
+ "tracing-appender",
  "tracing-logfmt",
  "tracing-subscriber",
  "tryhard",
@@ -2466,6 +2469,7 @@ name = "homestar-wasm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "atomic_refcell",
  "criterion",
  "enum-as-inner 0.6.0",
@@ -2474,7 +2478,6 @@ dependencies = [
  "image",
  "itertools",
  "libipld",
- "libipld-core",
  "rust_decimal",
  "serde_ipld_dagcbor",
  "stacker",
@@ -6168,6 +6171,17 @@ dependencies = [
  "pin-project-lite 0.2.9",
  "tracing-attributes",
  "tracing-core",
+]
+
+[[package]]
+name = "tracing-appender"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09d48f71a791638519505cefafe162606f706c25592e4bde4d97600c0195312e"
+dependencies = [
+ "crossbeam-channel",
+ "time",
+ "tracing-subscriber",
 ]
 
 [[package]]
