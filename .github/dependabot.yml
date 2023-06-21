@@ -4,47 +4,12 @@ updates:
   - package-ecosystem: "cargo"
     directory: "/"
     commit-message:
-      prefix: "[chore(workspace)]"
+      prefix: "[chore(cargo)]"
       include: "scope"
     target-branch: "main"
     schedule:
       interval: "weekly"
-
-  - package-ecosystem: "cargo"
-    directory: "/homestar-core"
-    commit-message:
-      prefix: "[chore(core)]"
-      include: "scope"
-    target-branch: "main"
-    schedule:
-      interval: "weekly"
-
-  - package-ecosystem: "cargo"
-    directory: "/homestar-runtime"
-    commit-message:
-      prefix: "[chore(runtime)]"
-      include: "scope"
-    target-branch: "main"
-    schedule:
-      interval: "weekly"
-
-  - package-ecosystem: "cargo"
-    directory: "/homestar-guest-wasm"
-    commit-message:
-      prefix: "[chore(guest-wasm)]"
-      include: "scope"
-    target-branch: "main"
-    schedule:
-      interval: "weekly"
-
-  - package-ecosystem: "cargo"
-    directory: "/homestar-wasm"
-    commit-message:
-      prefix: "[chore(wasm)]"
-      include: "scope"
-    target-branch: "main"
-    schedule:
-      interval: "weekly"
+    open-pull-requests-limit: 10
 
   - package-ecosystem: "docker"
     directory: "/docker"
