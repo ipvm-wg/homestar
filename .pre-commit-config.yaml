@@ -34,6 +34,12 @@ repos:
         files: \.nix$
         language: system
 
+  - repo: https://github.com/DevinR528/cargo-sort
+    rev: v1.0.9
+    hooks:
+      - id: cargo-sort
+        args: ["-w"]
+
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v2.1.1
     hooks:
