@@ -2485,7 +2485,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wasi-common",
- "wasmparser 0.104.0",
+ "wasmparser 0.105.0",
  "wasmtime",
  "wasmtime-component-util",
  "wat",

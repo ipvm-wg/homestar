@@ -32,7 +32,7 @@ stacker = "0.1"
 thiserror.workspace = true
 tracing.workspace = true
 wasi-common = "8.0"
-wasmparser = "0.104"
+wasmparser = "0.105"
 wasmtime = { version = "8.0", features = ["async", "component-model", "default"] }
 wasmtime-component-util = "8.0"
 wat = "1.0"
