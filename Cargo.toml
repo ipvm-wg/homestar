@@ -1,11 +1,11 @@
 [workspace]
-resolver = "2"
 members = [
     "homestar-core",
     "homestar-guest-wasm",
     "homestar-runtime",
     "homestar-wasm"
 ]
+resolver = "2"
 
 [workspace.package]
 authors = [
@@ -35,8 +35,10 @@ debug-assertions = true
 split-debuginfo = "unpacked"
 
 [profile.release]
+codegen-units = 1
 # compiling with link time optimizations (LTO)
 lto = true
+panic = "abort"
 
 [profile.release.package.homestar-core]
 # Tell `rustc` to optimize for small code size.
@@ -54,8 +56,6 @@ opt-level = "s"
 debug-assertions = false
 
 [profile.release.package.homestar-guest-wasm]
-# Perform optimizations on all codegen units.
-codegen-units = 1
 # Tell `rustc` to optimize for small code size.
 opt-level = "z" # 'z' to optimize "aggressively" for size
 # Strip debug symbols
