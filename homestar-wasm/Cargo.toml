@@ -5,13 +5,13 @@ description = "Homestar Wasm / Wasmtime implementation and IPLD <=> WIT interpre
 keywords = ["wasm", "wasmtime", "wit", "ipld", "ipvm"]
 categories = ["wasm", "execution-engines"]
 include = ["/src", "README.md", "LICENSE"]
-license = { workspace = true }
+license.workspace = true
 readme = "README.md"
-edition = { workspace = true }
-rust-version = { workspace = true }
+edition.workspace = true
+rust-version.workspace = true
 documentation = "https://docs.rs/homestar-wasm"
 repository = "https://github.com/ipvm-wg/homestar"
-authors = { workspace = true }
+authors.workspace = true
 
 [lib]
 path = "src/lib.rs"
@@ -19,20 +19,18 @@ bench = false
 doctest = true
 
 [dependencies]
-# return to version.workspace = true after the following issue is fixed:
-# https://github.com/DevinR528/cargo-sort/issues/47
-anyhow = { workspace = true }
-async-trait = { workspace = true }
+anyhow.workspace = true
+async-trait.workspace = true
 atomic_refcell = "0.1"
-enum-as-inner = { workspace = true }
+enum-as-inner.workspace = true
 heck = "0.4"
 homestar-core = { version = "0.1", path = "../homestar-core" }
 itertools = "0.10"
-libipld = { workspace = true }
+libipld.workspace = true
 rust_decimal = "1.30"
 stacker = "0.1"
-thiserror = { workspace = true }
-tracing = { workspace = true }
+thiserror.workspace = true
+tracing.workspace = true
 wasi-common = "8.0"
 wasmparser = "0.104"
 wasmtime = { version = "8.0", features = ["async", "component-model", "default"] }
@@ -43,8 +41,8 @@ wit-component = "0.8"
 [dev-dependencies]
 criterion = "0.5"
 image = "0.24"
-serde_ipld_dagcbor = { workspace = true }
-tokio = { workspace = true }
+serde_ipld_dagcbor.workspace = true
+tokio.workspace = true
 
 [features]
 default = []
