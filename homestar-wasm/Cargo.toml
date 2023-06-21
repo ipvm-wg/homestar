@@ -33,7 +33,7 @@ rust_decimal = "1.30"
 stacker = "0.1"
 thiserror = { workspace = true }
 tracing = { workspace = true }
-wasi-common = "8.0"
+wasi-common = "10.0"
 wasmparser = "0.104"
 wasmtime = { version = "8.0", features = ["async", "component-model", "default"] }
 wasmtime-component-util = "8.0"
