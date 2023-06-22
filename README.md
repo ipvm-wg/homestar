@@ -67,15 +67,31 @@ represents the `homestar` runtime.
 ### Core Crates
 
 - [homestar-core](./homestar-core)
+
+  The *core* library implements much of the [Ucan Invocation][ucan-invocation]
+  and [Ipvm Workflow][ipvm-workflow-spec] specifications and is used as the
+  foundation for other packages in this `workspace` and within the runtime engine.
+
 - [homestar-wasm](./homestar-wasm)
+
+  This *wasm* library manages the [wasmtime][wasmtime] runtime, provides the
+  [Ipld][ipld] to/from [Wit][wit] interpreter/translation-layer, and implements
+  the input interface for working with Ipvm's standard Wasm tasks.
 
 ### Runtime Crate
 
 - [homestar-runtime](./homestar-runtime)
 
+  The *runtime* is responsible for bootstrapping and running nodes, scheduling
+  and executing workflows as well as tasks within workflows, handling retries
+  and failure modes, etc.
+
 ### Non-published, Helper Crates
 
 - [homestar-guest-wasm](./homestar-guest-wasm)
+
+  This is a helper and example crate for writing and compiling
+  [Wasm components][wasm-component] using [wit-bindgen][wit-bindgen].
 
 ## Testing the Project
 
@@ -170,7 +186,7 @@ hooks. Please run this before every commit and/or push.
     builds, and tests
   * **`db`** and **`db-reset`** for running `diesel` setup and migrations
   * **`compile-wasm`** for compiling [homestar-guest-wasm](./homestar-guest-wasm),
-    a [wit-bindgen][]-driven example, to the `wasm32-unknown-unknown` target
+    a [wit-bindgen][wit-bindgen]-driven example, to the `wasm32-unknown-unknown` target
   * **`docker-<amd64,arm64>`** for running docker builds
   * **`nx-test`**, which translates to `cargo nextest run && cargo test --doc`
   * **`x-test`** for testing continuously as files change, translating to
@@ -243,8 +259,10 @@ conditions.
 [direnv]:https://direnv.net/
 [foundations-for-openworld-compute]: https://youtu.be/dRz5mau6fsY
 [ipfs-thing-ipvm]: https://www.youtube.com/watch?v=rzJWk1nlYvs
+[ipld]: https://ipld.io/
 [ipvm-spec]: https://github.com/ipvm-wg/spec
 [ipvm-wg]: https://github.com/ipvm-wg
+[ipvm-workflow-spec]: https://github.com/ipvm-wg/workflow
 [irust]: https://github.com/sigmaSd/IRust
 [mit]: http://opensource.org/licenses/MIT
 [nix]:https://nixos.org/download.html
@@ -252,4 +270,7 @@ conditions.
 [pre-commit]: https://pre-commit.com/
 [seamless-services]: https://youtu.be/Kr3B3sXh_VA
 [ucan-invocation]: https://github.com/ucan-wg/invocation
+[wasm-component]: https://github.com/WebAssembly/component-model
+[wasmtime]: https://github.com/bytecodealliance/wasmtime
+[wit]: https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md
 [wit-bindgen]: https://github.com/bytecodealliance/wit-bindgen

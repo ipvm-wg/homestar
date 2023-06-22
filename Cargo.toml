@@ -35,27 +35,23 @@ debug-assertions = true
 split-debuginfo = "unpacked"
 
 [profile.release]
-codegen-units = 1
 # compiling with link time optimizations (LTO)
 lto = true
-panic = "abort"
 
 [profile.release.package.homestar-core]
-# Tell `rustc` to optimize for small code size.
-opt-level = "s"
 debug-assertions = false
 
 [profile.release.package.homestar-runtime]
-# Tell `rustc` to optimize for small code size.
-opt-level = "z"
+codegen-units = 1
 debug-assertions = false
 
 [profile.release.package.homestar-wasm]
-# Tell `rustc` to optimize for small code size.
-opt-level = "s"
+# match wasmtime
+opt-level = 0
 debug-assertions = false
 
 [profile.release.package.homestar-guest-wasm]
+codegen-units = 1
 # Tell `rustc` to optimize for small code size.
 opt-level = "z" # 'z' to optimize "aggressively" for size
 # Strip debug symbols
