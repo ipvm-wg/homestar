@@ -7,7 +7,7 @@ rust-version = { workspace = true }
 
 [dependencies]
 image = { version = "0.24", default-features = false, features = ["png"] }
-wit-bindgen = "0.6"
+wit-bindgen = "0.8"
 
 [dev-dependencies]
 image = "0.24"
