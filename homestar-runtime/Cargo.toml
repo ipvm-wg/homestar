@@ -48,7 +48,7 @@ homestar-core = { version = "0.1", path = "../homestar-core" }
 homestar-wasm = { version = "0.1", path = "../homestar-wasm" }
 http = "0.2"
 http-serde = "1.1"
-indexmap = "1.9"
+indexmap = "2.0"
 ipfs-api = { version = "0.17", optional = true }
 ipfs-api-backend-hyper = { version = "0.6", features = ["with-builder", "with-send-sync"], optional = true }
 itertools = "0.10"

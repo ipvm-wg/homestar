@@ -27,7 +27,7 @@ diesel = { version = "2.0", features = ["sqlite"] }
 enum-as-inner = { workspace = true }
 enum-assoc = { workspace = true }
 generic-array = { version = "0.14", features = ["serde"] }
-indexmap = "1.9"
+indexmap = "2.0"
 libipld = { workspace = true }
 libsqlite3-sys = { version = "0.26", features = ["bundled"] }
 proptest = { version = "1.2", optional = true }
