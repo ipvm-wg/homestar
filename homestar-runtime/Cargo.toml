@@ -51,7 +51,7 @@ http-serde = "1.1"
 indexmap = "2.0"
 ipfs-api = { version = "0.17", optional = true }
 ipfs-api-backend-hyper = { version = "0.6", features = ["with-builder", "with-send-sync"], optional = true }
-itertools = "0.10"
+itertools = "0.11"
 libipld = { workspace = true }
 libp2p = { version = "0.51", default-features = false, features = ["kad", "request-response", "macros", "identify", "mdns", "gossipsub", "tokio", "dns", "mplex", "tcp", "noise", "yamux", "websocket"] }
 libsqlite3-sys = { version = "0.26", features = ["bundled"] }
