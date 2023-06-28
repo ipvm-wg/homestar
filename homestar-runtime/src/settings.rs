@@ -2,8 +2,10 @@
 
 use config::{Config, ConfigError, Environment, File};
 use http::Uri;
+use libp2p::{identity::{self, DecodingError}};
 use serde::Deserialize;
 use std::path::PathBuf;
+use sha2::{Sha256, Digest};
 
 /// Server settings.
 #[derive(Clone, Debug, Deserialize)]
@@ -20,6 +22,44 @@ pub struct Monitoring {
     /// Monitoring collection interval.
     #[allow(dead_code)]
     process_collector_interval: u64,
+}
+
+#[derive(Default, Clone, Debug, Deserialize)]
+/// Configure how the Network keypair is generated or using an existing one
+pub(crate) enum PubkeyConfig {
+    #[default]
+    Random,
+    /// Seed bytes are hashed with SHA-256 to produce the ed25519 secret key.
+    RandomWithSeed(Vec<u8>),
+    Existing(Vec<u8>),
+}
+
+impl PubkeyConfig {
+    /// Produce a Keypair using the given configuration. Consumes `self` to avoid keeping secrets laying around.
+    fn generate_keypair(self) -> Result<identity::Keypair, DecodingError> {
+        match self {
+            PubkeyConfig::Random => Ok(identity::Keypair::generate_ed25519()),
+            PubkeyConfig::RandomWithSeed(seed) => {
+                let mut hasher = Sha256::default();
+                hasher.update(&seed);
+                identity::Keypair::ed25519_from_bytes(hasher.finalize())
+            },
+            PubkeyConfig::Existing(mut existing_keypair) => identity::ed25519::Keypair::try_from_bytes(&mut existing_keypair).map(|kp| kp.into()),
+        }
+    }
+
+    /// Generate a new keypair from given seed bytes.
+    /// Seed bytes are hashed with SHA-256 to produce the ed25519 secret key.
+    fn new_keypair_seed(seed: Vec<u8>) -> Self {
+        Self::RandomWithSeed(seed)
+    }
+
+    /// Imports an existing keypair in binary format where the secret key and compressed public key are concatenated.
+    /// i.e. [secret, public]
+    /// Total length of the vec should be 64 bytes (32B sk + 32B pk).
+    fn new_existing(existing_keypair: Vec<u8>) -> Self {
+        Self::Existing(existing_keypair)
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -73,6 +113,8 @@ pub(crate) struct Network {
     ///
     /// [workflow::Info]: crate::workflow::Info
     pub(crate) workflow_quorum: usize,
+    /// Pubkey setup configuration
+    pub(crate) keypair_setup: PubkeyConfig,
 }
 
 /// Database-related settings for a homestar node.
@@ -98,6 +140,7 @@ impl Default for Network {
             websocket_port: 1337,
             websocket_capacity: 100,
             workflow_quorum: 3,
+            keypair_setup: PubkeyConfig::Random,
         }
     }
 }

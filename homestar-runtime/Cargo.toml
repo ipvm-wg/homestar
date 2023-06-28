@@ -69,6 +69,7 @@ tracing-logfmt = "0.3"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "parking_lot", "registry"] }
 tryhard = "0.5"
 url = "2.4"
+sha2 = "0.10.7"
 
 [dev-dependencies]
 criterion = "0.5"
