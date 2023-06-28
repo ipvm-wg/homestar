@@ -4,7 +4,7 @@ use config::{Config, ConfigError, Environment, File};
 use http::Uri;
 use libp2p::{identity::{self, DecodingError}};
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::{path::{PathBuf, Path}, io::Read};
 use sha2::{Sha256, Digest};
 
 /// Server settings.
@@ -28,37 +28,48 @@ pub struct Monitoring {
 /// Configure how the Network keypair is generated or using an existing one
 pub(crate) enum PubkeyConfig {
     #[default]
+    #[serde(rename = "random")]
     Random,
-    /// Seed bytes are hashed with SHA-256 to produce the ed25519 secret key.
-    RandomWithSeed(Vec<u8>),
-    Existing(Vec<u8>),
+    /// Seed string is hashed with SHA-256 to produce the ed25519 secret key.
+    #[serde(rename = "seed")]
+    GenerateFromSeed(String),
+    /// File path to a PEM encoded ed25519 key
+    #[serde(rename = "path")]
+    Existing(String),
 }
+
 
 impl PubkeyConfig {
     /// Produce a Keypair using the given configuration. Consumes `self` to avoid keeping secrets laying around.
     fn generate_keypair(self) -> Result<identity::Keypair, DecodingError> {
         match self {
             PubkeyConfig::Random => Ok(identity::Keypair::generate_ed25519()),
-            PubkeyConfig::RandomWithSeed(seed) => {
+            PubkeyConfig::GenerateFromSeed(seed) => {
                 let mut hasher = Sha256::default();
                 hasher.update(&seed);
                 identity::Keypair::ed25519_from_bytes(hasher.finalize())
             },
-            PubkeyConfig::Existing(mut existing_keypair) => identity::ed25519::Keypair::try_from_bytes(&mut existing_keypair).map(|kp| kp.into()),
+            PubkeyConfig::Existing(path) => {
+                let path = Path::new(&path);
+                println!("{:?}", path);
+                let pem_file = 
+                {  
+                    let mut s = String::new();
+                    // TODO convert err
+                    std::fs::File::open(path).unwrap().read_to_string(&mut s).unwrap();
+                    s
+                };
+                // TODO convert err
+                let pem = pem::parse(pem_file).unwrap();
+                // we only take ed25519
+                if pem.tag() != "PRIVATE KEY" {
+                    // TODO custom error at this point... 
+                    panic!("Not a private key pem file")
+                }
+                println!("{}", pem.tag());
+                identity::Keypair::ed25519_from_bytes(&mut pem.contents().to_vec()).map(|kp| kp.into())
+            },
         }
-    }
-
-    /// Generate a new keypair from given seed bytes.
-    /// Seed bytes are hashed with SHA-256 to produce the ed25519 secret key.
-    fn new_keypair_seed(seed: Vec<u8>) -> Self {
-        Self::RandomWithSeed(seed)
-    }
-
-    /// Imports an existing keypair in binary format where the secret key and compressed public key are concatenated.
-    /// i.e. [secret, public]
-    /// Total length of the vec should be 64 bytes (32B sk + 32B pk).
-    fn new_existing(existing_keypair: Vec<u8>) -> Self {
-        Self::Existing(existing_keypair)
     }
 }
 
@@ -114,7 +125,7 @@ pub(crate) struct Network {
     /// [workflow::Info]: crate::workflow::Info
     pub(crate) workflow_quorum: usize,
     /// Pubkey setup configuration
-    pub(crate) keypair_setup: PubkeyConfig,
+    pub(crate) keypair_config: PubkeyConfig,
 }
 
 /// Database-related settings for a homestar node.
@@ -140,7 +151,7 @@ impl Default for Network {
             websocket_port: 1337,
             websocket_capacity: 100,
             workflow_quorum: 3,
-            keypair_setup: PubkeyConfig::Random,
+            keypair_config: PubkeyConfig::Random,
         }
     }
 }
@@ -174,5 +185,18 @@ impl Settings {
             .add_source(Environment::with_prefix("HOMESTAR").separator("__"))
             .build()?;
         s.try_deserialize()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::Settings;
+
+    #[test]
+    fn load_settings() {
+        let settings = Settings::load().unwrap();
+
+        println!("{:?}", settings.node.network.keypair_config.generate_keypair())
+
     }
 }

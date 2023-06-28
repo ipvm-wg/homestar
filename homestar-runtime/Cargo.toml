@@ -59,8 +59,10 @@ openssl = { version = "0.10", features = ["vendored"] }
 proptest = { version = "1.2", optional = true }
 reqwest = { version = "0.11", features = ["json"] }
 semver = "1.0"
+
 serde = { version = "1.0", features = ["derive"] }
 serde_ipld_dagcbor = { workspace = true }
+
 thiserror = "1.0"
 tokio = { workspace = true }
 tracing = { workspace = true }
@@ -70,6 +72,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "parking_lot",
 tryhard = "0.5"
 url = "2.4"
 sha2 = "0.10.7"
+pem = "2.0.1"
 
 [dev-dependencies]
 criterion = "0.5"
