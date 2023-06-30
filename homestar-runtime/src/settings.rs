@@ -2,10 +2,14 @@
 
 use config::{Config, ConfigError, Environment, File};
 use http::Uri;
-use libp2p::{identity::{self, DecodingError}};
+use libp2p::identity::{self, DecodingError};
+use rand::{Rng, SeedableRng};
 use serde::Deserialize;
-use std::{path::{PathBuf, Path}, io::Read};
-use sha2::{Sha256, Digest};
+use serde_with::{base64::Base64, serde_as};
+use std::{
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 /// Server settings.
 #[derive(Clone, Debug, Deserialize)]
@@ -24,42 +28,52 @@ pub struct Monitoring {
     process_collector_interval: u64,
 }
 
-#[derive(Default, Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 /// Configure how the Network keypair is generated or using an existing one
 pub(crate) enum PubkeyConfig {
-    #[default]
     #[serde(rename = "random")]
     Random,
-    /// Seed string is hashed with SHA-256 to produce the ed25519 secret key.
-    #[serde(rename = "seed")]
-    GenerateFromSeed(String),
+    /// Seed string should be a base64 encoded 32 bytes. This is used as the RNG seed to generate a ed25519 key.
+    #[serde(rename = "random_seed")]
+    GenerateFromSeed(PupkeyRNGSeed),
     /// File path to a PEM encoded ed25519 key
     #[serde(rename = "path")]
     Existing(String),
 }
 
+#[serde_as]
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct PupkeyRNGSeed {
+    #[serde_as(as = "Base64")]
+    seed: [u8; 32],
+}
 
 impl PubkeyConfig {
-    /// Produce a Keypair using the given configuration. Consumes `self` to avoid keeping secrets laying around.
-    fn generate_keypair(self) -> Result<identity::Keypair, DecodingError> {
+    /// Produce a Keypair using the given configuration.
+    pub(crate) fn generate_keypair(&self) -> Result<identity::Keypair, DecodingError> {
         match self {
             PubkeyConfig::Random => Ok(identity::Keypair::generate_ed25519()),
-            PubkeyConfig::GenerateFromSeed(seed) => {
-                let mut hasher = Sha256::default();
-                hasher.update(&seed);
-                identity::Keypair::ed25519_from_bytes(hasher.finalize())
-            },
+            PubkeyConfig::GenerateFromSeed(rng_seed) => {
+                // seed RNG with supplied seed
+                let mut r = rand::prelude::StdRng::from_seed(rng_seed.seed);
+                let new_key: [u8; 32] = r.gen();
+
+                identity::Keypair::ed25519_from_bytes(new_key)
+            }
             PubkeyConfig::Existing(path) => {
                 let path = Path::new(&path);
                 println!("{:?}", path);
-                let pem_file =
-                {
+                let pem_file = {
                     let mut s = String::new();
                     // TODO convert err
-                    std::fs::File::open(path).unwrap().read_to_string(&mut s).unwrap();
+                    std::fs::File::open(path)
+                        .unwrap()
+                        .read_to_string(&mut s)
+                        .unwrap();
                     s
                 };
                 // TODO convert err
+                // parse key from PEM file
                 let pem = pem::parse(pem_file).unwrap();
                 // we only take ed25519
                 if pem.tag() != "PRIVATE KEY" {
@@ -68,7 +82,7 @@ impl PubkeyConfig {
                 }
                 println!("{}", pem.tag());
                 identity::Keypair::ed25519_from_bytes(&mut pem.contents().to_vec())
-            },
+            }
         }
     }
 }
@@ -197,7 +211,10 @@ mod test {
     fn load_settings() {
         let settings = Settings::load().unwrap();
 
-        println!("{:?}", settings.node.network.keypair_config.generate_keypair())
-
+        println!(
+            "{:?}",
+            settings.node.network.keypair_config.generate_keypair()
+        );
+        println!("{:?}", settings.node.network.listen_address);
     }
 }

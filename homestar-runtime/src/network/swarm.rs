@@ -5,11 +5,10 @@ use crate::{
     network::{eventloop::RECEIPTS_TOPIC, pubsub},
     settings, Receipt,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use libp2p::{
     core::upgrade,
     gossipsub::{self, MessageId, SubscriptionError, TopicHash},
-    identity::Keypair,
     kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
     mdns, noise,
     swarm::{NetworkBehaviour, Swarm, SwarmBuilder},
@@ -19,7 +18,11 @@ use std::{fmt, time::Duration};
 
 /// Build a new [Swarm] with a given transport and a tokio executor.
 pub async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> {
-    let keypair = Keypair::generate_ed25519();
+    let keypair = settings
+        .network
+        .keypair_config
+        .generate_keypair()
+        .with_context(|| "Failed to generate/import keypair for libp2p".to_string())?;
     let peer_id = keypair.public().to_peer_id();
 
     let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
