@@ -3,7 +3,7 @@
 use anyhow::{anyhow, Context};
 use config::{Config, ConfigError, Environment, File};
 use http::Uri;
-use libp2p::identity;
+use libp2p::{identity, identity::secp256k1};
 use rand::{Rng, SeedableRng};
 use serde::Deserialize;
 use serde_with::{base64::Base64, serde_as};
@@ -38,15 +38,33 @@ pub(crate) enum PubkeyConfig {
     #[serde(rename = "random_seed")]
     GenerateFromSeed(PupkeyRNGSeed),
     /// File path to a PEM encoded ed25519 key
-    #[serde(rename = "path")]
-    Existing(String),
+    #[serde(rename = "existing")]
+    Existing(ExistingKeyPath),
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub(crate) enum KeyType {
+    #[default]
+    #[serde(rename = "ed25519")]
+    Ed25519,
+    #[serde(rename = "secp256k1")]
+    Secp256k1,
 }
 
 #[serde_as]
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct PupkeyRNGSeed {
+    #[serde(default)]
+    key_type: KeyType,
     #[serde_as(as = "Base64")]
     seed: [u8; 32],
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct ExistingKeyPath {
+    #[serde(default)]
+    key_type: KeyType,
+    path: String,
 }
 
 impl PubkeyConfig {
@@ -54,17 +72,30 @@ impl PubkeyConfig {
     pub(crate) fn generate_keypair(&self) -> anyhow::Result<identity::Keypair> {
         match self {
             PubkeyConfig::Random => Ok(identity::Keypair::generate_ed25519()),
-            PubkeyConfig::GenerateFromSeed(rng_seed) => {
+            PubkeyConfig::GenerateFromSeed(PupkeyRNGSeed { key_type, seed }) => {
                 // seed RNG with supplied seed
-                let mut r = rand::prelude::StdRng::from_seed(rng_seed.seed);
-                let new_key: [u8; 32] = r.gen();
+                let mut r = rand::prelude::StdRng::from_seed(*seed);
+                let mut new_key: [u8; 32] = r.gen();
 
-                identity::Keypair::ed25519_from_bytes(new_key)
-                    .map_err(|e| anyhow!("Failed to generate secret key from seed: {:?}", e))
+                match key_type {
+                    KeyType::Ed25519 => {
+                        identity::Keypair::ed25519_from_bytes(new_key).map_err(|e| {
+                            anyhow!("Failed to generate ed25519 key from random: {:?}", e)
+                        })
+                    }
+                    KeyType::Secp256k1 => {
+                        let sk =
+                            secp256k1::SecretKey::try_from_bytes(&mut new_key).map_err(|e| {
+                                anyhow!("Failed to generate secp256k1 key from random: {:?}", e)
+                            })?;
+                        let kp = secp256k1::Keypair::from(sk);
+                        Ok(identity::Keypair::from(kp))
+                    }
+                }
             }
-            PubkeyConfig::Existing(path) => {
+            PubkeyConfig::Existing(ExistingKeyPath { key_type, path }) => {
                 let path = Path::new(&path);
-                let pem_file = {
+                let file = {
                     let mut s = String::new();
                     std::fs::File::open(path)
                         .context("Unable to read key file")?
@@ -72,14 +103,40 @@ impl PubkeyConfig {
                         .context("Failed to read file into a string, is it corrupted?")?;
                     s
                 };
-                // parse key from PEM file
-                let pem = pem::parse(pem_file).with_context(|| "Key file must be PEM formatted")?;
-                // we only take ed25519
-                if pem.tag() != "PRIVATE KEY" {
-                    return Err(anyhow!("Imported key file must be a private key"));
+                match key_type {
+                    KeyType::Ed25519 => {
+                        // parse key from PEM file
+                        let pem =
+                            pem::parse(file).with_context(|| "Key file must be PEM formatted")?;
+                        // we only take ed25519
+                        if pem.tag() != "PRIVATE KEY" {
+                            return Err(anyhow!("Imported key file must be a private key"));
+                        }
+                        identity::Keypair::ed25519_from_bytes(&mut pem.contents().to_vec())
+                            .with_context(|| {
+                                "Imported key was not parsable into an ed25519 secret key"
+                            })
+                    }
+                    KeyType::Secp256k1 => {
+                        // TODO this is duplicated because this encoding format is a uncommon for secp256k1 and should probs be something else
+
+                        // parse key from PEM file
+                        let pem =
+                            pem::parse(file).with_context(|| "Key file must be PEM formatted")?;
+                        // we only take ed25519
+                        if pem.tag() != "PRIVATE KEY" {
+                            return Err(anyhow!(
+                                "Imported key file must be a private key, tag was {}",
+                                pem.tag()
+                            ));
+                        }
+                        println!("{:?}", pem.contents());
+                        let sk = secp256k1::SecretKey::try_from_bytes(&mut pem.contents().to_vec())
+                            .map_err(|e| anyhow!("Failed to import secp256k1 key: {:?}", e))?;
+                        let kp = secp256k1::Keypair::from(sk);
+                        Ok(identity::Keypair::from(kp))
+                    }
                 }
-                identity::Keypair::ed25519_from_bytes(&mut pem.contents().to_vec())
-                    .with_context(|| "Imported key was not parsable into an ed25519 secret key")
             }
         }
     }
@@ -207,7 +264,7 @@ mod test {
 
     #[test]
     fn import_existing_key() {
-        let settings = Settings::load().unwrap();
+        let settings = Settings::build("fixtures/settings-import-ed25519.toml".into()).unwrap();
 
         let msg = b"foo bar";
         let signature = libp2p::identity::Keypair::ed25519_from_bytes([0; 32])
@@ -223,5 +280,29 @@ mod test {
             .unwrap()
             .public()
             .verify(msg, &signature));
+    }
+
+    #[test]
+    fn import_secp256k1_key() {
+        let settings = Settings::build("fixtures/settings-import-secp256k1.toml".into()).unwrap();
+
+        settings
+            .node
+            .network
+            .keypair_config
+            .generate_keypair()
+            .unwrap();
+    }
+
+    #[test]
+    fn seeded_secp256k1_key() {
+        let settings = Settings::build("fixtures/settings-random-secp256k1.toml".into()).unwrap();
+
+        settings
+            .node
+            .network
+            .keypair_config
+            .generate_keypair()
+            .unwrap();
     }
 }

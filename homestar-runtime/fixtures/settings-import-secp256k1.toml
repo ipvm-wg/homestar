@@ -1,0 +1,7 @@
+[monitoring]
+process_collector_interval = 10
+
+[node]
+
+[node.network.keypair_config]
+existing = { key_type = "secp256k1", path = "./fixtures/secp_testkey.pem"}

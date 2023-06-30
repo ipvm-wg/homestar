@@ -2,8 +2,3 @@
 process_collector_interval = 10
 
 [node]
-
-[node.network]
-# path is relative to execution
-# generate a new key with openssl `openssl genpkey -algorithm ed25519 > keypair.pem`
-keypair_config = { path = "./fixtures/testkey.pem"}
