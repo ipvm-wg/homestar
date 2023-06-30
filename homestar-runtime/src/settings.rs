@@ -103,34 +103,25 @@ impl PubkeyConfig {
                         .context("Failed to read file into a string, is it corrupted?")?;
                     s
                 };
+                let pem = pem::parse(file).with_context(|| "Key file must be PEM formatted")?;
+
+                if pem.tag() != "PRIVATE KEY" {
+                    return Err(anyhow!(
+                        "Imported key file must be a private key, tag was {}",
+                        pem.tag()
+                    ));
+                }
+
                 match key_type {
                     KeyType::Ed25519 => {
-                        // parse key from PEM file
-                        let pem =
-                            pem::parse(file).with_context(|| "Key file must be PEM formatted")?;
-                        // we only take ed25519
-                        if pem.tag() != "PRIVATE KEY" {
-                            return Err(anyhow!("Imported key file must be a private key"));
-                        }
+                        // raw bytes of ed25519 secret key
                         identity::Keypair::ed25519_from_bytes(&mut pem.contents().to_vec())
                             .with_context(|| {
                                 "Imported key was not parsable into an ed25519 secret key"
                             })
                     }
                     KeyType::Secp256k1 => {
-                        // TODO this is duplicated because this encoding format is a uncommon for secp256k1 and should probs be something else
-
-                        // parse key from PEM file
-                        let pem =
-                            pem::parse(file).with_context(|| "Key file must be PEM formatted")?;
-                        // we only take ed25519
-                        if pem.tag() != "PRIVATE KEY" {
-                            return Err(anyhow!(
-                                "Imported key file must be a private key, tag was {}",
-                                pem.tag()
-                            ));
-                        }
-                        println!("{:?}", pem.contents());
+                        // TODO this might need to change because raw bytes of secp256k1 secret key is uncommon (usually pkcs#8 as far as i can tell) should probs be something else
                         let sk = secp256k1::SecretKey::try_from_bytes(&mut pem.contents().to_vec())
                             .map_err(|e| anyhow!("Failed to import secp256k1 key: {:?}", e))?;
                         let kp = secp256k1::Keypair::from(sk);
