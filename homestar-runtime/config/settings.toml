@@ -4,17 +4,6 @@ process_collector_interval = 10
 [node]
 
 [node.network]
-events_buffer_len = 100
-listen_address = "/ip4/0.0.0.0/tcp/0"
-pubsub_duplication_cache_secs = 1
-pubsub_heartbeat_secs = 60
-pubsub_idle_timeout_secs = 86400 # 60 * 60 * 24
-receipt_quorum = 2
-transport_connection_timeout_secs = 20
-websocket_host = "127.0.0.1"
-websocket_port = 1337
-websocket_capacity = 100
-workflow_quorum = 3
 # path is relative to execution
 # generate a new key with openssl `openssl genpkey -algorithm ed25519 > keypair.pem`
 keypair_config = { path = "./fixtures/testkey.pem"}

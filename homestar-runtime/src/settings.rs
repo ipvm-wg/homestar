@@ -52,8 +52,8 @@ impl PubkeyConfig {
             PubkeyConfig::Existing(path) => {
                 let path = Path::new(&path);
                 println!("{:?}", path);
-                let pem_file = 
-                {  
+                let pem_file =
+                {
                     let mut s = String::new();
                     // TODO convert err
                     std::fs::File::open(path).unwrap().read_to_string(&mut s).unwrap();
@@ -63,11 +63,11 @@ impl PubkeyConfig {
                 let pem = pem::parse(pem_file).unwrap();
                 // we only take ed25519
                 if pem.tag() != "PRIVATE KEY" {
-                    // TODO custom error at this point... 
+                    // TODO custom error at this point...
                     panic!("Not a private key pem file")
                 }
                 println!("{}", pem.tag());
-                identity::Keypair::ed25519_from_bytes(&mut pem.contents().to_vec()).map(|kp| kp.into())
+                identity::Keypair::ed25519_from_bytes(&mut pem.contents().to_vec())
             },
         }
     }
@@ -94,6 +94,7 @@ impl Settings {
 
 /// Network-related settings for a homestar node.
 #[derive(Clone, Debug, Deserialize)]
+#[serde(default)]
 pub(crate) struct Network {
     ///
     pub(crate) events_buffer_len: usize,
