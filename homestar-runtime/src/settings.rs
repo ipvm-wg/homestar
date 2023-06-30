@@ -1,8 +1,9 @@
 //! Settings / Configuration.
 
+use anyhow::{anyhow, Context};
 use config::{Config, ConfigError, Environment, File};
 use http::Uri;
-use libp2p::identity::{self, DecodingError};
+use libp2p::identity;
 use rand::{Rng, SeedableRng};
 use serde::Deserialize;
 use serde_with::{base64::Base64, serde_as};
@@ -50,7 +51,7 @@ pub(crate) struct PupkeyRNGSeed {
 
 impl PubkeyConfig {
     /// Produce a Keypair using the given configuration.
-    pub(crate) fn generate_keypair(&self) -> Result<identity::Keypair, DecodingError> {
+    pub(crate) fn generate_keypair(&self) -> anyhow::Result<identity::Keypair> {
         match self {
             PubkeyConfig::Random => Ok(identity::Keypair::generate_ed25519()),
             PubkeyConfig::GenerateFromSeed(rng_seed) => {
@@ -59,29 +60,26 @@ impl PubkeyConfig {
                 let new_key: [u8; 32] = r.gen();
 
                 identity::Keypair::ed25519_from_bytes(new_key)
+                    .map_err(|e| anyhow!("Failed to generate secret key from seed: {:?}", e))
             }
             PubkeyConfig::Existing(path) => {
                 let path = Path::new(&path);
-                println!("{:?}", path);
                 let pem_file = {
                     let mut s = String::new();
-                    // TODO convert err
                     std::fs::File::open(path)
-                        .unwrap()
+                        .context("Unable to read key file")?
                         .read_to_string(&mut s)
-                        .unwrap();
+                        .context("Failed to read file into a string, is it corrupted?")?;
                     s
                 };
-                // TODO convert err
                 // parse key from PEM file
-                let pem = pem::parse(pem_file).unwrap();
+                let pem = pem::parse(pem_file).with_context(|| "Key file must be PEM formatted")?;
                 // we only take ed25519
                 if pem.tag() != "PRIVATE KEY" {
-                    // TODO custom error at this point...
-                    panic!("Not a private key pem file")
+                    return Err(anyhow!("Imported key file must be a private key"));
                 }
-                println!("{}", pem.tag());
                 identity::Keypair::ed25519_from_bytes(&mut pem.contents().to_vec())
+                    .with_context(|| "Imported key was not parsable into an ed25519 secret key")
             }
         }
     }
@@ -208,13 +206,22 @@ mod test {
     use crate::Settings;
 
     #[test]
-    fn load_settings() {
+    fn import_existing_key() {
         let settings = Settings::load().unwrap();
 
-        println!(
-            "{:?}",
-            settings.node.network.keypair_config.generate_keypair()
-        );
-        println!("{:?}", settings.node.network.listen_address);
+        let msg = b"foo bar";
+        let signature = libp2p::identity::Keypair::ed25519_from_bytes([0; 32])
+            .unwrap()
+            .sign(msg)
+            .unwrap();
+        // round-about way of testing since there is no Eq derive for keypairs
+        assert!(settings
+            .node
+            .network
+            .keypair_config
+            .generate_keypair()
+            .unwrap()
+            .public()
+            .verify(msg, &signature));
     }
 }
