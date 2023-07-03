@@ -25,7 +25,7 @@ enum-as-inner = "0.6"
 libipld = { version = "0.16", features = ["serde-codec"] }
 serde_ipld_dagcbor = "0.3"
 thiserror = "1.0"
-tokio = { version = "1.28", features = ["fs", "io-util", "io-std", "macros", "rt", "rt-multi-thread", "tracing"] }
+tokio = { version = "1.29", features = ["fs", "io-util", "io-std", "macros", "rt", "rt-multi-thread", "tracing"] }
 tracing = "0.1"
 
 # Speedup build on macOS
