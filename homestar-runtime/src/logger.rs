@@ -18,7 +18,6 @@ pub fn init(writer: tracing_appender::non_blocking::NonBlocking) -> Result<()> {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| {
             EnvFilter::new("info")
-                .add_directive("atuin_client=warn".parse().expect(DIRECTIVE_EXPECT))
                 .add_directive("libp2p=info".parse().expect(DIRECTIVE_EXPECT))
                 .add_directive(
                     "libp2p_gossipsub::behaviour=debug"
@@ -32,7 +31,6 @@ pub fn init(writer: tracing_appender::non_blocking::NonBlocking) -> Result<()> {
     #[cfg(any(not(feature = "console"), not(tokio_unstable)))]
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         EnvFilter::new("info")
-            .add_directive("atuin_client=warn".parse().expect(DIRECTIVE_EXPECT))
             .add_directive("libp2p=info".parse().expect(DIRECTIVE_EXPECT))
             .add_directive(
                 "libp2p_gossipsub::behaviour=debug"

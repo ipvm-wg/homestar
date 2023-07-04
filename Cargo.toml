@@ -23,10 +23,12 @@ byte-unit = { version = "4.0", default-features = false }
 enum-assoc = " 1.1"
 enum-as-inner = "0.6"
 libipld = { version = "0.16", features = ["serde-codec"] }
+rand = "0.8"
 serde_ipld_dagcbor = "0.3"
 thiserror = "1.0"
-tokio = { version = "1.28", features = ["fs", "io-util", "io-std", "macros", "rt", "rt-multi-thread", "tracing"] }
+tokio = { version = "1.29", features = ["fs", "io-util", "io-std", "macros", "rt", "rt-multi-thread", "signal", "tracing"] }
 tracing = "0.1"
+ucan = "0.4"
 
 # Speedup build on macOS
 # See https://blog.rust-lang.org/2021/03/25/Rust-1.51.0.html#splitting-debug-information

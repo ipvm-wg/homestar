@@ -1,67 +1,87 @@
 #[cfg(feature = "ipfs")]
-use crate::workflow::settings::BackoffStrategy;
+use crate::network::IpfsCli;
 #[cfg(feature = "ipfs")]
-use crate::IpfsCli;
+use crate::workflow::settings::BackoffStrategy;
 use crate::{
     db::{Connection, Database},
-    network::eventloop::{Event, FoundEvent},
+    event_handler::{
+        channel::BoundedChannel,
+        event::{Captured, QueryRecord},
+        swarm_event::FoundEvent,
+        Event,
+    },
+    runner::{ModifiedSet, RunningSet},
     scheduler::TaskScheduler,
     tasks::{RegisteredTasks, WasmContext},
     workflow::{self, Resource},
     Db, Receipt,
 };
 use anyhow::{anyhow, Result};
-use crossbeam::channel;
 use futures::FutureExt;
 #[cfg(feature = "ipfs")]
 use futures::StreamExt;
 use homestar_core::{
+    bail,
     workflow::{
         error::ResolveError,
         prf::UcanPrf,
         receipt::metadata::{OP_KEY, WORKFLOW_KEY},
-        InstructionResult, Pointer, Receipt as InvocationReceipt,
+        InstructionResult, LinkMap, Pointer, Receipt as InvocationReceipt,
     },
     Workflow,
 };
-use homestar_wasm::{io::Arg, wasmtime::State};
+use homestar_wasm::{
+    io::{Arg, Output},
+    wasmtime::State,
+};
 use indexmap::IndexMap;
 use libipld::{Cid, Ipld};
 use std::{
     collections::BTreeMap,
     sync::Arc,
+    thread,
     time::{Duration, Instant},
+    vec,
 };
 use tokio::{sync::mpsc, task::JoinSet};
+use tracing::{debug, error};
 #[cfg(feature = "ipfs")]
 use tryhard::RetryFutureConfig;
 
+/// [JoinSet] of tasks run by a [Worker].
+#[allow(dead_code)]
+pub(crate) type TaskSet = JoinSet<anyhow::Result<(Output, Pointer, Pointer, Ipld)>>;
+
 /// Worker that operates over a given [TaskScheduler].
+#[allow(dead_code)]
 #[derive(Debug)]
-pub struct Worker<'a> {
+pub(crate) struct Worker<'a> {
     pub(crate) scheduler: TaskScheduler<'a>,
     pub(crate) event_sender: Arc<mpsc::Sender<Event>>,
-    pub(crate) workflow_info: &'a mut workflow::Info,
-    pub(crate) workflow_settings: &'a workflow::Settings,
+    pub(crate) workflow_info: Arc<workflow::Info>,
+    pub(crate) workflow_settings: Arc<workflow::Settings>,
 }
 
 impl<'a> Worker<'a> {
     /// Instantiate a new [Worker] for a [Workflow].
     #[cfg(not(feature = "ipfs"))]
-    pub async fn new(
+    #[allow(dead_code)]
+    pub(crate) async fn new(
         workflow: Workflow<'a, Arg>,
-        workflow_info: &'a mut workflow::Info,
-        workflow_settings: &'a workflow::Settings,
+        workflow_info: Arc<workflow::Info>,
+        workflow_settings: Arc<workflow::Settings>,
         event_sender: Arc<mpsc::Sender<Event>>,
         mut conn: Connection,
     ) -> Result<Worker<'a>> {
+        let workflow_settings_scheduler = workflow_settings.clone();
+        let workflow_settings_worker = workflow_settings.clone();
         let fetch_fn = |rscs: Vec<Resource>| {
             async { Self::get_resources(rscs, workflow_settings).await }.boxed()
         };
 
         let scheduler = TaskScheduler::init(
-            workflow.clone(),
-            workflow_settings,
+            workflow,
+            workflow_settings_scheduler,
             event_sender.clone(),
             &mut conn,
             fetch_fn,
@@ -70,30 +90,33 @@ impl<'a> Worker<'a> {
 
         Ok(Self {
             scheduler,
-            workflow_info,
             event_sender,
-            workflow_settings,
+            workflow_info,
+            workflow_settings: workflow_settings_worker,
         })
     }
 
     /// Instantiate a new [Worker] for a [Workflow].
     #[cfg(feature = "ipfs")]
     #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
-    pub async fn new(
+    #[allow(dead_code)]
+    pub(crate) async fn new(
         workflow: Workflow<'a, Arg>,
-        workflow_info: &'a mut workflow::Info,
-        workflow_settings: &'a workflow::Settings,
+        workflow_info: Arc<workflow::Info>,
+        workflow_settings: Arc<workflow::Settings>,
         event_sender: Arc<mpsc::Sender<Event>>,
         mut conn: Connection,
         ipfs: &'a IpfsCli,
     ) -> Result<Worker<'a>> {
+        let workflow_settings_scheduler = workflow_settings.clone();
+        let workflow_settings_worker = workflow_settings.clone();
         let fetch_fn = |rscs: Vec<Resource>| {
             async { Self::get_resources(rscs, workflow_settings, ipfs).await }.boxed()
         };
 
         let scheduler = TaskScheduler::init(
             workflow,
-            workflow_settings,
+            workflow_settings_scheduler,
             event_sender.clone(),
             &mut conn,
             fetch_fn,
@@ -104,21 +127,197 @@ impl<'a> Worker<'a> {
             scheduler,
             event_sender,
             workflow_info,
-            workflow_settings,
+            workflow_settings: workflow_settings_worker,
         })
     }
 
     /// Run [Worker]'s tasks in task-queue with access to the [Db] object
     /// to use a connection from the Database pool per run.
-    pub async fn run(self, db: impl Database) -> Result<()> {
-        self.run_queue(db).await
+    #[allow(dead_code)]
+    pub(crate) async fn run(
+        self,
+        db: impl Database + Sync,
+        running_set: &mut RunningSet,
+    ) -> Result<()> {
+        self.run_queue(db, running_set).await
+    }
+
+    async fn run_queue(
+        mut self,
+        db: impl Database + Sync,
+        running_set: &mut RunningSet,
+    ) -> Result<()> {
+        fn insert_into_map<T>(mut map: Arc<LinkMap<T>>, key: Cid, value: T)
+        where
+            T: Clone,
+        {
+            Arc::make_mut(&mut map)
+                .entry(key)
+                .or_insert_with(|| value.clone());
+        }
+
+        fn resolve_cid(
+            cid: Cid,
+            workflow_settings: Arc<workflow::Settings>,
+            linkmap: &Arc<IndexMap<Cid, InstructionResult<Arg>>>,
+            db: &impl Database,
+            event_sender: &Arc<mpsc::Sender<Event>>,
+        ) -> Result<InstructionResult<Arg>, ResolveError> {
+            if let Some(result) = linkmap.get(&cid) {
+                Ok(result.to_owned())
+            } else {
+                match Db::find_instruction(Pointer::new(cid), &mut db.conn()?) {
+                    Ok(found) => Ok(found.output_as_arg()),
+                    Err(_) => {
+                        debug!("no related instruction receipt found in the DB");
+                        let channel = BoundedChannel::oneshot();
+                        event_sender
+                            .blocking_send(Event::FindRecord(QueryRecord::with(cid, channel.tx)))
+                            .map_err(|err| ResolveError::TransportError(err.to_string()))?;
+
+                        let found = match channel.rx.recv_deadline(
+                            Instant::now()
+                                + Duration::from_secs(workflow_settings.p2p_timeout_secs),
+                        ) {
+                            Ok(FoundEvent::Receipt(found)) => found,
+                            Ok(_) => bail!(ResolveError::UnresolvedCidError(
+                                "wrong or unexpected event message received".to_string(),
+                            )),
+                            Err(err) => bail!(ResolveError::UnresolvedCidError(format!(
+                                "timeout deadline reached for invocation receipt @ {cid}: {err}",
+                            ))),
+                        };
+
+                        let found_result = found.output_as_arg();
+                        // Store the result in the linkmap for use in next iterations.
+                        insert_into_map(Arc::clone(linkmap), cid, found_result.clone());
+                        Ok(found_result)
+                    }
+                }
+            }
+        }
+
+        for batch in self.scheduler.run.into_iter() {
+            let (mut task_set, handles) = batch.into_iter().try_fold(
+                (TaskSet::new(), vec![]),
+                |(mut task_set, mut handles), node| {
+                    let vertice = node.into_inner();
+                    let invocation_ptr = vertice.invocation;
+                    let instruction = vertice.instruction;
+                    let rsc = instruction.resource();
+                    let parsed = vertice.parsed;
+                    let fun = parsed.fun().ok_or_else(|| anyhow!("no function defined"))?;
+
+                    let args = parsed.into_args();
+                    let meta = Ipld::Map(BTreeMap::from([
+                        (OP_KEY.into(), fun.to_string().into()),
+                        (WORKFLOW_KEY.into(), self.workflow_info.cid().into()),
+                    ]));
+
+                    match RegisteredTasks::ability(&instruction.op().to_string()) {
+                        Some(RegisteredTasks::WasmRun) => {
+                            let wasm = self
+                                .scheduler
+                                .resources
+                                .get(&Resource::Url(rsc.to_owned()))
+                                .ok_or_else(|| anyhow!("resource not available"))?
+                                .to_owned();
+
+                            let instruction_ptr = Pointer::try_from(instruction)?;
+                            let state = State::default();
+                            let mut wasm_ctx = WasmContext::new(state)?;
+
+                            let resolved = args.resolve(|cid| {
+                                // Resolve Cid in a separate native threads,
+                                // under a `std::thread::scope`.
+                                thread::scope(|scope| {
+                                    let handle = scope.spawn(|| {
+                                        resolve_cid(
+                                            cid,
+                                            self.workflow_settings.clone(),
+                                            &self.scheduler.linkmap,
+                                            &db,
+                                            &self.event_sender,
+                                        )
+                                    });
+
+                                    handle.join().map_err(|_| {
+                                        anyhow!("failed to join thread for resolving Cid: {cid}")
+                                    })?
+                                })
+                            })?;
+
+                            let handle = task_set.spawn(async move {
+                                match wasm_ctx.run(wasm, &fun, resolved).await {
+                                    Ok(output) => {
+                                        Ok((output, instruction_ptr, invocation_ptr, meta))
+                                    }
+                                    Err(e) => Err(anyhow!("cannot execute wasm module: {e}")),
+                                }
+                            });
+                            handles.push(handle);
+                        }
+                        None => error!(
+                            "no valid task/instruction-type referenced by operation: {}",
+                            instruction.op()
+                        ),
+                    };
+
+                    Ok::<_, anyhow::Error>((task_set, handles))
+                },
+            )?;
+
+            // Concurrently add handles to Runner's running set.
+            running_set.append_or_insert(self.workflow_info.cid(), handles);
+
+            while let Some(res) = task_set.join_next().await {
+                let (executed, instruction_ptr, invocation_ptr, meta) = res??;
+                let output_to_store = Ipld::try_from(executed)?;
+
+                let invocation_receipt = InvocationReceipt::new(
+                    invocation_ptr,
+                    InstructionResult::Ok(output_to_store),
+                    Ipld::Null,
+                    None,
+                    UcanPrf::default(),
+                );
+
+                let mut receipt = Receipt::try_with(instruction_ptr, &invocation_receipt)?;
+                Arc::make_mut(&mut Arc::clone(&self.scheduler.linkmap)).insert(
+                    Cid::try_from(receipt.instruction())?,
+                    receipt.output_as_arg(),
+                );
+
+                // set receipt metadata
+                receipt.set_meta(meta);
+                // modify workflow info before progress update, in case
+                // that we timed out getting info from the network, but later
+                // recovered where we last started from.
+                if let Some(step) = self.scheduler.resume_step {
+                    let current_progress_count = self.workflow_info.progress_count;
+                    Arc::make_mut(&mut self.workflow_info)
+                        .set_progress_count(std::cmp::max(current_progress_count, step as u32))
+                };
+
+                let stored_receipt = Db::store_receipt(receipt, &mut db.conn()?)?;
+
+                // send internal event
+                self.event_sender
+                    .send(Event::CapturedReceipt(Captured::with(
+                        stored_receipt,
+                        self.workflow_info.clone(),
+                    )))
+                    .await?;
+            }
+        }
+        Ok(())
     }
 
     #[cfg(feature = "ipfs")]
     #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     async fn get_resources(
         resources: Vec<Resource>,
-        settings: &'a workflow::Settings,
+        settings: Arc<workflow::Settings>,
         ipfs: &'a IpfsCli,
     ) -> Result<IndexMap<Resource, Vec<u8>>> {
         /// TODO: http(s) calls
@@ -158,6 +357,7 @@ impl<'a> Worker<'a> {
             }
         }
         let num_requests = resources.len();
+        let settings = settings.as_ref();
         futures::stream::iter(resources.into_iter().map(|rsc| async move {
             // Have to enumerate configs here, as type variants are different
             // and cannot be matched on.
@@ -228,156 +428,21 @@ impl<'a> Worker<'a> {
 
     /// TODO: Client calls (only) over http(s).
     #[cfg(not(feature = "ipfs"))]
+    #[allow(dead_code)]
     async fn get_resources<T>(
         _resources: Vec<Resource>,
-        _settings: &'a workflow::Settings,
+        _settings: Arc<workflow::Settings>,
     ) -> Result<IndexMap<Resource, T>> {
         Ok(IndexMap::default())
-    }
-
-    async fn run_queue(mut self, db: impl Database) -> Result<()> {
-        for batch in self.scheduler.run.into_iter() {
-            let (mut set, _handles) = batch.into_iter().try_fold(
-                (JoinSet::new(), vec![]),
-                |(mut set, mut handles), node| {
-                    let vertice = node.into_inner();
-                    let invocation_ptr = vertice.invocation;
-                    let instruction = vertice.instruction;
-                    let rsc = instruction.resource();
-                    let parsed = vertice.parsed;
-                    let fun = parsed.fun().ok_or_else(|| anyhow!("no function defined"))?;
-
-                    let args = parsed.into_args();
-                    let meta = Ipld::Map(BTreeMap::from([
-                        (OP_KEY.into(), fun.to_string().into()),
-                        (WORKFLOW_KEY.into(), self.workflow_info.cid().into())
-                    ]));
-
-                    match RegisteredTasks::ability(&instruction.op().to_string()) {
-                        Some(RegisteredTasks::WasmRun) => {
-                            let wasm = self
-                                .scheduler
-                                .resources
-                                .get(&Resource::Url(rsc.to_owned()))
-                                .ok_or_else(|| anyhow!("resource not available"))?
-                                .to_owned();
-
-                            let instruction_ptr = Pointer::try_from(instruction)?;
-                            let state = State::default();
-                            let mut wasm_ctx = WasmContext::new(state)?;
-                            let resolved =
-                                args.resolve(|cid| if let Some(result) = self.scheduler.linkmap.get(&cid) {
-                                    Ok(result.to_owned())
-                                } else {
-                                    match Db::find_instruction(
-                                        Pointer::new(cid),
-                                        &mut db.conn()?,
-                                    ) {
-                                        Ok(found) => Ok(found.output_as_arg()),
-                                        Err(_e) => {
-                                            tracing::debug!(
-                                                "no related instruction receipt found in the DB"
-                                            );
-                                            let (sender, receiver) = channel::bounded(1);
-                                            self.event_sender.blocking_send(Event::FindReceipt(
-                                                cid,
-                                                sender,
-                                            )).map_err(|err| ResolveError::TransportError(err.to_string()))?;
-
-                                            let found = match receiver.recv_deadline(
-                                                Instant::now() + Duration::from_secs(self.workflow_settings.p2p_timeout_secs),
-                                            ) {
-                                                Ok((found_cid, FoundEvent::Receipt(found))) if found_cid == cid => {
-                                                    found
-                                                }
-                                                Ok(_) =>
-                                                    homestar_core::bail!(
-                                                        ResolveError::UnresolvedCidError(
-                                                            "wrong or unexpected event message received".to_string())
-                                                    ),
-                                                Err(err) =>
-                                                    homestar_core::bail!(ResolveError::UnresolvedCidError(
-                                                        format!("timeout deadline reached for invocation receipt @ {cid}: {err}"))
-                                                    ),
-                                            };
-
-                                            Ok(found.output_as_arg())
-                                        }
-                                    }
-                                })?;
-
-                            let handle = set.spawn(async move {
-                                match wasm_ctx.run(wasm, &fun, resolved).await {
-                                    Ok(output) => {
-                                        Ok((output, instruction_ptr, invocation_ptr, meta))
-                                    }
-                                    Err(e) => Err(anyhow!("cannot execute wasm module: {e}")),
-                                }
-                            });
-                            handles.push(handle);
-                        }
-                        None => tracing::error!(
-                            "no valid task/instruction-type referenced by operation: {}",
-                            instruction.op()
-                        ),
-                    };
-
-                    Ok::<_, anyhow::Error>((set, handles))
-                },
-            )?;
-
-            while let Some(res) = set.join_next().await {
-                let (executed, instruction_ptr, invocation_ptr, meta) = res??;
-                let output_to_store = Ipld::try_from(executed)?;
-
-                let invocation_receipt = InvocationReceipt::new(
-                    invocation_ptr,
-                    InstructionResult::Ok(output_to_store),
-                    Ipld::Null,
-                    None,
-                    UcanPrf::default(),
-                );
-
-                let mut receipt = Receipt::try_with(instruction_ptr, &invocation_receipt)?;
-                self.scheduler.linkmap.insert(
-                    Cid::try_from(receipt.instruction())?,
-                    receipt.output_as_arg(),
-                );
-
-                // set receipt metadata
-                receipt.set_meta(meta);
-                // modify workflow info before progress update, in case
-                // that we timed out getting info from the network, but later
-                // recovered where we last started from.
-                if let Some(step) = self.scheduler.resume_step {
-                    self.workflow_info.set_progress_count(std::cmp::max(
-                        self.workflow_info.progress_count,
-                        step as u32,
-                    ))
-                };
-
-                let stored_receipt = Db::store_receipt(receipt, &mut db.conn()?)?;
-
-                // send internal event
-                self.event_sender
-                    .send(Event::CapturedReceipt(
-                        stored_receipt,
-                        self.workflow_info.clone(),
-                    ))
-                    .await?;
-            }
-        }
-        Ok(())
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::{db::Database, test_utils, workflow as wf, Settings};
     #[cfg(feature = "ipfs")]
-    use crate::IpfsCli;
-
-    use crate::{db::Database, network::EventLoop, settings::Settings, test_utils, workflow as wf};
+    use dashmap::DashMap;
     use homestar_core::{
         ipld::DagCbor,
         test_utils::workflow as workflow_test_utils,
@@ -408,21 +473,21 @@ mod test {
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let workflow_cid = workflow.clone().to_cid().unwrap();
-        let workflow_settings = wf::Settings::default();
+        let workflow_settings = Arc::new(wf::Settings::default());
         let settings = Settings::load().unwrap();
 
         #[cfg(feature = "ipfs")]
-        let (tx, mut rx) = EventLoop::setup_channel(settings.node());
+        let (tx, mut rx) = test_utils::event::setup_channel(settings);
         #[cfg(not(feature = "ipfs"))]
-        let (tx, mut _rx) = EventLoop::setup_channel(settings.node());
+        let (tx, mut _rx) = test_utils::event::setup_channel(settings);
 
         #[cfg(feature = "ipfs")]
         let ipfs = IpfsCli::default();
 
-        let mut workflow_info = wf::Info::gather(
+        let workflow_info = wf::Info::gather(
             workflow.clone(),
-            &workflow_settings,
-            &tx.clone().into(),
+            workflow_settings.clone(),
+            tx.clone().into(),
             &mut conn,
         )
         .await
@@ -431,8 +496,8 @@ mod test {
         #[cfg(feature = "ipfs")]
         let worker = Worker::new(
             workflow,
-            &mut workflow_info,
-            &workflow_settings,
+            workflow_info.into(),
+            workflow_settings,
             tx.into(),
             conn,
             &ipfs,
@@ -442,8 +507,8 @@ mod test {
         #[cfg(not(feature = "ipfs"))]
         let worker = Worker::new(
             workflow,
-            &mut workflow_info,
-            &workflow_settings,
+            workflow_info.into(),
+            workflow_settings.clone(),
             tx.into(),
             conn,
         )
@@ -459,8 +524,12 @@ mod test {
 
         #[cfg(feature = "ipfs")]
         {
+            let mut running_set = DashMap::new();
             let worker_workflow_cid = worker.workflow_info.cid;
-            worker.run(db.clone()).await.unwrap();
+            worker.run(db.clone(), &mut running_set).await.unwrap();
+            assert_eq!(running_set.len(), 1);
+            assert!(running_set.contains_key(&worker_workflow_cid));
+            assert_eq!(running_set.get(&worker_workflow_cid).unwrap().len(), 2);
 
             // first time check DHT for workflow info
             let workflow_info_event = rx.recv().await.unwrap();
@@ -469,12 +538,15 @@ mod test {
             let next_next_run_receipt = rx.recv().await.unwrap();
 
             match workflow_info_event {
-                Event::FindWorkflow(cid, _) => assert_eq!(cid, worker_workflow_cid),
+                Event::FindRecord(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
                 _ => panic!("Wrong event type"),
             };
 
             let (next_receipt, _wf_info) = match next_run_receipt {
-                Event::CapturedReceipt(next_receipt, _) => {
+                Event::CapturedReceipt(Captured {
+                    receipt: next_receipt,
+                    ..
+                }) => {
                     let mut conn = db.conn().unwrap();
                     let _ = Db::store_workflow_receipt(workflow_cid, next_receipt.cid(), &mut conn);
                     let mut info = workflow::Info::default(workflow_cid, 2);
@@ -486,7 +558,10 @@ mod test {
             };
 
             let (_next_next_receipt, wf_info) = match next_next_run_receipt {
-                Event::CapturedReceipt(next_next_receipt, _) => {
+                Event::CapturedReceipt(Captured {
+                    receipt: next_next_receipt,
+                    ..
+                }) => {
                     let mut conn = db.conn().unwrap();
                     let _ = Db::store_workflow_receipt(
                         workflow_cid,
@@ -554,7 +629,7 @@ mod test {
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let workflow_cid = workflow.clone().to_cid().unwrap();
-        let workflow_settings = wf::Settings::default();
+        let workflow_settings = Arc::new(wf::Settings::default());
         let settings = Settings::load().unwrap();
 
         // already have stored workflow information (from a previous run)
@@ -571,17 +646,17 @@ mod test {
         .unwrap();
 
         #[cfg(feature = "ipfs")]
-        let (tx, mut rx) = EventLoop::setup_channel(settings.node());
+        let (tx, mut rx) = test_utils::event::setup_channel(settings);
         #[cfg(not(feature = "ipfs"))]
-        let (tx, mut _rx) = EventLoop::setup_channel(settings.node());
+        let (tx, mut _rx) = test_utils::event::setup_channel(settings);
 
         #[cfg(feature = "ipfs")]
         let ipfs = IpfsCli::default();
 
-        let mut workflow_info = wf::Info::gather(
+        let workflow_info = wf::Info::gather(
             workflow.clone(),
-            &workflow_settings,
-            &tx.clone().into(),
+            workflow_settings.clone(),
+            tx.clone().into(),
             &mut conn,
         )
         .await
@@ -590,8 +665,8 @@ mod test {
         #[cfg(feature = "ipfs")]
         let worker = Worker::new(
             workflow,
-            &mut workflow_info,
-            &workflow_settings,
+            workflow_info.into(),
+            workflow_settings,
             tx.into(),
             conn,
             &ipfs,
@@ -601,8 +676,8 @@ mod test {
         #[cfg(not(feature = "ipfs"))]
         let worker = Worker::new(
             workflow,
-            &mut workflow_info,
-            &workflow_settings,
+            workflow_info.into(),
+            workflow_settings.clone(),
             tx.into(),
             conn,
         )
@@ -622,13 +697,21 @@ mod test {
 
         #[cfg(feature = "ipfs")]
         {
-            worker.run(db.clone()).await.unwrap();
+            let mut running_set = DashMap::new();
+            let worker_workflow_cid = worker.workflow_info.cid;
+            worker.run(db.clone(), &mut running_set).await.unwrap();
+            assert_eq!(running_set.len(), 1);
+            assert!(running_set.contains_key(&worker_workflow_cid));
+            assert_eq!(running_set.get(&worker_workflow_cid).unwrap().len(), 1);
 
             // we should have received 1 receipt
             let next_run_receipt = rx.recv().await.unwrap();
 
             let (_next_receipt, wf_info) = match next_run_receipt {
-                Event::CapturedReceipt(next_receipt, _) => {
+                Event::CapturedReceipt(Captured {
+                    receipt: next_receipt,
+                    ..
+                }) => {
                     let mut conn = db.conn().unwrap();
                     let _ = Db::store_workflow_receipt(workflow_cid, next_receipt.cid(), &mut conn);
                     let mut info = workflow::Info::default(workflow_cid, 2);
@@ -713,7 +796,7 @@ mod test {
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let workflow_cid = workflow.clone().to_cid().unwrap();
-        let workflow_settings = wf::Settings::default();
+        let workflow_settings = Arc::new(wf::Settings::default());
         let settings = Settings::load().unwrap();
 
         // already have stored workflow information (from a previous run)
@@ -735,18 +818,15 @@ mod test {
         )
         .unwrap();
 
-        #[cfg(feature = "ipfs")]
-        let (tx, mut rx) = EventLoop::setup_channel(settings.node());
-        #[cfg(not(feature = "ipfs"))]
-        let (tx, mut rx) = EventLoop::setup_channel(settings.node());
+        let (tx, mut rx) = test_utils::event::setup_channel(settings);
 
         #[cfg(feature = "ipfs")]
         let ipfs = IpfsCli::default();
 
-        let mut workflow_info = wf::Info::gather(
+        let workflow_info = wf::Info::gather(
             workflow.clone(),
-            &workflow_settings,
-            &tx.clone().into(),
+            workflow_settings.clone(),
+            tx.clone().into(),
             &mut conn,
         )
         .await
@@ -755,8 +835,8 @@ mod test {
         #[cfg(feature = "ipfs")]
         let worker = Worker::new(
             workflow,
-            &mut workflow_info,
-            &workflow_settings,
+            workflow_info.into(),
+            workflow_settings,
             tx.into(),
             conn,
             &ipfs,
@@ -766,8 +846,8 @@ mod test {
         #[cfg(not(feature = "ipfs"))]
         let worker = Worker::new(
             workflow,
-            &mut workflow_info,
-            &workflow_settings,
+            workflow_info.into(),
+            workflow_settings,
             tx.into(),
             conn,
         )

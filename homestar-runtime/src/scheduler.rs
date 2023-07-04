@@ -5,12 +5,11 @@
 
 use crate::{
     db::{Connection, Database},
-    network::eventloop::{Event, FoundEvent},
+    event_handler::{channel::BoundedChannel, event::QueryRecord, swarm_event::FoundEvent},
     workflow::{self, Builder, Resource, Vertex},
-    Db,
+    Db, Event,
 };
 use anyhow::Result;
-use crossbeam::channel;
 use dagga::Node;
 use futures::future::BoxFuture;
 use homestar_core::{
@@ -27,6 +26,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::mpsc;
+use tracing::info;
 
 type Schedule<'a> = Vec<Vec<Node<Vertex<'a>, usize>>>;
 
@@ -53,7 +53,7 @@ pub struct ExecutionGraph<'a> {
 #[derive(Debug, Clone, Default)]
 pub struct TaskScheduler<'a> {
     /// In-memory map of task/instruction results.
-    pub(crate) linkmap: LinkMap<InstructionResult<Arg>>,
+    pub(crate) linkmap: Arc<LinkMap<InstructionResult<Arg>>>,
     /// [ExecutionGraph] of what's been run so far for a [Workflow] of `batched`
     /// [Tasks].
     ///
@@ -84,7 +84,7 @@ impl<'a> TaskScheduler<'a> {
     /// [Receipt]: crate::Receipt
     pub async fn init<F>(
         workflow: Workflow<'a, Arg>,
-        settings: &'a workflow::Settings,
+        settings: Arc<workflow::Settings>,
         event_sender: Arc<mpsc::Sender<Event>>,
         conn: &mut Connection,
         fetch_fn: F,
@@ -131,22 +131,21 @@ impl<'a> TaskScheduler<'a> {
                             }
                         }
                         Err(_) => {
-                            tracing::info!("receipt not available in the database");
-                            let (sender, receiver) = channel::bounded(pointers_len);
+                            info!("receipt not available in the database");
+                            let channel = BoundedChannel::new(pointers_len);
                             for ptr in &pointers {
-                                let _ = event_sender
-                                    .blocking_send(Event::FindReceipt(ptr.cid(), sender.clone()));
+                                let _ = event_sender.blocking_send(Event::FindRecord(
+                                    QueryRecord::with(ptr.cid(), channel.tx.clone()),
+                                ));
                             }
 
                             let mut linkmap = LinkMap::<InstructionResult<Arg>>::new();
                             let mut counter = 0;
-                            while let Ok((found_cid, FoundEvent::Receipt(found))) = receiver
-                                .recv_deadline(
-                                    Instant::now()
-                                        + Duration::from_secs(settings.p2p_check_timeout_secs),
-                                )
-                            {
-                                if pointers.contains(&Pointer::new(found_cid)) {
+                            while let Ok(FoundEvent::Receipt(found)) = channel.rx.recv_deadline(
+                                Instant::now()
+                                    + Duration::from_secs(settings.p2p_check_timeout_secs),
+                            ) {
+                                if pointers.contains(&Pointer::new(found.cid())) {
                                     if let Ok(cid) = found.instruction().try_into() {
                                         let _ = linkmap.insert(cid, found.output_as_arg());
                                         counter += 1;
@@ -178,7 +177,7 @@ impl<'a> TaskScheduler<'a> {
                 };
 
                 Ok(Self {
-                    linkmap,
+                    linkmap: Arc::new(linkmap),
                     ran: Some(schedule),
                     run: pivot,
                     resume_step: step,
@@ -186,7 +185,7 @@ impl<'a> TaskScheduler<'a> {
                 })
             }
             _ => Ok(Self {
-                linkmap: LinkMap::<InstructionResult<Arg>>::new(),
+                linkmap: Arc::new(LinkMap::<InstructionResult<Arg>>::new()),
                 ran: None,
                 run: schedule,
                 resume_step: None,
@@ -199,9 +198,7 @@ impl<'a> TaskScheduler<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{
-        db::Database, network::EventLoop, settings::Settings, test_utils, workflow as wf, Receipt,
-    };
+    use crate::{db::Database, settings::Settings, test_utils, workflow as wf, Receipt};
     use futures::FutureExt;
     use homestar_core::{
         ipld::DagCbor,
@@ -237,12 +234,17 @@ mod test {
         let workflow_settings = wf::Settings::default();
         let fetch_fn = |_rscs: Vec<Resource>| { async { Ok(IndexMap::default()) } }.boxed();
 
-        let (tx, mut _rx) = EventLoop::setup_channel(settings.node());
+        let (tx, mut _rx) = test_utils::event::setup_channel(settings);
 
-        let scheduler =
-            TaskScheduler::init(workflow, &workflow_settings, tx.into(), &mut conn, fetch_fn)
-                .await
-                .unwrap();
+        let scheduler = TaskScheduler::init(
+            workflow,
+            workflow_settings.into(),
+            tx.into(),
+            &mut conn,
+            fetch_fn,
+        )
+        .await
+        .unwrap();
 
         assert!(scheduler.linkmap.is_empty());
         assert!(scheduler.ran.is_none());
@@ -293,12 +295,17 @@ mod test {
         let workflow_settings = wf::Settings::default();
         let fetch_fn = |_rscs: Vec<Resource>| { async { Ok(IndexMap::default()) } }.boxed();
 
-        let (tx, mut _rx) = EventLoop::setup_channel(settings.node());
+        let (tx, mut _rx) = test_utils::event::setup_channel(settings);
 
-        let scheduler =
-            TaskScheduler::init(workflow, &workflow_settings, tx.into(), &mut conn, fetch_fn)
-                .await
-                .unwrap();
+        let scheduler = TaskScheduler::init(
+            workflow,
+            workflow_settings.into(),
+            tx.into(),
+            &mut conn,
+            fetch_fn,
+        )
+        .await
+        .unwrap();
 
         let ran = scheduler.ran.as_ref().unwrap();
 
@@ -369,12 +376,17 @@ mod test {
         let workflow_settings = wf::Settings::default();
         let fetch_fn = |_rscs: Vec<Resource>| { async { Ok(IndexMap::default()) } }.boxed();
 
-        let (tx, mut _rx) = EventLoop::setup_channel(settings.node());
+        let (tx, mut _rx) = test_utils::event::setup_channel(settings);
 
-        let scheduler =
-            TaskScheduler::init(workflow, &workflow_settings, tx.into(), &mut conn, fetch_fn)
-                .await
-                .unwrap();
+        let scheduler = TaskScheduler::init(
+            workflow,
+            workflow_settings.into(),
+            tx.into(),
+            &mut conn,
+            fetch_fn,
+        )
+        .await
+        .unwrap();
 
         let ran = scheduler.ran.as_ref().unwrap();
 

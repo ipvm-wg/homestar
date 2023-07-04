@@ -1,0 +1,8 @@
+[monitoring]
+process_collector_interval = 10
+
+[node]
+
+[node.network]
+events_buffer_len = 1000
+websocket_port = 9999

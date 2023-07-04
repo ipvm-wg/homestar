@@ -67,9 +67,8 @@ where
     /// [resolving Ipld links]: resolve_links
     pub fn resolve<F>(self, lookup_fn: F) -> Result<Self, ResolveError>
     where
-        F: Fn(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
+        F: FnMut(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
         Ipld: From<T>,
-        T: Clone,
     {
         let inputs = resolve_args(self.0, lookup_fn);
         Ok(Args(inputs))
@@ -145,9 +144,9 @@ impl<T> Input<T> {
     /// [awaited promises]: Await
     /// [inputs]: Input
     /// [resolving Ipld links]: resolve_links
-    pub fn resolve<F>(self, lookup_fn: F) -> Input<T>
+    pub fn resolve<F>(self, mut lookup_fn: F) -> Input<T>
     where
-        F: Fn(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
+        F: FnMut(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
         Ipld: From<T>,
     {
         match self {
@@ -232,7 +231,7 @@ where
 
 fn resolve_args<T, F>(args: Vec<Input<T>>, lookup_fn: F) -> Vec<Input<T>>
 where
-    F: Fn(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
+    F: FnMut(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
     Ipld: From<T>,
 {
     let args = args.into_iter().map(|v| v.resolve(lookup_fn.clone()));
@@ -242,9 +241,9 @@ where
 /// Resolve [awaited promises] for *only* [Ipld] data, given a lookup function.
 ///
 /// [awaited promises]: Await
-pub fn resolve_links<T, F>(ipld: Ipld, lookup_fn: F) -> Ipld
+pub fn resolve_links<T, F>(ipld: Ipld, mut lookup_fn: F) -> Ipld
 where
-    F: Fn(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
+    F: FnMut(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
     Ipld: From<T>,
 {
     match ipld {

@@ -6,12 +6,14 @@ use homestar_wasm::{
     wasmtime::{world::Env, Error as WasmRuntimeError, State, World},
 };
 
+#[allow(dead_code)]
 #[allow(missing_debug_implementations)]
 pub(crate) struct WasmContext {
     env: Env<State>,
 }
 
 impl WasmContext {
+    #[allow(dead_code)]
     pub(crate) fn new(data: State) -> Result<Self, WasmRuntimeError> {
         Ok(Self {
             env: World::default(data)?,
@@ -19,6 +21,7 @@ impl WasmContext {
     }
 
     /// Instantiate environment via [World] and execute on [Args].
+    #[allow(dead_code)]
     pub(crate) async fn run<'a>(
         &mut self,
         bytes: Vec<u8>,

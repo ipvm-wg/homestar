@@ -7,31 +7,107 @@ use libp2p::{identity, identity::secp256k1};
 use rand::{Rng, SeedableRng};
 use sec1::der::Decode;
 use serde::Deserialize;
-use serde_with::{base64::Base64, serde_as};
+use serde_with::{base64::Base64, serde_as, DurationSeconds};
 use std::{
     io::Read,
     path::{Path, PathBuf},
+    time::Duration,
 };
 use tracing::info;
 
-/// Server settings.
-#[derive(Clone, Debug, Deserialize)]
-pub struct Node {
-    #[serde(default)]
-    pub(crate) network: Network,
-    #[serde(default)]
-    pub(crate) db: Database,
+/// Application settings.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct Settings {
+    pub(crate) monitoring: Monitoring,
+    pub(crate) node: Node,
+}
+
+impl Settings {
+    /// Monitoring settings getter.
+    pub fn monitoring(&self) -> &Monitoring {
+        &self.monitoring
+    }
+
+    /// Node
+    pub fn node(&self) -> &Node {
+        &self.node
+    }
 }
 
 /// Process monitoring settings.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct Monitoring {
     /// Monitoring collection interval.
     #[allow(dead_code)]
     process_collector_interval: u64,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+/// Server settings.
+#[serde_as]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+pub struct Node {
+    #[serde(default)]
+    pub(crate) network: Network,
+    #[serde(default)]
+    pub(crate) db: Database,
+    #[serde_as(as = "DurationSeconds<u64>")]
+    #[serde(default = "default_shutdown_timeout")]
+    pub(crate) shutdown_timeout: Duration,
+}
+
+/// Network-related settings for a homestar node.
+#[serde_as]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Network {
+    /// Buffer-length for events channel.
+    pub(crate) events_buffer_len: usize,
+    /// Address for [Swarm] to listen on.
+    ///
+    /// [Swarm]: libp2p::swarm::Swarm
+    #[serde(with = "http_serde::uri")]
+    pub(crate) listen_address: Uri,
+    /// Pub/sub duplicate cache time.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) pubsub_duplication_cache_time: Duration,
+    /// Pub/sub hearbeat interval for mesh configuration.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) pubsub_heartbeat: Duration,
+    /// Pub/sub idle timeout
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) pubsub_idle_timeout: Duration,
+    /// Quorum for receipt records on the DHT.
+    pub(crate) receipt_quorum: usize,
+    /// Transport connection timeout.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) transport_connection_timeout: Duration,
+    /// Websocket-server host address.
+    #[serde(with = "http_serde::uri")]
+    pub(crate) websocket_host: Uri,
+    /// Websocket-server port.
+    pub(crate) websocket_port: u16,
+    /// Number of *bounded* clients to send messages to, used for a
+    /// [tokio::sync::broadcast::channel]
+    pub(crate) websocket_capacity: usize,
+    /// Quorum for [workflow::Info] records on the DHT.
+    ///
+    /// [workflow::Info]: crate::workflow::Info
+    pub(crate) workflow_quorum: usize,
+    /// Pubkey setup configuration
+    pub(crate) keypair_config: PubkeyConfig,
+}
+
+/// Database-related settings for a homestar node.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(default)]
+pub(crate) struct Database {
+    /// Maximum number of connections managed by the [pool].
+    ///
+    /// [pool]: crate::db::Pool
+    pub(crate) max_pool_size: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 /// Configure how the Network keypair is generated or using an existing one
 pub(crate) enum PubkeyConfig {
     #[serde(rename = "random")]
@@ -45,7 +121,7 @@ pub(crate) enum PubkeyConfig {
 }
 
 /// Supported key types of homestar
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 pub(crate) enum KeyType {
     #[default]
     #[serde(rename = "ed25519")]
@@ -56,7 +132,7 @@ pub(crate) enum KeyType {
 
 /// Seed material for RNG generated keys
 #[serde_as]
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub(crate) struct PupkeyRNGSeed {
     #[serde(default)]
     key_type: KeyType,
@@ -65,11 +141,51 @@ pub(crate) struct PupkeyRNGSeed {
 }
 
 /// Info on where and what the Key file is
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub(crate) struct ExistingKeyPath {
     #[serde(default)]
     key_type: KeyType,
     path: String,
+}
+
+impl Default for Database {
+    fn default() -> Self {
+        Self { max_pool_size: 100 }
+    }
+}
+
+impl Default for Network {
+    fn default() -> Self {
+        Self {
+            events_buffer_len: 100,
+            listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
+            pubsub_duplication_cache_time: Duration::new(1, 0),
+            pubsub_heartbeat: Duration::new(60, 0),
+            pubsub_idle_timeout: Duration::new(60 * 60 * 24, 0),
+            receipt_quorum: 2,
+            transport_connection_timeout: Duration::new(20, 0),
+            websocket_host: Uri::from_static("127.0.0.1"),
+            websocket_port: 1337,
+            websocket_capacity: 100,
+            workflow_quorum: 3,
+            keypair_config: PubkeyConfig::Random,
+        }
+    }
+}
+
+impl Node {
+    /// Network settings.
+    pub fn network(&self) -> &Network {
+        &self.network
+    }
+    /// Node shutdown timeout.
+    pub fn shutdown_timeout(&self) -> Duration {
+        self.shutdown_timeout
+    }
+}
+
+fn default_shutdown_timeout() -> Duration {
+    Duration::new(20, 0)
 }
 
 impl PubkeyConfig {
@@ -151,96 +267,6 @@ impl PubkeyConfig {
     }
 }
 
-#[derive(Debug, Deserialize)]
-/// Application settings.
-pub struct Settings {
-    monitoring: Monitoring,
-    node: Node,
-}
-
-impl Settings {
-    /// Monitoring settings getter.
-    pub fn monitoring(&self) -> &Monitoring {
-        &self.monitoring
-    }
-
-    /// Node
-    pub fn node(&self) -> &Node {
-        &self.node
-    }
-}
-
-/// Network-related settings for a homestar node.
-#[derive(Clone, Debug, Deserialize)]
-#[serde(default)]
-pub(crate) struct Network {
-    ///
-    pub(crate) events_buffer_len: usize,
-    /// Address for [Swarm] to listen on.
-    ///
-    /// [Swarm]: libp2p::swarm::Swarm
-    #[serde(with = "http_serde::uri")]
-    pub(crate) listen_address: Uri,
-    /// Pub/sub duplicate cache time.
-    pub(crate) pubsub_duplication_cache_secs: u64,
-    /// Pub/sub hearbeat interval for mesh configuration.
-    pub(crate) pubsub_heartbeat_secs: u64,
-    /// Pub/sub idle timeout
-    pub(crate) pubsub_idle_timeout_secs: u64,
-    /// Quorum for receipt records on the DHT.
-    pub(crate) receipt_quorum: usize,
-    /// Transport connection timeout.
-    pub(crate) transport_connection_timeout_secs: u64,
-    /// Websocket-server host address.
-    #[serde(with = "http_serde::uri")]
-    pub(crate) websocket_host: Uri,
-    /// Websocket-server port.
-    pub(crate) websocket_port: u16,
-    /// Number of *bounded* clients to send messages to, used for a
-    /// [tokio::sync::broadcast::channel]
-    pub(crate) websocket_capacity: usize,
-    /// Quorum for [workflow::Info] records on the DHT.
-    ///
-    /// [workflow::Info]: crate::workflow::Info
-    pub(crate) workflow_quorum: usize,
-    /// Pubkey setup configuration
-    pub(crate) keypair_config: PubkeyConfig,
-}
-
-/// Database-related settings for a homestar node.
-#[derive(Clone, Debug, Deserialize)]
-pub(crate) struct Database {
-    /// Maximum number of connections managed by the [pool].
-    ///
-    /// [pool]: crate::db::Pool
-    pub(crate) max_pool_size: u32,
-}
-
-impl Default for Network {
-    fn default() -> Self {
-        Self {
-            events_buffer_len: 100,
-            listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
-            pubsub_duplication_cache_secs: 1,
-            pubsub_heartbeat_secs: 60,
-            pubsub_idle_timeout_secs: 60 * 60 * 24,
-            receipt_quorum: 2,
-            transport_connection_timeout_secs: 20,
-            websocket_host: Uri::from_static("127.0.0.1"),
-            websocket_port: 1337,
-            websocket_capacity: 100,
-            workflow_quorum: 3,
-            keypair_config: PubkeyConfig::Random,
-        }
-    }
-}
-
-impl Default for Database {
-    fn default() -> Self {
-        Self { max_pool_size: 100 }
-    }
-}
-
 impl Settings {
     /// Load settings.
     pub fn load() -> Result<Self, ConfigError> {
@@ -269,7 +295,32 @@ impl Settings {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::Settings;
+
+    #[test]
+    fn test_defaults() {
+        let settings = Settings::load().unwrap();
+        let node_settings = settings.node();
+
+        let default_settings = Node {
+            shutdown_timeout: Duration::from_secs(20),
+            ..Default::default()
+        };
+
+        assert_eq!(node_settings, &default_settings);
+    }
+
+    #[test]
+    fn test_defaults_with_modification() {
+        let settings = Settings::build("fixtures/settings.toml".into()).unwrap();
+        let mut default_modded_settings = Node::default();
+
+        default_modded_settings.network.events_buffer_len = 1000;
+        default_modded_settings.network.websocket_port = 9999;
+        default_modded_settings.shutdown_timeout = Duration::from_secs(20);
+        assert_eq!(settings.node(), &default_modded_settings);
+    }
 
     #[test]
     fn import_existing_key() {

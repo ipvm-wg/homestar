@@ -19,10 +19,11 @@
 
 pub mod cli;
 pub mod db;
+mod event_handler;
 pub mod logger;
-pub mod network;
+mod network;
 mod receipt;
-mod runtime;
+pub mod runner;
 pub mod scheduler;
 mod settings;
 pub mod tasks;
@@ -30,12 +31,12 @@ mod worker;
 pub mod workflow;
 
 pub use db::Db;
-#[cfg(feature = "ipfs")]
-pub use network::ipfs::IpfsCli;
+pub use event_handler::{event::Event, EventHandler};
+#[cfg(feature = "websocket-server")]
+pub use network::ws;
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};
-pub use runtime::*;
+pub use runner::Runner;
 pub use settings::Settings;
-pub use worker::Worker;
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]
