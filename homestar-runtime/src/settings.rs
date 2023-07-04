@@ -43,6 +43,7 @@ pub(crate) enum PubkeyConfig {
     Existing(ExistingKeyPath),
 }
 
+/// Supported key types of homestar
 #[derive(Clone, Debug, Default, Deserialize)]
 pub(crate) enum KeyType {
     #[default]
@@ -52,6 +53,7 @@ pub(crate) enum KeyType {
     Secp256k1,
 }
 
+/// Seed material for RNG generated keys
 #[serde_as]
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct PupkeyRNGSeed {
@@ -61,6 +63,7 @@ pub(crate) struct PupkeyRNGSeed {
     seed: [u8; 32],
 }
 
+/// Info on where and what the Key file is
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct ExistingKeyPath {
     #[serde(default)]
