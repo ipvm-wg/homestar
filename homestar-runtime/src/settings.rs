@@ -5,6 +5,7 @@ use config::{Config, ConfigError, Environment, File};
 use http::Uri;
 use libp2p::{identity, identity::secp256k1};
 use rand::{Rng, SeedableRng};
+use sec1::der::Decode;
 use serde::Deserialize;
 use serde_with::{base64::Base64, serde_as};
 use std::{
@@ -95,36 +96,38 @@ impl PubkeyConfig {
             }
             PubkeyConfig::Existing(ExistingKeyPath { key_type, path }) => {
                 let path = Path::new(&path);
-                let file = {
-                    let mut s = String::new();
-                    std::fs::File::open(path)
-                        .context("Unable to read key file")?
-                        .read_to_string(&mut s)
-                        .context("Failed to read file into a string, is it corrupted?")?;
-                    s
-                };
-                let pem = pem::parse(file).with_context(|| "Key file must be PEM formatted")?;
+                let mut file = std::fs::File::open(path).context("Unable to read key file")?;
 
-                if pem.tag() != "PRIVATE KEY" {
-                    return Err(anyhow!(
-                        "Imported key file must be a private key, tag was {}",
-                        pem.tag()
-                    ));
-                }
+                let mut buf = Vec::new();
+                file.read_to_end(&mut buf)
+                    .context("Unable to read bytes from file, is the file corrupted?")?;
 
                 match key_type {
                     KeyType::Ed25519 => {
-                        // raw bytes of ed25519 secret key
-                        identity::Keypair::ed25519_from_bytes(&mut pem.contents().to_vec())
-                            .with_context(|| {
-                                "Imported key was not parsable into an ed25519 secret key"
-                            })
+                        let (tag, mut key) = sec1::der::pem::decode_vec(&buf)
+                            .map_err(|e| anyhow!("Key file must be PEM formatted: {:?}", e))?;
+                        if tag != "PRIVATE KEY" {
+                            return Err(anyhow!(
+                                "Imported key file had a header of '{}', expected 'PRIVATE KEY' for ed25519",
+                                tag
+                            ));
+                        }
+
+                        // raw bytes of ed25519 secret key from PEM file
+                        identity::Keypair::ed25519_from_bytes(&mut key)
+                            .with_context(|| "Imported key material was invalid for ed25519")
                     }
                     KeyType::Secp256k1 => {
-                        // TODO this might need to change because raw bytes of secp256k1 secret key is uncommon (usually pkcs#8 as far as i can tell) should probs be something else
-                        let sk = secp256k1::SecretKey::try_from_bytes(&mut pem.contents().to_vec())
+                        let sk = match path.extension().and_then(|ext| ext.to_str()) {
+                            Some("der") => sec1::EcPrivateKey::from_der(buf.as_slice()).map_err(|e| anyhow!("Failed to parse DER encoded secp256k1 key: {e:?}")),
+                            Some("pem") => {
+                                Err(anyhow!("PEM encoded secp256k1 keys are unsupported at the moment. Please file an issue if you require this."))
+                            },
+                            _ => Err(anyhow!("Please disambiguate file from either PEM or DER with a file extension."))
+                        }?;
+                        let kp = secp256k1::SecretKey::try_from_bytes(sk.private_key.to_vec())
+                            .map(secp256k1::Keypair::from)
                             .map_err(|e| anyhow!("Failed to import secp256k1 key: {:?}", e))?;
-                        let kp = secp256k1::Keypair::from(sk);
                         Ok(identity::Keypair::from(kp))
                     }
                 }

@@ -60,6 +60,6 @@ repos:
       - id: check-json
       - id: check-added-large-files
       - id: detect-private-key
-        exclude: testkey.pem
+        exclude: __testkey
       - id: check-executables-have-shebangs
       - id: check-toml
