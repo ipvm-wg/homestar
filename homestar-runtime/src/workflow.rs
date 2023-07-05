@@ -137,9 +137,9 @@ impl<'a> Builder<'a> {
                     // Clone as we're owning the struct going backward.
                     let ptr: Pointer = Invocation::<Arg>::from(task.clone()).try_into()?;
 
-                    let RunInstruction::Expanded(instr) =  task.into_instruction() else {
-                    bail!("workflow tasks/instructions must be expanded / inlined")
-                };
+                    let RunInstruction::Expanded(instr) = task.into_instruction() else {
+                        bail!("workflow tasks/instructions must be expanded / inlined")
+                    };
 
                     // TODO: check if op is runnable on current node
                     // TODO LATER: check if op is registered on the network
