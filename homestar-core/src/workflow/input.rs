@@ -202,9 +202,9 @@ where
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let Ok(map) = from_ipld::<BTreeMap<String, Ipld>>(ipld.to_owned()) else {
             if let Ok(invocation_result) = ipld.to_owned().try_into() {
-                return Ok(Input::Arg(invocation_result))
+                return Ok(Input::Arg(invocation_result));
             } else {
-                return Ok(Input::Ipld(ipld))
+                return Ok(Input::Ipld(ipld));
             }
         };
 

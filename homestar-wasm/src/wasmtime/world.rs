@@ -110,33 +110,30 @@ impl<T> Env<T> {
             .func()
             .results(&self.store);
 
-        let params: Vec<component::Val> = iter::zip(
-            param_types.iter(),
-            args.into_inner().into_iter(),
-        )
-        .try_fold(vec![], |mut acc, (typ, arg)| {
-            // Remove unwraps
-            let v = match arg {
-                Input::Ipld(ipld) => RuntimeVal::try_from(ipld, &InterfaceType::from(typ))
-                    .unwrap()
-                    .value(),
-                Input::Arg(val) => match val.into_inner() {
-                    Arg::Ipld(ipld) => RuntimeVal::try_from(ipld, &InterfaceType::from(typ))
+        let params: Vec<component::Val> = iter::zip(param_types.iter(), args.into_inner())
+            .try_fold(vec![], |mut acc, (typ, arg)| {
+                // Remove unwraps
+                let v = match arg {
+                    Input::Ipld(ipld) => RuntimeVal::try_from(ipld, &InterfaceType::from(typ))
                         .unwrap()
                         .value(),
-                    Arg::Value(v) => v,
-                },
-                Input::Deferred(await_promise) => bail!(Error::PromiseError(
-                    ResolveError::UnresolvedCidError(format!(
-                        "deferred task not yet resolved for {}: {}",
-                        await_promise.result(),
-                        await_promise.instruction_cid()
-                    ))
-                )),
-            };
-            acc.push(v);
-            Ok::<_, Error>(acc)
-        })?;
+                    Input::Arg(val) => match val.into_inner() {
+                        Arg::Ipld(ipld) => RuntimeVal::try_from(ipld, &InterfaceType::from(typ))
+                            .unwrap()
+                            .value(),
+                        Arg::Value(v) => v,
+                    },
+                    Input::Deferred(await_promise) => bail!(Error::PromiseError(
+                        ResolveError::UnresolvedCidError(format!(
+                            "deferred task not yet resolved for {}: {}",
+                            await_promise.result(),
+                            await_promise.instruction_cid()
+                        ))
+                    )),
+                };
+                acc.push(v);
+                Ok::<_, Error>(acc)
+            })?;
 
         let mut results_alloc: Vec<component::Val> = result_types
             .iter()
