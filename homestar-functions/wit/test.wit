@@ -1,4 +1,6 @@
-default world homestar {
+package example:test
+
+world test {
   export add-one: func(a: s32) -> s32
   export append-string: func(a: string) -> string
   export join-strings: func(a: string, b: string) -> string

@@ -147,16 +147,27 @@ fn make_echo_component_with_params(type_definition: &str, params: &[Param]) -> S
         )
     };
 
+    let type_section = if type_definition.contains("(type ") {
+        type_definition.to_string()
+    } else {
+        format!("(type $Foo' {type_definition})")
+    };
+
     format!(
         r#"
         (component
             (core module $m
                 {func}
+
                 (memory (export "memory") 1)
                 {REALLOC_AND_FREE}
             )
+
             (core instance $i (instantiate $m))
-            (type $Foo {type_definition})
+
+            {type_section}
+            (export $Foo "foo" (type $Foo'))
+
             (func (export "echo") (param "a" $Foo) (result "b" $Foo)
                 (canon lift
                     (core func $i "echo")

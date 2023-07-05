@@ -2,7 +2,8 @@
   description = "homestar";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-23.05";
+    # we leverage unstable due to wasm-tools/wasm updates
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
@@ -43,6 +44,7 @@
           cargo-udeps
           cargo-watch
           twiggy
+          wasm-tools
         ];
 
         ci = pkgs.writeScriptBin "ci" ''
@@ -65,7 +67,7 @@
         '';
 
         compileWasm = pkgs.writeScriptBin "compile-wasm" ''
-          cargo build -p homestar-guest-wasm --target wasm32-unknown-unknown --release
+          cargo build -p homestar-functions --target wasm32-unknown-unknown --release
         '';
 
         dockerBuild = arch:
@@ -128,6 +130,20 @@
           cargo test --doc --no-default-features
         '';
 
+        wasmTest = pkgs.writeScriptBin "wasm-ex-test" ''
+          cargo build -p homestar-functions --features example-test --target wasm32-unknown-unknown --release
+          cp target/wasm32-unknown-unknown/release/homestar_functions.wasm homestar-wasm/fixtures/example_test.wasm
+          wasm-tools component new homestar-wasm/fixtures/example_test.wasm -o homestar-wasm/fixtures/example_test_component.wasm
+        '';
+
+        wasmAdd = pkgs.writeScriptBin "wasm-ex-add" ''
+          cargo build -p homestar-functions --features example-add --target wasm32-unknown-unknown --release
+          cp target/wasm32-unknown-unknown/release/homestar_functions.wasm homestar-wasm/fixtures/example_add.wasm
+          wasm-tools component new homestar-wasm/fixtures/example_add.wasm -o homestar-wasm/fixtures/example_add_component.wasm
+          wasm-tools print homestar-wasm/fixtures/example_add.wasm -o homestar-wasm/fixtures/example_add.wat
+          wasm-tools print homestar-wasm/fixtures/example_add_component.wasm -o homestar-wasm/fixtures/example_add_component.wat
+        '';
+
         scripts = [
           ci
           db
@@ -147,6 +163,8 @@
           nxTest
           nxTestAll
           nxTestNoDefault
+          wasmTest
+          wasmAdd
         ];
       in rec
       {

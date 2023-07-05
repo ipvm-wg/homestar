@@ -15,7 +15,7 @@ RUN cargo init
 RUN rm -Rf src
 
 RUN cargo init --lib homestar-core && \
-    cargo init --lib homestar-guest-wasm && \
+    cargo init --lib homestar-functions && \
     cargo init --lib homestar-wasm && \
     cargo init --lib homestar-runtime
 
@@ -24,7 +24,7 @@ RUN echo "fn main() {}" > ./homestar-runtime/src/main.rs
 # copy cargo.*
 COPY Cargo.lock Cargo.toml .env diesel.toml ./
 COPY ../homestar-core/Cargo.toml ./homestar-core/
-COPY ../homestar-guest-wasm/Cargo.toml ./homestar-guest-wasm/
+COPY ../homestar-functions/Cargo.toml ./homestar-functions/
 COPY ../homestar-wasm/Cargo.toml ./homestar-wasm/
 COPY ../homestar-runtime/Cargo.toml ../homestar-runtime/migrations ./homestar-runtime/
 

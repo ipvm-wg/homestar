@@ -22,7 +22,7 @@ fn fixtures(file: &str) -> PathBuf {
 
 #[tokio::test]
 async fn test_wasm_exceeds_max_memory() {
-    let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
     let env = World::instantiate(
         wasm,
         "add_one",
@@ -42,25 +42,25 @@ async fn test_wasm_exceeds_max_memory() {
 #[tokio::test]
 async fn test_execute_wat() {
     let ipld = Input::Ipld(Ipld::Map(BTreeMap::from([
-        ("func".into(), Ipld::String("add_one".to_string())),
+        ("func".into(), Ipld::String("add_two".to_string())),
         ("args".into(), Ipld::List(vec![Ipld::Integer(1)])),
     ])));
     // TODO: Replace this with updated versions and guest_wasm code.
-    let wat = fs::read(fixtures("add_one_component.wat")).unwrap();
-    let mut env = World::instantiate(wat, "add-one", State::default())
+    let wat = fs::read(fixtures("example_add_component.wat")).unwrap();
+    let mut env = World::instantiate(wat, "add_two", State::default())
         .await
         .unwrap();
     let res = env
         .execute(ipld.parse().unwrap().try_into().unwrap())
         .await
         .unwrap();
-    assert_eq!(res, Output::Value(wasmtime::component::Val::S32(2)));
+    assert_eq!(res, Output::Value(wasmtime::component::Val::S32(3)));
 }
 
 #[tokio::test]
 async fn test_execute_wat_from_non_component() {
-    let wat = fs::read(fixtures("add_one.wat")).unwrap();
-    let env = World::instantiate(wat, "add_one", State::default()).await;
+    let wat = fs::read(fixtures("example_add.wat")).unwrap();
+    let env = World::instantiate(wat, "add_two", State::default()).await;
     assert!(env.is_err());
 }
 
@@ -71,7 +71,7 @@ async fn test_execute_wasm_underscore() {
         ("args".into(), Ipld::List(vec![Ipld::Integer(1)])),
     ])));
 
-    let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
     let mut env = World::instantiate(wasm, "add_one", State::default())
         .await
         .unwrap();
@@ -89,7 +89,7 @@ async fn test_execute_wasm_hyphen() {
         ("args".into(), Ipld::List(vec![Ipld::Integer(10)])),
     ])));
 
-    let wasm = fs::read(fixtures("homestar-guest-wasm.wasm")).unwrap();
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
     let mut env = World::instantiate(wasm, "add-one", State::default())
         .await
         .unwrap();
@@ -102,7 +102,7 @@ async fn test_execute_wasm_hyphen() {
 
 #[tokio::test]
 async fn test_wasm_wrong_fun() {
-    let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
     let env = World::instantiate(wasm, "add-onez", State::default()).await;
     assert!(env.is_err());
 }
@@ -117,7 +117,7 @@ async fn test_append_string() {
         ),
     ])));
 
-    let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
     let mut env = World::instantiate(wasm, "append-string", State::default())
         .await
         .unwrap();
@@ -147,7 +147,7 @@ async fn test_matrix_transpose() {
         ("args".into(), Ipld::List(vec![ipld_inner.clone()])),
     ])));
 
-    let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
     let mut env = World::instantiate(wasm, "transpose", State::default())
         .await
         .unwrap();
@@ -191,7 +191,7 @@ async fn test_execute_wasms_in_seq() {
         ),
     ])));
 
-    let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
 
     let mut env = World::instantiate(wasm.clone(), "add_one", State::default())
         .await
@@ -223,7 +223,7 @@ async fn test_execute_wasms_in_seq() {
 
 #[tokio::test]
 async fn test_multiple_args() {
-    let wasm = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
 
     let ipld_str = Input::Ipld(Ipld::Map(BTreeMap::from([
         ("func".into(), Ipld::String("join-strings".to_string())),
@@ -282,9 +282,9 @@ async fn test_execute_wasms_in_seq_with_threaded_result() {
         ),
     ])));
 
-    let wasm1 = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
 
-    let mut env = World::instantiate(wasm1.clone(), "join-strings", State::default())
+    let mut env = World::instantiate(wasm.clone(), "join-strings", State::default())
         .await
         .unwrap();
 
@@ -298,7 +298,7 @@ async fn test_execute_wasms_in_seq_with_threaded_result() {
         Output::Value(wasmtime::component::Val::String("Roundabout".into()))
     );
 
-    let env2 = World::instantiate_with_current_env(wasm1, "join-strings", &mut env)
+    let env2 = World::instantiate_with_current_env(wasm, "join-strings", &mut env)
         .await
         .unwrap();
 
@@ -351,9 +351,9 @@ async fn test_execute_wasms_with_multiple_inits() {
         ),
     ])));
 
-    let wasm1 = fs::read(fixtures("homestar_guest_wasm.wasm")).unwrap();
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
 
-    let mut env = World::instantiate(wasm1.clone(), "join-strings", State::default())
+    let mut env = World::instantiate(wasm.clone(), "join-strings", State::default())
         .await
         .unwrap();
 
@@ -367,7 +367,7 @@ async fn test_execute_wasms_with_multiple_inits() {
         Output::Value(wasmtime::component::Val::String("Roundabout".into()))
     );
 
-    let mut env2 = World::instantiate(wasm1, "join-strings", State::default())
+    let mut env2 = World::instantiate(wasm, "join-strings", State::default())
         .await
         .unwrap();
 

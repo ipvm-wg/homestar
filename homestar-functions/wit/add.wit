@@ -1,0 +1,5 @@
+package example:add
+
+world add {
+  export add-two: func(input: s32) -> s32
+}

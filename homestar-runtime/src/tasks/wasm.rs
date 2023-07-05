@@ -50,7 +50,7 @@ mod test {
 
     #[tokio::test]
     async fn load_wasm_file_as_bytes() {
-        let wat = WasmContext::load(fixtures("add_one_component.wat"))
+        let wat = WasmContext::load(fixtures("example_add_component.wat"))
             .await
             .unwrap();
 

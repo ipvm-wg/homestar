@@ -5,6 +5,7 @@ flake.lock
 release-please-config.json
 deny.toml
 diesel.toml
+codecov.yml
 LICENSE
 *.nix
 *.md
