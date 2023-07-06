@@ -273,7 +273,8 @@ mod test {
 
     #[test]
     fn import_existing_key() {
-        let settings = Settings::build("fixtures/settings-import-ed25519.toml".into()).unwrap();
+        let settings = Settings::build("fixtures/settings-import-ed25519.toml".into())
+            .expect("setting file in test fixtures");
 
         let msg = b"foo bar";
         let signature = libp2p::identity::Keypair::ed25519_from_bytes([0; 32])
@@ -286,22 +287,34 @@ mod test {
             .network
             .keypair_config
             .keypair()
-            .unwrap()
+            .expect("import ed25519 key")
             .public()
             .verify(msg, &signature));
     }
 
     #[test]
     fn import_secp256k1_key() {
-        let settings = Settings::build("fixtures/settings-import-secp256k1.toml".into()).unwrap();
+        let settings = Settings::build("fixtures/settings-import-secp256k1.toml".into())
+            .expect("setting file in test fixtures");
 
-        settings.node.network.keypair_config.keypair().unwrap();
+        settings
+            .node
+            .network
+            .keypair_config
+            .keypair()
+            .expect("import secp256k1 key");
     }
 
     #[test]
     fn seeded_secp256k1_key() {
-        let settings = Settings::build("fixtures/settings-random-secp256k1.toml".into()).unwrap();
+        let settings = Settings::build("fixtures/settings-random-secp256k1.toml".into())
+            .expect("setting file in test fixtures");
 
-        settings.node.network.keypair_config.keypair().unwrap();
+        settings
+            .node
+            .network
+            .keypair_config
+            .keypair()
+            .expect("generate a seeded secp256k1 key");
     }
 }
