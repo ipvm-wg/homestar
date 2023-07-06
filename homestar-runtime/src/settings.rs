@@ -116,15 +116,14 @@ impl PubkeyConfig {
 
                 match key_type {
                     KeyType::Ed25519 => {
+                        const PEM_HEADER: &str = "PRIVATE KEY";
+
                         info!("importing ed25519 key from: {}", path.display());
 
                         let (tag, mut key) = sec1::der::pem::decode_vec(&buf)
-                            .map_err(|e| anyhow!("key file must be PEM formatted: {:?}", e))?;
-                        if tag != "PRIVATE KEY" {
-                            return Err(anyhow!(
-                                "imported key file had a header of '{}', expected 'PRIVATE KEY' for ed25519",
-                                tag
-                            ));
+                            .map_err(|e| anyhow!("key file must be PEM formatted: {:#?}", e))?;
+                        if tag != PEM_HEADER {
+                            return Err(anyhow!("imported key file had a header of '{tag}', expected '{PEM_HEADER}' for ed25519"));
                         }
 
                         // raw bytes of ed25519 secret key from PEM file
@@ -135,7 +134,7 @@ impl PubkeyConfig {
                         info!("importing secp256k1 key from: {}", path.display());
 
                         let sk = match path.extension().and_then(|ext| ext.to_str()) {
-                            Some("der") => sec1::EcPrivateKey::from_der(buf.as_slice()).map_err(|e| anyhow!("failed to parse DER encoded secp256k1 key: {e:?}")),
+                            Some("der") => sec1::EcPrivateKey::from_der(buf.as_slice()).map_err(|e| anyhow!("failed to parse DER encoded secp256k1 key: {e:#?}")),
                             Some("pem") => {
                                 Err(anyhow!("PEM encoded secp256k1 keys are unsupported at the moment. Please file an issue if you require this."))
                             },
@@ -143,7 +142,7 @@ impl PubkeyConfig {
                         }?;
                         let kp = secp256k1::SecretKey::try_from_bytes(sk.private_key.to_vec())
                             .map(secp256k1::Keypair::from)
-                            .map_err(|e| anyhow!("failed to import secp256k1 key: {:?}", e))?;
+                            .map_err(|e| anyhow!("failed to import secp256k1 key: {:#?}", e))?;
                         Ok(identity::Keypair::from(kp))
                     }
                 }
