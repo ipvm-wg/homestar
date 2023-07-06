@@ -1,5 +1,5 @@
 [package]
-name = "homestar-functions"
+name = "basic"
 publish = false
 version = "0.1.0"
 edition = { workspace = true }

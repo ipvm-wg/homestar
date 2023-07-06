@@ -1,0 +1,17 @@
+[package]
+name = "markdown-html"
+publish = false
+version = "0.1.0"
+edition = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+pulldown-cmark = "0.9.3"
+wit-bindgen = "0.8"
+
+[lib]
+doc = false
+bench = false
+crate-type = ["cdylib", "rlib"]
+
+[features]

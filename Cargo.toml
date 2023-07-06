@@ -2,7 +2,7 @@
 members = [
     # "examples/*",
     "homestar-core",
-    "homestar-functions",
+    "homestar-functions/*",
     "homestar-runtime",
     "homestar-wasm"]
 resolver = "2"

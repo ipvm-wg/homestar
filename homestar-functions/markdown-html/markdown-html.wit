@@ -1,0 +1,14 @@
+package markdown-html:markdown
+
+world commonmark {
+    record extension-options {
+        strikethrough: bool,
+        tables: bool,
+        footnotes: bool,
+        tasklist: bool,
+        smart-punctuation: bool,
+        heading-attributes: bool,
+    }
+
+    export commonmark-to-html: func(md: string, ext: extension-options) -> string
+}
