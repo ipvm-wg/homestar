@@ -21,7 +21,7 @@ pub async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> 
     let keypair = settings
         .network
         .keypair_config
-        .generate_keypair()
+        .keypair()
         .with_context(|| "Failed to generate/import keypair for libp2p".to_string())?;
     let peer_id = keypair.public().to_peer_id();
 

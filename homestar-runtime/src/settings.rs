@@ -73,7 +73,8 @@ pub(crate) struct ExistingKeyPath {
 
 impl PubkeyConfig {
     /// Produce a Keypair using the given configuration.
-    pub(crate) fn generate_keypair(&self) -> anyhow::Result<identity::Keypair> {
+    /// Calling this function will access the filesystem if configured to import a key.
+    pub(crate) fn keypair(&self) -> anyhow::Result<identity::Keypair> {
         match self {
             PubkeyConfig::Random => Ok(identity::Keypair::generate_ed25519()),
             PubkeyConfig::GenerateFromSeed(PupkeyRNGSeed { key_type, seed }) => {
@@ -84,13 +85,13 @@ impl PubkeyConfig {
                 match key_type {
                     KeyType::Ed25519 => {
                         identity::Keypair::ed25519_from_bytes(new_key).map_err(|e| {
-                            anyhow!("Failed to generate ed25519 key from random: {:?}", e)
+                            anyhow!("failed to generate ed25519 key from random: {:?}", e)
                         })
                     }
                     KeyType::Secp256k1 => {
                         let sk =
                             secp256k1::SecretKey::try_from_bytes(&mut new_key).map_err(|e| {
-                                anyhow!("Failed to generate secp256k1 key from random: {:?}", e)
+                                anyhow!("failed to generate secp256k1 key from random: {:?}", e)
                             })?;
                         let kp = secp256k1::Keypair::from(sk);
                         Ok(identity::Keypair::from(kp))
@@ -99,38 +100,38 @@ impl PubkeyConfig {
             }
             PubkeyConfig::Existing(ExistingKeyPath { key_type, path }) => {
                 let path = Path::new(&path);
-                let mut file = std::fs::File::open(path).context("Unable to read key file")?;
+                let mut file = std::fs::File::open(path).context("unable to read key file")?;
 
                 let mut buf = Vec::new();
                 file.read_to_end(&mut buf)
-                    .context("Unable to read bytes from file, is the file corrupted?")?;
+                    .context("unable to read bytes from file, is the file corrupted?")?;
 
                 match key_type {
                     KeyType::Ed25519 => {
                         let (tag, mut key) = sec1::der::pem::decode_vec(&buf)
-                            .map_err(|e| anyhow!("Key file must be PEM formatted: {:?}", e))?;
+                            .map_err(|e| anyhow!("key file must be PEM formatted: {:?}", e))?;
                         if tag != "PRIVATE KEY" {
                             return Err(anyhow!(
-                                "Imported key file had a header of '{}', expected 'PRIVATE KEY' for ed25519",
+                                "imported key file had a header of '{}', expected 'PRIVATE KEY' for ed25519",
                                 tag
                             ));
                         }
 
                         // raw bytes of ed25519 secret key from PEM file
                         identity::Keypair::ed25519_from_bytes(&mut key)
-                            .with_context(|| "Imported key material was invalid for ed25519")
+                            .with_context(|| "imported key material was invalid for ed25519")
                     }
                     KeyType::Secp256k1 => {
                         let sk = match path.extension().and_then(|ext| ext.to_str()) {
-                            Some("der") => sec1::EcPrivateKey::from_der(buf.as_slice()).map_err(|e| anyhow!("Failed to parse DER encoded secp256k1 key: {e:?}")),
+                            Some("der") => sec1::EcPrivateKey::from_der(buf.as_slice()).map_err(|e| anyhow!("failed to parse DER encoded secp256k1 key: {e:?}")),
                             Some("pem") => {
                                 Err(anyhow!("PEM encoded secp256k1 keys are unsupported at the moment. Please file an issue if you require this."))
                             },
-                            _ => Err(anyhow!("Please disambiguate file from either PEM or DER with a file extension."))
+                            _ => Err(anyhow!("please disambiguate file from either PEM or DER with a file extension."))
                         }?;
                         let kp = secp256k1::SecretKey::try_from_bytes(sk.private_key.to_vec())
                             .map(secp256k1::Keypair::from)
-                            .map_err(|e| anyhow!("Failed to import secp256k1 key: {:?}", e))?;
+                            .map_err(|e| anyhow!("failed to import secp256k1 key: {:?}", e))?;
                         Ok(identity::Keypair::from(kp))
                     }
                 }
@@ -273,7 +274,7 @@ mod test {
             .node
             .network
             .keypair_config
-            .generate_keypair()
+            .keypair()
             .unwrap()
             .public()
             .verify(msg, &signature));
@@ -283,23 +284,13 @@ mod test {
     fn import_secp256k1_key() {
         let settings = Settings::build("fixtures/settings-import-secp256k1.toml".into()).unwrap();
 
-        settings
-            .node
-            .network
-            .keypair_config
-            .generate_keypair()
-            .unwrap();
+        settings.node.network.keypair_config.keypair().unwrap();
     }
 
     #[test]
     fn seeded_secp256k1_key() {
         let settings = Settings::build("fixtures/settings-random-secp256k1.toml".into()).unwrap();
 
-        settings
-            .node
-            .network
-            .keypair_config
-            .generate_keypair()
-            .unwrap();
+        settings.node.network.keypair_config.keypair().unwrap();
     }
 }
