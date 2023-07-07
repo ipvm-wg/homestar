@@ -203,8 +203,8 @@ impl RuntimeVal {
                         .enumerate()
                         .with_position()
                         .fold_while(Ok((Ok(Val::Bool(false)), Tags::default())), |acc, pos| {
-                            let is_last = matches!(pos, Position::Last(_) | Position::Only(_));
-                            let (idx, (ty, elem)) = pos.into_inner();
+                            let is_last = matches!(pos.0, Position::Last | Position::Only);
+                            let (idx, (ty, elem)) = pos.1;
                             match RuntimeVal::try_from(elem, &InterfaceType::TypeRef(&ty)) {
                                 Ok(RuntimeVal(value, tags)) => {
                                     if value.ty() == ty {
@@ -247,8 +247,8 @@ impl RuntimeVal {
                         .enumerate()
                         .with_position()
                         .fold_while(Ok(Val::Bool(false)), |acc, pos| {
-                            let is_last = matches!(pos, Position::Last(_) | Position::Only(_));
-                            let (idx, (ty, elem)) = pos.into_inner();
+                            let is_last = matches!(pos.0, Position::Last | Position::Only);
+                            let (idx, (ty, elem)) = pos.1;
                             match RuntimeVal::try_from(elem, &InterfaceType::TypeRef(&ty)) {
                                 Ok(RuntimeVal(value, _tags)) => {
                                     if value.ty() == ty {

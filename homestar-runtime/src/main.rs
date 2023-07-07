@@ -1,53 +1,89 @@
 use anyhow::Result;
 use clap::Parser;
-#[cfg(feature = "ipfs")]
-use homestar_runtime::network::ipfs::IpfsCli;
+#[cfg(feature = "websocket-server")]
+use homestar_runtime::ws;
 use homestar_runtime::{
-    cli::{Args, Argument},
-    db::{Database, Db},
-    logger,
-    network::{eventloop::EventLoop, swarm, ws::WebSocket},
-    Settings,
+    cli::{Cli, Command},
+    db::Database,
+    logger, Db, Runner, Settings,
 };
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
+use tokio::{runtime, select, time};
+use tracing::info;
 
-#[tokio::main(flavor = "multi_thread")]
-async fn main() -> Result<()> {
+fn main() {
     let (stdout_writer, _stdout_guard) = tracing_appender::non_blocking(std::io::stdout());
-    logger::init(stdout_writer)?;
+    logger::init(stdout_writer).expect("Failed to initialize logger");
 
-    let opts = Args::parse();
+    let cli = Cli::parse();
 
-    #[cfg(feature = "ipfs")]
-    let ipfs = IpfsCli::default();
+    let settings = if let Some(file) = cli.runtime_config {
+        Settings::load_from_file(file)
+    } else {
+        Settings::load()
+    }
+    .expect("Failed to load settings");
 
-    match opts.argument {
-        Argument::Run { runtime_config } => {
-            let settings = if let Some(file) = runtime_config {
-                Settings::load_from_file(file)
-            } else {
-                Settings::load()
-            }?;
+    info!("starting with settings: {:?}", settings,);
 
-            let db = Db::setup_connection_pool(settings.node())?;
-            let swarm = swarm::new(settings.node()).await?;
+    let runtime = runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_name_fn(|| {
+            static ATOMIC_ID: AtomicUsize = AtomicUsize::new(0);
+            let id = ATOMIC_ID.fetch_add(1, Ordering::SeqCst);
+            format!("runtime-{}", id)
+        })
+        .build()
+        .expect("Failed to start multi-threaded runtime");
 
-            let (_tx, rx) = EventLoop::setup_channel(settings.node());
-            // instantiate and start event-loop for events
-            let eventloop = EventLoop::new(swarm, rx, settings.node());
+    let db = Db::setup_connection_pool(settings.node())
+        .expect("Failed to setup database connection pool");
 
-            #[cfg(not(feature = "ipfs"))]
-            tokio::spawn(eventloop.run(db));
-
-            #[cfg(feature = "ipfs")]
-            tokio::spawn(eventloop.run(db, ipfs));
-
-            let (ws_tx, ws_rx) = WebSocket::setup_channel(settings.node());
-            let ws_sender = Arc::new(ws_tx);
-            let ws_receiver = Arc::new(ws_rx);
-            WebSocket::start_server(ws_sender, ws_receiver, settings.node()).await?;
+    match cli.command {
+        Command::Start => {
+            runtime
+                .block_on(runner(Arc::new(settings), db))
+                .expect("Failed to run initialization");
         }
     }
+
+    drop(runtime);
+}
+
+async fn runner(settings: Arc<Settings>, db: impl Database + 'static) -> Result<()> {
+    let mut runner = Runner::start(settings.clone(), db).await?;
+
+    loop {
+        select! {
+            biased;
+            Ok(_event) = runner.command_receiver() => info!("Connected to the Network"),
+            _ = Runner::shutdown_signal() => {
+                info!("gracefully shutting down runner");
+                let drain_timeout = time::Instant::now() + settings.node().shutdown_timeout();
+
+                select! {
+                    Ok(()) = runner.shutdown() => {
+                        #[cfg(feature = "websocket-server")]
+                        match runner.ws_receiver().recv() {
+                            Ok(ws::WsMessage::GracefulShutdown) => (),
+                            Err(err) => info!(error=?err, "runner shutdown complete, but with error"),
+                        }
+                        info!("runner shutdown complete");
+                        break;
+                    },
+                    _ = time::sleep_until(drain_timeout) => {
+                        info!("shutdown timeout reached, shutting down runner anyway");
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    //drop(db);
 
     Ok(())
 }

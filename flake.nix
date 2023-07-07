@@ -102,7 +102,7 @@
           && cargo test --doc --all-features"
         '';
 
-        xFuncTestNoDefault = pkgs.writeScriptBin "x-test-all" ''
+        xFuncTestNoDefault = pkgs.writeScriptBin "x-test-0" ''
           cargo watch -c -s "cargo nextest run --no-default-features --nocapture \
           && cargo test --doc --no-default-features"
         '';
@@ -160,7 +160,6 @@
               nightly-rustfmt
               rust-toolchain
               rust-analyzer
-              rustup
               pkg-config
               pre-commit
               protobuf

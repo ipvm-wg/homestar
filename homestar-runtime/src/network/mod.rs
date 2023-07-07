@@ -4,11 +4,12 @@
 //! [websocket]: ws
 //! [ipfs]: ipfs
 
-pub mod eventloop;
 #[cfg(feature = "ipfs")]
-pub mod ipfs;
-pub mod pubsub;
-pub mod swarm;
+pub(crate) mod ipfs;
+pub(crate) mod pubsub;
+pub(crate) mod swarm;
+#[cfg(feature = "websocket-server")]
 pub mod ws;
 
-pub use eventloop::EventLoop;
+#[cfg(feature = "ipfs")]
+pub(crate) use ipfs::IpfsCli;

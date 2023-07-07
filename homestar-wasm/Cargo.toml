@@ -27,16 +27,16 @@ atomic_refcell = "0.1"
 enum-as-inner = { workspace = true }
 heck = "0.4"
 homestar-core = { version = "0.1", path = "../homestar-core" }
-itertools = "0.10"
+itertools = "0.11"
 libipld = { workspace = true }
 rust_decimal = "1.30"
 stacker = "0.1"
 thiserror = { workspace = true }
 tracing = { workspace = true }
-wasi-common = "8.0"
+wasi-common = "10.0"
 wasmparser = "0.104"
 wasmtime = { version = "8.0", features = ["async", "component-model", "default"] }
-wasmtime-component-util = "8.0"
+wasmtime-component-util = "10.0"
 wat = "1.0"
 wit-component = "0.8"
 

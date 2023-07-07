@@ -1,10 +1,7 @@
 //! Sets up a [libp2p] [Swarm], containing the state of the network and the way
 //! it should behave.
 
-use crate::{
-    network::{eventloop::RECEIPTS_TOPIC, pubsub},
-    settings, Receipt,
-};
+use crate::{network::pubsub, settings, Receipt};
 use anyhow::{anyhow, Context, Result};
 use libp2p::{
     core::upgrade,
@@ -14,24 +11,22 @@ use libp2p::{
     swarm::{NetworkBehaviour, Swarm, SwarmBuilder},
     tcp, yamux, Transport,
 };
-use std::{fmt, time::Duration};
 
 /// Build a new [Swarm] with a given transport and a tokio executor.
-pub async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> {
+pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> {
     let keypair = settings
         .network
         .keypair_config
         .keypair()
         .with_context(|| "Failed to generate/import keypair for libp2p".to_string())?;
+
     let peer_id = keypair.public().to_peer_id();
 
     let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
         .upgrade(upgrade::Version::V1Lazy)
         .authenticate(noise::Config::new(&keypair)?)
         .multiplex(yamux::Config::default())
-        .timeout(Duration::from_secs(
-            settings.network.transport_connection_timeout_secs,
-        ))
+        .timeout(settings.network.transport_connection_timeout)
         .boxed();
 
     let mut swarm = SwarmBuilder::with_tokio_executor(
@@ -49,14 +44,16 @@ pub async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> 
     swarm.listen_on(settings.network.listen_address.to_string().parse()?)?;
 
     // subscribe to `receipts` topic
-    swarm.behaviour_mut().gossip_subscribe(RECEIPTS_TOPIC)?;
+    swarm
+        .behaviour_mut()
+        .gossip_subscribe(pubsub::RECEIPTS_TOPIC)?;
 
     Ok(swarm)
 }
 
 /// Custom event types to listen for and respond to.
 #[derive(Debug)]
-pub enum ComposedEvent {
+pub(crate) enum ComposedEvent {
     /// [gossipsub::Event] event.
     Gossipsub(gossipsub::Event),
     /// [KademliaEvent] event.
@@ -65,26 +62,9 @@ pub enum ComposedEvent {
     Mdns(mdns::Event),
 }
 
-/// Message topic.
-#[derive(Debug)]
-pub struct Topic(String);
-
-impl fmt::Display for Topic {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Topic {
-    /// Make a [Topic] from a [String].
-    pub fn new(s: String) -> Self {
-        Topic(s)
-    }
-}
-
 /// Message types to deliver on a topic.
 #[derive(Debug)]
-pub enum TopicMessage {
+pub(crate) enum TopicMessage {
     /// Receipt topic, wrapping [Receipt].
     CapturedReceipt(Receipt),
 }
@@ -93,24 +73,24 @@ pub enum TopicMessage {
 #[allow(missing_debug_implementations)]
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "ComposedEvent")]
-pub struct ComposedBehaviour {
+pub(crate) struct ComposedBehaviour {
     /// [gossipsub::Behaviour] behaviour.
-    pub gossipsub: gossipsub::Behaviour,
+    pub(crate) gossipsub: gossipsub::Behaviour,
     /// In-memory [kademlia: Kademlia] behaviour.
-    pub kademlia: Kademlia<MemoryStore>,
+    pub(crate) kademlia: Kademlia<MemoryStore>,
     /// [mdns::tokio::Behaviour] behaviour.
-    pub mdns: mdns::tokio::Behaviour,
+    pub(crate) mdns: mdns::tokio::Behaviour,
 }
 
 impl ComposedBehaviour {
     /// Subscribe to [gossipsub] topic.
-    pub fn gossip_subscribe(&mut self, topic: &str) -> Result<bool, SubscriptionError> {
+    pub(crate) fn gossip_subscribe(&mut self, topic: &str) -> Result<bool, SubscriptionError> {
         let topic = gossipsub::IdentTopic::new(topic);
         self.gossipsub.subscribe(&topic)
     }
 
     /// Serialize [TopicMessage] and publish to [gossipsub] topic.
-    pub fn gossip_publish(&mut self, topic: &str, msg: TopicMessage) -> Result<MessageId> {
+    pub(crate) fn gossip_publish(&mut self, topic: &str, msg: TopicMessage) -> Result<MessageId> {
         let id_topic = gossipsub::IdentTopic::new(topic);
         // Make this a match once we have other topics.
         let TopicMessage::CapturedReceipt(receipt) = msg;

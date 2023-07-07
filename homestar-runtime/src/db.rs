@@ -69,7 +69,7 @@ impl Db {
 ///
 /// [pool]: Pool
 /// [connection]: Connection
-pub trait Database {
+pub trait Database: Send + Clone {
     /// Establish a pooled connection to Sqlite database.
     fn setup_connection_pool(settings: &settings::Node) -> Result<Self>
     where

@@ -1,4 +1,6 @@
-//! Metadata related to [Receipt]s.
+//! Metadata related to [receipts].
+//!
+//! [receipts]: crate::workflow::Receipt
 
 /// Metadata key for an operation or function name.
 pub const OP_KEY: &str = "op";

@@ -1,10 +1,9 @@
 use crate::{
     db::{Connection, Database},
-    network::eventloop::{Event, FoundEvent},
+    event_handler::{channel::BoundedChannel, event::QueryRecord, swarm_event::FoundEvent, Event},
     Db, Receipt,
 };
 use anyhow::{anyhow, bail, Result};
-use crossbeam::channel;
 use diesel::{Associations, Identifiable, Insertable, Queryable, Selectable};
 use homestar_core::{ipld::DagCbor, workflow::Pointer, Workflow};
 use homestar_wasm::io::Arg;
@@ -15,6 +14,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::mpsc;
+use tracing::info;
 
 /// [Workflow Info] header tag, for sharing over libp2p.
 ///
@@ -157,8 +157,8 @@ impl Info {
     /// [workflow settings]: super::Settings
     pub async fn gather<'a>(
         workflow: Workflow<'_, Arg>,
-        workflow_settings: &'a super::Settings,
-        event_sender: &'a Arc<mpsc::Sender<Event>>,
+        workflow_settings: Arc<super::Settings>,
+        event_sender: Arc<mpsc::Sender<Event>>,
         conn: &mut Connection,
     ) -> Result<Self> {
         let workflow_len = workflow.len();
@@ -167,18 +167,19 @@ impl Info {
         let workflow_info = match Db::join_workflow_with_receipts(workflow_cid, conn) {
             Ok((wf_info, receipts)) => Info::new(workflow_cid, receipts, wf_info.num_tasks as u32),
             Err(_err) => {
-                tracing::info!("workflow information not available in the database");
-                let (sender, receiver) = channel::bounded(1);
+                info!("workflow information not available in the database");
+                let channel = BoundedChannel::oneshot();
                 event_sender
-                    .send(Event::FindWorkflow(workflow_cid, sender))
+                    .send(Event::FindRecord(QueryRecord::with(
+                        workflow_cid,
+                        channel.tx,
+                    )))
                     .await?;
 
-                match receiver.recv_deadline(
+                match channel.rx.recv_deadline(
                     Instant::now() + Duration::from_secs(workflow_settings.p2p_timeout_secs),
                 ) {
-                    Ok((found_cid, FoundEvent::Workflow(workflow_info)))
-                        if found_cid == workflow_cid =>
-                    {
+                    Ok(FoundEvent::Workflow(workflow_info)) => {
                         // store workflow from info
                         Db::store_workflow(
                             Stored::new(
@@ -190,11 +191,11 @@ impl Info {
 
                         workflow_info
                     }
-                    Ok((found_cid, event)) => {
-                        bail!("received unexpected event {event:?} for workflow {found_cid}")
+                    Ok(event) => {
+                        bail!("received unexpected event {event:?} for workflow {workflow_cid}")
                     }
                     Err(err) => {
-                        tracing::info!(error=?err, "no information found for {workflow_cid}, setting default");
+                        info!(error=?err, "no information found for {workflow_cid}, setting default");
                         let workflow_info = Info::default(workflow_cid, workflow_len);
                         // store workflow from info
                         Db::store_workflow(
