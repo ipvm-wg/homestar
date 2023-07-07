@@ -14,7 +14,7 @@ USAGE:
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None, help_template = HELP_TEMPLATE)]
 pub struct Cli {
-    /// TODO
+    /// Optional runtime configuration file, otherwise use defaults.
     #[arg(
         short = 'c',
         long = "config",

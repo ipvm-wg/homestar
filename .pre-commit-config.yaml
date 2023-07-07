@@ -27,6 +27,14 @@ repos:
         args: ["--workspace", "--", "-D", "warnings"]
         types: [rust]
         pass_filenames: false
+      - id: docs
+        name: docs
+        description: Check docs for warnings.
+        entry: env RUSTDOCFLAGS=-Dwarnings cargo doc
+        language: system
+        args: ["--document-private-items"]
+        types: [rust]
+        pass_filenames: false
       - id: alejandra
         name: alejandra
         description: Format nix files.

@@ -1,16 +1,25 @@
+//! Internal [Event] type and [Handler] implementation.
+
+use super::EventHandler;
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
     db::{Connection, Database, Db},
     event_handler::{Handler, P2PSender},
-    network::{pubsub, swarm::TopicMessage},
-    workflow, EventHandler, Receipt,
+    network::{
+        pubsub,
+        swarm::{CapsuleTag, RequestResponseKey, TopicMessage},
+    },
+    workflow, Receipt,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use homestar_core::workflow::Receipt as InvocationReceipt;
 use libipld::Cid;
-use libp2p::kad::{record::Key, Quorum, Record};
+use libp2p::{
+    kad::{record::Key, Quorum, Record},
+    PeerId,
+};
 use std::{num::NonZeroUsize, sync::Arc};
 use tokio::sync::oneshot;
 use tracing::{error, info};
@@ -18,15 +27,35 @@ use tracing::{error, info};
 /// A [Receipt] captured (inner) event.
 #[derive(Debug, Clone)]
 pub struct Captured {
+    /// The captured receipt.
     pub(crate) receipt: Receipt,
+    /// The captured workflow information.
     pub(crate) workflow: Arc<workflow::Info>,
+    /// The sender waiting for a response from the channel.
+    pub(crate) sender: P2PSender,
 }
 
 /// A structured query for finding a [Record] in the DHT and
 /// returning to a [P2PSender].
 #[derive(Debug, Clone)]
 pub struct QueryRecord {
+    /// The record identifier, which is a [Cid].
     pub(crate) cid: Cid,
+    /// The record capsule tag, which can be part of a key.
+    pub(crate) capsule: CapsuleTag,
+    /// The sender waiting for a response from the channel.
+    pub(crate) sender: P2PSender,
+}
+
+/// A structured query for finding a [Record] in the DHT and
+/// returning to a [P2PSender].
+#[derive(Debug, Clone)]
+pub struct PeerRequest {
+    /// The peer to send a request to.
+    pub(crate) peer: PeerId,
+    /// The request key, which is a [Cid].
+    pub(crate) request: RequestResponseKey,
+    /// The channel to send the response to.
     pub(crate) sender: P2PSender,
 }
 
@@ -42,8 +71,12 @@ pub enum Event {
     /// [Record]: libp2p::kad::Record
     /// [Receipt]: homestar_core::workflow::Receipt
     FindRecord(QueryRecord),
-    /// TODO
+    /// Remove a given record from the DHT, e.g. a [Receipt].
     RemoveRecord(QueryRecord),
+    /// Outbound request event to pull data from peers.
+    OutboundRequest(PeerRequest),
+    /// Get providers for a record in the DHT, e.g. workflow information.
+    GetProviders(QueryRecord),
 }
 
 impl Event {
@@ -66,6 +99,22 @@ impl Event {
             }
             Event::FindRecord(record) => record.find(event_handler),
             Event::RemoveRecord(record) => record.remove(event_handler),
+            Event::OutboundRequest(PeerRequest {
+                peer,
+                request,
+                sender,
+            }) => {
+                let request_id = event_handler
+                    .swarm
+                    .behaviour_mut()
+                    .request_response
+                    .send_request(&peer, request.clone());
+
+                event_handler
+                    .request_response_senders
+                    .insert(request_id, (request, sender));
+            }
+            Event::GetProviders(record) => record.get_providers(event_handler),
         }
         Ok(())
     }
@@ -73,8 +122,12 @@ impl Event {
 
 impl Captured {
     /// `Captured` structure, containing a [Receipt] and [workflow::Info].
-    pub fn with(receipt: Receipt, workflow: Arc<workflow::Info>) -> Self {
-        Self { receipt, workflow }
+    pub(crate) fn with(receipt: Receipt, workflow: Arc<workflow::Info>, sender: P2PSender) -> Self {
+        Self {
+            receipt,
+            workflow,
+            sender,
+        }
     }
 
     fn store<DB>(
@@ -131,14 +184,30 @@ impl Captured {
             let _ = Db::store_workflow_receipt(self.workflow.cid, receipt_cid, conn);
             Arc::make_mut(&mut self.workflow).increment_progress(receipt_cid);
 
-            let wf_cid_bytes = self.workflow.cid_as_bytes();
-            let wf_bytes = self.workflow.capsule()?;
+            let workflow_cid_bytes = self.workflow.cid_as_bytes();
+            let workflow_bytes = self.workflow.capsule()?;
+
+            let query_id = event_handler
+                .swarm
+                .behaviour_mut()
+                .kademlia
+                .start_providing(Key::new(&workflow_cid_bytes))
+                .map_err(anyhow::Error::msg)?;
+
+            let key = RequestResponseKey::new(self.workflow.cid.to_string(), CapsuleTag::Workflow);
+
+            event_handler
+                .query_senders
+                .insert(query_id, (key, self.sender));
 
             let _id = event_handler
                 .swarm
                 .behaviour_mut()
                 .kademlia
-                .put_record(Record::new(wf_cid_bytes, wf_bytes), workflow_quorum)
+                .put_record(
+                    Record::new(workflow_cid_bytes, workflow_bytes),
+                    workflow_quorum,
+                )
                 .map_err(anyhow::Error::msg)?;
 
             // TODO: Handle Workflow Complete / Num of Tasks finished.
@@ -152,8 +221,12 @@ impl Captured {
 
 impl QueryRecord {
     /// Create a new [QueryRecord] with a [Cid] and [P2PSender].
-    pub fn with(cid: Cid, sender: P2PSender) -> Self {
-        Self { cid, sender }
+    pub(crate) fn with(cid: Cid, capsule: CapsuleTag, sender: P2PSender) -> Self {
+        Self {
+            cid,
+            capsule,
+            sender,
+        }
     }
 
     fn find<DB>(self, event_handler: &mut EventHandler<DB>)
@@ -165,7 +238,9 @@ impl QueryRecord {
             .behaviour_mut()
             .kademlia
             .get_record(Key::new(&self.cid.to_bytes()));
-        event_handler.worker_swarm_senders.insert(id, self.sender);
+
+        let key = RequestResponseKey::new(self.cid.to_string(), self.capsule);
+        event_handler.query_senders.insert(id, (key, self.sender));
     }
 
     fn remove<DB>(self, event_handler: &mut EventHandler<DB>)
@@ -177,6 +252,37 @@ impl QueryRecord {
             .behaviour_mut()
             .kademlia
             .remove_record(&Key::new(&self.cid.to_bytes()));
+
+        event_handler
+            .swarm
+            .behaviour_mut()
+            .kademlia
+            .stop_providing(&Key::new(&self.cid.to_bytes()));
+    }
+
+    fn get_providers<DB>(self, event_handler: &mut EventHandler<DB>)
+    where
+        DB: Database,
+    {
+        let id = event_handler
+            .swarm
+            .behaviour_mut()
+            .kademlia
+            .get_providers(Key::new(&self.cid.to_bytes()));
+
+        let key = RequestResponseKey::new(self.cid.to_string(), self.capsule);
+        event_handler.query_senders.insert(id, (key, self.sender));
+    }
+}
+
+impl PeerRequest {
+    /// Create a new [PeerRequest] with a [PeerId], [RequestResponseKey] and [P2PSender].
+    pub(crate) fn with(peer: PeerId, request: RequestResponseKey, sender: P2PSender) -> Self {
+        Self {
+            peer,
+            request,
+            sender,
+        }
     }
 }
 

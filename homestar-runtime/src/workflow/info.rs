@@ -1,9 +1,15 @@
 use crate::{
     db::{Connection, Database},
-    event_handler::{channel::BoundedChannel, event::QueryRecord, swarm_event::FoundEvent, Event},
+    event_handler::{
+        channel::BoundedChannel,
+        event::QueryRecord,
+        swarm_event::{FoundEvent, ResponseEvent},
+        Event,
+    },
+    network::swarm::CapsuleTag,
     Db, Receipt,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use diesel::{Associations, Identifiable, Insertable, Queryable, Selectable};
 use homestar_core::{ipld::DagCbor, workflow::Pointer, Workflow};
 use homestar_wasm::io::Arg;
@@ -16,9 +22,9 @@ use std::{
 use tokio::sync::mpsc;
 use tracing::info;
 
-/// [Workflow Info] header tag, for sharing over libp2p.
+/// [Workflow] header tag, for sharing workflow information over libp2p.
 ///
-/// [Workflow Info]: Info
+/// [Workflow]: Workflow
 pub const WORKFLOW_TAG: &str = "ipvm/workflow";
 
 const CID_KEY: &str = "cid";
@@ -103,32 +109,33 @@ impl Info {
     /// Get unique identifier, [Cid], of [Workflow].
     ///
     /// [Workflow]: homestar_core::Workflow
-    pub fn cid(&self) -> Cid {
+    pub(crate) fn cid(&self) -> Cid {
         self.cid
     }
 
     /// Get the [Cid] of a [Workflow] as a [String].
     ///
     /// [Workflow]: homestar_core::Workflow
-    pub fn cid_as_string(&self) -> String {
+    #[allow(dead_code)]
+    pub(crate) fn cid_as_string(&self) -> String {
         self.cid.to_string()
     }
 
     /// Get the [Cid] of a [Workflow] as bytes.
     ///
     /// [Workflow]: homestar_core::Workflow
-    pub fn cid_as_bytes(&self) -> Vec<u8> {
+    pub(crate) fn cid_as_bytes(&self) -> Vec<u8> {
         self.cid().to_bytes()
     }
 
     /// Set the progress / step of the [Workflow] completed, which
     /// may not be the same as the `progress` vector of [Cid]s.
-    pub fn set_progress_count(&mut self, progress_count: u32) {
+    pub(crate) fn set_progress_count(&mut self, progress_count: u32) {
         self.progress_count = progress_count;
     }
 
     /// Set the progress / step of the [Info].
-    pub fn increment_progress(&mut self, new_cid: Cid) {
+    pub(crate) fn increment_progress(&mut self, new_cid: Cid) {
         self.progress.push(new_cid);
         self.progress_count = self.progress.len() as u32 + 1;
     }
@@ -137,7 +144,7 @@ impl Info {
     /// [DagCbor] encoded bytes.
     ///
     /// [DagCbor]: DagCborCodec
-    pub fn capsule(&self) -> anyhow::Result<Vec<u8>> {
+    pub(crate) fn capsule(&self) -> anyhow::Result<Vec<u8>> {
         let info_ipld = Ipld::from(self.to_owned());
         let capsule = if let Ipld::Map(map) = info_ipld {
             Ok(Ipld::Map(BTreeMap::from([(
@@ -151,66 +158,117 @@ impl Info {
         DagCborCodec.encode(&capsule)
     }
 
-    /// Gather available [Info] from the database or [libp2p] given a
-    /// [Workflow] and [workflow settings].
+    /// [Gather] available [Info] from the database or [libp2p] given a
+    /// [Workflow], or return a default/new version of [Info] if none is found.
     ///
-    /// [workflow settings]: super::Settings
-    pub async fn gather<'a>(
-        workflow: Workflow<'_, Arg>,
-        workflow_settings: Arc<super::Settings>,
+    /// [Gather]: Self::gather
+    #[allow(dead_code)]
+    pub(crate) async fn init<'a>(
+        workflow: Workflow<'a, Arg>,
+        p2p_timeout: Duration,
         event_sender: Arc<mpsc::Sender<Event>>,
-        conn: &mut Connection,
+        conn: &'a mut Connection,
     ) -> Result<Self> {
         let workflow_len = workflow.len();
         let workflow_cid = workflow.to_cid()?;
+        let handle_timeout_fn = |workflow_cid, reused_conn: Option<&'a mut Connection>| {
+            let workflow_info = Self::default(workflow_cid, workflow_len);
+            // store workflow from info
 
-        let workflow_info = match Db::join_workflow_with_receipts(workflow_cid, conn) {
-            Ok((wf_info, receipts)) => Info::new(workflow_cid, receipts, wf_info.num_tasks as u32),
-            Err(_err) => {
-                info!("workflow information not available in the database");
-                let channel = BoundedChannel::oneshot();
-                event_sender
-                    .send(Event::FindRecord(QueryRecord::with(
-                        workflow_cid,
-                        channel.tx,
-                    )))
-                    .await?;
-
-                match channel.rx.recv_deadline(
-                    Instant::now() + Duration::from_secs(workflow_settings.p2p_timeout_secs),
-                ) {
-                    Ok(FoundEvent::Workflow(workflow_info)) => {
-                        // store workflow from info
-                        Db::store_workflow(
-                            Stored::new(
-                                Pointer::new(workflow_info.cid),
-                                workflow_info.num_tasks as i32,
-                            ),
-                            conn,
-                        )?;
-
-                        workflow_info
-                    }
-                    Ok(event) => {
-                        bail!("received unexpected event {event:?} for workflow {workflow_cid}")
-                    }
-                    Err(err) => {
-                        info!(error=?err, "no information found for {workflow_cid}, setting default");
-                        let workflow_info = Info::default(workflow_cid, workflow_len);
-                        // store workflow from info
-                        Db::store_workflow(
-                            Stored::new(
-                                Pointer::new(workflow_info.cid),
-                                workflow_info.num_tasks as i32,
-                            ),
-                            conn,
-                        )?;
-
-                        workflow_info
-                    }
-                }
+            match reused_conn.and_then(|conn| {
+                Db::store_workflow(
+                    Stored::new(
+                        Pointer::new(workflow_info.cid),
+                        workflow_info.num_tasks as i32,
+                    ),
+                    conn,
+                )
+                .ok()
+            }) {
+                Some(_) => Ok(workflow_info),
+                None => bail!("failed to store workflow"),
             }
         };
+
+        Self::gather(
+            workflow_cid,
+            p2p_timeout,
+            event_sender,
+            Some(conn),
+            handle_timeout_fn,
+        )
+        .await
+    }
+
+    /// Gather available [Info] from the database or [libp2p] given a
+    /// workflow [Cid].
+    pub(crate) async fn gather<'a>(
+        workflow_cid: Cid,
+        p2p_timeout: Duration,
+        event_sender: Arc<mpsc::Sender<Event>>,
+        mut conn: Option<&'a mut Connection>,
+        handle_timeout_fn: impl FnOnce(Cid, Option<&'a mut Connection>) -> Result<Info>,
+    ) -> Result<Self> {
+        async fn retrieve_from_query<'a>(
+            workflow_cid: Cid,
+            p2p_timeout: Duration,
+            event_sender: Arc<mpsc::Sender<Event>>,
+            conn: Option<&'a mut Connection>,
+            handle_timeout_fn: impl FnOnce(Cid, Option<&'a mut Connection>) -> Result<Info>,
+        ) -> Result<Info> {
+            let channel = BoundedChannel::oneshot();
+            event_sender.try_send(Event::FindRecord(QueryRecord::with(
+                workflow_cid,
+                CapsuleTag::Workflow,
+                channel.tx,
+            )))?;
+
+            match channel.rx.recv_deadline(Instant::now() + p2p_timeout) {
+                Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info)))) => {
+                    // store workflow from info
+                    if let Some(conn) = conn {
+                        Db::store_workflow(
+                            Stored::new(
+                                Pointer::new(workflow_info.cid),
+                                workflow_info.num_tasks as i32,
+                            ),
+                            conn,
+                        )?;
+                    }
+
+                    Ok(workflow_info)
+                }
+                Ok(ResponseEvent::Found(Err(err))) => {
+                    bail!("failure in attempting to find event: {err}")
+                }
+                Ok(event) => {
+                    bail!("received unexpected event {event:?} for workflow {workflow_cid}")
+                }
+                Err(err) => handle_timeout_fn(workflow_cid, conn).context(err),
+            }
+        }
+
+        let workflow_info = match conn
+            .as_mut()
+            .and_then(|conn| Db::get_workflow_info(workflow_cid, conn).ok())
+        {
+            Some(workflow_info) => Ok(workflow_info),
+            None => {
+                info!(
+                    cid = workflow_cid.to_string(),
+                    "workflow information not available in the database"
+                );
+
+                retrieve_from_query(
+                    workflow_cid,
+                    p2p_timeout,
+                    event_sender,
+                    conn,
+                    handle_timeout_fn,
+                )
+                .await
+            }
+        }?;
 
         Ok(workflow_info)
     }

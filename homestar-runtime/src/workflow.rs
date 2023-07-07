@@ -21,9 +21,9 @@ use std::path::Path;
 use url::Url;
 
 mod info;
-pub(crate) mod settings;
-pub use info::{Info, WORKFLOW_TAG};
-pub(crate) use info::{Stored, StoredReceipt};
+pub mod settings;
+pub use info::WORKFLOW_TAG;
+pub(crate) use info::{Info, Stored, StoredReceipt};
 #[allow(unused_imports)]
 pub use settings::Settings;
 
@@ -38,7 +38,8 @@ pub struct Builder<'a>(Workflow<'a, Arg>);
 ///
 /// [URI]: <https://en.wikipedia.org/wiki/Uniform_Resource_Identifier>
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
-pub enum Resource {
+#[allow(dead_code)]
+pub(crate) enum Resource {
     /// Resource fetched by [Url].
     Url(Url),
     /// Resource fetched by [Cid].
@@ -53,7 +54,7 @@ pub enum Resource {
 /// [Dag]: dagga::Dag
 /// [Task]: homestar_core::workflow::Task
 #[derive(Debug, Clone)]
-pub struct AOTContext<'a> {
+pub(crate) struct AOTContext<'a> {
     dag: Dag<'a>,
     resources: Vec<Resource>,
 }
@@ -63,7 +64,8 @@ impl AOTContext<'static> {
     ///
     /// [Dag]: dagga::Dag
     /// [dot]: <https://graphviz.org/doc/info/lang.html>
-    pub fn dot(&self, name: &str, path: &Path) -> anyhow::Result<()> {
+    #[allow(dead_code)]
+    pub(crate) fn dot(&self, name: &str, path: &Path) -> anyhow::Result<()> {
         DagLegend::new(self.dag.nodes())
             .with_name(name)
             .save_to(
@@ -78,7 +80,7 @@ impl AOTContext<'static> {
 ///
 /// [Dag]: dagga::Dag
 #[derive(Debug, Clone, PartialEq)]
-pub struct Vertex<'a> {
+pub(crate) struct Vertex<'a> {
     pub(crate) instruction: Instruction<'a, Arg>,
     pub(crate) parsed: Parsed<Arg>,
     pub(crate) invocation: Pointer,
@@ -115,7 +117,7 @@ impl<'a> Builder<'a> {
     }
 
     /// Convert the [Workflow] into an batch-separated [ExecutionGraph].
-    pub fn graph(self) -> anyhow::Result<ExecutionGraph<'a>> {
+    pub(crate) fn graph(self) -> anyhow::Result<ExecutionGraph<'a>> {
         let aot = self.aot()?;
         match aot.dag.build_schedule() {
             Ok(schedule) => Ok(ExecutionGraph {

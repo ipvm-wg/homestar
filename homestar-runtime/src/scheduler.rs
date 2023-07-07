@@ -5,9 +5,15 @@
 
 use crate::{
     db::{Connection, Database},
-    event_handler::{channel::BoundedChannel, event::QueryRecord, swarm_event::FoundEvent},
+    event_handler::{
+        channel::BoundedChannel,
+        event::QueryRecord,
+        swarm_event::{FoundEvent, ResponseEvent},
+        Event,
+    },
+    network::swarm::CapsuleTag,
     workflow::{self, Builder, Resource, Vertex},
-    Db, Event,
+    Db,
 };
 use anyhow::Result;
 use dagga::Node;
@@ -19,14 +25,9 @@ use homestar_core::{
 use homestar_wasm::io::Arg;
 use indexmap::IndexMap;
 use libipld::Cid;
-use std::{
-    ops::ControlFlow,
-    str::FromStr,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{ops::ControlFlow, str::FromStr, sync::Arc, time::Instant};
 use tokio::sync::mpsc;
-use tracing::info;
+use tracing::debug;
 
 type Schedule<'a> = Vec<Vec<Node<Vertex<'a>, usize>>>;
 
@@ -35,7 +36,7 @@ type Schedule<'a> = Vec<Vec<Node<Vertex<'a>, usize>>>;
 ///
 /// [instruction]: homestar_core::workflow::Instruction
 #[derive(Debug, Clone, Default)]
-pub struct ExecutionGraph<'a> {
+pub(crate) struct ExecutionGraph<'a> {
     /// A built-up [Dag] [Schedule] of batches.
     ///
     /// [Dag]: dagga::Dag
@@ -51,7 +52,7 @@ pub struct ExecutionGraph<'a> {
 /// and what's been executed in memory.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
-pub struct TaskScheduler<'a> {
+pub(crate) struct TaskScheduler<'a> {
     /// In-memory map of task/instruction results.
     pub(crate) linkmap: Arc<LinkMap<InstructionResult<Arg>>>,
     /// [ExecutionGraph] of what's been run so far for a [Workflow] of `batched`
@@ -82,7 +83,7 @@ impl<'a> TaskScheduler<'a> {
     /// Initialize Task Scheduler, given [Receipt] cache.
     ///
     /// [Receipt]: crate::Receipt
-    pub async fn init<F>(
+    pub(crate) async fn init<F>(
         workflow: Workflow<'a, Arg>,
         settings: Arc<workflow::Settings>,
         event_sender: Arc<mpsc::Sender<Event>>,
@@ -131,20 +132,24 @@ impl<'a> TaskScheduler<'a> {
                             }
                         }
                         Err(_) => {
-                            info!("receipt not available in the database");
+                            debug!("receipt not available in the database");
                             let channel = BoundedChannel::new(pointers_len);
                             for ptr in &pointers {
-                                let _ = event_sender.blocking_send(Event::FindRecord(
-                                    QueryRecord::with(ptr.cid(), channel.tx.clone()),
-                                ));
+                                let _ =
+                                    event_sender.try_send(Event::FindRecord(QueryRecord::with(
+                                        ptr.cid(),
+                                        CapsuleTag::Receipt,
+                                        channel.tx.clone(),
+                                    )));
                             }
 
                             let mut linkmap = LinkMap::<InstructionResult<Arg>>::new();
                             let mut counter = 0;
-                            while let Ok(FoundEvent::Receipt(found)) = channel.rx.recv_deadline(
-                                Instant::now()
-                                    + Duration::from_secs(settings.p2p_check_timeout_secs),
-                            ) {
+                            while let Ok(ResponseEvent::Found(Ok(FoundEvent::Receipt(found)))) =
+                                channel
+                                    .rx
+                                    .recv_deadline(Instant::now() + settings.p2p_check_timeout)
+                            {
                                 if pointers.contains(&Pointer::new(found.cid())) {
                                     if let Ok(cid) = found.instruction().try_into() {
                                         let _ = linkmap.insert(cid, found.output_as_arg());

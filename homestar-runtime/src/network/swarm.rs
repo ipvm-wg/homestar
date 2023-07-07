@@ -1,16 +1,23 @@
+#![allow(missing_docs)]
+
 //! Sets up a [libp2p] [Swarm], containing the state of the network and the way
 //! it should behave.
 
-use crate::{network::pubsub, settings, Receipt};
+use crate::{network::pubsub, settings, Receipt, RECEIPT_TAG, WORKFLOW_TAG};
 use anyhow::{anyhow, Context, Result};
+use bincode::{Decode, Encode};
+use enum_assoc::Assoc;
 use libp2p::{
     core::upgrade,
     gossipsub::{self, MessageId, SubscriptionError, TopicHash},
     kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
     mdns, noise,
+    request_response::{self, ProtocolSupport},
     swarm::{NetworkBehaviour, Swarm, SwarmBuilder},
-    tcp, yamux, Transport,
+    tcp, yamux, StreamProtocol, Transport,
 };
+use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Build a new [Swarm] with a given transport and a tokio executor.
 pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> {
@@ -34,6 +41,13 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         ComposedBehaviour {
             gossipsub: pubsub::new(keypair, settings)?,
             kademlia: Kademlia::new(peer_id, MemoryStore::new(peer_id)),
+            request_response: request_response::cbor::Behaviour::new(
+                [(
+                    StreamProtocol::new("/homestar-exchange/1.0.0"),
+                    ProtocolSupport::Full,
+                )],
+                request_response::Config::default(),
+            ),
             mdns: mdns::Behaviour::new(mdns::Config::default(), peer_id)?,
         },
         peer_id,
@@ -51,13 +65,52 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
     Ok(swarm)
 }
 
+/// Key data structure for [request_response::Event] messages.
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
+pub(crate) struct RequestResponseKey {
+    pub(crate) cid: String,
+    pub(crate) capsule_tag: CapsuleTag,
+}
+
+impl RequestResponseKey {
+    /// Create a new [RequestResponseKey] with a given [Cid] string and capsule tag.
+    ///
+    /// [Cid]: libipld::Cid
+    pub(crate) fn new(cid: String, capsule_tag: CapsuleTag) -> Self {
+        Self { cid, capsule_tag }
+    }
+}
+
+/// Tag for [RequestResponseKey] to indicate the type of capsule-wrapping.
+#[derive(Debug, Clone, Assoc, Serialize, Deserialize, Encode, Decode)]
+#[func(pub(crate) fn tag(&self) -> &'static str)]
+#[func(pub(crate) fn capsule_type(s: &str) -> Option<Self>)]
+pub(crate) enum CapsuleTag {
+    /// Receipt capsule-tag-wrapper: [RECEIPT_TAG].
+    #[assoc(tag = RECEIPT_TAG)]
+    #[assoc(capsule_type = RECEIPT_TAG)]
+    Receipt,
+    /// Workflow/workflow-info capsule-tag-wrapper: [WORKFLOW_TAG].
+    #[assoc(tag = WORKFLOW_TAG)]
+    #[assoc(capsule_type = WORKFLOW_TAG)]
+    Workflow,
+}
+
+impl fmt::Display for CapsuleTag {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.tag())
+    }
+}
+
 /// Custom event types to listen for and respond to.
 #[derive(Debug)]
 pub(crate) enum ComposedEvent {
     /// [gossipsub::Event] event.
-    Gossipsub(gossipsub::Event),
+    Gossipsub(Box<gossipsub::Event>),
     /// [KademliaEvent] event.
     Kademlia(KademliaEvent),
+    /// [request_response::Event] event.
+    RequestResponse(request_response::Event<RequestResponseKey, Vec<u8>>),
     /// [mdns::Event] event.
     Mdns(mdns::Event),
 }
@@ -72,12 +125,14 @@ pub(crate) enum TopicMessage {
 /// Custom behaviours for [Swarm].
 #[allow(missing_debug_implementations)]
 #[derive(NetworkBehaviour)]
-#[behaviour(out_event = "ComposedEvent")]
+#[behaviour(to_swarm = "ComposedEvent")]
 pub(crate) struct ComposedBehaviour {
     /// [gossipsub::Behaviour] behaviour.
     pub(crate) gossipsub: gossipsub::Behaviour,
     /// In-memory [kademlia: Kademlia] behaviour.
     pub(crate) kademlia: Kademlia<MemoryStore>,
+    /// [request_response::Behaviour] CBOR-flavored behaviour.
+    pub(crate) request_response: request_response::cbor::Behaviour<RequestResponseKey, Vec<u8>>,
     /// [mdns::tokio::Behaviour] behaviour.
     pub(crate) mdns: mdns::tokio::Behaviour,
 }
@@ -114,13 +169,19 @@ impl ComposedBehaviour {
 
 impl From<gossipsub::Event> for ComposedEvent {
     fn from(event: gossipsub::Event) -> Self {
-        ComposedEvent::Gossipsub(event)
+        ComposedEvent::Gossipsub(Box::new(event))
     }
 }
 
 impl From<KademliaEvent> for ComposedEvent {
     fn from(event: KademliaEvent) -> Self {
         ComposedEvent::Kademlia(event)
+    }
+}
+
+impl From<request_response::Event<RequestResponseKey, Vec<u8>>> for ComposedEvent {
+    fn from(event: request_response::Event<RequestResponseKey, Vec<u8>>) -> Self {
+        ComposedEvent::RequestResponse(event)
     }
 }
 

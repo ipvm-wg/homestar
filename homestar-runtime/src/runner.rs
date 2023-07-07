@@ -3,7 +3,12 @@
 
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
-use crate::{db::Database, network::swarm, Event, EventHandler, Settings};
+use crate::{
+    db::Database,
+    event_handler::{Event, EventHandler},
+    network::swarm,
+    Settings,
+};
 #[cfg(feature = "websocket-server")]
 use crate::{
     event_handler::channel::{BoundedChannel, BoundedChannelReceiver},
@@ -41,9 +46,8 @@ impl ModifiedSet for RunningSet {
 }
 
 /// Runner interface.
-/// Used to manage [Workers] and execute/run [Workflows].
+/// Used to manage workers and execute/run [Workflows].
 ///
-/// [Workers]: crate::Worker
 /// [Workflows]: homestar_core::Workflow
 #[cfg(feature = "websocket-server")]
 #[derive(Debug)]
@@ -58,9 +62,8 @@ pub struct Runner {
 }
 
 /// Runner interface.
-/// Used to manage [Workers] and execute/run [Workflows].
+/// Used to manage workers and execute/run [Workflows].
 ///
-/// [Workers]: crate::Worker
 /// [Workflows]: homestar_core::Workflow
 #[cfg(not(feature = "websocket-server"))]
 #[derive(Debug)]
@@ -125,11 +128,9 @@ impl Runner {
     }
 
     /// Sequence for shutting down a [Runner], including:
-    /// a) [EventHandler] channels,
+    /// a) event-handler channels,
     /// b) Running workers
     /// c) [Runner] channels.
-    ///
-    /// [EventHandler]: crate::EventHandler
     pub async fn shutdown(&mut self) -> Result<()> {
         let (shutdown_sender, shutdown_receiver) = oneshot::channel();
         self.event_sender
@@ -147,9 +148,7 @@ impl Runner {
     }
 
     /// Captures shutdown signals for [Runner] and other sub-processes like
-    /// the [webSocket server].
-    ///
-    /// [websocket server]: WebSocketServer
+    /// the webSocket server.
     pub async fn shutdown_signal() -> Result<()> {
         let mut sigint = signal(SignalKind::interrupt())?;
         let mut sigterm = signal(SignalKind::terminate())?;
@@ -172,9 +171,8 @@ impl Runner {
     }
 
     /// Garbage-collect task [AbortHandle]s in the [RunningSet] for a specific
-    /// [Worker]-workflow [Cid].
+    /// workflow [Cid], running on a worker.
     ///
-    /// [Worker]: crate::Worker
     pub fn gc_worker(&mut self, cid: Cid) {
         if let Some(mut handles) = self.running_set.get_mut(&cid) {
             handles.retain(|handle| !handle.is_finished());
@@ -182,9 +180,7 @@ impl Runner {
         self.running_set.retain(|_cid, handles| !handles.is_empty());
     }
 
-    /// Abort all [Workers].
-    ///
-    /// [Workers]: crate::Worker
+    /// Abort all tasks running within all workers.
     pub fn abort_all_tasks(&mut self) {
         self.running_set.iter_mut().for_each(|handles| {
             for abort_handle in &*handles {
@@ -193,9 +189,7 @@ impl Runner {
         });
     }
 
-    /// Abort a specific [Worker]'s tasks given a [Cid].
-    ///
-    /// [Worker]: crate::Worker
+    /// Abort a specific worker's tasks given a [Cid].
     pub fn abort_worker_tasks(&mut self, cid: Cid) {
         if let Some(handles) = self.running_set.get_mut(&cid) {
             for abort_handle in &*handles {
@@ -204,27 +198,24 @@ impl Runner {
         }
     }
 
-    /// [mpsc::Sender] of the [EventHandler].
+    /// [mpsc::Sender] of the event-handler.
     ///
     /// [EventHandler]: crate::EventHandler
     pub fn event_sender(&self) -> Arc<mpsc::Sender<Event>> {
         self.event_sender.clone()
     }
 
-    /// [tokio::broadcast::Sender] for sending messages through the
-    /// [webSocket server] to subscribers.
-    ///
-    /// [websocket server]: WebSocketServer
+    /// [tokio::sync::broadcast::Sender] for sending messages through the
+    /// webSocket server to subscribers.
     #[cfg(feature = "websocket-server")]
     pub fn ws_sender(&self) -> &ws::WsSender {
         &self.ws_sender
     }
 
-    /// [BoundedChannel] for receiving [messages] back from the
-    /// [webSocket server].
+    /// Channel for receiving [messages] back from the
+    /// webSocket server.
     ///
     /// [messages]: ws::WsMessage
-    /// [websocket server]: WebSocketServer
     #[cfg(feature = "websocket-server")]
     pub fn ws_receiver(&mut self) -> &mut BoundedChannelReceiver<ws::WsMessage> {
         &mut self.ws_receiver

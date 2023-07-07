@@ -26,9 +26,8 @@ use tracing::{debug, info};
 pub(crate) type WsSender = Arc<broadcast::Sender<String>>;
 
 /// Message type for messages sent back from the
-/// [websocket server] to the [runner] for example.
+/// websocket server to the [runner] for example.
 ///
-/// [websocket server]: WebSocketServer
 /// [runner]: crate::Runner
 #[derive(Debug, Clone, PartialEq)]
 pub enum WsMessage {
