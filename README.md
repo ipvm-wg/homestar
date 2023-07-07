@@ -88,10 +88,12 @@ represents the `homestar` runtime.
 
 ### Non-published, Helper Crates
 
-- [homestar-guest-wasm](./homestar-guest-wasm)
+- [homestar-functions](./homestar-functions)
 
-  This is a helper and example crate for writing and compiling
+  Currently, this is a helper and example crate for writing and compiling
   [Wasm components][wasm-component] using [wit-bindgen][wit-bindgen].
+
+  **It will be expanded upon as a default set of Wasm mods and functions.**
 
 ## Testing the Project
 
@@ -185,7 +187,7 @@ hooks. Please run this before every commit and/or push.
   * **`ci`**, which runs a sequence of commands to check formatting, lints, release
     builds, and tests
   * **`db`** and **`db-reset`** for running `diesel` setup and migrations
-  * **`compile-wasm`** for compiling [homestar-guest-wasm](./homestar-guest-wasm),
+  * **`compile-wasm`** for compiling [homestar-functions](./homestar-functions),
     a [wit-bindgen][wit-bindgen]-driven example, to the `wasm32-unknown-unknown` target
   * **`docker-<amd64,arm64>`** for running docker builds
   * **`nx-test`**, which translates to `cargo nextest run && cargo test --doc`

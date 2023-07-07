@@ -1,8 +1,6 @@
 ignore:
   - "*/tests/*"
-  - "homestar/src/test_utils"
-  - "homestar-guest-wasm"
-  - "homestar-wasm/src/test_utils"
+  - "*/src/test_utils/*"
 
 comment:
   layout: "reach, diff, flags, files"

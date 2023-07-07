@@ -1,0 +1,43 @@
+name: 📦 Nix Build
+
+on:
+  push:
+    branches: [ main ]
+
+  pull_request:
+    branches: [ '**' ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-checks:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
+
+      - name: Cache Magic
+        uses: DeterminateSystems/magic-nix-cache-action@v2
+
+      - name: Check Nix flake inputs
+        uses: DeterminateSystems/flake-checker-action@v5
+        with:
+          ignore-missing-flake-lock: false
+          fail-mode: true
+
+      - name: Nix Build
+        run: |
+          nix develop --show-trace -c irust --version
+          nix develop --show-trace -c rustc --version

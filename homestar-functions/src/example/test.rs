@@ -1,13 +1,15 @@
-#![allow(clippy::too_many_arguments)]
-
 use std::io::Cursor;
-wit_bindgen::generate!("test" in "./wits");
 
-struct Component;
+wit_bindgen::generate!({
+    path: "wit/test.wit",
+    world: "test",
+});
+
+pub struct Component;
 
 type Matrix = Vec<Vec<u16>>;
 
-impl Homestar for Component {
+impl Test for Component {
     fn add_one(a: i32) -> i32 {
         a + 1
     }
@@ -81,10 +83,10 @@ impl Homestar for Component {
     }
 }
 
-export_homestar!(Component);
+export_test!(Component);
 
 #[cfg(test)]
-mod test {
+mod test_mod {
     use super::*;
     #[cfg(feature = "run_image_tests")]
     use std::path::Path;
@@ -110,8 +112,8 @@ mod test {
         assert_eq!(Component::transpose(transposed), matrix);
     }
 
-    #[test]
     #[cfg(feature = "run_image_tests")]
+    #[test]
     fn blur() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let mut buffer: Vec<u8> = Vec::new();
@@ -132,8 +134,8 @@ mod test {
             .expect("Failed to write blurred.png to filesystem");
     }
 
-    #[test]
     #[cfg(feature = "run_image_tests")]
+    #[test]
     fn crop() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let mut buffer: Vec<u8> = Vec::new();
@@ -154,8 +156,8 @@ mod test {
             .expect("Failed to write cropped.png to filesystem");
     }
 
-    #[test]
     #[cfg(feature = "run_image_tests")]
+    #[test]
     fn grayscale() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let mut buffer: Vec<u8> = Vec::new();
@@ -176,8 +178,8 @@ mod test {
             .expect("Failed to write graycat.jpg to filesystem");
     }
 
-    #[test]
     #[cfg(feature = "run_image_tests")]
+    #[test]
     fn rotate() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let mut buffer: Vec<u8> = Vec::new();
@@ -198,8 +200,8 @@ mod test {
             .expect("Failed to write graycat.jpg to filesystem");
     }
 
-    #[test]
     #[cfg(feature = "run_image_tests")]
+    #[test]
     fn mixed() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
         let mut buffer: Vec<u8> = Vec::new();

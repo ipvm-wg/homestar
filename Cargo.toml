@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "homestar-core",
-    "homestar-guest-wasm",
+    "homestar-functions",
     "homestar-runtime",
     "homestar-wasm"
 ]
@@ -52,7 +52,7 @@ debug-assertions = false
 opt-level = 0
 debug-assertions = false
 
-[profile.release.package.homestar-guest-wasm]
+[profile.release.package.homestar-functions]
 codegen-units = 1
 # Tell `rustc` to optimize for small code size.
 opt-level = "z" # 'z' to optimize "aggressively" for size

@@ -3,7 +3,7 @@
     <img src="https://raw.githubusercontent.com/ipvm-wg/homestar/main/assets/a_logo.png" alt="homestar Logo" width="100"></img>
   </a>
 
-  <h1 align="center">homestar-guest-wasm</h1>
+  <h1 align="center">homestar-functions</h1>
 
   <p>
     <a href="https://github.com/ipvm-wg/homestar/blob/main/LICENSE">
@@ -42,18 +42,19 @@ We then implement these functions in [lib.rs](./src/lib.rs) using
 ## Build
 
 Once functions are implemented, we can build the component in release-mode,
-targetting [`wasm32-unknown-unknown`][wasm32]:
+targetting [`wasm32-unknown-unknown`][wasm32], using feature-flags for different
+module output(s):
 
 ```console
 # from this directory:
-cargo build -p homestar-guest-wasm --target wasm32-unknown-unknown --release
+cargo build --features example-add --target wasm32-unknown-unknown --release
 
 # or from the top-level workspace:
-cargo build -p homestar-guest-wasm --target wasm32-unknown-unknown --release
+cargo build -p homestar-functions --features example-add --target wasm32-unknown-unknown --release
 ```
 
 The guest Wasm module will be generated at
-`../target/wasm32-unknown-unknown/release/homestar_guest_wasm.wasm`.
+`../target/wasm32-unknown-unknown/release/homestar_functions.wasm`.
 
 Sadly, this module is **not yet** an actual `component`. But, we can leverage
 the [wasm-tools][wasm-tools] tooling ([wit-component][wit-component] in
@@ -62,7 +63,7 @@ it in a different directory:
 
 ```console
 wasm-tools component new /
-../target/wasm32-unknown-unknown/release/homestar_guest_wasm.wasm -o ../homestar-wasm/fixtures/
+../target/wasm32-unknown-unknown/release/homestar_functions.wasm -o ../homestar-wasm/fixtures/
 ```
 
 *Of note*, [homestar-wasm's](../homestar-wasm) execution model will do

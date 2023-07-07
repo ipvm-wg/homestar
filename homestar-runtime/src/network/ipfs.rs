@@ -57,7 +57,7 @@ impl IpfsCli {
     #[cfg(test)]
     pub(crate) async fn get_cid(&self, _cid: Cid) -> Result<Vec<u8>> {
         let path = PathBuf::from(format!(
-            "{}/../homestar-wasm/fixtures/homestar_guest_wasm.wasm",
+            "{}/../homestar-wasm/fixtures/example_test.wasm",
             env!("CARGO_MANIFEST_DIR")
         ));
         WasmContext::load(path).await
