@@ -183,10 +183,11 @@ hooks. Please run this before every commit and/or push.
   dependencies before commits and pull-requests.
 - If using our [Nix flake](./flake.nix), there are a number of handy
   command shortcuts available for working with `cargo-watch`, `diesel`, and
-  other binaries, including:
+  other items, including:
   * **`ci`**, which runs a sequence of commands to check formatting, lints, release
     builds, and tests
   * **`db`** and **`db-reset`** for running `diesel` setup and migrations
+  * **`doc`** for generating cargo docs with private-items documented
   * **`compile-wasm`** for compiling [homestar-functions](./homestar-functions),
     a [wit-bindgen][wit-bindgen]-driven example, to the `wasm32-unknown-unknown` target
   * **`docker-<amd64,arm64>`** for running docker builds

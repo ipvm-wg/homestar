@@ -23,11 +23,6 @@ jobs:
           # minimum version
           - 1.66
     steps:
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Checkout Repository
         uses: actions/checkout@v3
 
@@ -36,28 +31,21 @@ jobs:
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
 
-      # Widely adopted suite of Rust-specific boilerplate actions, especially
-      # toolchain/cargo use: https://actions-rs.github.io/
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        id: toolchain
+        uses: dtolnay/rust-toolchain@master
         with:
-          override: true
           components: rustfmt, clippy
           toolchain: ${{ matrix.rust-toolchain }}
 
+      - name: Override rust-toolchain.toml
+        run: rustup override set ${{steps.toolchain.outputs.name}}
+
       - name: Check Format
-        uses: actions-rs/cargo@v1
-        with:
-          args: --all -- --check
-          command: fmt
-          toolchain: ${{ matrix.rust-toolchain }}
+        run: cargo fmt --all -- --check
 
       - name: Run Linter
-        uses: actions-rs/cargo@v1
-        with:
-          args: --all -- -D warnings
-          command: clippy
-          toolchain: ${{ matrix.rust-toolchain }}
+        run: cargo clippy --all -- -D warnings
 
       # Check for security advisories
       - name: Check Advisories
@@ -88,27 +76,20 @@ jobs:
           - stable
           - nightly
     steps:
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Checkout Repository
         uses: actions/checkout@v3
-
-      - name: Install Environment Packages
-        run: |
-          sudo apt-get update -qqy
-          sudo apt-get install jq
 
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
 
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        id: toolchain
+        uses: dtolnay/rust-toolchain@master
         with:
-          override: true
           toolchain: ${{ matrix.rust-toolchain }}
+
+      - name: Override rust-toolchain.toml
+        run: rustup override set ${{steps.toolchain.outputs.name}}
 
       - name: Install nextest
         uses: taiki-e/install-action@nextest
@@ -128,30 +109,43 @@ jobs:
           - stable
           - nightly
     steps:
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Checkout Repository
         uses: actions/checkout@v3
-
-      - name: Install Environment Packages
-        run: |
-          sudo apt-get update -qqy
-          sudo apt-get install jq
 
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
 
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
+        id: toolchain
+        uses: dtolnay/rust-toolchain@master
         with:
-          override: true
           toolchain: ${{ matrix.rust-toolchain }}
+
+      - name: Override rust-toolchain.toml
+        run: rustup override set ${{steps.toolchain.outputs.name}}
 
       - name: Install nextest
         uses: taiki-e/install-action@nextest
 
       - name: Run Tests
         run: cargo nextest run --no-default-features
+
+  run-docs:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run Doc(s) compilation
+        env:
+          RUSTDOCFLAGS: -Dwarnings
+        run: cargo doc --document-private-items

@@ -16,21 +16,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Checkout Repository
         uses: actions/checkout@v3
 
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          override: true
-          toolchain: nightly
-          components: llvm-tools-preview
-          profile: minimal
+        id: toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Override rust-toolchain.toml
+        run: rustup override set ${{steps.toolchain.outputs.name}}
 
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
@@ -51,10 +45,7 @@ jobs:
         run: "./grcov . --llvm --binary-path target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore '/*' -o lcov.info"
 
       - name: Install covfix
-        uses: actions-rs/install@v0.1
-        with:
-          crate: rust-covfix
-          use-tool-cache: true
+        run: cargo install --force rust-covfix
 
       - name: Run covfix
         run: rust-covfix lcov.info -o lcov.info --verbose

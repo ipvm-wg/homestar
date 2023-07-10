@@ -73,6 +73,10 @@
           diesel migration run
         '';
 
+        doc = pkgs.writeScriptBin "doc" ''
+          cargo doc --no-deps --document-private-items --open
+        '';
+
         compileWasm = pkgs.writeScriptBin "compile-wasm" ''
           cargo build -p homestar-functions --target wasm32-unknown-unknown --release
         '';
@@ -155,6 +159,7 @@
           ci
           db
           dbReset
+          doc
           compileWasm
           (builtins.map (arch: dockerBuild arch) ["amd64" "arm64"])
           (builtins.map (cmd: xFunc cmd) ["build" "check" "run" "clippy"])
@@ -187,7 +192,6 @@
               rust-analyzer
               pkg-config
               pre-commit
-              protobuf
               diesel-cli
               direnv
               self.packages.${system}.irust

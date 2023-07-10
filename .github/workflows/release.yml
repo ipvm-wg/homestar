@@ -60,19 +60,14 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install Rust Toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          override: true
-          profile: minimal
-          toolchain: stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install Cargo Workspaces
         env:
           RUSTFLAGS: '-Copt-level=1'
-        uses: actions-rs/cargo@v1
+        uses: dtolnay/install@master
         with:
-          args: --force cargo-workspaces
-          command: install
+          crate: cargo-workspaces
 
       - name: Verify Publishing of crates
         uses: katyo/publish-crates@v2

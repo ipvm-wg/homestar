@@ -32,12 +32,13 @@ PRAGMA foreign_keys = ON;           -- enforce foreign keys
 /// A Sqlite connection [pool].
 ///
 /// [pool]: r2d2::Pool
-pub type Pool = r2d2::Pool<r2d2::ConnectionManager<SqliteConnection>>;
+pub(crate) type Pool = r2d2::Pool<r2d2::ConnectionManager<SqliteConnection>>;
 /// A [connection] from the Sqlite connection [pool].
 ///
 /// [connection]: r2d2::PooledConnection
 /// [pool]: r2d2::Pool
-pub type Connection = r2d2::PooledConnection<r2d2::ConnectionManager<diesel::SqliteConnection>>;
+pub(crate) type Connection =
+    r2d2::PooledConnection<r2d2::ConnectionManager<diesel::SqliteConnection>>;
 
 /// The database object, which wraps an inner [Arc] to the connection pool.
 #[derive(Debug)]
@@ -64,21 +65,16 @@ impl Db {
     }
 }
 
-/// Database trait for working with different Sqlite [pool] and [connection]
-/// configurations.
-///
-/// [pool]: Pool
-/// [connection]: Connection
-pub trait Database: Send + Clone {
+/// Database trait for working with different Sqlite connection pool and
+/// connection configurations.
+pub trait Database: Send + Sync + Clone {
     /// Establish a pooled connection to Sqlite database.
     fn setup_connection_pool(settings: &settings::Node) -> Result<Self>
     where
         Self: Sized;
-    /// Get a [pooled connection] for the database.
-    ///
-    /// [pooled connection]: Connection
+    /// Get a pooled connection for the database.
     fn conn(&self) -> Result<Connection>;
-    /// Store receipt given a [Connection] to the DB [Pool].
+    /// Store receipt given a connection to the database pool.
     ///
     /// On conflicts, do nothing.
     fn store_receipt(receipt: Receipt, conn: &mut Connection) -> Result<Receipt> {
@@ -90,7 +86,7 @@ pub trait Database: Send + Clone {
             .map_err(Into::into)
     }
 
-    /// Store receipts given a [Connection] to the DB [Pool].
+    /// Store receipts given a connection to the Database pool.
     fn store_receipts(receipts: Vec<Receipt>, conn: &mut Connection) -> Result<usize> {
         diesel::insert_into(schema::receipts::table)
             .values(&receipts)
@@ -159,10 +155,7 @@ pub trait Database: Send + Clone {
     }
 
     /// Join workflow information with number of receipts emitted.
-    fn join_workflow_with_receipts(
-        workflow_cid: Cid,
-        conn: &mut Connection,
-    ) -> Result<(workflow::Stored, Vec<Cid>)> {
+    fn get_workflow_info(workflow_cid: Cid, conn: &mut Connection) -> Result<workflow::Info> {
         let wf = Self::select_workflow(workflow_cid, conn)?;
         let associated_receipts = workflow::StoredReceipt::belonging_to(&wf)
             .inner_join(schema::receipts::dsl::receipts)
@@ -173,7 +166,8 @@ pub trait Database: Send + Clone {
             .into_iter()
             .map(|pointer: Pointer| pointer.cid())
             .collect();
-        Ok((wf, cids))
+
+        Ok(workflow::Info::new(workflow_cid, cids, wf.num_tasks as u32))
     }
 }
 
@@ -207,7 +201,7 @@ impl Database for Db {
 
 /// Database connection options.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ConnectionCustomizer;
+pub(crate) struct ConnectionCustomizer;
 
 impl<C> CustomizeConnection<C, r2d2::Error> for ConnectionCustomizer
 where

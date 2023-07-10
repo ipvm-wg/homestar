@@ -1,16 +1,18 @@
 //! [Workflow] settings for a worker's run/execution.
 //!
-//! [Workflow]: crate::Workflow
+//! [Workflow]: homestar_core::Workflow
+
+use std::time::Duration;
 
 /// Workflow settings.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Settings {
     pub(crate) retries: u32,
     pub(crate) retry_backoff_strategy: BackoffStrategy,
-    pub(crate) retry_max_delay_secs: u64,
-    pub(crate) retry_initial_delay_ms: u64,
-    pub(crate) p2p_check_timeout_secs: u64,
-    pub(crate) p2p_timeout_secs: u64,
+    pub(crate) retry_max_delay: Duration,
+    pub(crate) retry_initial_delay: Duration,
+    pub(crate) p2p_check_timeout: Duration,
+    pub(crate) p2p_timeout: Duration,
 }
 
 #[cfg(not(test))]
@@ -19,10 +21,10 @@ impl Default for Settings {
         Self {
             retries: 10,
             retry_backoff_strategy: BackoffStrategy::Exponential,
-            retry_max_delay_secs: 60,
-            retry_initial_delay_ms: 500,
-            p2p_check_timeout_secs: 5,
-            p2p_timeout_secs: 120,
+            retry_max_delay: Duration::new(60, 0),
+            retry_initial_delay: Duration::from_millis(500),
+            p2p_check_timeout: Duration::new(5, 0),
+            p2p_timeout: Duration::new(60, 0),
         }
     }
 }
@@ -33,10 +35,10 @@ impl Default for Settings {
         Self {
             retries: 1,
             retry_backoff_strategy: BackoffStrategy::Exponential,
-            retry_max_delay_secs: 1,
-            retry_initial_delay_ms: 50,
-            p2p_check_timeout_secs: 1,
-            p2p_timeout_secs: 1,
+            retry_max_delay: Duration::new(1, 0),
+            retry_initial_delay: Duration::from_millis(50),
+            p2p_check_timeout: Duration::new(1, 0),
+            p2p_timeout: Duration::new(1, 0),
         }
     }
 }

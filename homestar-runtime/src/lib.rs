@@ -24,19 +24,19 @@ pub mod logger;
 mod network;
 mod receipt;
 pub mod runner;
-pub mod scheduler;
+mod scheduler;
 mod settings;
-pub mod tasks;
+mod tasks;
 mod worker;
 pub mod workflow;
 
 pub use db::Db;
-pub use event_handler::{event::Event, EventHandler};
 #[cfg(feature = "websocket-server")]
 pub use network::ws;
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};
 pub use runner::Runner;
 pub use settings::Settings;
+pub use workflow::WORKFLOW_TAG;
 
 /// Test utilities.
 #[cfg(any(test, feature = "test_utils"))]

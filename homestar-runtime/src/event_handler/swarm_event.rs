@@ -1,15 +1,22 @@
+//! Internal libp2p [SwarmEvent] handling and [Handler] implementation.
+
+use super::EventHandler;
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
     db::Database,
-    event_handler::Handler,
-    network::swarm::ComposedEvent,
+    event_handler::{
+        channel::BoundedChannel,
+        event::{PeerRequest, QueryRecord},
+        Event, Handler, RequestResponseError,
+    },
+    network::swarm::{CapsuleTag, ComposedEvent, RequestResponseKey},
     receipt::{RECEIPT_TAG, VERSION_KEY},
     workflow,
     workflow::WORKFLOW_TAG,
-    Db, EventHandler, Receipt,
+    Db, Receipt,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
 use homestar_core::{
     consts,
@@ -24,15 +31,27 @@ use libp2p::{
     },
     mdns,
     multiaddr::Protocol,
+    request_response,
     swarm::SwarmEvent,
+    PeerId,
 };
-use std::fmt;
+use std::{collections::HashSet, fmt, time::Instant};
 use tracing::{debug, error, info};
 
 /// Internal events within the [SwarmEvent] context related to finding results
 /// on the DHT.
+#[derive(Debug)]
+pub(crate) enum ResponseEvent {
+    /// Found [PeerRecord] on the DHT.
+    Found(Result<FoundEvent>),
+    /// Found Providers/[PeerId]s on the DHT.
+    Providers(Result<HashSet<PeerId>>),
+}
+
+/// Internal events within the [SwarmEvent] context related to finding specific
+/// data items on the DHT.
 #[derive(Debug, Clone, PartialEq)]
-pub enum FoundEvent {
+pub(crate) enum FoundEvent {
     /// Found [Receipt] on the DHT.
     Receipt(Receipt),
     /// Found [workflow::Info] on the DHT.
@@ -40,45 +59,14 @@ pub enum FoundEvent {
 }
 
 /// Trait for handling [PeerRecord]s found on the DHT.
-pub(crate) trait FoundRecord {
+trait FoundRecord {
     fn found_record(&self) -> Result<FoundEvent>;
 }
 
 impl FoundRecord for PeerRecord {
     fn found_record(&self) -> Result<FoundEvent> {
         let key_cid = Cid::try_from(self.record.key.as_ref())?;
-        match serde_ipld_dagcbor::de::from_reader(&*self.record.value) {
-            Ok(Ipld::Map(mut map)) => match map.pop_first() {
-                Some((code, Ipld::Map(mut rest))) if code == RECEIPT_TAG => {
-                    if rest.remove(VERSION_KEY)
-                        == Some(Ipld::String(consts::INVOCATION_VERSION.to_string()))
-                    {
-                        let invocation_receipt = InvocationReceipt::try_from(Ipld::Map(rest))?;
-                        let receipt =
-                            Receipt::try_with(Pointer::new(key_cid), &invocation_receipt)?;
-                        Ok(FoundEvent::Receipt(receipt))
-                    } else {
-                        Err(anyhow!(
-                            "record version mismatch, current version: {}",
-                            consts::INVOCATION_VERSION
-                        ))
-                    }
-                }
-                Some((code, Ipld::Map(rest))) if code == WORKFLOW_TAG => {
-                    let workflow_info = workflow::Info::try_from(Ipld::Map(rest))?;
-                    Ok(FoundEvent::Workflow(workflow_info))
-                }
-                Some((code, _)) => Err(anyhow!("decode mismatch: {code} is not known")),
-                None => Err(anyhow!("invalid record value")),
-            },
-            Ok(ipld) => Err(anyhow!(
-                "decode mismatch: expected an Ipld map, got {ipld:#?}",
-            )),
-            Err(err) => {
-                error!(error=?err, "error deserializing record value");
-                Err(anyhow!("error deserializing record value"))
-            }
-        }
+        decode_capsule(key_cid, &self.record.value)
     }
 }
 
@@ -86,7 +74,7 @@ impl FoundRecord for PeerRecord {
 impl<THandlerErr, DB> Handler<THandlerErr, DB> for SwarmEvent<ComposedEvent, THandlerErr>
 where
     THandlerErr: fmt::Debug + Send,
-    DB: Database,
+    DB: Database + Sync,
 {
     #[cfg(feature = "ipfs")]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>, _ipfs: IpfsCli) {
@@ -104,89 +92,265 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
     event_handler: &mut EventHandler<DB>,
 ) {
     match event {
-        SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossipsub::Event::Message {
-            message,
-            propagation_source,
-            message_id,
-        })) => match Receipt::try_from(message.data) {
-            Ok(receipt) => {
-                info!(
-                        "got message: {receipt} from {propagation_source} with message id: {message_id}"
-                        );
+        SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossip_event)) => match *gossip_event {
+            gossipsub::Event::Message {
+                message,
+                propagation_source,
+                message_id,
+            } => match Receipt::try_from(message.data) {
+                Ok(receipt) => {
+                    info!("got message: {receipt} from {propagation_source} with message id: {message_id}");
 
-                // Store gossiped receipt.
-                let _ = event_handler
-                    .db
-                    .conn()
-                    .as_mut()
-                    .map(|conn| Db::store_receipt(receipt, conn));
-            }
-            Err(err) => info!(err=?err, "cannot handle incoming event message"),
-        },
-        SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossipsub::Event::Subscribed {
-            peer_id,
-            topic,
-        })) => {
-            debug!("{peer_id} subscribed to topic {topic} over gossipsub")
-        }
-        SwarmEvent::Behaviour(ComposedEvent::Gossipsub(_)) => {}
-        SwarmEvent::Behaviour(ComposedEvent::Kademlia(
-            KademliaEvent::OutboundQueryProgressed { id, result, .. },
-        )) => match result {
-            QueryResult::Bootstrap(Ok(BootstrapOk { peer, .. })) => {
-                debug!("successfully bootstrapped peer: {peer}")
-            }
-            QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders {
-                key,
-                providers,
-                ..
-            })) => {
-                for peer in providers {
-                    debug!("peer {peer} provides key: {key:#?}");
+                    // Store gossiped receipt.
+                    let _ = event_handler
+                        .db
+                        .conn()
+                        .as_mut()
+                        .map(|conn| Db::store_receipt(receipt, conn));
                 }
-            }
-            QueryResult::GetProviders(Err(err)) => {
-                error!("error retrieving outbound query providers: {err}")
-            }
-            QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
-                debug!(
-                    "found record {:#?}, published by {:?}",
-                    peer_record.record.key, peer_record.record.publisher
-                );
-                match peer_record.found_record() {
-                    Ok(event) => {
-                        info!("event: {event:#?}");
-                        if let Some(sender) = event_handler.worker_swarm_senders.remove(&id) {
-                            let _ = sender.send(event);
-                        } else {
-                            error!("error converting key {:#?} to cid", peer_record.record.key)
-                        }
-                    }
-                    Err(err) => error!(err=?err, "error retrieving record"),
-                }
-            }
-            QueryResult::GetRecord(Ok(_)) => {}
-            QueryResult::GetRecord(Err(err)) => {
-                error!("error retrieving record: {err}");
-            }
-            QueryResult::PutRecord(Ok(PutRecordOk { key })) => {
-                debug!("successfully put record {key:#?}");
-            }
-            QueryResult::PutRecord(Err(err)) => {
-                error!("error putting record: {err}")
-            }
-            QueryResult::StartProviding(Ok(AddProviderOk { key })) => {
-                debug!("successfully put provider record {key:#?}");
-            }
-            QueryResult::StartProviding(Err(err)) => {
-                error!("error putting provider record: {err}");
+                Err(err) => info!(err=?err, "cannot handle incoming event message"),
+            },
+            gossipsub::Event::Subscribed { peer_id, topic } => {
+                debug!("{peer_id} subscribed to topic {topic} over gossipsub")
             }
             _ => {}
+        },
+        SwarmEvent::Behaviour(ComposedEvent::Kademlia(
+            KademliaEvent::OutboundQueryProgressed { id, result, .. },
+        )) => {
+            match result {
+                QueryResult::Bootstrap(Ok(BootstrapOk { peer, .. })) => {
+                    debug!("successfully bootstrapped peer: {peer}")
+                }
+                QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders {
+                    key: _,
+                    providers,
+                    ..
+                })) => {
+                    let _ = event_handler.query_senders.remove(&id).map(|(_, sender)| {
+                        sender.try_send(ResponseEvent::Providers(Ok(providers)))
+                    });
+
+                    // Finish the query. We are only interested in the first
+                    // result from a provider.
+                    let _ = event_handler
+                        .swarm
+                        .behaviour_mut()
+                        .kademlia
+                        .query_mut(&id)
+                        .map(|mut query| query.finish());
+                }
+                QueryResult::GetProviders(Err(err)) => {
+                    error!(err=?err, "error retrieving outbound query providers");
+
+                    let _ = event_handler.query_senders.remove(&id).map(|(_, sender)| {
+                        sender.try_send(ResponseEvent::Providers(Err(err.into())))
+                    });
+                }
+                QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
+                    debug!(
+                        "found record {:#?}, published by {:?}",
+                        peer_record.record.key, peer_record.record.publisher
+                    );
+                    match peer_record.found_record() {
+                        Ok(event) => {
+                            debug!("event: {event:#?}");
+                            let _ = event_handler.query_senders.remove(&id).map(|(_, sender)| {
+                                sender.try_send(ResponseEvent::Found(Ok(event)))
+                            });
+                        }
+                        Err(err) => {
+                            error!(err=?err, "error retrieving record");
+                            let _ = event_handler
+                                .query_senders
+                                .remove(&id)
+                                .map(|(_, sender)| sender.try_send(ResponseEvent::Found(Err(err))));
+                        }
+                    }
+                }
+                QueryResult::GetRecord(Ok(_)) => {}
+                QueryResult::GetRecord(Err(err)) => {
+                    error!(err=?err, "error retrieving record");
+                    // Upon an error, attempt to find the record on the DHT via
+                    // a provider if it's a Workflow/Info one.
+                    match event_handler.query_senders.remove(&id) {
+                        Some((
+                            RequestResponseKey {
+                                cid: cid_str,
+                                capsule_tag: CapsuleTag::Workflow,
+                            },
+                            sender,
+                        )) => {
+                            let channel = BoundedChannel::oneshot();
+                            if let Ok(cid) = Cid::try_from(cid_str.as_str()) {
+                                if let Err(err) =
+                                    event_handler.sender().try_send(Event::GetProviders(
+                                        QueryRecord::with(cid, CapsuleTag::Workflow, channel.tx),
+                                    ))
+                                {
+                                    error!(err=?err, "error opening channel to get providers");
+                                    let _ = sender.try_send(ResponseEvent::Found(Err(err.into())));
+                                    return;
+                                }
+
+                                match channel.rx.recv_deadline(
+                                    Instant::now() + event_handler.p2p_provider_timeout,
+                                ) {
+                                    Ok(ResponseEvent::Providers(Ok(providers))) => {
+                                        for peer in providers {
+                                            let request = RequestResponseKey::new(
+                                                cid_str.to_string(),
+                                                CapsuleTag::Workflow,
+                                            );
+                                            let channel = BoundedChannel::oneshot();
+                                            if let Err(err) = event_handler.sender().try_send(
+                                                Event::OutboundRequest(PeerRequest::with(
+                                                    peer, request, channel.tx,
+                                                )),
+                                            ) {
+                                                error!(err=?err, "error sending outbound request");
+                                                let _ = sender.try_send(ResponseEvent::Found(Err(
+                                                    err.into(),
+                                                )));
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        let _ =
+                                            sender.try_send(ResponseEvent::Found(Err(err.into())));
+                                    }
+                                }
+                            }
+                        }
+                        Some((
+                            RequestResponseKey {
+                                cid: _,
+                                capsule_tag,
+                            },
+                            sender,
+                        )) => {
+                            let _ = sender.try_send(ResponseEvent::Found(Err(anyhow!(
+                                "not a valid provider record tag: {capsule_tag}"
+                            ))));
+                        }
+                        None => (),
+                    }
+                }
+                QueryResult::PutRecord(Ok(PutRecordOk { key })) => {
+                    debug!("successfully put record {key:#?}");
+                }
+                QueryResult::PutRecord(Err(err)) => {
+                    error!("error putting record: {err}")
+                }
+                QueryResult::StartProviding(Ok(AddProviderOk { key })) => {
+                    // Currently, we don't send anything to the <worker> channel,
+                    // once they key is provided.
+                    let _ = event_handler.query_senders.remove(&id);
+                    debug!("successfully providing {key:#?}");
+                }
+                QueryResult::StartProviding(Err(err)) => {
+                    // Currently, we don't send anything to the <worker> channel,
+                    // once they key is provided.
+                    let _ = event_handler.query_senders.remove(&id);
+                    error!("error providing key: {:#?}", err.key());
+                }
+                _ => {}
+            }
+        }
+        SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
+            request_response::Event::Message {
+                message,
+                peer: _peer,
+            },
+        )) => match message {
+            request_response::Message::Request {
+                request, channel, ..
+            } => match (
+                Cid::try_from(request.cid.as_str()),
+                request.capsule_tag.tag(),
+            ) {
+                (Ok(cid), WORKFLOW_TAG) => {
+                    match workflow::Info::gather(
+                        cid,
+                        event_handler.p2p_provider_timeout,
+                        event_handler.sender.clone(),
+                        event_handler.db.conn().as_mut().ok(),
+                        |cid, _| bail!("timeout retrieving workflow info for {}", cid),
+                    )
+                    .await
+                    {
+                        Ok(workflow_info) => {
+                            if let Ok(bytes) = workflow_info.capsule() {
+                                let _ = event_handler
+                                    .swarm
+                                    .behaviour_mut()
+                                    .request_response
+                                    .send_response(channel, bytes);
+                            } else {
+                                let _ = event_handler
+                                    .swarm
+                                    .behaviour_mut()
+                                    .request_response
+                                    .send_response(
+                                        channel,
+                                        RequestResponseError::InvalidCapsule(request)
+                                            .encode()
+                                            .unwrap_or_default(),
+                                    );
+                            }
+                        }
+                        Err(err) => {
+                            error!(err=?err, cid=?cid, "error retrieving workflow info");
+
+                            let _ = event_handler
+                                .swarm
+                                .behaviour_mut()
+                                .request_response
+                                .send_response(
+                                    channel,
+                                    RequestResponseError::Timeout(request)
+                                        .encode()
+                                        .unwrap_or_default(),
+                                );
+                        }
+                    }
+                }
+                _ => {
+                    let _ = event_handler
+                        .swarm
+                        .behaviour_mut()
+                        .request_response
+                        .send_response(
+                            channel,
+                            RequestResponseError::Unsupported(request)
+                                .encode()
+                                .unwrap_or_default(),
+                        );
+                }
+            },
+            request_response::Message::Response {
+                request_id,
+                response,
+            } => {
+                event_handler
+                    .request_response_senders
+                    .remove(&request_id)
+                    .map(|(RequestResponseKey { cid: key_cid, .. }, sender)| {
+                        Cid::try_from(key_cid.as_str()).map(|cid| {
+                            decode_capsule(cid, &response)
+                                .map(|event| sender.try_send(ResponseEvent::Found(Ok(event))))
+                                .map_err(|err| {
+                                    error!(err=?err, cid = key_cid,
+                                           "error returning capsule for request_id: {request_id}");
+                                    sender.try_send(ResponseEvent::Found(Err(err)))
+                                })
+                        })
+                    });
+            }
         },
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Discovered(list))) => {
             for (peer_id, _multiaddr) in list {
                 info!("mDNS discovered a new peer: {peer_id}");
-
                 event_handler
                     .swarm
                     .behaviour_mut()
@@ -197,7 +361,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Expired(list))) => {
             for (peer_id, _multiaddr) in list {
                 info!("mDNS discover peer has expired: {peer_id}");
-
                 event_handler
                     .swarm
                     .behaviour_mut()
@@ -206,14 +369,53 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             }
         }
         SwarmEvent::NewListenAddr { address, .. } => {
-            let local_peer_id = *event_handler.swarm.local_peer_id();
+            let local_peer = *event_handler.swarm.local_peer_id();
             info!(
                 "local node is listening on {:?}",
-                address.with(Protocol::P2p(local_peer_id.into()))
+                address.with(Protocol::P2p(local_peer))
             );
         }
         SwarmEvent::IncomingConnection { .. } => {}
         _ => {}
+    }
+}
+
+fn decode_capsule(key_cid: Cid, value: &Vec<u8>) -> Result<FoundEvent> {
+    // If it decodes to an error, return the error.
+    if let Ok((decoded_error, _)) = RequestResponseError::decode(value) {
+        return Err(anyhow!("value returns an error: {decoded_error}"));
+    };
+
+    match serde_ipld_dagcbor::de::from_reader(&**value) {
+        Ok(Ipld::Map(mut map)) => match map.pop_first() {
+            Some((code, Ipld::Map(mut rest))) if code == RECEIPT_TAG => {
+                if rest.remove(VERSION_KEY)
+                    == Some(Ipld::String(consts::INVOCATION_VERSION.to_string()))
+                {
+                    let invocation_receipt = InvocationReceipt::try_from(Ipld::Map(rest))?;
+                    let receipt = Receipt::try_with(Pointer::new(key_cid), &invocation_receipt)?;
+                    Ok(FoundEvent::Receipt(receipt))
+                } else {
+                    Err(anyhow!(
+                        "record version mismatch, current version: {}",
+                        consts::INVOCATION_VERSION
+                    ))
+                }
+            }
+            Some((code, Ipld::Map(rest))) if code == WORKFLOW_TAG => {
+                let workflow_info = workflow::Info::try_from(Ipld::Map(rest))?;
+                Ok(FoundEvent::Workflow(workflow_info))
+            }
+            Some((code, _)) => Err(anyhow!("decode mismatch: {code} is not known")),
+            None => Err(anyhow!("invalid record value")),
+        },
+        Ok(ipld) => Err(anyhow!(
+            "decode mismatch: expected an Ipld map, got {ipld:#?}",
+        )),
+        Err(err) => {
+            error!(error=?err, "error deserializing record value");
+            Err(anyhow!("error deserializing record value"))
+        }
     }
 }
 

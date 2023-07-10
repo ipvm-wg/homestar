@@ -1,3 +1,9 @@
+//! Worker that runs a [Workflow]'s tasks scheduled by the [TaskScheduler] and
+//! sends [Event]'s to the [EventHandler].
+//!
+//! [Workflow]: homestar_core::Workflow
+//! [EventHandler]: crate::event_handler::EventHandler
+
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 #[cfg(feature = "ipfs")]
@@ -7,9 +13,10 @@ use crate::{
     event_handler::{
         channel::BoundedChannel,
         event::{Captured, QueryRecord},
-        swarm_event::FoundEvent,
+        swarm_event::{FoundEvent, ResponseEvent},
         Event,
     },
+    network::swarm::CapsuleTag,
     runner::{ModifiedSet, RunningSet},
     scheduler::TaskScheduler,
     tasks::{RegisteredTasks, WasmContext},
@@ -36,13 +43,7 @@ use homestar_wasm::{
 };
 use indexmap::IndexMap;
 use libipld::{Cid, Ipld};
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-    thread,
-    time::{Duration, Instant},
-    vec,
-};
+use std::{collections::BTreeMap, sync::Arc, thread, time::Instant, vec};
 use tokio::{sync::mpsc, task::JoinSet};
 use tracing::{debug, error};
 #[cfg(feature = "ipfs")]
@@ -172,14 +173,23 @@ impl<'a> Worker<'a> {
                         debug!("no related instruction receipt found in the DB");
                         let channel = BoundedChannel::oneshot();
                         event_sender
-                            .blocking_send(Event::FindRecord(QueryRecord::with(cid, channel.tx)))
+                            .try_send(Event::FindRecord(QueryRecord::with(
+                                cid,
+                                CapsuleTag::Receipt,
+                                channel.tx,
+                            )))
                             .map_err(|err| ResolveError::TransportError(err.to_string()))?;
 
-                        let found = match channel.rx.recv_deadline(
-                            Instant::now()
-                                + Duration::from_secs(workflow_settings.p2p_timeout_secs),
-                        ) {
-                            Ok(FoundEvent::Receipt(found)) => found,
+                        let found = match channel
+                            .rx
+                            .recv_deadline(Instant::now() + workflow_settings.p2p_timeout)
+                        {
+                            Ok(ResponseEvent::Found(Ok(FoundEvent::Receipt(found)))) => found,
+                            Ok(ResponseEvent::Found(Err(err))) => {
+                                bail!(ResolveError::UnresolvedCidError(format!(
+                                    "failure in attempting to find event: {err}"
+                                )))
+                            }
                             Ok(_) => bail!(ResolveError::UnresolvedCidError(
                                 "wrong or unexpected event message received".to_string(),
                             )),
@@ -302,12 +312,13 @@ impl<'a> Worker<'a> {
                 let stored_receipt = Db::store_receipt(receipt, &mut db.conn()?)?;
 
                 // send internal event
+                let channel = BoundedChannel::oneshot();
                 self.event_sender
-                    .send(Event::CapturedReceipt(Captured::with(
+                    .try_send(Event::CapturedReceipt(Captured::with(
                         stored_receipt,
                         self.workflow_info.clone(),
-                    )))
-                    .await?;
+                        channel.tx,
+                    )))?
             }
         }
         Ok(())
@@ -370,10 +381,8 @@ impl<'a> Worker<'a> {
                     })
                     .with_config(
                         RetryFutureConfig::new(settings.retries)
-                            .exponential_backoff(Duration::from_millis(
-                                settings.retry_initial_delay_ms,
-                            ))
-                            .max_delay(Duration::from_secs(settings.retry_max_delay_secs)),
+                            .exponential_backoff(settings.retry_initial_delay)
+                            .max_delay(settings.retry_max_delay),
                     )
                     .await
                 }
@@ -385,8 +394,8 @@ impl<'a> Worker<'a> {
                     })
                     .with_config(
                         RetryFutureConfig::new(settings.retries)
-                            .fixed_backoff(Duration::from_millis(settings.retry_initial_delay_ms))
-                            .max_delay(Duration::from_secs(settings.retry_max_delay_secs)),
+                            .fixed_backoff(settings.retry_initial_delay)
+                            .max_delay(settings.retry_max_delay),
                     )
                     .await
                 }
@@ -398,8 +407,8 @@ impl<'a> Worker<'a> {
                     })
                     .with_config(
                         RetryFutureConfig::new(settings.retries)
-                            .linear_backoff(Duration::from_millis(settings.retry_initial_delay_ms))
-                            .max_delay(Duration::from_secs(settings.retry_max_delay_secs)),
+                            .linear_backoff(settings.retry_initial_delay)
+                            .max_delay(settings.retry_max_delay),
                     )
                     .await
                 }
@@ -484,9 +493,9 @@ mod test {
         #[cfg(feature = "ipfs")]
         let ipfs = IpfsCli::default();
 
-        let workflow_info = wf::Info::gather(
+        let workflow_info = wf::Info::init(
             workflow.clone(),
-            workflow_settings.clone(),
+            workflow_settings.p2p_timeout,
             tx.clone().into(),
             &mut conn,
         )
@@ -581,14 +590,14 @@ mod test {
             assert!(rx.recv().await.is_none());
 
             let mut conn = db.conn().unwrap();
-            let (stored_info, receipt_cids) =
-                test_utils::db::MemoryDb::join_workflow_with_receipts(workflow_cid, &mut conn)
-                    .unwrap();
+            let workflow_info =
+                test_utils::db::MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
 
-            assert_eq!(stored_info.num_tasks, 2);
-            assert_eq!(stored_info.cid.cid(), workflow_cid);
-            assert_eq!(receipt_cids.len(), 2);
+            assert_eq!(workflow_info.num_tasks, 2);
+            assert_eq!(workflow_info.cid, workflow_cid);
+            assert_eq!(workflow_info.progress.len(), 2);
             assert_eq!(wf_info.progress_count, 2);
+            assert_eq!(wf_info.progress_count, workflow_info.progress_count);
         }
     }
 
@@ -653,9 +662,9 @@ mod test {
         #[cfg(feature = "ipfs")]
         let ipfs = IpfsCli::default();
 
-        let workflow_info = wf::Info::gather(
+        let workflow_info = wf::Info::init(
             workflow.clone(),
-            workflow_settings.clone(),
+            workflow_settings.p2p_timeout,
             tx.clone().into(),
             &mut conn,
         )
@@ -727,14 +736,14 @@ mod test {
             assert!(rx.recv().await.is_none());
 
             let mut conn = db.conn().unwrap();
-            let (stored_info, receipt_cids) =
-                test_utils::db::MemoryDb::join_workflow_with_receipts(workflow_cid, &mut conn)
-                    .unwrap();
+            let workflow_info =
+                test_utils::db::MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
 
-            assert_eq!(stored_info.num_tasks, 2);
-            assert_eq!(stored_info.cid.cid(), workflow_cid);
-            assert_eq!(receipt_cids.len(), 2);
+            assert_eq!(workflow_info.num_tasks, 2);
+            assert_eq!(workflow_info.cid, workflow_cid);
+            assert_eq!(workflow_info.progress.len(), 2);
             assert_eq!(wf_info.progress_count, 2);
+            assert_eq!(wf_info.progress_count, workflow_info.progress_count);
         }
     }
 
@@ -823,9 +832,9 @@ mod test {
         #[cfg(feature = "ipfs")]
         let ipfs = IpfsCli::default();
 
-        let workflow_info = wf::Info::gather(
+        let workflow_info = wf::Info::init(
             workflow.clone(),
-            workflow_settings.clone(),
+            workflow_settings.p2p_timeout,
             tx.clone().into(),
             &mut conn,
         )
@@ -870,13 +879,12 @@ mod test {
         assert_eq!(worker.workflow_info.num_tasks, 2);
 
         let mut conn = db.conn().unwrap();
-        let (stored_info, receipt_cids) =
-            test_utils::db::MemoryDb::join_workflow_with_receipts(workflow_cid, &mut conn).unwrap();
+        let workflow_info =
+            test_utils::db::MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
 
-        assert_eq!(stored_info.num_tasks, 2);
-        assert_eq!(stored_info.cid.cid(), workflow_cid);
-        assert_eq!(receipt_cids.len(), 2);
-
+        assert_eq!(workflow_info.num_tasks, 2);
+        assert_eq!(workflow_info.cid, workflow_cid);
+        assert_eq!(workflow_info.progress.len(), 2);
         assert!(rx.try_recv().is_err())
     }
 }

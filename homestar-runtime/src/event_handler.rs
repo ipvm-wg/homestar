@@ -2,22 +2,29 @@
 
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
-use crate::{db::Database, network::swarm::ComposedBehaviour, settings};
+use crate::{
+    db::Database,
+    network::swarm::{ComposedBehaviour, RequestResponseKey},
+    settings,
+};
 use anyhow::Result;
 use async_trait::async_trait;
 use fnv::FnvHashMap;
-use libp2p::{futures::StreamExt, kad::QueryId, swarm::Swarm};
-use std::sync::Arc;
+use libp2p::{futures::StreamExt, kad::QueryId, request_response::RequestId, swarm::Swarm};
+use std::{sync::Arc, time::Duration};
+use swarm_event::ResponseEvent;
 use tokio::{select, sync::mpsc};
 
 pub(crate) mod channel;
+pub(crate) mod error;
 pub(crate) mod event;
 pub(crate) mod swarm_event;
-
+pub(crate) use error::RequestResponseError;
 pub(crate) use event::Event;
 
-type P2PSender = channel::BoundedChannelSender<swarm_event::FoundEvent>;
+type P2PSender = channel::BoundedChannelSender<ResponseEvent>;
 
+/// Handler trait for [EventHandler] events.
 #[async_trait]
 pub(crate) trait Handler<THandlerErr, DB>
 where
@@ -32,14 +39,16 @@ where
 /// Event loop handler for [libp2p] network events and commands.
 #[allow(dead_code)]
 #[allow(missing_debug_implementations)]
-pub struct EventHandler<DB: Database> {
+pub(crate) struct EventHandler<DB: Database> {
+    receipt_quorum: usize,
+    workflow_quorum: usize,
+    p2p_provider_timeout: Duration,
     db: DB,
+    swarm: Swarm<ComposedBehaviour>,
     sender: Arc<mpsc::Sender<Event>>,
     receiver: mpsc::Receiver<Event>,
-    receipt_quorum: usize,
-    swarm: Swarm<ComposedBehaviour>,
-    workflow_quorum: usize,
-    worker_swarm_senders: FnvHashMap<QueryId, P2PSender>,
+    query_senders: FnvHashMap<QueryId, (RequestResponseKey, P2PSender)>,
+    request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
 }
 
 impl<DB> EventHandler<DB>
@@ -54,13 +63,15 @@ where
     pub(crate) fn new(swarm: Swarm<ComposedBehaviour>, db: DB, settings: &settings::Node) -> Self {
         let (sender, receiver) = Self::setup_channel(settings);
         Self {
+            receipt_quorum: settings.network.receipt_quorum,
+            workflow_quorum: settings.network.workflow_quorum,
+            p2p_provider_timeout: settings.network.p2p_provider_timeout,
             db,
+            swarm,
             sender: Arc::new(sender),
             receiver,
-            receipt_quorum: settings.network.receipt_quorum,
-            swarm,
-            workflow_quorum: settings.network.workflow_quorum,
-            worker_swarm_senders: FnvHashMap::default(),
+            query_senders: FnvHashMap::default(),
+            request_response_senders: FnvHashMap::default(),
         }
     }
 
