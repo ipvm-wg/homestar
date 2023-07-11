@@ -17,7 +17,7 @@ use crate::{
         Event,
     },
     network::swarm::CapsuleTag,
-    runner::{ModifiedSet, RunningSet},
+    runner::{ModifiedSet, RunningTaskSet},
     scheduler::TaskScheduler,
     tasks::{RegisteredTasks, WasmContext},
     workflow::{self, Resource},
@@ -138,7 +138,7 @@ impl<'a> Worker<'a> {
     pub(crate) async fn run(
         self,
         db: impl Database + Sync,
-        running_set: &mut RunningSet,
+        running_set: &mut RunningTaskSet,
     ) -> Result<()> {
         self.run_queue(db, running_set).await
     }
@@ -146,7 +146,7 @@ impl<'a> Worker<'a> {
     async fn run_queue(
         mut self,
         db: impl Database + Sync,
-        running_set: &mut RunningSet,
+        running_set: &mut RunningTaskSet,
     ) -> Result<()> {
         fn insert_into_map<T>(mut map: Arc<LinkMap<T>>, key: Cid, value: T)
         where

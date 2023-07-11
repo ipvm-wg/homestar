@@ -145,6 +145,23 @@ pub trait Database: Send + Sync + Clone {
             .map_err(Into::into)
     }
 
+    /// Store series of receipts for a workflow [Cid] in the
+    /// [schema::workflows_receipts] table.
+    ///
+    /// NOTE: We cannot do batch inserts with `on_conflict`, so we add
+    /// each one 1-by-1:
+    /// <https://github.com/diesel-rs/diesel/issues/3114>
+    fn store_workflow_receipts(
+        workflow_cid: Cid,
+        receipts: &[Cid],
+        conn: &mut Connection,
+    ) -> Result<usize> {
+        receipts.iter().try_fold(0, |acc, receipt| {
+            let res = Self::store_workflow_receipt(workflow_cid, *receipt, conn)?;
+            Ok::<_, anyhow::Error>(acc + res)
+        })
+    }
+
     /// Select workflow given a [Cid] to the workflow.
     fn select_workflow(cid: Cid, conn: &mut Connection) -> Result<workflow::Stored> {
         let wf = schema::workflows::dsl::workflows
@@ -154,12 +171,11 @@ pub trait Database: Send + Sync + Clone {
         Ok(wf)
     }
 
-    /// Join workflow information with number of receipts emitted.
+    /// Return orkflow information with number of receipts emitted.
     fn get_workflow_info(workflow_cid: Cid, conn: &mut Connection) -> Result<workflow::Info> {
         let wf = Self::select_workflow(workflow_cid, conn)?;
         let associated_receipts = workflow::StoredReceipt::belonging_to(&wf)
-            .inner_join(schema::receipts::dsl::receipts)
-            .select(schema::receipts::dsl::cid)
+            .select(schema::workflows_receipts::receipt_cid)
             .load(conn)?;
 
         let cids = associated_receipts

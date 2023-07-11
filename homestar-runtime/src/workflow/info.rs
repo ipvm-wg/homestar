@@ -52,7 +52,9 @@ impl Stored {
 ///
 /// [Workflow]: homestar_core::Workflow
 /// [receipts]: crate::Receipt
-#[derive(Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Associations, Hash)]
+#[derive(
+    Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Selectable, Associations, Hash,
+)]
 #[diesel(belongs_to(Receipt, foreign_key = receipt_cid))]
 #[diesel(belongs_to(Stored, foreign_key = workflow_cid))]
 #[diesel(table_name = crate::db::schema::workflows_receipts, primary_key(workflow_cid, receipt_cid))]
@@ -171,6 +173,7 @@ impl Info {
     ) -> Result<Self> {
         let workflow_len = workflow.len();
         let workflow_cid = workflow.to_cid()?;
+
         let handle_timeout_fn = |workflow_cid, reused_conn: Option<&'a mut Connection>| {
             let workflow_info = Self::default(workflow_cid, workflow_len);
             // store workflow from info
@@ -234,6 +237,8 @@ impl Info {
                             ),
                             conn,
                         )?;
+
+                        Db::store_workflow_receipts(workflow_cid, &workflow_info.progress, conn)?;
                     }
 
                     Ok(workflow_info)
