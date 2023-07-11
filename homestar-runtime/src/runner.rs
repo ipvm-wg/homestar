@@ -27,15 +27,15 @@ use tokio::{
 use tracing::info;
 
 /// Type alias for a [DashMap] containing running task information.
-pub type RunningSet = DashMap<Cid, Vec<AbortHandle>>;
+pub type RunningTaskSet = DashMap<Cid, Vec<AbortHandle>>;
 
 /// Trait for managing a [DashMap] of running task information.
 pub trait ModifiedSet {
-    /// Append or insert a new [AbortHandle] into the [RunningSet].
+    /// Append or insert a new [AbortHandle] into the [RunningTaskSet].
     fn append_or_insert(&mut self, cid: Cid, handles: Vec<AbortHandle>);
 }
 
-impl ModifiedSet for RunningSet {
+impl ModifiedSet for RunningTaskSet {
     fn append_or_insert(&mut self, cid: Cid, mut handles: Vec<AbortHandle>) {
         self.entry(cid)
             .and_modify(|prev_handles| {
@@ -55,7 +55,7 @@ pub struct Runner {
     command_sender: oneshot::Sender<Event>,
     command_receiver: oneshot::Receiver<Event>,
     event_sender: Arc<mpsc::Sender<Event>>,
-    running_set: RunningSet,
+    running_set: RunningTaskSet,
     #[allow(dead_code)]
     ws_sender: ws::WsSender,
     ws_receiver: BoundedChannelReceiver<ws::WsMessage>,
@@ -71,7 +71,7 @@ pub struct Runner {
     command_sender: oneshot::Sender<Event>,
     command_receiver: oneshot::Receiver<Event>,
     event_sender: Arc<mpsc::Sender<Event>>,
-    running_set: RunningSet,
+    running_set: RunningTaskSet,
 }
 
 impl Runner {
@@ -162,7 +162,7 @@ impl Runner {
         Ok(())
     }
 
-    /// Garbage-collect task [AbortHandle]s in the [RunningSet].
+    /// Garbage-collect task [AbortHandle]s in the [RunningTaskSet].
     pub fn gc(&mut self) {
         self.running_set.retain(|_cid, handles| {
             handles.retain(|handle| !handle.is_finished());
@@ -170,9 +170,8 @@ impl Runner {
         });
     }
 
-    /// Garbage-collect task [AbortHandle]s in the [RunningSet] for a specific
+    /// Garbage-collect task [AbortHandle]s in the [RunningTaskSet] for a specific
     /// workflow [Cid], running on a worker.
-    ///
     pub fn gc_worker(&mut self, cid: Cid) {
         if let Some(mut handles) = self.running_set.get_mut(&cid) {
             handles.retain(|handle| !handle.is_finished());
@@ -242,15 +241,13 @@ mod test {
         time::Duration,
     };
 
-    static ATOMIC_PORT: AtomicUsize = AtomicUsize::new(1338);
+    static ATOMIC_PORT: AtomicUsize = AtomicUsize::new(444);
 
     async fn setup() -> Runner {
         let mut settings = Settings::load().unwrap();
-        settings.node.network.websocket_port = ATOMIC_PORT.fetch_add(1, Ordering::SeqCst) as u16;
-        let db = crate::test_utils::db::MemoryDb::setup_connection_pool(
-            Settings::load().unwrap().node(),
-        )
-        .unwrap();
+        let _ = ATOMIC_PORT.fetch_add(1, Ordering::SeqCst) as u16;
+        settings.node.network.websocket_port = ATOMIC_PORT.load(Ordering::SeqCst) as u16;
+        let db = crate::test_utils::db::MemoryDb::setup_connection_pool(settings.node()).unwrap();
 
         Runner::start(settings.into(), db).await.unwrap()
     }
