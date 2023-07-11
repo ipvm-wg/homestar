@@ -241,15 +241,13 @@ mod test {
         time::Duration,
     };
 
-    static ATOMIC_PORT: AtomicUsize = AtomicUsize::new(1338);
+    static ATOMIC_PORT: AtomicUsize = AtomicUsize::new(444);
 
     async fn setup() -> Runner {
         let mut settings = Settings::load().unwrap();
-        settings.node.network.websocket_port = ATOMIC_PORT.fetch_add(1, Ordering::SeqCst) as u16;
-        let db = crate::test_utils::db::MemoryDb::setup_connection_pool(
-            Settings::load().unwrap().node(),
-        )
-        .unwrap();
+        let _ = ATOMIC_PORT.fetch_add(1, Ordering::SeqCst) as u16;
+        settings.node.network.websocket_port = ATOMIC_PORT.load(Ordering::SeqCst) as u16;
+        let db = crate::test_utils::db::MemoryDb::setup_connection_pool(settings.node()).unwrap();
 
         Runner::start(settings.into(), db).await.unwrap()
     }
