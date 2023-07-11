@@ -171,7 +171,7 @@ pub trait Database: Send + Sync + Clone {
         Ok(wf)
     }
 
-    /// Return orkflow information with number of receipts emitted.
+    /// Return workflow information with number of receipts emitted.
     fn get_workflow_info(workflow_cid: Cid, conn: &mut Connection) -> Result<workflow::Info> {
         let wf = Self::select_workflow(workflow_cid, conn)?;
         let associated_receipts = workflow::StoredReceipt::belonging_to(&wf)
