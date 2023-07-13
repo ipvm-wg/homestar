@@ -98,6 +98,8 @@ pub struct Network {
     pub(crate) workflow_quorum: usize,
     /// Pubkey setup configuration
     pub(crate) keypair_config: PubkeyConfig,
+    /// Multiaddrs of the bootstrap nodes to connect to on startup
+    pub(crate) bootstrap_addresses: Vec<String>,
 }
 
 /// Database-related settings for a homestar node.
@@ -173,6 +175,7 @@ impl Default for Network {
             websocket_capacity: 100,
             workflow_quorum: 3,
             keypair_config: PubkeyConfig::Random,
+            bootstrap_addresses: Vec::new(),
         }
     }
 }
@@ -323,6 +326,8 @@ mod test {
         default_modded_settings.network.events_buffer_len = 1000;
         default_modded_settings.network.websocket_port = 9999;
         default_modded_settings.shutdown_timeout = Duration::from_secs(20);
+        default_modded_settings.network.bootstrap_addresses =
+            vec!["/ip4/127.0.0.1/tcp/9998/ws/".into()];
         assert_eq!(settings.node(), &default_modded_settings);
     }
 
