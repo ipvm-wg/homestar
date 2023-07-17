@@ -57,6 +57,18 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
     // Listen-on given address
     swarm.listen_on(settings.network.listen_address.to_string().parse()?)?;
 
+    // Dial bootstrap nodes specified in settings. Failure here shouldn't halt node startup.
+    for bootstrap_addr in &settings.network.bootstrap_addresses {
+        swarm
+            .dial(bootstrap_addr.clone())
+            .map(|_| {
+                tracing::info!("Successfully dialed configured bootstrap node {bootstrap_addr}")
+            })
+            // log dial failure and continue
+            .map_err(|e| tracing::warn!("Failed to dial bootstrap node {e}"))
+            .ok();
+    }
+
     // subscribe to `receipts` topic
     swarm
         .behaviour_mut()

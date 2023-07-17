@@ -99,7 +99,8 @@ pub struct Network {
     /// Pubkey setup configuration
     pub(crate) keypair_config: PubkeyConfig,
     /// Multiaddrs of the bootstrap nodes to connect to on startup
-    pub(crate) bootstrap_addresses: Vec<String>,
+    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+    pub(crate) bootstrap_addresses: Vec<libp2p::Multiaddr>,
 }
 
 /// Database-related settings for a homestar node.
@@ -327,7 +328,7 @@ mod test {
         default_modded_settings.network.websocket_port = 9999;
         default_modded_settings.shutdown_timeout = Duration::from_secs(20);
         default_modded_settings.network.bootstrap_addresses =
-            vec!["/ip4/127.0.0.1/tcp/9998/ws/".into()];
+            vec!["/ip4/127.0.0.1/tcp/9998/ws".to_string().try_into().unwrap()];
         assert_eq!(settings.node(), &default_modded_settings);
     }
 
