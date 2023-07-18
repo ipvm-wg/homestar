@@ -40,7 +40,7 @@ config = "0.13"
 console-subscriber = { version = "0.1", default-features = false, features = [ "parking_lot" ], optional = true }
 crossbeam = "0.8"
 dagga = "0.2"
-dashmap = "5.4"
+dashmap = "5.5"
 diesel = { version = "2.1", features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"] }
 dotenvy = "0.15"
 enum-assoc = { workspace = true }
