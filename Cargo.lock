@@ -1128,7 +1128,7 @@ dependencies = [
  "itertools 0.10.5",
  "log",
  "smallvec",
- "wasmparser",
+ "wasmparser 0.107.0",
  "wasmtime-types",
 ]
 
@@ -2299,7 +2299,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wasi-common",
- "wasmparser",
+ "wasmparser 0.109.0",
  "wasmtime",
  "wasmtime-component-util",
  "wasmtime-wasi",
@@ -6436,7 +6436,7 @@ dependencies = [
  "indexmap 1.9.3",
  "serde",
  "wasm-encoder",
- "wasmparser",
+ "wasmparser 0.107.0",
 ]
 
 [[package]]
@@ -6450,13 +6450,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmparser"
+version = "0.109.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bf9564f29de2890ee34406af52d2a92dec6ef044c8ddfc5add5db8dcfd36e6c"
+dependencies = [
+ "indexmap 2.0.0",
+ "semver",
+]
+
+[[package]]
 name = "wasmprinter"
 version = "0.2.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc960b30b84abca377768f3c62cff3a1c74db8c0f6759ed581827da0bd3a3fed"
 dependencies = [
  "anyhow",
- "wasmparser",
+ "wasmparser 0.107.0",
 ]
 
 [[package]]
@@ -6483,7 +6493,7 @@ dependencies = [
  "serde",
  "serde_json",
  "target-lexicon",
- "wasmparser",
+ "wasmparser 0.107.0",
  "wasmtime-cache",
  "wasmtime-component-macro",
  "wasmtime-component-util",
@@ -6565,7 +6575,7 @@ dependencies = [
  "object 0.30.4",
  "target-lexicon",
  "thiserror",
- "wasmparser",
+ "wasmparser 0.107.0",
  "wasmtime-cranelift-shared",
  "wasmtime-environ",
 ]
@@ -6602,7 +6612,7 @@ dependencies = [
  "target-lexicon",
  "thiserror",
  "wasm-encoder",
- "wasmparser",
+ "wasmparser 0.107.0",
  "wasmprinter",
  "wasmtime-component-util",
  "wasmtime-types",
@@ -6705,7 +6715,7 @@ dependencies = [
  "cranelift-entity",
  "serde",
  "thiserror",
- "wasmparser",
+ "wasmparser 0.107.0",
 ]
 
 [[package]]
@@ -6747,7 +6757,7 @@ dependencies = [
  "gimli",
  "object 0.30.4",
  "target-lexicon",
- "wasmparser",
+ "wasmparser 0.107.0",
  "wasmtime-cranelift-shared",
  "wasmtime-environ",
  "winch-codegen",
@@ -6920,7 +6930,7 @@ dependencies = [
  "regalloc2",
  "smallvec",
  "target-lexicon",
- "wasmparser",
+ "wasmparser 0.107.0",
  "wasmtime-environ",
 ]
 
@@ -7170,7 +7180,7 @@ dependencies = [
  "log",
  "wasm-encoder",
  "wasm-metadata",
- "wasmparser",
+ "wasmparser 0.107.0",
  "wit-parser",
 ]
 
