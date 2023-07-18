@@ -64,7 +64,7 @@ impl<T> Eq for Link<T> {}
 
 impl<T> PartialOrd for Link<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cid.cmp(other.cid()))
+        Some(self.cmp(other))
     }
 }
 
