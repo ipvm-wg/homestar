@@ -1,0 +1,16 @@
+[profile.default]
+retries = 0
+test-threads = "num-cpus"
+threads-required = 1
+
+[profile.ci]
+retries = { backoff = "exponential", count = 3, delay = "30s", jitter = true, max-delay = "300s" }
+failure-output = "immediate-final"
+fail-fast = false
+
+[test-groups]
+serial = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = 'test(/_serial$/)'
+test-group = 'serial'

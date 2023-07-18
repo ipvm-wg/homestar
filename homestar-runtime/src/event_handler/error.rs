@@ -26,11 +26,11 @@ pub(crate) enum RequestResponseError {
 impl RequestResponseError {
     /// Encode the error into a byte vector via [bincode].
     pub(crate) fn encode(&self) -> Result<Vec<u8>> {
-        bincode::encode_to_vec(self, bincode::config::standard()).map_err(anyhow::Error::msg)
+        bincode::encode_to_vec(self, bincode::config::standard()).map_err(anyhow::Error::new)
     }
 
     /// Decode the error from a byte vector via [bincode].
     pub(crate) fn decode(bytes: &[u8]) -> Result<(Self, usize)> {
-        bincode::decode_from_slice(bytes, bincode::config::standard()).map_err(anyhow::Error::msg)
+        bincode::decode_from_slice(bytes, bincode::config::standard()).map_err(anyhow::Error::new)
     }
 }

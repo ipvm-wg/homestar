@@ -43,8 +43,11 @@ use homestar_wasm::{
 };
 use indexmap::IndexMap;
 use libipld::{Cid, Ipld};
-use std::{collections::BTreeMap, sync::Arc, thread, time::Instant, vec};
-use tokio::{sync::mpsc, task::JoinSet};
+use std::{collections::BTreeMap, sync::Arc, time::Instant, vec};
+use tokio::{
+    sync::{mpsc, RwLock},
+    task::JoinSet,
+};
 use tracing::{debug, error};
 #[cfg(feature = "ipfs")]
 use tryhard::RetryFutureConfig;
@@ -137,51 +140,51 @@ impl<'a> Worker<'a> {
     #[allow(dead_code)]
     pub(crate) async fn run(
         self,
-        db: impl Database + Sync,
-        running_set: &mut RunningTaskSet,
+        db: impl Database + 'static,
+        running_tasks: &'a mut RunningTaskSet,
     ) -> Result<()> {
-        self.run_queue(db, running_set).await
+        self.run_queue(db, running_tasks).await
     }
 
     async fn run_queue(
         mut self,
-        db: impl Database + Sync,
-        running_set: &mut RunningTaskSet,
+        db: impl Database + 'static,
+        running_tasks: &'a mut RunningTaskSet,
     ) -> Result<()> {
-        fn insert_into_map<T>(mut map: Arc<LinkMap<T>>, key: Cid, value: T)
+        async fn insert_into_map<T>(map: Arc<RwLock<LinkMap<T>>>, key: Cid, value: T)
         where
             T: Clone,
         {
-            Arc::make_mut(&mut map)
+            map.write()
+                .await
                 .entry(key)
                 .or_insert_with(|| value.clone());
         }
 
-        fn resolve_cid(
+        async fn resolve_cid(
             cid: Cid,
             workflow_settings: Arc<workflow::Settings>,
-            linkmap: &Arc<IndexMap<Cid, InstructionResult<Arg>>>,
-            db: &impl Database,
-            event_sender: &Arc<mpsc::Sender<Event>>,
+            linkmap: Arc<RwLock<IndexMap<Cid, InstructionResult<Arg>>>>,
+            db: impl Database,
+            event_sender: Arc<mpsc::Sender<Event>>,
         ) -> Result<InstructionResult<Arg>, ResolveError> {
-            if let Some(result) = linkmap.get(&cid) {
+            if let Some(result) = linkmap.read().await.get(&cid) {
                 Ok(result.to_owned())
             } else {
                 match Db::find_instruction(Pointer::new(cid), &mut db.conn()?) {
                     Ok(found) => Ok(found.output_as_arg()),
                     Err(_) => {
                         debug!("no related instruction receipt found in the DB");
-                        let channel = BoundedChannel::oneshot();
+                        let (tx, rx) = BoundedChannel::oneshot();
                         event_sender
                             .try_send(Event::FindRecord(QueryRecord::with(
                                 cid,
                                 CapsuleTag::Receipt,
-                                channel.tx,
+                                tx,
                             )))
                             .map_err(|err| ResolveError::TransportError(err.to_string()))?;
 
-                        let found = match channel
-                            .rx
+                        let found = match rx
                             .recv_deadline(Instant::now() + workflow_settings.p2p_timeout)
                         {
                             Ok(ResponseEvent::Found(Ok(FoundEvent::Receipt(found)))) => found,
@@ -200,13 +203,12 @@ impl<'a> Worker<'a> {
 
                         let found_result = found.output_as_arg();
                         // Store the result in the linkmap for use in next iterations.
-                        insert_into_map(Arc::clone(linkmap), cid, found_result.clone());
+                        insert_into_map(linkmap.clone(), cid, found_result.clone()).await;
                         Ok(found_result)
                     }
                 }
             }
         }
-
         for batch in self.scheduler.run.into_iter() {
             let (mut task_set, handles) = batch.into_iter().try_fold(
                 (TaskSet::new(), vec![]),
@@ -237,28 +239,23 @@ impl<'a> Worker<'a> {
                             let state = State::default();
                             let mut wasm_ctx = WasmContext::new(state)?;
 
-                            let resolved = args.resolve(|cid| {
-                                // Resolve Cid in a separate native threads,
-                                // under a `std::thread::scope`.
-                                thread::scope(|scope| {
-                                    let handle = scope.spawn(|| {
-                                        resolve_cid(
-                                            cid,
-                                            self.workflow_settings.clone(),
-                                            &self.scheduler.linkmap,
-                                            &db,
-                                            &self.event_sender,
-                                        )
-                                    });
+                            let db = db.clone();
+                            let settings = self.workflow_settings.clone();
+                            let linkmap = self.scheduler.linkmap.clone();
+                            let event_sender = self.event_sender.clone();
 
-                                    handle.join().map_err(|_| {
-                                        anyhow!("failed to join thread for resolving Cid: {cid}")
-                                    })?
-                                })
-                            })?;
+                            let resolved = args.resolve(move |cid| {
+                                Box::pin(resolve_cid(
+                                    cid,
+                                    settings.clone(),
+                                    linkmap.clone(),
+                                    db.clone(),
+                                    event_sender.clone(),
+                                ))
+                            });
 
                             let handle = task_set.spawn(async move {
-                                match wasm_ctx.run(wasm, &fun, resolved).await {
+                                match wasm_ctx.run(wasm, &fun, resolved.await?).await {
                                     Ok(output) => {
                                         Ok((output, instruction_ptr, invocation_ptr, meta))
                                     }
@@ -278,7 +275,7 @@ impl<'a> Worker<'a> {
             )?;
 
             // Concurrently add handles to Runner's running set.
-            running_set.append_or_insert(self.workflow_info.cid(), handles);
+            running_tasks.append_or_insert(self.workflow_info.cid(), handles);
 
             while let Some(res) = task_set.join_next().await {
                 let (executed, instruction_ptr, invocation_ptr, meta) = res??;
@@ -293,7 +290,7 @@ impl<'a> Worker<'a> {
                 );
 
                 let mut receipt = Receipt::try_with(instruction_ptr, &invocation_receipt)?;
-                Arc::make_mut(&mut Arc::clone(&self.scheduler.linkmap)).insert(
+                self.scheduler.linkmap.write().await.insert(
                     Cid::try_from(receipt.instruction())?,
                     receipt.output_as_arg(),
                 );
@@ -312,12 +309,12 @@ impl<'a> Worker<'a> {
                 let stored_receipt = Db::store_receipt(receipt, &mut db.conn()?)?;
 
                 // send internal event
-                let channel = BoundedChannel::oneshot();
+                let (tx, _rx) = BoundedChannel::oneshot();
                 self.event_sender
                     .try_send(Event::CapturedReceipt(Captured::with(
                         stored_receipt,
                         self.workflow_info.clone(),
-                        channel.tx,
+                        tx,
                     )))?
             }
         }
@@ -524,7 +521,7 @@ mod test {
         .await
         .unwrap();
 
-        assert!(worker.scheduler.linkmap.is_empty());
+        assert!(worker.scheduler.linkmap.read().await.is_empty());
         assert!(worker.scheduler.ran.is_none());
         assert_eq!(worker.scheduler.run.len(), 2);
         assert_eq!(worker.scheduler.resume_step, None);
@@ -533,12 +530,12 @@ mod test {
 
         #[cfg(feature = "ipfs")]
         {
-            let mut running_set = DashMap::new();
+            let mut running_tasks = DashMap::new();
             let worker_workflow_cid = worker.workflow_info.cid;
-            worker.run(db.clone(), &mut running_set).await.unwrap();
-            assert_eq!(running_set.len(), 1);
-            assert!(running_set.contains_key(&worker_workflow_cid));
-            assert_eq!(running_set.get(&worker_workflow_cid).unwrap().len(), 2);
+            worker.run(db.clone(), &mut running_tasks).await.unwrap();
+            assert_eq!(running_tasks.len(), 1);
+            assert!(running_tasks.contains_key(&worker_workflow_cid));
+            assert_eq!(running_tasks.get(&worker_workflow_cid).unwrap().len(), 2);
 
             // first time check DHT for workflow info
             let workflow_info_event = rx.recv().await.unwrap();
@@ -693,10 +690,12 @@ mod test {
         .await
         .unwrap();
 
-        assert_eq!(worker.scheduler.linkmap.len(), 1);
+        assert_eq!(worker.scheduler.linkmap.read().await.len(), 1);
         assert!(worker
             .scheduler
             .linkmap
+            .read()
+            .await
             .contains_key(&instruction1.to_cid().unwrap()));
         assert_eq!(worker.scheduler.ran.as_ref().unwrap().len(), 1);
         assert_eq!(worker.scheduler.run.len(), 1);
@@ -706,12 +705,12 @@ mod test {
 
         #[cfg(feature = "ipfs")]
         {
-            let mut running_set = DashMap::new();
+            let mut running_tasks = DashMap::new();
             let worker_workflow_cid = worker.workflow_info.cid;
-            worker.run(db.clone(), &mut running_set).await.unwrap();
-            assert_eq!(running_set.len(), 1);
-            assert!(running_set.contains_key(&worker_workflow_cid));
-            assert_eq!(running_set.get(&worker_workflow_cid).unwrap().len(), 1);
+            worker.run(db.clone(), &mut running_tasks).await.unwrap();
+            assert_eq!(running_tasks.len(), 1);
+            assert!(running_tasks.contains_key(&worker_workflow_cid));
+            assert_eq!(running_tasks.get(&worker_workflow_cid).unwrap().len(), 1);
 
             // we should have received 1 receipt
             let next_run_receipt = rx.recv().await.unwrap();
@@ -863,14 +862,18 @@ mod test {
         .await
         .unwrap();
 
-        assert_eq!(worker.scheduler.linkmap.len(), 1);
+        assert_eq!(worker.scheduler.linkmap.read().await.len(), 1);
         assert!(!worker
             .scheduler
             .linkmap
+            .read()
+            .await
             .contains_key(&instruction1.to_cid().unwrap()));
         assert!(worker
             .scheduler
             .linkmap
+            .read()
+            .await
             .contains_key(&instruction2.to_cid().unwrap()));
         assert_eq!(worker.scheduler.ran.as_ref().unwrap().len(), 2);
         assert!(worker.scheduler.run.is_empty());

@@ -7,9 +7,10 @@ use libp2p::{identity, identity::secp256k1};
 use rand::{Rng, SeedableRng};
 use sec1::der::Decode;
 use serde::Deserialize;
-use serde_with::{base64::Base64, serde_as, DurationSeconds};
+use serde_with::{base64::Base64, serde_as, DisplayFromStr, DurationSeconds};
 use std::{
     io::Read,
+    net::{IpAddr, Ipv6Addr},
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -60,7 +61,7 @@ pub struct Node {
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Network {
-    /// Buffer-length for events channel.
+    /// Buffer-length for event(s) / command(s) channels.
     pub(crate) events_buffer_len: usize,
     /// Address for [Swarm] to listen on.
     ///
@@ -81,6 +82,13 @@ pub struct Network {
     pub(crate) pubsub_idle_timeout: Duration,
     /// Quorum for receipt records on the DHT.
     pub(crate) receipt_quorum: usize,
+    /// RPC-server port.
+    #[serde_as(as = "DisplayFromStr")]
+    pub(crate) rpc_host: IpAddr,
+    /// RPC-server max-concurrent connections.
+    pub(crate) rpc_max_connections: usize,
+    /// RPC-server port.
+    pub(crate) rpc_port: u16,
     /// Transport connection timeout.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) transport_connection_timeout: Duration,
@@ -167,6 +175,9 @@ impl Default for Network {
             pubsub_heartbeat: Duration::new(60, 0),
             pubsub_idle_timeout: Duration::new(60 * 60 * 24, 0),
             receipt_quorum: 2,
+            rpc_host: IpAddr::V6(Ipv6Addr::LOCALHOST),
+            rpc_max_connections: 10,
+            rpc_port: 3030,
             transport_connection_timeout: Duration::new(20, 0),
             websocket_host: Uri::from_static("127.0.0.1"),
             websocket_port: 1337,
@@ -273,12 +284,18 @@ impl PubkeyConfig {
 
 impl Settings {
     /// Load settings.
+    ///
+    /// Inject environment variables naming them properly on the settings
+    /// e.g. [database] max_pool_size = 10.
+    /// This would be injected with environment variable
+    /// HOMESTAR__NODE__DB__MAX_POOL_SIZE=10.
+    /// Use two underscores as defined by the separator below
     pub fn load() -> Result<Self, ConfigError> {
+        #[cfg(test)]
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/settings.toml");
-        // inject environment variables naming them properly on the settings
-        // e.g. [database] url="foo"
-        // would be injected with environment variable HOMESTAR_DATABASE_URL="foo"
-        // use one underscore as defined by the separator below
+        #[cfg(not(test))]
+        let path = PathBuf::from("config/settings.toml");
+
         Self::build(path)
     }
 
@@ -290,7 +307,14 @@ impl Settings {
 
     fn build(path: PathBuf) -> Result<Self, ConfigError> {
         let s = Config::builder()
-            .add_source(File::with_name(&path.as_path().display().to_string()))
+            .add_source(File::with_name(
+                &path
+                    .canonicalize()
+                    .map_err(|e| ConfigError::NotFound(e.to_string()))?
+                    .as_path()
+                    .display()
+                    .to_string(),
+            ))
             .add_source(Environment::with_prefix("HOMESTAR").separator("__"))
             .build()?;
         s.try_deserialize()
@@ -303,27 +327,37 @@ mod test {
     use crate::Settings;
 
     #[test]
-    fn test_defaults() {
+    fn defaults() {
         let settings = Settings::load().unwrap();
-        let node_settings = settings.node();
+        let node_settings = settings.node;
 
         let default_settings = Node {
             shutdown_timeout: Duration::from_secs(20),
             ..Default::default()
         };
 
-        assert_eq!(node_settings, &default_settings);
+        assert_eq!(node_settings, default_settings);
     }
 
     #[test]
-    fn test_defaults_with_modification() {
+    fn defaults_with_modification() {
         let settings = Settings::build("fixtures/settings.toml".into()).unwrap();
-        let mut default_modded_settings = Node::default();
 
+        let mut default_modded_settings = Node::default();
         default_modded_settings.network.events_buffer_len = 1000;
         default_modded_settings.network.websocket_port = 9999;
         default_modded_settings.shutdown_timeout = Duration::from_secs(20);
-        assert_eq!(settings.node(), &default_modded_settings);
+
+        assert_eq!(settings.node, default_modded_settings);
+    }
+
+    #[test]
+    fn overriding_env() {
+        std::env::set_var("HOMESTAR__NODE__NETWORK__RPC_PORT", "2046");
+        std::env::set_var("HOMESTAR__NODE__DB__MAX_POOL_SIZE", "1");
+        let settings = Settings::build("fixtures/settings.toml".into()).unwrap();
+        assert_eq!(settings.node.network.rpc_port, 2046);
+        assert_eq!(settings.node.db.max_pool_size, 1);
     }
 
     #[test]

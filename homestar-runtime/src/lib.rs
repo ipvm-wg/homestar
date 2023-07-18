@@ -18,10 +18,11 @@
 //! [homestar-wasm]: homestar_wasm
 
 pub mod cli;
+pub mod daemon;
 pub mod db;
 mod event_handler;
-pub mod logger;
-mod network;
+mod logger;
+pub mod network;
 mod receipt;
 pub mod runner;
 mod scheduler;
@@ -31,8 +32,8 @@ mod worker;
 pub mod workflow;
 
 pub use db::Db;
-#[cfg(feature = "websocket-server")]
-pub use network::ws;
+pub use event_handler::channel;
+pub use logger::*;
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};
 pub use runner::Runner;
 pub use settings::Settings;

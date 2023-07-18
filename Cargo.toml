@@ -22,11 +22,13 @@ async-trait = "0.1"
 byte-unit = { version = "4.0", default-features = false }
 enum-assoc = " 1.1"
 enum-as-inner = "0.6"
+futures = "0.3"
 libipld = { version = "0.16", features = ["serde-codec"] }
 rand = "0.8"
 serde_ipld_dagcbor = "0.3"
 thiserror = "1.0"
-tokio = { version = "1.29", features = ["fs", "io-util", "io-std", "macros", "rt", "rt-multi-thread", "signal", "tracing"] }
+tokio = { version = "1.29", features = ["fs", "io-util", "io-std", "macros", "rt",
+    "rt-multi-thread", "signal", "sync", "tracing"] }
 tracing = "0.1"
 ucan = "0.4"
 

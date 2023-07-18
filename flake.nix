@@ -77,6 +77,10 @@
           cargo doc --no-deps --document-private-items --open
         '';
 
+        docAll = pkgs.writeScriptBin "doc-all" ''
+          cargo doc --document-private-items --open
+        '';
+
         compileWasm = pkgs.writeScriptBin "compile-wasm" ''
           cargo build -p homestar-functions --target wasm32-unknown-unknown --release
         '';
@@ -160,6 +164,7 @@
           db
           dbReset
           doc
+          docAll
           compileWasm
           (builtins.map (arch: dockerBuild arch) ["amd64" "arm64"])
           (builtins.map (cmd: xFunc cmd) ["build" "check" "run" "clippy"])

@@ -21,5 +21,10 @@ private
 homestar-guest-wasm/out
 homestar-wasm/out
 
+# daemon
+homestar.err
+homestar.out
+homestar.pid
+
 # locks
 homestar-wasm/Cargo.lock

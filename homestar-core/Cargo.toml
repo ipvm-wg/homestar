@@ -22,14 +22,17 @@ doctest = true
 # return to version.workspace = true after the following issue is fixed:
 # https://github.com/DevinR528/cargo-sort/issues/47
 anyhow = { workspace = true }
+async-recursion = "1.0"
 byte-unit = { workspace = true }
 diesel = { version = "2.0", features = ["sqlite"] }
 enum-as-inner = { workspace = true }
 enum-assoc = { workspace = true }
+futures = { workspace = true }
 generic-array = { version = "0.14", features = ["serde"] }
 indexmap = "2.0"
 libipld = { workspace = true }
 libsqlite3-sys = { version = "0.26", features = ["bundled"] }
+once_cell = { version = "1.18", optional = true }
 proptest = { version = "1.2", optional = true }
 rand = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
@@ -47,7 +50,7 @@ json = "0.12"
 
 [features]
 default = []
-test_utils = ["proptest"]
+test_utils = ["once_cell", "proptest"]
 
 [package.metadata.docs.rs]
 all-features = true
