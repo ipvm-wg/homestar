@@ -98,9 +98,9 @@ pub struct Network {
     pub(crate) workflow_quorum: usize,
     /// Pubkey setup configuration
     pub(crate) keypair_config: PubkeyConfig,
-    /// Multiaddrs of the bootstrap nodes to connect to on startup
+    /// Multiaddrs of the trusted nodes to connect to on startup. These addresses are added as explicit peers for gossipsub.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
-    pub(crate) bootstrap_addresses: Vec<libp2p::Multiaddr>,
+    pub(crate) trusted_node_addresses: Vec<libp2p::Multiaddr>,
 }
 
 /// Database-related settings for a homestar node.
@@ -176,7 +176,7 @@ impl Default for Network {
             websocket_capacity: 100,
             workflow_quorum: 3,
             keypair_config: PubkeyConfig::Random,
-            bootstrap_addresses: Vec::new(),
+            trusted_node_addresses: Vec::new(),
         }
     }
 }
@@ -327,7 +327,7 @@ mod test {
         default_modded_settings.network.events_buffer_len = 1000;
         default_modded_settings.network.websocket_port = 9999;
         default_modded_settings.shutdown_timeout = Duration::from_secs(20);
-        default_modded_settings.network.bootstrap_addresses =
+        default_modded_settings.network.trusted_node_addresses =
             vec!["/ip4/127.0.0.1/tcp/9998/ws".to_string().try_into().unwrap()];
         assert_eq!(settings.node(), &default_modded_settings);
     }
