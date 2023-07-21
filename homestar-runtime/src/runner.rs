@@ -15,10 +15,9 @@ use crate::{
 use anyhow::Result;
 use dashmap::DashMap;
 use libipld::Cid;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
+#[cfg(not(test))]
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use tokio::{
     runtime, select,
     signal::unix::{signal, SignalKind},
@@ -29,6 +28,7 @@ use tokio::{
 use tokio_util::time::DelayQueue;
 use tracing::info;
 
+#[cfg(not(test))]
 const HOMESTAR_THREAD: &str = "homestar-runtime";
 
 /// Type alias for a [DashMap] containing running worker [JoinHandle]s.
@@ -99,6 +99,7 @@ impl Runner {
     }
 
     /// Initialize and start the Homestar [Runner] / runtime.
+    #[cfg(not(test))]
     pub fn start(settings: Arc<Settings>, db: impl Database + 'static) -> Result<Runner> {
         let runtime = runtime::Builder::new_multi_thread()
             .enable_all()
@@ -107,6 +108,18 @@ impl Runner {
                 let id = ATOMIC_ID.fetch_add(1, Ordering::SeqCst);
                 format!("{HOMESTAR_THREAD}-{id}")
             })
+            .build()?;
+
+        let runner = Self::init(settings, db, runtime)?;
+
+        Ok(runner)
+    }
+
+    /// Initialize and start the Homestar [Runner] / runtime.
+    #[cfg(test)]
+    pub fn start(settings: Arc<Settings>, db: impl Database + 'static) -> Result<Runner> {
+        let runtime = runtime::Builder::new_current_thread()
+            .enable_all()
             .build()?;
 
         let runner = Self::init(settings, db, runtime)?;

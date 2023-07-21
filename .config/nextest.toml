@@ -14,3 +14,7 @@ serial = { max-threads = 1 }
 [[profile.default.overrides]]
 filter = 'test(/_serial$/)'
 test-group = 'serial'
+
+[[profile.ci.overrides]]
+filter = 'test(/_serial$/)'
+test-group = 'serial'

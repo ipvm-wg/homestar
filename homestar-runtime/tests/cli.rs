@@ -15,6 +15,7 @@ use std::{
     process::{Command, Stdio},
     time::Duration,
 };
+use sysinfo::{PidExt, ProcessExt, SystemExt};
 use wait_timeout::ChildExt;
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(crate_name!()));
@@ -54,6 +55,7 @@ fn test_help_serial() -> Result<()> {
         .stdout(predicate::str::contains("run"))
         .stdout(predicate::str::contains("help"))
         .stdout(predicate::str::contains("version"));
+    let _ = stop_bin();
 
     Ok(())
 }
@@ -71,6 +73,8 @@ fn test_version_serial() -> Result<()> {
             crate_name!(),
             env!("CARGO_PKG_VERSION")
         )));
+    let _ = stop_bin();
+
     Ok(())
 }
 
@@ -78,6 +82,7 @@ fn test_version_serial() -> Result<()> {
 #[serial]
 fn test_server_not_running_serial() -> Result<()> {
     let _ = stop_bin();
+
     Command::new(BIN.as_os_str())
         .arg("ping")
         .assert()
@@ -111,6 +116,7 @@ fn test_server_not_running_serial() -> Result<()> {
             predicate::str::contains("Connection refused")
                 .or(predicate::str::contains("server was already shutdown")),
         );
+    let _ = stop_bin();
 
     Ok(())
 }
@@ -162,26 +168,25 @@ fn test_server_serial() -> Result<()> {
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
 
-    match homestar_proc.try_wait() {
-        Ok(Some(_)) => Ok(()),
-        Ok(None) => {
-            let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
-                Some(status) => status.code(),
-                None => {
-                    homestar_proc.kill().unwrap();
-                    homestar_proc.wait().unwrap().code()
-                }
-            };
-            Ok(())
-        }
-        Err(_e) => Ok(()),
+    if let Ok(None) = homestar_proc.try_wait() {
+        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
+            Some(status) => status.code(),
+            None => {
+                homestar_proc.kill().unwrap();
+                homestar_proc.wait().unwrap().code()
+            }
+        };
     }
+    let _ = stop_bin();
+
+    Ok(())
 }
 
 #[test]
 #[serial]
 fn test_daemon_serial() -> Result<()> {
     let _ = stop_bin();
+
     Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-d")
@@ -190,11 +195,19 @@ fn test_daemon_serial() -> Result<()> {
         .assert()
         .success();
 
-    let pid = fs::read_to_string("/tmp/homestar.pid")
-        .expect("Should have a PID file")
-        .trim()
-        .parse::<i32>()
-        .unwrap();
+    let system = sysinfo::System::new_all();
+    let pid = system
+        .processes_by_exact_name("homestar-runtime")
+        .collect::<Vec<_>>()
+        .first()
+        .map(|p| p.pid().as_u32())
+        .unwrap_or(
+            fs::read_to_string("/tmp/homestar.pid")
+                .expect("Should have a PID file")
+                .trim()
+                .parse::<u32>()
+                .unwrap(),
+        );
 
     let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 3030);
     let result = retry(Fixed::from_millis(500), || {
@@ -212,9 +225,10 @@ fn test_daemon_serial() -> Result<()> {
         .stdout(predicate::str::contains("::1"))
         .stdout(predicate::str::contains("pong"));
 
-    let _result = signal::kill(Pid::from_raw(pid), Signal::SIGTERM);
+    let _result = signal::kill(Pid::from_raw(pid.try_into().unwrap()), Signal::SIGTERM);
 
     Command::new(BIN.as_os_str()).arg("ping").assert().failure();
+    let _ = stop_bin();
 
     Ok(())
 }
