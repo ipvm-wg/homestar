@@ -2371,6 +2371,7 @@ dependencies = [
  "tracing-subscriber",
  "tryhard",
  "url",
+ "wait-timeout",
 ]
 
 [[package]]

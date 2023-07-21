@@ -56,7 +56,7 @@ fn init(writer: NonBlocking, guard: WorkerGuard) -> WorkerGuard {
     });
 
     #[cfg(all(feature = "console", tokio_unstable))]
-    filter
+    let filter = filter
         .add_directive("tokio=trace".parse().expect(DIRECTIVE_EXPECT))
         .add_directive("runtime=trace".parse().expect(DIRECTIVE_EXPECT));
 

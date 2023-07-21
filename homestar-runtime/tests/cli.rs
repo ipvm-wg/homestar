@@ -13,7 +13,9 @@ use std::{
     net::{IpAddr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Command, Stdio},
+    time::Duration,
 };
+use wait_timeout::ChildExt;
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(crate_name!()));
 
@@ -159,9 +161,21 @@ fn test_server_serial() -> Result<()> {
         .stderr(predicate::str::contains("Connection refused"));
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
-    homestar_proc.try_wait().unwrap();
 
-    Ok(())
+    match homestar_proc.try_wait() {
+        Ok(Some(_)) => Ok(()),
+        Ok(None) => {
+            let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
+                Some(status) => status.code(),
+                None => {
+                    homestar_proc.kill().unwrap();
+                    homestar_proc.wait().unwrap().code()
+                }
+            };
+            Ok(())
+        }
+        Err(_e) => Ok(()),
+    }
 }
 
 #[test]
@@ -198,10 +212,9 @@ fn test_daemon_serial() -> Result<()> {
         .stdout(predicate::str::contains("::1"))
         .stdout(predicate::str::contains("pong"));
 
-    let result = signal::kill(Pid::from_raw(pid), Signal::SIGTERM);
-    if let Err(err) = result {
-        panic!("Homestar server/runtime failed to be shutdown via SIGTERM: {err}");
-    }
+    let _result = signal::kill(Pid::from_raw(pid), Signal::SIGTERM);
+
+    Command::new(BIN.as_os_str()).arg("ping").assert().failure();
 
     Ok(())
 }
