@@ -94,6 +94,7 @@ impl Event {
                 );
             }
             Event::Shutdown(tx) => {
+                info!("event_handler server shutting down");
                 event_handler.shutdown().await;
                 let _ = tx.send(());
             }
@@ -178,7 +179,7 @@ impl Captured {
                     Record::new(instruction_bytes, receipt_bytes.to_vec()),
                     receipt_quorum,
                 )
-                .map_err(anyhow::Error::msg)?;
+                .map_err(anyhow::Error::new)?;
 
             // Store workflow_receipt join information.
             let _ = Db::store_workflow_receipt(self.workflow.cid, receipt_cid, conn);
@@ -192,7 +193,7 @@ impl Captured {
                 .behaviour_mut()
                 .kademlia
                 .start_providing(Key::new(&workflow_cid_bytes))
-                .map_err(anyhow::Error::msg)?;
+                .map_err(anyhow::Error::new)?;
 
             let key = RequestResponseKey::new(self.workflow.cid.to_string(), CapsuleTag::Workflow);
 
@@ -208,7 +209,7 @@ impl Captured {
                     Record::new(workflow_cid_bytes, workflow_bytes),
                     workflow_quorum,
                 )
-                .map_err(anyhow::Error::msg)?;
+                .map_err(anyhow::Error::new)?;
 
             // TODO: Handle Workflow Complete / Num of Tasks finished.
 

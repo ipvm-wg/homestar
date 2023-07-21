@@ -95,7 +95,7 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run Tests
-        run: cargo nextest run --all-features
+        run: cargo nextest run --profile ci --all-features
 
       - name: Run Doc Tests
         run: cargo test --doc
@@ -128,7 +128,7 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run Tests
-        run: cargo nextest run --no-default-features
+        run: cargo nextest run --profile ci --no-default-features
 
   run-docs:
     runs-on: ubuntu-latest

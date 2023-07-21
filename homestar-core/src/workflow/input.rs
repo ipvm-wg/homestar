@@ -11,9 +11,11 @@ use crate::workflow::{
     pointer::{Await, AwaitResult, ERR_BRANCH, OK_BRANCH, PTR_BRANCH},
     InstructionResult, Pointer,
 };
+use async_recursion::async_recursion;
+use futures::{future, future::BoxFuture};
 use libipld::{serde::from_ipld, Cid, Ipld};
 use serde::{Deserialize, Serialize};
-use std::{collections::btree_map::BTreeMap, result::Result};
+use std::{collections::btree_map::BTreeMap, result::Result, sync::Arc};
 
 mod parse;
 pub use parse::*;
@@ -65,13 +67,16 @@ where
     /// [awaited promises]: Await
     /// [inputs]: Input
     /// [resolving Ipld links]: resolve_links
-    pub fn resolve<F>(self, lookup_fn: F) -> Result<Self, ResolveError>
+    pub async fn resolve<'a, F>(self, lookup_fn: F) -> Result<Self, ResolveError>
     where
-        F: FnMut(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
+        F: Fn(Cid) -> BoxFuture<'a, Result<InstructionResult<T>, ResolveError>>
+            + Clone
+            + Send
+            + Sync,
         Ipld: From<T>,
     {
         let inputs = resolve_args(self.0, lookup_fn);
-        Ok(Args(inputs))
+        Ok(Args(inputs.await))
     }
 }
 
@@ -144,26 +149,29 @@ impl<T> Input<T> {
     /// [awaited promises]: Await
     /// [inputs]: Input
     /// [resolving Ipld links]: resolve_links
-    pub fn resolve<F>(self, mut lookup_fn: F) -> Input<T>
+    pub async fn resolve<'a, F>(self, lookup_fn: F) -> Input<T>
     where
-        F: FnMut(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
+        F: Fn(Cid) -> BoxFuture<'a, Result<InstructionResult<T>, ResolveError>>
+            + Clone
+            + Send
+            + Sync,
         Ipld: From<T>,
     {
         match self {
             Input::Ipld(ipld) => {
                 if let Ok(await_promise) = Await::try_from(&ipld) {
-                    if let Ok(func_ret) = lookup_fn(await_promise.instruction_cid()) {
+                    if let Ok(func_ret) = lookup_fn(await_promise.instruction_cid()).await {
                         Input::Arg(func_ret)
                     } else {
                         Input::Deferred(await_promise)
                     }
                 } else {
-                    Input::Ipld(resolve_links(ipld, lookup_fn))
+                    Input::Ipld(resolve_links(ipld, lookup_fn.into()).await)
                 }
             }
             Input::Arg(ref _arg) => self,
             Input::Deferred(await_promise) => {
-                if let Ok(func_ret) = lookup_fn(await_promise.instruction_cid()) {
+                if let Ok(func_ret) = lookup_fn(await_promise.instruction_cid()).await {
                     Input::Arg(func_ret)
                 } else {
                     Input::Deferred(await_promise)
@@ -229,65 +237,81 @@ where
     }
 }
 
-fn resolve_args<T, F>(args: Vec<Input<T>>, lookup_fn: F) -> Vec<Input<T>>
+async fn resolve_args<'a, T, F>(args: Vec<Input<T>>, lookup_fn: F) -> Vec<Input<T>>
 where
-    F: FnMut(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
+    F: Fn(Cid) -> BoxFuture<'a, Result<InstructionResult<T>, ResolveError>> + Clone + Send + Sync,
     Ipld: From<T>,
 {
     let args = args.into_iter().map(|v| v.resolve(lookup_fn.clone()));
-    args.collect()
+    future::join_all(args).await.into_iter().collect()
 }
 
 /// Resolve [awaited promises] for *only* [Ipld] data, given a lookup function.
 ///
 /// [awaited promises]: Await
-pub fn resolve_links<T, F>(ipld: Ipld, mut lookup_fn: F) -> Ipld
+#[async_recursion]
+pub async fn resolve_links<'a, T, F>(ipld: Ipld, lookup_fn: Arc<F>) -> Ipld
 where
-    F: FnMut(Cid) -> Result<InstructionResult<T>, ResolveError> + Clone,
+    F: Fn(Cid) -> BoxFuture<'a, Result<InstructionResult<T>, ResolveError>> + Clone + Sync + Send,
     Ipld: From<T>,
 {
     match ipld {
         Ipld::Map(m) => {
-            let btree = m.into_iter().map(|(k, v)| match v {
-                Ipld::Link(cid) => {
-                    if let Ok(func_ret) = lookup_fn(cid) {
-                        if k.eq(PTR_BRANCH) {
-                            (k, func_ret.into())
+            let futures = m.into_iter().map(|(k, v)| async {
+                match v {
+                    Ipld::Link(cid) => {
+                        let mut f = Arc::clone(&lookup_fn);
+                        if let Ok(func_ret) = Arc::make_mut(&mut f)(cid).await {
+                            if k.eq(PTR_BRANCH) {
+                                (k, func_ret.into())
+                            } else {
+                                (k, func_ret.into_inner().into())
+                            }
                         } else {
-                            (k, func_ret.into_inner().into())
+                            (k, v)
                         }
-                    } else {
-                        (k, v)
                     }
+                    Ipld::Map(ref m) => {
+                        let resolved = resolve_links(Ipld::Map(m.clone()), lookup_fn.clone()).await;
+                        (k, resolved)
+                    }
+                    Ipld::List(ref l) => {
+                        let resolved =
+                            resolve_links(Ipld::List(l.clone()), lookup_fn.clone()).await;
+                        (k, resolved)
+                    }
+                    _ => (k, v),
                 }
-                Ipld::Map(ref m) => {
-                    let resolved = resolve_links(Ipld::Map(m.clone()), lookup_fn.clone());
-                    (k, resolved)
-                }
-                Ipld::List(ref l) => {
-                    let resolved = resolve_links(Ipld::List(l.clone()), lookup_fn.clone());
-                    (k, resolved)
-                }
-                _ => (k, v),
             });
-
-            Ipld::Map(btree.collect::<BTreeMap<String, Ipld>>())
+            let resolved_results = future::join_all(futures).await;
+            Ipld::Map(
+                resolved_results
+                    .into_iter()
+                    .collect::<BTreeMap<String, Ipld>>(),
+            )
         }
         Ipld::List(l) => {
-            let list = l.into_iter().map(|v| match v {
-                Ipld::Link(cid) => {
-                    if let Ok(func_ret) = lookup_fn(cid) {
-                        func_ret.into_inner().into()
-                    } else {
-                        v
+            let futures = l.into_iter().map(|v| async {
+                match v {
+                    Ipld::Link(cid) => {
+                        let mut f = Arc::clone(&lookup_fn);
+                        if let Ok(func_ret) = Arc::make_mut(&mut f)(cid).await {
+                            func_ret.into_inner().into()
+                        } else {
+                            v
+                        }
                     }
+                    Ipld::Map(ref m) => {
+                        resolve_links(Ipld::Map(m.clone()), lookup_fn.clone()).await
+                    }
+                    Ipld::List(ref l) => {
+                        resolve_links(Ipld::List(l.clone()), lookup_fn.clone()).await
+                    }
+                    _ => v,
                 }
-                Ipld::Map(ref m) => resolve_links(Ipld::Map(m.clone()), lookup_fn.clone()),
-                Ipld::List(ref l) => resolve_links(Ipld::List(l.clone()), lookup_fn.clone()),
-                _ => v,
             });
-
-            Ipld::List(list.collect())
+            let resolved_results = future::join_all(futures).await;
+            Ipld::List(resolved_results)
         }
         _ => ipld,
     }

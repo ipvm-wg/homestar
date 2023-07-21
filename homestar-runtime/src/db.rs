@@ -13,14 +13,18 @@ use byte_unit::{AdjustedByte, Byte, ByteUnit};
 use diesel::{
     prelude::*,
     r2d2::{self, CustomizeConnection, ManageConnection},
-    BelongingToDsl, RunQueryDsl, SqliteConnection,
+    BelongingToDsl, Connection as SingleConnection, RunQueryDsl, SqliteConnection,
 };
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use dotenvy::dotenv;
 use homestar_core::workflow::Pointer;
 use libipld::Cid;
 use std::{env, sync::Arc, time::Duration};
 use tokio::fs;
+use tracing::info;
 
+const ENV: &str = "DATABASE_URL";
+const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
 const PRAGMAS: &str = "
 PRAGMA journal_mode = WAL;          -- better write-concurrency
 PRAGMA synchronous = NORMAL;        -- fsync only in critical moments
@@ -51,23 +55,41 @@ impl Clone for Db {
 }
 
 impl Db {
-    fn url() -> String {
-        dotenv().ok();
-        env::var("DATABASE_URL").expect("DATABASE_URL must be set")
-    }
-
     /// Get size of SQlite file in megabytes (via async call).
     pub async fn size() -> Result<AdjustedByte> {
-        let len = fs::metadata(Db::url()).await?.len();
+        let url = env::var(ENV)?;
+        let len = fs::metadata(url).await?.len();
         let byte = Byte::from_bytes(len);
         let byte_unit = byte.get_adjusted_unit(ByteUnit::MB);
         Ok(byte_unit)
+    }
+
+    /// Get database url.
+    ///
+    /// Contains a minimal side-effect to set the env if not already set.
+    pub fn set_url(database_url: Option<String>) -> Option<String> {
+        database_url.map_or_else(
+            || dotenv().ok().and_then(|_| env::var(ENV).ok()),
+            |url| {
+                env::set_var(ENV, &url);
+                Some(url)
+            },
+        )
     }
 }
 
 /// Database trait for working with different Sqlite connection pool and
 /// connection configurations.
 pub trait Database: Send + Sync + Clone {
+    /// Test a Sqlite connection to the database and run pending migrations.
+    fn setup(url: &str) -> Result<SqliteConnection> {
+        info!("Using database at {:?}", url);
+        let mut connection = SqliteConnection::establish(url)?;
+        let _ = connection.run_pending_migrations(MIGRATIONS);
+
+        Ok(connection)
+    }
+
     /// Establish a pooled connection to Sqlite database.
     fn setup_connection_pool(settings: &settings::Node) -> Result<Self>
     where
@@ -189,7 +211,9 @@ pub trait Database: Send + Sync + Clone {
 
 impl Database for Db {
     fn setup_connection_pool(settings: &settings::Node) -> Result<Self> {
-        let manager = r2d2::ConnectionManager::<SqliteConnection>::new(Db::url());
+        let database_url = env::var(ENV)?;
+        Self::setup(&database_url)?;
+        let manager = r2d2::ConnectionManager::<SqliteConnection>::new(database_url);
 
         // setup PRAGMAs
         manager

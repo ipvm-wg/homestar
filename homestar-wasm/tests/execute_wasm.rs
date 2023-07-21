@@ -307,10 +307,13 @@ async fn test_execute_wasms_in_seq_with_threaded_result() {
     // Short-circuit resolve with known value.
     let resolved = parsed
         .resolve(|_| {
-            Ok(InstructionResult::Ok(Arg::Value(
-                wasmtime::component::Val::String("RoundRound".into()),
-            )))
+            Box::pin(async {
+                Ok(InstructionResult::Ok(Arg::Value(
+                    wasmtime::component::Val::String("RoundRound".into()),
+                )))
+            })
         })
+        .await
         .unwrap();
 
     let res2 = env2.execute(resolved).await.unwrap();
@@ -376,10 +379,13 @@ async fn test_execute_wasms_with_multiple_inits() {
     // Short-circuit resolve with known value.
     let resolved = parsed
         .resolve(|_| {
-            Ok(InstructionResult::Ok(Arg::Ipld(Ipld::String(
-                "RoundRound".into(),
-            ))))
+            Box::pin(async {
+                Ok(InstructionResult::Ok(Arg::Value(
+                    wasmtime::component::Val::String("RoundRound".into()),
+                )))
+            })
         })
+        .await
         .unwrap();
 
     let res2 = env2.execute(resolved).await.unwrap();

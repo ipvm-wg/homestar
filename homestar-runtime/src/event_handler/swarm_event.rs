@@ -181,11 +181,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             },
                             sender,
                         )) => {
-                            let channel = BoundedChannel::oneshot();
+                            let (tx, rx) = BoundedChannel::oneshot();
                             if let Ok(cid) = Cid::try_from(cid_str.as_str()) {
                                 if let Err(err) =
                                     event_handler.sender().try_send(Event::GetProviders(
-                                        QueryRecord::with(cid, CapsuleTag::Workflow, channel.tx),
+                                        QueryRecord::with(cid, CapsuleTag::Workflow, tx),
                                     ))
                                 {
                                     error!(err=?err, "error opening channel to get providers");
@@ -193,7 +193,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                     return;
                                 }
 
-                                match channel.rx.recv_deadline(
+                                match rx.recv_deadline(
                                     Instant::now() + event_handler.p2p_provider_timeout,
                                 ) {
                                     Ok(ResponseEvent::Providers(Ok(providers))) => {
@@ -202,10 +202,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                                 cid_str.to_string(),
                                                 CapsuleTag::Workflow,
                                             );
-                                            let channel = BoundedChannel::oneshot();
+                                            let (tx, _rx) = BoundedChannel::oneshot();
                                             if let Err(err) = event_handler.sender().try_send(
                                                 Event::OutboundRequest(PeerRequest::with(
-                                                    peer, request, channel.tx,
+                                                    peer, request, tx,
                                                 )),
                                             ) {
                                                 error!(err=?err, "error sending outbound request");

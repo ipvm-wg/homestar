@@ -26,7 +26,7 @@ use homestar_wasm::io::Arg;
 use indexmap::IndexMap;
 use libipld::Cid;
 use std::{ops::ControlFlow, str::FromStr, sync::Arc, time::Instant};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, RwLock};
 use tracing::debug;
 
 type Schedule<'a> = Vec<Vec<Node<Vertex<'a>, usize>>>;
@@ -54,7 +54,7 @@ pub(crate) struct ExecutionGraph<'a> {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TaskScheduler<'a> {
     /// In-memory map of task/instruction results.
-    pub(crate) linkmap: Arc<LinkMap<InstructionResult<Arg>>>,
+    pub(crate) linkmap: Arc<RwLock<LinkMap<InstructionResult<Arg>>>>,
     /// [ExecutionGraph] of what's been run so far for a [Workflow] of `batched`
     /// [Tasks].
     ///
@@ -133,22 +133,17 @@ impl<'a> TaskScheduler<'a> {
                         }
                         Err(_) => {
                             debug!("receipt not available in the database");
-                            let channel = BoundedChannel::new(pointers_len);
+                            let (tx, rx) = BoundedChannel::with(pointers_len);
                             for ptr in &pointers {
-                                let _ =
-                                    event_sender.try_send(Event::FindRecord(QueryRecord::with(
-                                        ptr.cid(),
-                                        CapsuleTag::Receipt,
-                                        channel.tx.clone(),
-                                    )));
+                                let _ = event_sender.try_send(Event::FindRecord(
+                                    QueryRecord::with(ptr.cid(), CapsuleTag::Receipt, tx.clone()),
+                                ));
                             }
 
                             let mut linkmap = LinkMap::<InstructionResult<Arg>>::new();
                             let mut counter = 0;
                             while let Ok(ResponseEvent::Found(Ok(FoundEvent::Receipt(found)))) =
-                                channel
-                                    .rx
-                                    .recv_deadline(Instant::now() + settings.p2p_check_timeout)
+                                rx.recv_deadline(Instant::now() + settings.p2p_check_timeout)
                             {
                                 if pointers.contains(&Pointer::new(found.cid())) {
                                     if let Ok(cid) = found.instruction().try_into() {
@@ -182,7 +177,7 @@ impl<'a> TaskScheduler<'a> {
                 };
 
                 Ok(Self {
-                    linkmap: Arc::new(linkmap),
+                    linkmap: Arc::new(linkmap.into()),
                     ran: Some(schedule),
                     run: pivot,
                     resume_step: step,
@@ -190,7 +185,7 @@ impl<'a> TaskScheduler<'a> {
                 })
             }
             _ => Ok(Self {
-                linkmap: Arc::new(LinkMap::<InstructionResult<Arg>>::new()),
+                linkmap: Arc::new(LinkMap::<InstructionResult<Arg>>::new().into()),
                 ran: None,
                 run: schedule,
                 resume_step: None,
@@ -251,7 +246,7 @@ mod test {
         .await
         .unwrap();
 
-        assert!(scheduler.linkmap.is_empty());
+        assert!(scheduler.linkmap.read().await.is_empty());
         assert!(scheduler.ran.is_none());
         assert_eq!(scheduler.run.len(), 2);
         assert_eq!(scheduler.resume_step, None);
@@ -314,9 +309,11 @@ mod test {
 
         let ran = scheduler.ran.as_ref().unwrap();
 
-        assert_eq!(scheduler.linkmap.len(), 1);
+        assert_eq!(scheduler.linkmap.read().await.len(), 1);
         assert!(scheduler
             .linkmap
+            .read()
+            .await
             .contains_key(&instruction1.to_cid().unwrap()));
         assert_eq!(ran.len(), 1);
         assert_eq!(scheduler.run.len(), 1);
@@ -395,12 +392,16 @@ mod test {
 
         let ran = scheduler.ran.as_ref().unwrap();
 
-        assert_eq!(scheduler.linkmap.len(), 1);
+        assert_eq!(scheduler.linkmap.read().await.len(), 1);
         assert!(!scheduler
             .linkmap
+            .read()
+            .await
             .contains_key(&instruction1.to_cid().unwrap()));
         assert!(scheduler
             .linkmap
+            .read()
+            .await
             .contains_key(&instruction2.to_cid().unwrap()));
         assert_eq!(ran.len(), 2);
         assert!(scheduler.run.is_empty());

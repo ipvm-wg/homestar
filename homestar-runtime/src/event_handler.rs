@@ -15,7 +15,7 @@ use std::{sync::Arc, time::Duration};
 use swarm_event::ResponseEvent;
 use tokio::{select, sync::mpsc};
 
-pub(crate) mod channel;
+pub mod channel;
 pub(crate) mod error;
 pub(crate) mod event;
 pub(crate) mod swarm_event;
@@ -37,8 +37,7 @@ where
 }
 
 /// Event loop handler for [libp2p] network events and commands.
-#[allow(dead_code)]
-#[allow(missing_debug_implementations)]
+#[allow(missing_debug_implementations, dead_code)]
 pub(crate) struct EventHandler<DB: Database> {
     receipt_quorum: usize,
     workflow_quorum: usize,

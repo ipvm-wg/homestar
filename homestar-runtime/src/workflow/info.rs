@@ -219,14 +219,14 @@ impl Info {
             conn: Option<&'a mut Connection>,
             handle_timeout_fn: impl FnOnce(Cid, Option<&'a mut Connection>) -> Result<Info>,
         ) -> Result<Info> {
-            let channel = BoundedChannel::oneshot();
+            let (tx, rx) = BoundedChannel::oneshot();
             event_sender.try_send(Event::FindRecord(QueryRecord::with(
                 workflow_cid,
                 CapsuleTag::Workflow,
-                channel.tx,
+                tx,
             )))?;
 
-            match channel.rx.recv_deadline(Instant::now() + p2p_timeout) {
+            match rx.recv_deadline(Instant::now() + p2p_timeout) {
                 Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info)))) => {
                     // store workflow from info
                     if let Some(conn) = conn {

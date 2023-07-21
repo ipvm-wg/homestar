@@ -2,9 +2,10 @@
 
 !**/Cargo.toml
 !**/Cargo.lock
+!**/build.rs
 !**/src
 !**/config
 !**/migrations
-!.env
 !diesel.toml
-!**/wits
+
+homestar-functions/src
