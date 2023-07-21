@@ -285,10 +285,9 @@ impl PubkeyConfig {
 impl Settings {
     /// Load settings.
     ///
-    /// Inject environment variables naming them properly on the settings
-    /// e.g. [database] max_pool_size = 10.
-    /// This would be injected with environment variable
-    /// HOMESTAR__NODE__DB__MAX_POOL_SIZE=10.
+    /// Inject environment variables naming them properly on the settings,
+    /// e.g. HOMESTAR__NODE__DB__MAX_POOL_SIZE=10.
+    ///
     /// Use two underscores as defined by the separator below
     pub fn load() -> Result<Self, ConfigError> {
         #[cfg(test)]

@@ -96,7 +96,10 @@ fn test_server_not_running_serial() -> Result<()> {
         .arg("::2")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("No route to host"));
+        .stderr(
+            predicate::str::contains("No route to host")
+                .or(predicate::str::contains("Network is unreachable")),
+        );
 
     Command::new(BIN.as_os_str())
         .arg("stop")
