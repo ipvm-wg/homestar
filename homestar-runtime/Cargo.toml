@@ -100,7 +100,7 @@ rand = { workspace = true }
 retry = "2.0"
 serial_test = "2.0"
 sysinfo = "0.29"
-tokio-tungstenite = "0.19"
+tokio-tungstenite = "0.20"
 wait-timeout = "0.2"
 
 [features]
