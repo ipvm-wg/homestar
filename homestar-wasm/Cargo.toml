@@ -37,7 +37,7 @@ wasi-common = "10.0"
 wasmparser = "0.109"
 #wasmtime = { version = "10.0", features = ["async", "component-model", "default"] }
 wasmtime = { version = "10.0", features = ["async", "component-model", "default"] }
-wasmtime-component-util = "10.0"
+wasmtime-component-util = "11.0"
 wasmtime-wasi = { version = "10.0", features = ["tokio"] }
 wat = "1.0"
 wit-component = "0.12"

@@ -2398,7 +2398,7 @@ dependencies = [
  "wasi-common",
  "wasmparser 0.109.0",
  "wasmtime",
- "wasmtime-component-util",
+ "wasmtime-component-util 11.0.1",
  "wasmtime-wasi",
  "wat",
  "wit-component",
@@ -7025,7 +7025,7 @@ dependencies = [
  "wasmparser 0.107.0",
  "wasmtime-cache",
  "wasmtime-component-macro",
- "wasmtime-component-util",
+ "wasmtime-component-util 10.0.1",
  "wasmtime-cranelift",
  "wasmtime-environ",
  "wasmtime-fiber",
@@ -7075,7 +7075,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
- "wasmtime-component-util",
+ "wasmtime-component-util 10.0.1",
  "wasmtime-wit-bindgen",
  "wit-parser 0.8.0",
 ]
@@ -7085,6 +7085,12 @@ name = "wasmtime-component-util"
 version = "10.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f20a5135ec5ef01080e674979b02d6fa5eebaa2b0c2d6660513ee9956a1bf624"
+
+[[package]]
+name = "wasmtime-component-util"
+version = "11.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0928fe66c22bf8887e2fb524b7647308b8ce836a333af8504e4f1d80b8ea849f"
 
 [[package]]
 name = "wasmtime-cranelift"
@@ -7143,7 +7149,7 @@ dependencies = [
  "wasm-encoder 0.29.0",
  "wasmparser 0.107.0",
  "wasmprinter",
- "wasmtime-component-util",
+ "wasmtime-component-util 10.0.1",
  "wasmtime-types",
 ]
 
