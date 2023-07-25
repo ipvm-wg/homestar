@@ -55,7 +55,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
     )
     .build();
 
-    swarm_startup(&mut swarm, &settings.network)?;
+    startup(&mut swarm, &settings.network)?;
 
     // subscribe to `receipts` topic
     swarm
@@ -65,10 +65,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
     Ok(swarm)
 }
 
-fn swarm_startup<T: NetworkBehaviour>(
-    swarm: &mut Swarm<T>,
-    settings: &settings::Network,
-) -> Result<()> {
+fn startup<T: NetworkBehaviour>(swarm: &mut Swarm<T>, settings: &settings::Network) -> Result<()> {
     // Dial bootstrap nodes specified in settings. Failure here shouldn't halt node startup.
     for trusted_addr in &settings.trusted_node_addresses {
         swarm
