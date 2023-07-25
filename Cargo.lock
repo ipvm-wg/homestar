@@ -2401,7 +2401,7 @@ dependencies = [
  "wasmtime-component-util",
  "wasmtime-wasi",
  "wat",
- "wit-component 0.11.0",
+ "wit-component",
 ]
 
 [[package]]
@@ -6936,19 +6936,6 @@ dependencies = [
 
 [[package]]
 name = "wasm-metadata"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36e5156581ff4a302405c44ca7c85347563ca431d15f1a773f12c9c7b9a6cdc9"
-dependencies = [
- "anyhow",
- "indexmap 1.9.3",
- "serde",
- "wasm-encoder 0.29.0",
- "wasmparser 0.107.0",
-]
-
-[[package]]
-name = "wasm-metadata"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d51db59397fc650b5f2fc778e4a5c4456cd856bed7fc1ec15f8d3e28229dc463"
@@ -7660,7 +7647,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9658ec54d4a3c9e2f079bc65a131093337595b595fbf82f805008469838cdea"
 dependencies = [
  "anyhow",
- "wit-component 0.12.0",
+ "wit-component",
  "wit-parser 0.9.1",
 ]
 
@@ -7671,10 +7658,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21ae6a6198ba9765771b977e2af985a0d5ac71b59f999da5c4ee1c7bbd8ca8dc"
 dependencies = [
  "heck",
- "wasm-metadata 0.9.0",
+ "wasm-metadata",
  "wit-bindgen-core",
  "wit-bindgen-rust-lib",
- "wit-component 0.12.0",
+ "wit-component",
 ]
 
 [[package]]
@@ -7699,23 +7686,7 @@ dependencies = [
  "wit-bindgen-core",
  "wit-bindgen-rust",
  "wit-bindgen-rust-lib",
- "wit-component 0.12.0",
-]
-
-[[package]]
-name = "wit-component"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cbd4c7f8f400327c482c88571f373844b7889e61460650d650fc5881bb3575c"
-dependencies = [
- "anyhow",
- "bitflags 1.3.2",
- "indexmap 1.9.3",
- "log",
- "wasm-encoder 0.29.0",
- "wasm-metadata 0.8.0",
- "wasmparser 0.107.0",
- "wit-parser 0.8.0",
+ "wit-component",
 ]
 
 [[package]]
@@ -7729,7 +7700,7 @@ dependencies = [
  "indexmap 2.0.0",
  "log",
  "wasm-encoder 0.30.0",
- "wasm-metadata 0.9.0",
+ "wasm-metadata",
  "wasmparser 0.108.0",
  "wit-parser 0.9.1",
 ]
