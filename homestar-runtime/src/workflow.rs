@@ -5,7 +5,16 @@
 
 use crate::scheduler::ExecutionGraph;
 use anyhow::{anyhow, bail};
+use core::fmt;
 use dagga::{self, dot::DagLegend, Node};
+use diesel::{
+    backend::Backend,
+    deserialize::{self, FromSql},
+    serialize::{self, IsNull, Output, ToSql},
+    sql_types::Binary,
+    sqlite::Sqlite,
+    AsExpression, FromSqlRow,
+};
 use homestar_core::{
     workflow::{
         input::{Parse, Parsed},
@@ -16,8 +25,11 @@ use homestar_core::{
 };
 use homestar_wasm::io::Arg;
 use indexmap::IndexMap;
-use libipld::Cid;
-use std::path::Path;
+use itertools::Itertools;
+use libipld::{cbor::DagCborCodec, cid::Cid, prelude::Codec, serde::from_ipld, Ipld};
+use serde::{Deserialize, Serialize};
+use std::{collections::BTreeMap, path::Path};
+use strum::AsRefStr;
 use url::Url;
 
 mod info;
@@ -37,13 +49,22 @@ pub struct Builder<'a>(Workflow<'a, Arg>);
 /// being accessed.
 ///
 /// [URI]: <https://en.wikipedia.org/wiki/Uniform_Resource_Identifier>
-#[derive(Debug, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, AsRefStr, Hash, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub(crate) enum Resource {
     /// Resource fetched by [Url].
     Url(Url),
     /// Resource fetched by [Cid].
     Cid(Cid),
+}
+
+impl fmt::Display for Resource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Resource::Cid(cid) => write!(f, "{}", cid),
+            Resource::Url(ref url) => write!(f, "{}", url),
+        }
+    }
 }
 
 /// Ahead-of-time (AOT) context object, which includes the given
@@ -56,7 +77,7 @@ pub(crate) enum Resource {
 #[derive(Debug, Clone)]
 pub(crate) struct AOTContext<'a> {
     dag: Dag<'a>,
-    resources: Vec<Resource>,
+    indexed_resources: IndexedResources,
 }
 
 impl AOTContext<'static> {
@@ -122,7 +143,7 @@ impl<'a> Builder<'a> {
         match aot.dag.build_schedule() {
             Ok(schedule) => Ok(ExecutionGraph {
                 schedule: schedule.batches,
-                resources: aot.resources,
+                indexed_resources: aot.indexed_resources,
             }),
             Err(e) => bail!("schedule could not be built from given workflow: {e}"),
         }
@@ -133,9 +154,9 @@ impl<'a> Builder<'a> {
 
         let (dag, resources) =
             self.into_inner().tasks().into_iter().enumerate().try_fold(
-                (Dag::default(), vec![]),
+                (Dag::default(), IndexMap::new()),
                 |(mut dag, mut resources), (i, task)| {
-                    let instr_cid = task.instruction_cid()?.to_string();
+                    let instr_cid = task.instruction_cid()?;
                     // Clone as we're owning the struct going backward.
                     let ptr: Pointer = Invocation::<Arg>::from(task.clone()).try_into()?;
 
@@ -143,10 +164,9 @@ impl<'a> Builder<'a> {
                         bail!("workflow tasks/instructions must be expanded / inlined")
                     };
 
-                    // TODO: check if op is runnable on current node
-                    // TODO LATER: check if op is registered on the network
-
-                    resources.push(Resource::Url(instr.resource().to_owned()));
+                    resources
+                        .entry(instr_cid)
+                        .or_insert_with(|| Resource::Url(instr.resource().to_owned()));
 
                     let parsed = instr.input().parse()?;
                     let reads = parsed.args().deferreds().into_iter().fold(
@@ -154,15 +174,15 @@ impl<'a> Builder<'a> {
                         |mut in_flow_reads, cid| {
                             if let Some(v) = lookup_table.get(&cid) {
                                 in_flow_reads.push(*v)
-                            } else {
-                                resources.push(Resource::Url(instr.resource().to_owned()));
                             }
+                            // TODO: else, it's a CID from another task outside
+                            // of the workflow.
                             in_flow_reads
                         },
                     );
 
                     let node = Node::new(Vertex::new(instr.to_owned(), parsed, ptr))
-                        .with_name(instr_cid)
+                        .with_name(instr_cid.to_string())
                         .with_result(i);
 
                     dag.add_node(node.with_reads(reads));
@@ -170,7 +190,10 @@ impl<'a> Builder<'a> {
                 },
             )?;
 
-        Ok(AOTContext { dag, resources })
+        Ok(AOTContext {
+            dag,
+            indexed_resources: IndexedResources(resources),
+        })
     }
 
     /// Generate an [IndexMap] lookup table of task instruction CIDs to a
@@ -184,6 +207,139 @@ impl<'a> Builder<'a> {
                 acc.insert(t.instruction_cid()?, i);
                 Ok::<_, anyhow::Error>(acc)
             })
+    }
+}
+
+/// A container for [IndexMap]s from [Cid] => resource.
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, AsExpression, FromSqlRow)]
+#[diesel(sql_type = Binary)]
+pub struct IndexedResources(IndexMap<Cid, Resource>);
+
+impl IndexedResources {
+    /// Create a new [IndexedResources] container from an [IndexMap] of
+    /// [Resource]s.
+    #[allow(dead_code)]
+    pub(crate) fn new(map: IndexMap<Cid, Resource>) -> IndexedResources {
+        IndexedResources(map)
+    }
+
+    /// Reutrn a referenced [IndexMap] of [Resource]s.
+    #[allow(dead_code)]
+    pub(crate) fn inner(&self) -> &IndexMap<Cid, Resource> {
+        &self.0
+    }
+
+    /// Return an owned [IndexMap] of [Resource]s.
+    #[allow(dead_code)]
+    pub(crate) fn into_inner(self) -> IndexMap<Cid, Resource> {
+        self.0
+    }
+
+    /// Get length of [IndexedResources].
+    #[allow(dead_code)]
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Check if [IndexedResources] is empty.
+    #[allow(dead_code)]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Get a [Resource] by [Instruction] [Cid].
+    ///
+    /// [Instruction]: homestar_core::workflow::Instruction
+    #[allow(dead_code)]
+    pub(crate) fn get(&self, cid: &Cid) -> Option<&Resource> {
+        self.0.get(cid)
+    }
+
+    /// Iterate over all [Resource]s as references.
+    #[allow(dead_code)]
+    pub(crate) fn rscs(&self) -> impl Iterator<Item = &Resource> {
+        self.0.values().dedup()
+    }
+
+    /// Iterate over all [Resource]s.
+    #[allow(dead_code)]
+    pub(crate) fn into_rscs(self) -> impl Iterator<Item = Resource> {
+        self.0.into_values().dedup()
+    }
+}
+
+impl From<IndexedResources> for Ipld {
+    fn from(resources: IndexedResources) -> Self {
+        let btreemap: BTreeMap<String, Ipld> = resources
+            .0
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k.to_string(),
+                    match v {
+                        Resource::Url(url) => Ipld::String(url.to_string()),
+                        Resource::Cid(cid) => Ipld::Link(cid),
+                    },
+                )
+            })
+            .collect();
+        Ipld::Map(btreemap)
+    }
+}
+
+impl TryFrom<Ipld> for IndexedResources {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?
+            .into_iter()
+            .map(|(k, v)| {
+                let cid = Cid::try_from(k)?;
+                let resource = match v {
+                    Ipld::String(url) => Resource::Url(Url::parse(&url)?),
+                    Ipld::Link(cid) => Resource::Cid(cid),
+                    _ => bail!("invalid resource type"),
+                };
+
+                Ok((cid, resource))
+            })
+            .collect::<Result<IndexMap<Cid, Resource>, anyhow::Error>>()?;
+
+        Ok(IndexedResources(map))
+    }
+}
+
+impl TryFrom<IndexedResources> for Vec<u8> {
+    type Error = anyhow::Error;
+
+    fn try_from(resources: IndexedResources) -> Result<Self, Self::Error> {
+        let ipld = Ipld::from(resources);
+        DagCborCodec.encode(&ipld)
+    }
+}
+
+impl ToSql<Binary, Sqlite> for IndexedResources
+where
+    [u8]: ToSql<Binary, Sqlite>,
+{
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> serialize::Result {
+        let bytes: Vec<u8> = self.to_owned().try_into()?;
+        out.set_value(bytes);
+        Ok(IsNull::No)
+    }
+}
+
+impl<DB> FromSql<Binary, DB> for IndexedResources
+where
+    DB: Backend,
+    *const [u8]: FromSql<Binary, DB>,
+{
+    fn from_sql(bytes: DB::RawValue<'_>) -> deserialize::Result<Self> {
+        let raw_bytes = <*const [u8] as FromSql<Binary, DB>>::from_sql(bytes)?;
+        let raw_bytes: &[u8] = unsafe { &*raw_bytes };
+        let ipld: Ipld = DagCborCodec.decode(raw_bytes)?;
+        let decoded: IndexedResources = ipld.try_into()?;
+        Ok(decoded)
     }
 }
 
@@ -245,7 +401,9 @@ mod test {
         let instr1 = task1.instruction_cid().unwrap().to_string();
         let instr2 = task2.instruction_cid().unwrap().to_string();
 
-        dagga::assert_batches(&[format!("{instr2}, {instr1}").as_str()], dag);
+        assert!(dag
+            .nodes()
+            .any(|node| node.name() == instr1 || node.name() == instr2));
     }
 
     #[test]

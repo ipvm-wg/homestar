@@ -58,7 +58,7 @@ where
         Ok(Self {
             task: Task::try_from(
                 map.get(TASK_KEY)
-                    .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(TASK_KEY.to_string()))?
+                    .ok_or_else(|| WorkflowError::<Unit>::MissingField(TASK_KEY.to_string()))?
                     .to_owned(),
             )?,
         })

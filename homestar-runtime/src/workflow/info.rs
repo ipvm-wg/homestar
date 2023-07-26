@@ -1,3 +1,4 @@
+use super::IndexedResources;
 use crate::{
     db::{Connection, Database},
     event_handler::{
@@ -10,41 +11,86 @@ use crate::{
     Db, Receipt,
 };
 use anyhow::{anyhow, bail, Context, Result};
+use chrono::{NaiveDateTime, Utc};
 use diesel::{Associations, Identifiable, Insertable, Queryable, Selectable};
-use homestar_core::{ipld::DagCbor, workflow::Pointer, Workflow};
-use homestar_wasm::io::Arg;
+use homestar_core::{ipld::DagJson, workflow::Pointer};
 use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Cid, Ipld};
+use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::sync::mpsc;
+use tokio::{runtime::Handle, sync::mpsc};
 use tracing::info;
 
 /// [Workflow] header tag, for sharing workflow information over libp2p.
 ///
-/// [Workflow]: Workflow
+/// [Workflow]: homestar_core::Workflow
 pub const WORKFLOW_TAG: &str = "ipvm/workflow";
 
 const CID_KEY: &str = "cid";
+const NUM_TASKS_KEY: &str = "num_tasks";
 const PROGRESS_KEY: &str = "progress";
 const PROGRESS_COUNT_KEY: &str = "progress_count";
-const NUM_TASKS_KEY: &str = "num_tasks";
+const RESOURCES_KEY: &str = "resources";
 
 /// [Workflow] information stored in the database.
 ///
 /// [Workflow]: homestar_core::Workflow
-#[derive(Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Selectable, Hash)]
+#[derive(Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Selectable)]
 #[diesel(table_name = crate::db::schema::workflows, primary_key(cid))]
 pub struct Stored {
     pub(crate) cid: Pointer,
     pub(crate) num_tasks: i32,
+    pub(crate) resources: IndexedResources,
+    pub(crate) created_at: NaiveDateTime,
+    pub(crate) completed_at: Option<NaiveDateTime>,
 }
 
 impl Stored {
-    pub fn new(cid: Pointer, num_tasks: i32) -> Self {
-        Self { cid, num_tasks }
+    /// Create a new [Stored] workflow for the [db].
+    ///
+    /// [db]: Database
+    pub fn new(
+        cid: Pointer,
+        num_tasks: i32,
+        resources: IndexedResources,
+        created_at: NaiveDateTime,
+    ) -> Self {
+        Self {
+            cid,
+            num_tasks,
+            resources,
+            created_at,
+            completed_at: None,
+        }
+    }
+
+    /// Create a new [Stored] workflow for the [db] with a default timestamp.
+    ///
+    /// [db]: Database
+    pub fn new_with_resources(cid: Pointer, num_tasks: i32, resources: IndexedResources) -> Self {
+        Self {
+            cid,
+            num_tasks,
+            resources,
+            created_at: Utc::now().naive_utc(),
+            completed_at: None,
+        }
+    }
+
+    /// Create a default [Stored] workflow for the [db].
+    ///
+    /// [db]: Database
+    pub fn default(cid: Pointer, num_tasks: i32) -> Self {
+        Self {
+            cid,
+            num_tasks,
+            resources: IndexedResources::default(),
+            created_at: Utc::now().naive_utc(),
+            completed_at: None,
+        }
     }
 }
 
@@ -77,34 +123,49 @@ impl StoredReceipt {
 /// cid => [Info].
 ///
 /// [Workflow]: homestar_core::Workflow
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Info {
     pub(crate) cid: Cid,
+    pub(crate) num_tasks: u32,
     pub(crate) progress: Vec<Cid>,
     pub(crate) progress_count: u32,
-    pub(crate) num_tasks: u32,
+    pub(crate) resources: IndexedResources,
 }
 
 impl Info {
-    /// Create a new [Info] given a [Cid], progress / step, and number
-    /// of tasks.
-    pub fn new(cid: Cid, progress: Vec<Cid>, num_tasks: u32) -> Self {
+    /// Create a new workflow set of [Info] given a [Cid], progress / step,
+    /// [IndexedResources], and number of tasks.
+    pub fn new(cid: Cid, num_tasks: u32, progress: Vec<Cid>, resources: IndexedResources) -> Self {
         let progress_count = progress.len() as u32;
         Self {
             cid,
+            num_tasks,
             progress,
             progress_count,
-            num_tasks,
+            resources,
         }
     }
 
-    /// Create a default [Info] given a [Cid] and number of tasks.
+    /// Create a default workflow [Info] given a [Cid] and number of tasks.
     pub fn default(cid: Cid, num_tasks: u32) -> Self {
         Self {
             cid,
+            num_tasks,
             progress: vec![],
             progress_count: 0,
+            resources: IndexedResources::default(),
+        }
+    }
+
+    /// Create a default workflow [Info] given a [Cid], number of tasks,
+    /// and [IndexedResources].
+    pub fn default_with_resources(cid: Cid, num_tasks: u32, resources: IndexedResources) -> Self {
+        Self {
+            cid,
             num_tasks,
+            progress: vec![],
+            progress_count: 0,
+            resources,
         }
     }
 
@@ -130,8 +191,19 @@ impl Info {
         self.cid().to_bytes()
     }
 
+    /// Set map of [Instruction] [Cid]s to resources.
+    ///
+    /// [Instruction]: homestar_core::workflow::Instruction
+    #[allow(dead_code)]
+    pub(crate) fn set_resources(&mut self, resources: IndexedResources) {
+        self.resources = resources;
+    }
+
     /// Set the progress / step of the [Workflow] completed, which
     /// may not be the same as the `progress` vector of [Cid]s.
+    ///
+    /// [Workflow]: homestar_core::Workflow
+    #[allow(dead_code)]
     pub(crate) fn set_progress_count(&mut self, progress_count: u32) {
         self.progress_count = progress_count;
     }
@@ -164,43 +236,50 @@ impl Info {
     /// [Workflow], or return a default/new version of [Info] if none is found.
     ///
     /// [Gather]: Self::gather
-    #[allow(dead_code)]
-    pub(crate) async fn init<'a>(
-        workflow: Workflow<'a, Arg>,
+    /// [Workflow]: homestar_core::Workflow
+    pub(crate) async fn init(
+        workflow_cid: Cid,
+        workflow_len: u32,
+        resources: IndexedResources,
         p2p_timeout: Duration,
         event_sender: Arc<mpsc::Sender<Event>>,
-        conn: &'a mut Connection,
-    ) -> Result<Self> {
-        let workflow_len = workflow.len();
-        let workflow_cid = workflow.to_cid()?;
-
-        let handle_timeout_fn = |workflow_cid, reused_conn: Option<&'a mut Connection>| {
-            let workflow_info = Self::default(workflow_cid, workflow_len);
-            // store workflow from info
-
-            match reused_conn.and_then(|conn| {
-                Db::store_workflow(
+        mut conn: Connection,
+    ) -> Result<(Self, NaiveDateTime)> {
+        let timestamp = Utc::now().naive_utc();
+        match Db::get_workflow_info(workflow_cid, &mut conn) {
+            Ok(info) => Ok((info, timestamp)),
+            Err(_err) => {
+                info!(
+                    cid = workflow_cid.to_string(),
+                    "workflow information not available in the database"
+                );
+                let result = Db::store_workflow(
                     Stored::new(
-                        Pointer::new(workflow_info.cid),
-                        workflow_info.num_tasks as i32,
+                        Pointer::new(workflow_cid),
+                        workflow_len as i32,
+                        resources,
+                        timestamp,
                     ),
-                    conn,
-                )
-                .ok()
-            }) {
-                Some(_) => Ok(workflow_info),
-                None => bail!("failed to store workflow"),
-            }
-        };
+                    &mut conn,
+                )?;
 
-        Self::gather(
-            workflow_cid,
-            p2p_timeout,
-            event_sender,
-            Some(conn),
-            handle_timeout_fn,
-        )
-        .await
+                let workflow_info =
+                    Self::default_with_resources(workflow_cid, workflow_len, result.resources);
+
+                // spawn a task to retrieve the workflow info from the
+                // network and store it in the database if it finds it.
+                let handle = Handle::current();
+                handle.spawn(Self::retrieve_from_query(
+                    workflow_cid,
+                    p2p_timeout,
+                    event_sender,
+                    Some(conn),
+                    None::<fn(Cid, Option<Connection>) -> Result<Self>>,
+                ));
+
+                Ok((workflow_info, timestamp))
+            }
+        }
     }
 
     /// Gather available [Info] from the database or [libp2p] given a
@@ -209,50 +288,9 @@ impl Info {
         workflow_cid: Cid,
         p2p_timeout: Duration,
         event_sender: Arc<mpsc::Sender<Event>>,
-        mut conn: Option<&'a mut Connection>,
-        handle_timeout_fn: impl FnOnce(Cid, Option<&'a mut Connection>) -> Result<Info>,
+        mut conn: Option<Connection>,
+        handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> Result<Self>>,
     ) -> Result<Self> {
-        async fn retrieve_from_query<'a>(
-            workflow_cid: Cid,
-            p2p_timeout: Duration,
-            event_sender: Arc<mpsc::Sender<Event>>,
-            conn: Option<&'a mut Connection>,
-            handle_timeout_fn: impl FnOnce(Cid, Option<&'a mut Connection>) -> Result<Info>,
-        ) -> Result<Info> {
-            let (tx, rx) = BoundedChannel::oneshot();
-            event_sender.try_send(Event::FindRecord(QueryRecord::with(
-                workflow_cid,
-                CapsuleTag::Workflow,
-                tx,
-            )))?;
-
-            match rx.recv_deadline(Instant::now() + p2p_timeout) {
-                Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info)))) => {
-                    // store workflow from info
-                    if let Some(conn) = conn {
-                        Db::store_workflow(
-                            Stored::new(
-                                Pointer::new(workflow_info.cid),
-                                workflow_info.num_tasks as i32,
-                            ),
-                            conn,
-                        )?;
-
-                        Db::store_workflow_receipts(workflow_cid, &workflow_info.progress, conn)?;
-                    }
-
-                    Ok(workflow_info)
-                }
-                Ok(ResponseEvent::Found(Err(err))) => {
-                    bail!("failure in attempting to find event: {err}")
-                }
-                Ok(event) => {
-                    bail!("received unexpected event {event:?} for workflow {workflow_cid}")
-                }
-                Err(err) => handle_timeout_fn(workflow_cid, conn).context(err),
-            }
-        }
-
         let workflow_info = match conn
             .as_mut()
             .and_then(|conn| Db::get_workflow_info(workflow_cid, conn).ok())
@@ -264,7 +302,7 @@ impl Info {
                     "workflow information not available in the database"
                 );
 
-                retrieve_from_query(
+                Self::retrieve_from_query(
                     workflow_cid,
                     p2p_timeout,
                     event_sender,
@@ -277,12 +315,52 @@ impl Info {
 
         Ok(workflow_info)
     }
+
+    async fn retrieve_from_query<'a>(
+        workflow_cid: Cid,
+        p2p_timeout: Duration,
+        event_sender: Arc<mpsc::Sender<Event>>,
+        conn: Option<Connection>,
+        handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> Result<Info>>,
+    ) -> Result<Info> {
+        let (tx, rx) = BoundedChannel::oneshot();
+        event_sender.try_send(Event::FindRecord(QueryRecord::with(
+            workflow_cid,
+            CapsuleTag::Workflow,
+            tx,
+        )))?;
+
+        match rx.recv_deadline(Instant::now() + p2p_timeout) {
+            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info)))) => {
+                // store workflow receipts from info, as we've already stored
+                // the static information.
+                if let Some(mut conn) = conn {
+                    Db::store_workflow_receipts(workflow_cid, &workflow_info.progress, &mut conn)?;
+                }
+
+                Ok(workflow_info)
+            }
+            Ok(ResponseEvent::Found(Err(err))) => {
+                bail!("failure in attempting to find event: {err}")
+            }
+            Ok(event) => {
+                bail!("received unexpected event {event:?} for workflow {workflow_cid}")
+            }
+            Err(err) => handle_timeout_fn
+                .map(|f| f(workflow_cid, conn).context(err))
+                .unwrap_or(Err(err.into())),
+        }
+    }
 }
 
 impl From<Info> for Ipld {
     fn from(workflow: Info) -> Self {
         Ipld::Map(BTreeMap::from([
             (CID_KEY.into(), Ipld::Link(workflow.cid)),
+            (
+                NUM_TASKS_KEY.into(),
+                Ipld::Integer(workflow.num_tasks as i128),
+            ),
             (
                 PROGRESS_KEY.into(),
                 Ipld::List(workflow.progress.into_iter().map(Ipld::Link).collect()),
@@ -291,10 +369,7 @@ impl From<Info> for Ipld {
                 PROGRESS_COUNT_KEY.into(),
                 Ipld::Integer(workflow.progress_count as i128),
             ),
-            (
-                NUM_TASKS_KEY.into(),
-                Ipld::Integer(workflow.num_tasks as i128),
-            ),
+            (RESOURCES_KEY.into(), Ipld::from(workflow.resources)),
         ]))
     }
 }
@@ -309,6 +384,11 @@ impl TryFrom<Ipld> for Info {
                 .ok_or_else(|| anyhow!("no `cid` set"))?
                 .to_owned(),
         )?;
+        let num_tasks = from_ipld(
+            map.get(NUM_TASKS_KEY)
+                .ok_or_else(|| anyhow!("no `num_tasks` set"))?
+                .to_owned(),
+        )?;
         let progress = from_ipld(
             map.get(PROGRESS_KEY)
                 .ok_or_else(|| anyhow!("no `progress` set"))?
@@ -319,17 +399,18 @@ impl TryFrom<Ipld> for Info {
                 .ok_or_else(|| anyhow!("no `progress_count` set"))?
                 .to_owned(),
         )?;
-        let num_tasks = from_ipld(
-            map.get(NUM_TASKS_KEY)
-                .ok_or_else(|| anyhow!("no `num_tasks` set"))?
+        let resources = from_ipld(
+            map.get(RESOURCES_KEY)
+                .ok_or_else(|| anyhow!("no `resources` set"))?
                 .to_owned(),
         )?;
 
         Ok(Self {
             cid,
+            num_tasks,
             progress,
             progress_count,
-            num_tasks,
+            resources,
         })
     }
 }
@@ -351,6 +432,8 @@ impl TryFrom<Vec<u8>> for Info {
         ipld.try_into()
     }
 }
+
+impl DagJson for Info where Ipld: From<Info> {}
 
 #[cfg(test)]
 mod test {

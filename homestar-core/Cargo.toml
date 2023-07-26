@@ -24,7 +24,7 @@ doctest = true
 anyhow = { workspace = true }
 async-recursion = "1.0"
 byte-unit = { workspace = true }
-diesel = { version = "2.0", features = ["sqlite"] }
+diesel = { version = "2.1", features = ["sqlite"] }
 enum-as-inner = { workspace = true }
 enum-assoc = { workspace = true }
 futures = { workspace = true }
@@ -50,7 +50,7 @@ json = "0.12"
 
 [features]
 default = []
-test_utils = ["once_cell", "proptest"]
+test-utils = ["once_cell", "proptest"]
 
 [package.metadata.docs.rs]
 all-features = true

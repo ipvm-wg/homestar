@@ -17,6 +17,9 @@ diesel::table! {
     workflows (cid) {
         cid -> Text,
         num_tasks -> Integer,
+        resources -> Binary,
+        created_at -> Timestamp,
+        completed_at -> Nullable<Timestamp>,
     }
 }
 

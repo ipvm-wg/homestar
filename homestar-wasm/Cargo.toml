@@ -23,11 +23,11 @@ doctest = true
 # https://github.com/DevinR528/cargo-sort/issues/47
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-atomic_refcell = "0.1"
+atomic_refcell = { workspace = true }
 enum-as-inner = { workspace = true }
 heck = "0.4"
 homestar-core = { version = "0.1", path = "../homestar-core" }
-itertools = "0.11"
+itertools = { workspace = true }
 libipld = { workspace = true }
 rust_decimal = "1.31"
 stacker = "0.1"

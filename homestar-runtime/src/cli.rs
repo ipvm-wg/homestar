@@ -1,17 +1,23 @@
 //! CLI commands/arguments.
 
-use crate::network::rpc::Client;
+use crate::{
+    network::rpc::Client,
+    runner::{file, response},
+};
 use anyhow::anyhow;
-use clap::Parser;
+use clap::{Args, Parser};
 use std::{
     net::{IpAddr, SocketAddr},
     path::PathBuf,
     str::FromStr,
+    time::{Duration, SystemTime},
 };
+use tarpc::context;
 
 mod error;
-mod show;
 pub use error::Error;
+pub(crate) mod show;
+pub(crate) use show::ConsoleTable;
 
 const TMP_DIR: &str = "/tmp";
 const HELP_TEMPLATE: &str = "{about} {version}
@@ -29,6 +35,26 @@ pub struct Cli {
     /// Homestar [Command].
     #[clap(subcommand)]
     pub command: Command,
+}
+
+/// General RPC arguments for [Client] commands.
+///
+/// [Client]: crate::network::rpc::Client
+#[derive(Debug, Clone, Args)]
+pub struct RpcArgs {
+    /// RPC Homestar runtime host to ping.
+    #[clap(
+            long = "host",
+            default_value_t = String::from("::1"),
+            value_hint = clap::ValueHint::Hostname
+        )]
+    host: String,
+    /// RPC Homestar runtime port to ping.
+    #[clap(short = 'p', long = "port", default_value_t = 3030)]
+    port: u16,
+    /// RPC Homestar runtime port to ping.
+    #[clap(long = "timeout", default_value = "60s", value_parser = humantime::parse_duration)]
+    timeout: Duration,
 }
 
 /// CLI Argument types.
@@ -71,42 +97,24 @@ pub enum Command {
         daemon_dir: PathBuf,
     },
     /// Stop the Homestar runtime.
-    Stop {
-        #[arg(
-            long = "host",
-            default_value_t = String::from("::1"),
-            value_hint = clap::ValueHint::Hostname
-        )]
-        /// RPC Homestar runtime host to ping.
-        host: String,
-        #[arg(short = 'p', long = "port", default_value_t = 3030)]
-        /// RPC Homestar runtime port to ping.
-        port: u16,
-    },
+    Stop(RpcArgs),
     /// Ping the Homestar runtime.
-    Ping {
-        #[arg(
-            long = "host",
-            default_value_t = String::from("::1"),
-            value_hint = clap::ValueHint::Hostname
-        )]
-        /// RPC Homestar runtime host to ping.
-        host: String,
-        #[arg(short = 'p', long = "port", default_value_t = 3030)]
-        /// RPC Homestar runtime port to ping.
-        port: u16,
-    },
-    /// Run a workflow, given a workflow json file.
+    Ping(RpcArgs),
+    /// Run a workflow, given a workflow file.
     Run {
-        /// Path to workflow json file.
+        /// RPC host / port arguments.
+        #[clap(flatten)]
+        args: RpcArgs,
         #[arg(
             short='w',
             long = "workflow",
             value_hint = clap::ValueHint::FilePath,
             value_name = "FILE",
+            value_parser = clap::value_parser!(file::ReadWorkflow),
             help = "path to workflow file"
         )]
-        workflow: PathBuf,
+        /// Workflow file to run.
+        workflow: file::ReadWorkflow,
     },
 }
 
@@ -121,7 +129,6 @@ impl Command {
     }
 
     /// Handle CLI commands related to [Client] RPC calls.
-    #[allow(clippy::unnecessary_wraps)]
     pub fn handle_rpc_command(&self) -> Result<(), Error> {
         // Spin up a new tokio runtime on the current thread.
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -129,30 +136,47 @@ impl Command {
             .build()?;
 
         match self {
-            Command::Ping { host, port } => {
-                let host = IpAddr::from_str(host).map_err(anyhow::Error::new)?;
-                let addr = SocketAddr::new(host, *port);
-                let response = rt.block_on(async {
-                    let client = Client::new(addr).await?;
+            Command::Ping(args) => {
+                let (client, response) = rt.block_on(async {
+                    let client = args.client().await?;
                     let response = client.ping().await?;
-                    Ok::<String, Error>(response)
+                    Ok::<(Client, String), Error>((client, response))
                 })?;
 
-                show::Ping::table(addr, response).echo()?;
+                let response = response::Ping::new(client.addr(), response);
+                response.echo_table()?;
                 Ok(())
             }
-            Command::Stop { host, port } => {
-                let host = IpAddr::from_str(host).map_err(anyhow::Error::new)?;
-                let addr = SocketAddr::new(host, *port);
-                rt.block_on(async {
-                    let client = Client::new(addr).await?;
-                    let _ = client.stop().await?;
-                    Ok::<(), Error>(())
+            Command::Stop(args) => rt.block_on(async {
+                let client = args.client().await?;
+                client.stop().await??;
+                Ok(())
+            }),
+            Command::Run {
+                args,
+                workflow: workflow_file,
+            } => {
+                let response = rt.block_on(async {
+                    let client = args.client().await?;
+                    let response = client.run(workflow_file.to_owned()).await??;
+                    Ok::<response::AckWorkflow, Error>(response)
                 })?;
 
+                response.echo_table()?;
                 Ok(())
             }
             _ => Err(anyhow!("Invalid command {}", self.name()).into()),
         }
+    }
+}
+
+impl RpcArgs {
+    async fn client(&self) -> Result<Client, Error> {
+        let host = IpAddr::from_str(&self.host).map_err(anyhow::Error::new)?;
+        let addr = SocketAddr::new(host, self.port);
+        let mut ctx = context::current();
+        ctx.deadline = SystemTime::now() + self.timeout;
+        let client = Client::new(addr, ctx).await?;
+        Ok(client)
     }
 }

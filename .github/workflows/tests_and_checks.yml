@@ -21,7 +21,7 @@ jobs:
           - stable
           - nightly
           # minimum version
-          - 1.66
+          - 1.67
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
@@ -76,6 +76,11 @@ jobs:
           - stable
           - nightly
     steps:
+      - name: Setup IPFS
+        uses: ibnesayeed/setup-ipfs@master
+        with:
+          run_daemon: true
+
       - name: Checkout Repository
         uses: actions/checkout@v3
 
@@ -128,7 +133,7 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run Tests
-        run: cargo nextest run --profile ci --no-default-features
+        run: cargo nextest run --profile ci --no-default-features --features "test-utils"
 
   run-docs:
     runs-on: ubuntu-latest

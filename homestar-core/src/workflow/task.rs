@@ -115,7 +115,7 @@ where
         Ok(Self {
             run: RunInstruction::try_from(
                 map.get(RUN_KEY)
-                    .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(RUN_KEY.to_string()))?
+                    .ok_or_else(|| WorkflowError::<Unit>::MissingField(RUN_KEY.to_string()))?
                     .to_owned(),
             )?,
             cause: map
@@ -127,11 +127,11 @@ where
                 .and_then(|ipld| ipld.to_owned().try_into().ok()),
             meta: map
                 .get(METADATA_KEY)
-                .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(METADATA_KEY.to_string()))?
+                .ok_or_else(|| WorkflowError::<Unit>::MissingField(METADATA_KEY.to_string()))?
                 .to_owned(),
             prf: UcanPrf::try_from(
                 map.get(PROOF_KEY)
-                    .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(PROOF_KEY.to_string()))?
+                    .ok_or_else(|| WorkflowError::<Unit>::MissingField(PROOF_KEY.to_string()))?
                     .to_owned(),
             )?,
         })
@@ -190,7 +190,7 @@ mod test {
             (
                 "rsc".into(),
                 Ipld::String(
-                    "ipfs://bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".into(),
+                    "ipfs://bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".into(),
                 ),
             ),
             ("op".into(), Ipld::String("ipld/fun".to_string())),

@@ -6,7 +6,6 @@ use homestar_runtime::{
     Db, FileLogger, Logger, Runner, Settings,
 };
 use miette::Result;
-use std::sync::Arc;
 use tracing::info;
 
 fn main() -> Result<()> {
@@ -38,11 +37,7 @@ fn main() -> Result<()> {
             let db = Db::setup_connection_pool(settings.node()).expect("Failed to setup DB pool");
 
             info!("starting Homestar runtime...");
-            let settings = Arc::new(settings);
-            let runner = Runner::start(settings.clone(), db).expect("Failed to start server");
-            runner
-                .serve(settings)
-                .expect("Failed to run server runtime");
+            Runner::start(settings, db).expect("Failed to start runtime")
         }
         cmd => cmd.handle_rpc_command()?,
     }

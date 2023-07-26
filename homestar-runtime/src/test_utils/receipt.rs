@@ -13,12 +13,14 @@ use libipld::{
     Ipld, Link,
 };
 
+#[allow(dead_code)]
 const RAW: u64 = 0x55;
 
 /// Return both a `mocked` [Ucan Invocation Receipt] and a runtime [Receipt]
 ///
 /// [UCAN Invocation Receipt]: homestar_core::workflow::Receipt
-pub fn receipts() -> (InvocationReceipt<Ipld>, Receipt) {
+#[allow(dead_code)]
+pub(crate) fn receipts() -> (InvocationReceipt<Ipld>, Receipt) {
     let h = Code::Blake3_256.digest(b"beep boop");
     let cid = Cid::new_v1(RAW, h);
     let link: Link<Cid> = Link::new(cid);

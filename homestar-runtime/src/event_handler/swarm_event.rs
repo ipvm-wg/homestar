@@ -4,7 +4,7 @@ use super::EventHandler;
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
-    db::Database,
+    db::{Connection, Database},
     event_handler::{
         channel::BoundedChannel,
         event::{PeerRequest, QueryRecord},
@@ -16,7 +16,7 @@ use crate::{
     workflow::WORKFLOW_TAG,
     Db, Receipt,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use homestar_core::{
     consts,
@@ -77,6 +77,7 @@ where
     DB: Database + Sync,
 {
     #[cfg(feature = "ipfs")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>, _ipfs: IpfsCli) {
         handle_swarm_event(self, event_handler).await
     }
@@ -171,69 +172,60 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 QueryResult::GetRecord(Ok(_)) => {}
                 QueryResult::GetRecord(Err(err)) => {
                     error!(err=?err, "error retrieving record");
+
                     // Upon an error, attempt to find the record on the DHT via
                     // a provider if it's a Workflow/Info one.
-                    match event_handler.query_senders.remove(&id) {
-                        Some((
-                            RequestResponseKey {
-                                cid: cid_str,
-                                capsule_tag: CapsuleTag::Workflow,
-                            },
-                            sender,
-                        )) => {
-                            let (tx, rx) = BoundedChannel::oneshot();
-                            if let Ok(cid) = Cid::try_from(cid_str.as_str()) {
-                                if let Err(err) =
-                                    event_handler.sender().try_send(Event::GetProviders(
-                                        QueryRecord::with(cid, CapsuleTag::Workflow, tx),
-                                    ))
-                                {
-                                    error!(err=?err, "error opening channel to get providers");
-                                    let _ = sender.try_send(ResponseEvent::Found(Err(err.into())));
-                                    return;
-                                }
 
-                                match rx.recv_deadline(
-                                    Instant::now() + event_handler.p2p_provider_timeout,
-                                ) {
-                                    Ok(ResponseEvent::Providers(Ok(providers))) => {
-                                        for peer in providers {
-                                            let request = RequestResponseKey::new(
-                                                cid_str.to_string(),
-                                                CapsuleTag::Workflow,
-                                            );
-                                            let (tx, _rx) = BoundedChannel::oneshot();
-                                            if let Err(err) = event_handler.sender().try_send(
-                                                Event::OutboundRequest(PeerRequest::with(
-                                                    peer, request, tx,
-                                                )),
-                                            ) {
-                                                error!(err=?err, "error sending outbound request");
-                                                let _ = sender.try_send(ResponseEvent::Found(Err(
-                                                    err.into(),
-                                                )));
-                                            }
+                    if let Some((
+                        RequestResponseKey {
+                            cid: cid_str,
+                            capsule_tag: CapsuleTag::Workflow,
+                        },
+                        sender,
+                    )) = event_handler.query_senders.remove(&id)
+                    {
+                        let (tx, rx) = BoundedChannel::oneshot();
+                        if let Ok(cid) = Cid::try_from(cid_str.as_str()) {
+                            if let Err(err) = event_handler.sender().try_send(Event::GetProviders(
+                                QueryRecord::with(cid, CapsuleTag::Workflow, tx),
+                            )) {
+                                error!(err = ?err, "error opening channel to get providers");
+                                let _ = sender.try_send(ResponseEvent::Found(Err(err.into())));
+                                return;
+                            }
+
+                            match rx
+                                .recv_deadline(Instant::now() + event_handler.p2p_provider_timeout)
+                            {
+                                Ok(ResponseEvent::Providers(Ok(providers))) => {
+                                    for peer in providers {
+                                        let request = RequestResponseKey::new(
+                                            cid_str.to_string(),
+                                            CapsuleTag::Workflow,
+                                        );
+                                        let (tx, _rx) = BoundedChannel::oneshot();
+                                        if let Err(err) =
+                                            event_handler.sender().try_send(Event::OutboundRequest(
+                                                PeerRequest::with(peer, request, tx),
+                                            ))
+                                        {
+                                            error!(err = ?err, "error sending outbound request");
+                                            let _ = sender
+                                                .try_send(ResponseEvent::Found(Err(err.into())));
                                         }
                                     }
-                                    _ => {
-                                        let _ =
-                                            sender.try_send(ResponseEvent::Found(Err(err.into())));
-                                    }
+                                }
+                                _ => {
+                                    let _ = sender.try_send(ResponseEvent::Found(Err(err.into())));
                                 }
                             }
                         }
-                        Some((
-                            RequestResponseKey {
-                                cid: _,
-                                capsule_tag,
-                            },
-                            sender,
-                        )) => {
-                            let _ = sender.try_send(ResponseEvent::Found(Err(anyhow!(
-                                "not a valid provider record tag: {capsule_tag}"
-                            ))));
-                        }
-                        None => (),
+                    } else if let Some((RequestResponseKey { capsule_tag, .. }, sender)) =
+                        event_handler.query_senders.remove(&id)
+                    {
+                        let _ = sender.try_send(ResponseEvent::Found(Err(anyhow!(
+                            "not a valid provider record tag: {capsule_tag}"
+                        ))));
                     }
                 }
                 QueryResult::PutRecord(Ok(PutRecordOk { key })) => {
@@ -274,8 +266,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         cid,
                         event_handler.p2p_provider_timeout,
                         event_handler.sender.clone(),
-                        event_handler.db.conn().as_mut().ok(),
-                        |cid, _| bail!("timeout retrieving workflow info for {}", cid),
+                        event_handler.db.conn().ok(),
+                        None::<fn(Cid, Option<Connection>) -> Result<workflow::Info>>,
                     )
                     .await
                     {
@@ -371,7 +363,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         SwarmEvent::NewListenAddr { address, .. } => {
             let local_peer = *event_handler.swarm.local_peer_id();
             info!(
-                "local node is listening on {:?}",
+                "local node is listening on {}",
                 address.with(Protocol::P2p(local_peer))
             );
         }
@@ -436,7 +428,7 @@ mod test {
     fn found_receipt_record() {
         let (invocation_receipt, receipt) = test_utils::receipt::receipts();
         let instruction_bytes = receipt.instruction_cid_as_bytes();
-        let bytes = Receipt::invocation_capsule(invocation_receipt).unwrap();
+        let bytes = Receipt::invocation_capsule(&invocation_receipt).unwrap();
         let record = Record::new(instruction_bytes, bytes);
         let peer_record = PeerRecord {
             record,
