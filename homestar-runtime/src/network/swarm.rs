@@ -66,21 +66,20 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
 }
 
 fn startup<T: NetworkBehaviour>(swarm: &mut Swarm<T>, settings: &settings::Network) -> Result<()> {
-    // Dial bootstrap nodes specified in settings. Failure here shouldn't halt node startup.
+    // Listen-on given address
+    swarm.listen_on(settings.listen_address.to_string().parse()?)?;
+
+    // Dial trusted nodes specified in settings. Failure here shouldn't halt node startup.
     for trusted_addr in &settings.trusted_node_addresses {
         swarm
             .dial(trusted_addr.clone())
             .map(|_| {
-                info!(trusted_address=?trusted_addr, "Successfully dialed configured bootstrap node")
+                info!(trusted_address=?trusted_addr, "Successfully dialed configured trusted node")
             })
             // log dial failure and continue
-            .map_err(|e| warn!(err=?e, "Failed to dial bootstrap node"))
+            .map_err(|e| warn!(err=?e, "Failed to dial trusted node"))
             .ok();
     }
-
-    // Listen-on given address
-    swarm.listen_on(settings.listen_address.to_string().parse()?)?;
-
     Ok(())
 }
 
