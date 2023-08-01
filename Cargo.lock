@@ -4178,8 +4178,9 @@ dependencies = [
 
 [[package]]
 name = "papergrid"
-version = "0.9.1"
-source = "git+https://github.com/zhiburt/tabled.git#0f9b50134f689b104e33d417052baef671472815"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2ccbe15f2b6db62f9a9871642746427e297b0ceb85f9a7f1ee5ff47d184d0c8"
 dependencies = [
  "bytecount",
  "fnv",
@@ -5890,8 +5891,8 @@ dependencies = [
 
 [[package]]
 name = "tabled"
-version = "0.12.2"
-source = "git+https://github.com/zhiburt/tabled.git#0f9b50134f689b104e33d417052baef671472815"
+version = "0.13.0"
+source = "git+https://github.com/zhiburt/tabled.git#3ea7f5d84fbd4a18ca9c650dee00ed419a1f114e"
 dependencies = [
  "papergrid",
  "tabled_derive",
