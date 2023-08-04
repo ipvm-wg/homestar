@@ -9,8 +9,6 @@ rust-version = { workspace = true }
 proc_macro = true
 
 [dependencies]
-homestar-core = { version = "0.1", path = "../../../../homestar-core", features = [ "test-utils" ] }
 proc-macro2 = "1.0"
 quote = "1.0"
-syn = { version = "2.0", features = ["full", "extra-traits"] }
-tokio = { workspace = true }
+syn = "2.0"

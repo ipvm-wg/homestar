@@ -33,18 +33,16 @@ rust_decimal = "1.31"
 stacker = "0.1"
 thiserror = { workspace = true }
 tracing = { workspace = true }
-wasi-common = "10.0"
+wasi-common = "11.0"
 wasmparser = "0.110"
-#wasmtime = { version = "10.0", features = ["async", "component-model", "default"] }
-wasmtime = { version = "10.0", features = ["async", "component-model", "default"] }
+wasmtime = { version = "11.0", features = ["async", "component-model", "default"] }
 wasmtime-component-util = "11.0"
-wasmtime-wasi = { version = "10.0", features = ["tokio"] }
+wasmtime-wasi = { version = "11.0", features = ["tokio"] }
 wat = "1.0"
 wit-component = "0.13"
 
 [dev-dependencies]
 criterion = "0.5"
-image = "0.24"
 serde_ipld_dagcbor = { workspace = true }
 tokio = { workspace = true }
 

@@ -24,12 +24,16 @@ pub(crate) enum RequestResponseError {
 }
 
 impl RequestResponseError {
-    /// Encode the error into a byte vector via [bincode].
+    /// Encode the error into a byte vector via [CBOR].
+    ///
+    /// [CBOR]: serde_ipld_dagcbor
     pub(crate) fn encode(&self) -> Result<Vec<u8>> {
         serde_ipld_dagcbor::to_vec(self).map_err(anyhow::Error::new)
     }
 
-    /// Decode the error from a byte vector via [bincode].
+    /// Decode the error from a byte vector via [CBOR].
+    ///
+    /// [CBOR]: serde_ipld_dagcbor
     pub(crate) fn decode(bytes: &[u8]) -> Result<(Self, usize)> {
         serde_ipld_dagcbor::from_slice(bytes).map_err(anyhow::Error::new)
     }

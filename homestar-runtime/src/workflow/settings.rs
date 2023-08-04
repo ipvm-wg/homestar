@@ -16,7 +16,7 @@ pub struct Settings {
     pub(crate) timeout: Duration,
 }
 
-#[cfg(not(test))]
+#[cfg(all(not(test), not(feature = "test-utils")))]
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -31,7 +31,7 @@ impl Default for Settings {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 impl Default for Settings {
     fn default() -> Self {
         Self {

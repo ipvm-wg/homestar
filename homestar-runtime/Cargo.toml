@@ -32,11 +32,9 @@ anyhow = { workspace = true }
 async-trait = "0.1"
 atomic_refcell = { workspace = true }
 axum = { version = "0.6", features = ["ws", "headers"], optional = true }
-bincode = { version = "2.0.0-rc.3", features = ["serde"] }
 byte-unit = { workspace = true }
 chrono = { workspace = true }
 clap = { version = "4.3", features = ["derive", "color", "help", "env"] }
-concat-in-place = "1.1"
 config = "0.13"
 console-subscriber = { version = "0.1", default-features = false, features = [ "parking_lot" ], optional = true }
 crossbeam = "0.8"
@@ -46,7 +44,6 @@ diesel = { version = "2.1", features = ["sqlite", "r2d2", "returning_clauses_for
 diesel_migrations = "2.1"
 dotenvy = "0.15"
 enum-assoc = { workspace = true }
-evmap = "10.0"
 fnv = "1.0"
 futures = { workspace = true }
 headers = "0.3"
@@ -56,7 +53,6 @@ http = "0.2"
 http-serde = "1.1"
 humantime = { workspace = true }
 indexmap = { version = "2.0", features = ["serde"] }
-infer = "0.3"
 ipfs-api = { version = "0.17", optional = true }
 ipfs-api-backend-hyper = { version = "0.6", features = ["with-builder", "with-send-sync"], optional = true }
 itertools = { workspace = true }
@@ -79,7 +75,7 @@ serde_ipld_dagcbor = { workspace = true }
 serde_with = { version = "3.1", features = ["base64"] }
 stream-cancel = "0.8"
 strum = { version = "0.25", features = ["derive"] }
-tabled = { git = "https://github.com/zhiburt/tabled.git", features = ["std"] }
+tabled = { version = "0.13", features = ["std"] }
 tarpc = { version = "0.33", features = ["serde-transport", "serde-transport-bincode", "tcp"] }
 thiserror = { workspace = true }
 time = { workspace = true }
