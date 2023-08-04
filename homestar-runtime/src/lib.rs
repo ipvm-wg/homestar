@@ -37,9 +37,10 @@ pub use logger::*;
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};
 pub use runner::Runner;
 pub use settings::Settings;
+pub(crate) use worker::Worker;
 pub use workflow::WORKFLOW_TAG;
 
 /// Test utilities.
-#[cfg(any(test, feature = "test_utils"))]
-#[cfg_attr(docsrs, doc(cfg(feature = "test_utils")))]
+#[cfg(any(test, feature = "test-utils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 pub mod test_utils;

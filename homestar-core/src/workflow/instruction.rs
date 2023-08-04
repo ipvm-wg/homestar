@@ -132,7 +132,7 @@ where
 /// use libipld::Ipld;
 /// use url::Url;
 ///
-/// let wasm = "bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".to_string();
+/// let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
 /// let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
 ///
 /// let instr = Instruction::unique(
@@ -154,7 +154,7 @@ where
 /// use libipld::{cid::{multihash::{Code, MultihashDigest}, Cid}, Ipld, Link};
 /// use url::Url;
 
-/// let wasm = "bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".to_string();
+/// let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
 /// let resource = Url::parse(format!("ipfs://{wasm}").as_str()).expect("IPFS URL");
 /// let h = Code::Blake3_256.digest(b"beep boop");
 /// let cid = Cid::new_v1(0x55, h);
@@ -280,29 +280,27 @@ where
         let rsc = match map.get(RESOURCE_KEY) {
             Some(Ipld::Link(cid)) => cid
                 .to_string_of_base(Base::Base32Lower) // Cid v1
-                .map_err(WorkflowError::<Unit>::CidError)
+                .map_err(WorkflowError::<Unit>::CidEncode)
                 .and_then(|txt| {
                     Url::parse(format!("{}{}", "ipfs://", txt).as_str())
-                        .map_err(WorkflowError::ParseResourceError)
+                        .map_err(WorkflowError::ParseResource)
                 }),
             Some(Ipld::String(txt)) => {
-                Url::parse(txt.as_str()).map_err(WorkflowError::ParseResourceError)
+                Url::parse(txt.as_str()).map_err(WorkflowError::ParseResource)
             }
-            _ => Err(WorkflowError::MissingFieldError(RESOURCE_KEY.to_string())),
+            _ => Err(WorkflowError::MissingField(RESOURCE_KEY.to_string())),
         }?;
 
         Ok(Self {
             rsc,
             op: from_ipld(
                 map.get(OP_KEY)
-                    .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(OP_KEY.to_string()))?
+                    .ok_or_else(|| WorkflowError::<Unit>::MissingField(OP_KEY.to_string()))?
                     .to_owned(),
             )?,
             input: Input::try_from(
                 map.get(INPUT_KEY)
-                    .ok_or_else(|| {
-                        WorkflowError::<String>::MissingFieldError(INPUT_KEY.to_string())
-                    })?
+                    .ok_or_else(|| WorkflowError::<String>::MissingField(INPUT_KEY.to_string()))?
                     .to_owned(),
             )?,
             nnc: Nonce::try_from(
@@ -332,7 +330,7 @@ mod test {
                 (
                     RESOURCE_KEY.into(),
                     Ipld::String(
-                        "ipfs://bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".into()
+                        "ipfs://bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".into()
                     )
                 ),
                 (OP_KEY.into(), Ipld::String("ipld/fun".to_string())),

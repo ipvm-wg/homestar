@@ -23,28 +23,26 @@ doctest = true
 # https://github.com/DevinR528/cargo-sort/issues/47
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-atomic_refcell = "0.1"
+atomic_refcell = { workspace = true }
 enum-as-inner = { workspace = true }
 heck = "0.4"
 homestar-core = { version = "0.1", path = "../homestar-core" }
-itertools = "0.11"
+itertools = { workspace = true }
 libipld = { workspace = true }
 rust_decimal = "1.31"
 stacker = "0.1"
 thiserror = { workspace = true }
 tracing = { workspace = true }
-wasi-common = "10.0"
+wasi-common = "11.0"
 wasmparser = "0.110"
-#wasmtime = { version = "10.0", features = ["async", "component-model", "default"] }
-wasmtime = { version = "10.0", features = ["async", "component-model", "default"] }
+wasmtime = { version = "11.0", features = ["async", "component-model", "default"] }
 wasmtime-component-util = "11.0"
-wasmtime-wasi = { version = "10.0", features = ["tokio"] }
+wasmtime-wasi = { version = "11.0", features = ["tokio"] }
 wat = "1.0"
 wit-component = "0.13"
 
 [dev-dependencies]
 criterion = "0.5"
-image = "0.24"
 serde_ipld_dagcbor = { workspace = true }
 tokio = { workspace = true }
 

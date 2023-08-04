@@ -19,11 +19,15 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::{
+    runtime::Handle,
+    select,
+    sync::{broadcast, mpsc, oneshot},
+};
 use tracing::{debug, info};
 
 /// Type alias for websocket sender.
-pub(crate) type Sender = Arc<broadcast::Sender<String>>;
+pub type Sender = Arc<broadcast::Sender<String>>;
 
 /// Message type for messages sent back from the
 /// websocket server to the [runner] for example.
@@ -51,7 +55,7 @@ impl Server {
         broadcast::channel(capacity)
     }
 
-    pub(crate) fn new(settings: settings::Network) -> Result<Self> {
+    pub(crate) fn new(settings: &settings::Network) -> Result<Self> {
         let (sender, _receiver) = Self::setup_channel(settings.websocket_capacity);
 
         let host = IpAddr::from_str(&settings.websocket_host.to_string())?;
@@ -147,8 +151,9 @@ async fn handle_socket(mut socket: ws::WebSocket, state: Server) {
     // By splitting socket we can send and receive at the same time.
     let (mut socket_sender, mut socket_receiver) = socket.split();
     let mut subscribed_rx = state.msg_sender.subscribe();
+    let handle = Handle::current();
 
-    let mut send_task = tokio::spawn(async move {
+    let mut send_task = handle.spawn(async move {
         while let Ok(msg) = subscribed_rx.recv().await {
             // In any websocket error, break loop.
             if socket_sender
@@ -161,7 +166,7 @@ async fn handle_socket(mut socket: ws::WebSocket, state: Server) {
         }
     });
 
-    let mut recv_task = tokio::spawn(async move {
+    let mut recv_task = handle.spawn(async move {
         let mut cnt = 0;
         while let Some(Ok(msg)) = socket_receiver.next().await {
             cnt += 1;
@@ -173,7 +178,7 @@ async fn handle_socket(mut socket: ws::WebSocket, state: Server) {
     });
 
     // If any one of the tasks exit, abort the other.
-    tokio::select! {
+    select! {
         _ = (&mut send_task) => recv_task.abort(),
         _ = (&mut recv_task) => send_task.abort(),
     };
@@ -229,7 +234,7 @@ mod test {
     #[tokio::test]
     async fn ws_connect() {
         let settings = Settings::load().unwrap();
-        let state = Server::new(settings.node.network).unwrap();
+        let state = Server::new(settings.node().network()).unwrap();
         let (_ws_tx, ws_rx) = mpsc::channel(1);
         tokio::spawn(state.start(ws_rx));
 

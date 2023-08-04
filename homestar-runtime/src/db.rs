@@ -1,7 +1,4 @@
-//! Sqlite database integration and setup.
-
-#[allow(missing_docs, unused_imports)]
-pub mod schema;
+//! (Default) sqlite database integration and setup.
 
 use crate::{
     settings,
@@ -22,6 +19,10 @@ use libipld::Cid;
 use std::{env, sync::Arc, time::Duration};
 use tokio::fs;
 use tracing::info;
+
+#[allow(missing_docs, unused_imports)]
+pub mod schema;
+pub(crate) mod utils;
 
 const ENV: &str = "DATABASE_URL";
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
@@ -63,11 +64,15 @@ impl Db {
         let byte_unit = byte.get_adjusted_unit(ByteUnit::MB);
         Ok(byte_unit)
     }
+}
 
+/// Database trait for working with different Sqlite connection pool and
+/// connection configurations.
+pub trait Database: Send + Sync + Clone {
     /// Get database url.
     ///
     /// Contains a minimal side-effect to set the env if not already set.
-    pub fn set_url(database_url: Option<String>) -> Option<String> {
+    fn set_url(database_url: Option<String>) -> Option<String> {
         database_url.map_or_else(
             || dotenv().ok().and_then(|_| env::var(ENV).ok()),
             |url| {
@@ -76,11 +81,7 @@ impl Db {
             },
         )
     }
-}
 
-/// Database trait for working with different Sqlite connection pool and
-/// connection configurations.
-pub trait Database: Send + Sync + Clone {
     /// Test a Sqlite connection to the database and run pending migrations.
     fn setup(url: &str) -> Result<SqliteConnection> {
         info!("Using database at {:?}", url);
@@ -96,57 +97,84 @@ pub trait Database: Send + Sync + Clone {
         Self: Sized;
     /// Get a pooled connection for the database.
     fn conn(&self) -> Result<Connection>;
+
+    /// Commit a receipt to the database, updating two tables
+    /// within a transaction.
+    fn commit_receipt(
+        workflow_cid: Cid,
+        receipt: Receipt,
+        conn: &mut Connection,
+    ) -> Result<Receipt, diesel::result::Error> {
+        let receipt = conn.transaction::<_, diesel::result::Error, _>(|conn| {
+            let returned = Self::store_receipt(receipt, conn)?;
+            Self::store_workflow_receipt(workflow_cid, returned.cid(), conn)?;
+            Ok(returned)
+        })?;
+
+        Ok(receipt)
+    }
+
     /// Store receipt given a connection to the database pool.
     ///
     /// On conflicts, do nothing.
-    fn store_receipt(receipt: Receipt, conn: &mut Connection) -> Result<Receipt> {
+    fn store_receipt(
+        receipt: Receipt,
+        conn: &mut Connection,
+    ) -> Result<Receipt, diesel::result::Error> {
         diesel::insert_into(schema::receipts::table)
             .values(&receipt)
             .on_conflict(schema::receipts::cid)
             .do_nothing()
             .get_result(conn)
-            .map_err(Into::into)
     }
 
     /// Store receipts given a connection to the Database pool.
-    fn store_receipts(receipts: Vec<Receipt>, conn: &mut Connection) -> Result<usize> {
-        diesel::insert_into(schema::receipts::table)
-            .values(&receipts)
-            .execute(conn)
-            .map_err(Into::into)
+    fn store_receipts(
+        receipts: Vec<Receipt>,
+        conn: &mut Connection,
+    ) -> Result<usize, diesel::result::Error> {
+        receipts.iter().try_fold(0, |acc, receipt| {
+            let res = diesel::insert_into(schema::receipts::table)
+                .values(receipt)
+                .on_conflict(schema::receipts::cid)
+                .do_nothing()
+                .execute(conn)?;
+
+            Ok::<_, diesel::result::Error>(acc + res)
+        })
     }
 
     /// Find receipt for a given [Instruction] [Pointer], which is indexed.
     ///
-    /// This *should* always return one receipt, but sometimes it's nicer to
-    /// work across vecs/arrays.
-    ///
     /// [Instruction]: homestar_core::workflow::Instruction
-    fn find_instructions(pointers: &Vec<Pointer>, conn: &mut Connection) -> Result<Vec<Receipt>> {
-        let found_receipts = schema::receipts::dsl::receipts
+    fn find_instruction_pointers(
+        pointers: &Vec<Pointer>,
+        conn: &mut Connection,
+    ) -> Result<Vec<Receipt>, diesel::result::Error> {
+        schema::receipts::dsl::receipts
             .filter(schema::receipts::instruction.eq_any(pointers))
-            .load(conn)?;
-        Ok(found_receipts)
+            .load(conn)
     }
 
-    /// Find receipt for a given [Instruction] [Pointer], which is indexed.
+    /// Find receipt for a given [Instruction] [Cid], which is indexed.
     ///
     /// [Instruction]: homestar_core::workflow::Instruction
-    fn find_instruction(pointer: Pointer, conn: &mut Connection) -> Result<Receipt> {
-        let found_receipt = schema::receipts::dsl::receipts
-            .filter(schema::receipts::instruction.eq(pointer))
-            .first(conn)?;
-        Ok(found_receipt)
+    fn find_instruction(cid: Cid, conn: &mut Connection) -> Result<Receipt, diesel::result::Error> {
+        schema::receipts::dsl::receipts
+            .filter(schema::receipts::instruction.eq(Pointer::new(cid)))
+            .first(conn)
     }
 
     /// Store localized workflow cid and information, e.g. number of tasks.
-    fn store_workflow(workflow: workflow::Stored, conn: &mut Connection) -> Result<usize> {
+    fn store_workflow(
+        workflow: workflow::Stored,
+        conn: &mut Connection,
+    ) -> Result<workflow::Stored, diesel::result::Error> {
         diesel::insert_into(schema::workflows::table)
             .values(&workflow)
             .on_conflict(schema::workflows::cid)
             .do_nothing()
-            .execute(conn)
-            .map_err(Into::into)
+            .get_result(conn)
     }
 
     /// Store workflow [Cid] and [Receipt] [Cid] in the database for inner join.
@@ -154,7 +182,7 @@ pub trait Database: Send + Sync + Clone {
         workflow_cid: Cid,
         receipt_cid: Cid,
         conn: &mut Connection,
-    ) -> Result<usize> {
+    ) -> Result<usize, diesel::result::Error> {
         let value = StoredReceipt::new(Pointer::new(workflow_cid), Pointer::new(receipt_cid));
         diesel::insert_into(schema::workflows_receipts::table)
             .values(&value)
@@ -164,7 +192,6 @@ pub trait Database: Send + Sync + Clone {
             ))
             .do_nothing()
             .execute(conn)
-            .map_err(Into::into)
     }
 
     /// Store series of receipts for a workflow [Cid] in the
@@ -177,26 +204,31 @@ pub trait Database: Send + Sync + Clone {
         workflow_cid: Cid,
         receipts: &[Cid],
         conn: &mut Connection,
-    ) -> Result<usize> {
+    ) -> Result<usize, diesel::result::Error> {
         receipts.iter().try_fold(0, |acc, receipt| {
             let res = Self::store_workflow_receipt(workflow_cid, *receipt, conn)?;
-            Ok::<_, anyhow::Error>(acc + res)
+            Ok::<_, diesel::result::Error>(acc + res)
         })
     }
 
     /// Select workflow given a [Cid] to the workflow.
-    fn select_workflow(cid: Cid, conn: &mut Connection) -> Result<workflow::Stored> {
-        let wf = schema::workflows::dsl::workflows
+    fn select_workflow(
+        cid: Cid,
+        conn: &mut Connection,
+    ) -> Result<workflow::Stored, diesel::result::Error> {
+        schema::workflows::dsl::workflows
             .filter(schema::workflows::cid.eq(Pointer::new(cid)))
             .select(workflow::Stored::as_select())
-            .get_result(conn)?;
-        Ok(wf)
+            .get_result(conn)
     }
 
     /// Return workflow information with number of receipts emitted.
-    fn get_workflow_info(workflow_cid: Cid, conn: &mut Connection) -> Result<workflow::Info> {
-        let wf = Self::select_workflow(workflow_cid, conn)?;
-        let associated_receipts = workflow::StoredReceipt::belonging_to(&wf)
+    fn get_workflow_info(
+        workflow_cid: Cid,
+        conn: &mut Connection,
+    ) -> Result<workflow::Info, diesel::result::Error> {
+        let workflow = Self::select_workflow(workflow_cid, conn)?;
+        let associated_receipts = workflow::StoredReceipt::belonging_to(&workflow)
             .select(schema::workflows_receipts::receipt_cid)
             .load(conn)?;
 
@@ -205,13 +237,25 @@ pub trait Database: Send + Sync + Clone {
             .map(|pointer: Pointer| pointer.cid())
             .collect();
 
-        Ok(workflow::Info::new(workflow_cid, cids, wf.num_tasks as u32))
+        Ok(workflow::Info::new(
+            workflow_cid,
+            workflow.num_tasks as u32,
+            cids,
+            workflow.resources,
+        ))
     }
 }
 
 impl Database for Db {
     fn setup_connection_pool(settings: &settings::Node) -> Result<Self> {
-        let database_url = env::var(ENV)?;
+        let database_url = env::var(ENV).unwrap_or_else(|_| {
+            settings
+                .db
+                .url
+                .as_ref()
+                .map_or_else(|| "homestar.db".to_string(), |url| url.to_string())
+        });
+
         Self::setup(&database_url)?;
         let manager = r2d2::ConnectionManager::<SqliteConnection>::new(database_url);
 
@@ -255,12 +299,13 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{settings::Settings, test_utils};
+    use crate::test_utils::db::MemoryDb;
 
-    #[tokio::test]
-    async fn check_pragmas_memory_db() {
-        let db = test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
-            .unwrap();
+    #[homestar_runtime_proc_macro::db_async_test]
+    fn check_pragmas_memory_db() {
+        let settings = TestSettings::load();
+
+        let db = MemoryDb::setup_connection_pool(settings.node()).unwrap();
         let mut conn = db.conn().unwrap();
 
         let journal_mode = diesel::dsl::sql::<diesel::sql_types::Text>("PRAGMA journal_mode")

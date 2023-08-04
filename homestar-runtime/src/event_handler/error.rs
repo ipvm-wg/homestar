@@ -2,10 +2,10 @@
 
 use crate::network::swarm::RequestResponseKey;
 use anyhow::Result;
-use bincode::{Decode, Encode};
+use serde::{Deserialize, Serialize};
 
 /// Error type for messages related to [libp2p::request_response].
-#[derive(thiserror::Error, Debug, Encode, Decode)]
+#[derive(thiserror::Error, Debug, Serialize, Deserialize)]
 pub(crate) enum RequestResponseError {
     /// Return a timeout error when attempting to retrieve data keyed by [Cid].
     ///
@@ -24,13 +24,17 @@ pub(crate) enum RequestResponseError {
 }
 
 impl RequestResponseError {
-    /// Encode the error into a byte vector via [bincode].
+    /// Encode the error into a byte vector via [CBOR].
+    ///
+    /// [CBOR]: serde_ipld_dagcbor
     pub(crate) fn encode(&self) -> Result<Vec<u8>> {
-        bincode::encode_to_vec(self, bincode::config::standard()).map_err(anyhow::Error::new)
+        serde_ipld_dagcbor::to_vec(self).map_err(anyhow::Error::new)
     }
 
-    /// Decode the error from a byte vector via [bincode].
+    /// Decode the error from a byte vector via [CBOR].
+    ///
+    /// [CBOR]: serde_ipld_dagcbor
     pub(crate) fn decode(bytes: &[u8]) -> Result<(Self, usize)> {
-        bincode::decode_from_slice(bytes, bincode::config::standard()).map_err(anyhow::Error::new)
+        serde_ipld_dagcbor::from_slice(bytes).map_err(anyhow::Error::new)
     }
 }

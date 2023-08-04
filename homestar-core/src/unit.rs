@@ -45,6 +45,6 @@ impl input::Parse<Unit> for Input<Unit> {
 
 impl From<Error<String>> for InputParseError<Unit> {
     fn from(err: Error<String>) -> Self {
-        InputParseError::WorkflowError(err.into())
+        InputParseError::Workflow(err.into())
     }
 }

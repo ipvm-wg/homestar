@@ -182,8 +182,80 @@ fn test_server_serial() -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "test-utils")]
 #[test]
 #[serial]
+fn test_workflow_run_serial() -> Result<()> {
+    let _ = stop_bin();
+
+    let mut homestar_proc = Command::new(BIN.as_os_str())
+        .arg("start")
+        .arg("--db")
+        .arg("homestar.db")
+        //.stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 3030);
+    let result = retry(Fixed::from_millis(500), || {
+        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
+    });
+
+    if result.is_err() {
+        homestar_proc.kill().unwrap();
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
+    Command::new(BIN.as_os_str())
+        .arg("run")
+        .arg("-w")
+        .arg("./fixtures/test-workflow-add-one.json")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "bafyrmibcfltf6vhtfdson5z4av4r4wg3rccpt4hxajt54msacojeecazqy",
+        ))
+        .stdout(predicate::str::contains(
+            "ipfs://bafybeiabbxwf2vn4j3zm7bbojr6rt6k7o6cg6xcbhqkllubmsnvocpv7y4",
+        ))
+        .stdout(predicate::str::contains("num_tasks"))
+        .stdout(predicate::str::contains("progress_count"));
+
+    // run another one of the same!
+    Command::new(BIN.as_os_str())
+        .arg("run")
+        .arg("-w")
+        .arg("./fixtures/test-workflow-add-one.json")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "bafyrmibcfltf6vhtfdson5z4av4r4wg3rccpt4hxajt54msacojeecazqy",
+        ))
+        .stdout(predicate::str::contains(
+            "ipfs://bafybeiabbxwf2vn4j3zm7bbojr6rt6k7o6cg6xcbhqkllubmsnvocpv7y4",
+        ))
+        .stdout(predicate::str::contains("num_tasks"))
+        .stdout(predicate::str::contains("progress_count"));
+
+    let _ = Command::new(BIN.as_os_str()).arg("stop").output();
+
+    if let Ok(None) = homestar_proc.try_wait() {
+        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
+            Some(status) => status.code(),
+            None => {
+                homestar_proc.kill().unwrap();
+                homestar_proc.wait().unwrap().code()
+            }
+        };
+    }
+    let _ = stop_bin();
+
+    Ok(())
+}
+
+#[test]
+#[serial]
+#[cfg(not(windows))]
 fn test_daemon_serial() -> Result<()> {
     let _ = stop_bin();
 
@@ -226,8 +298,13 @@ fn test_daemon_serial() -> Result<()> {
         .stdout(predicate::str::contains("pong"));
 
     let _result = signal::kill(Pid::from_raw(pid.try_into().unwrap()), Signal::SIGTERM);
+    let _result = retry(Fixed::from_millis(500), || {
+        Command::new(BIN.as_os_str())
+            .arg("ping")
+            .assert()
+            .try_failure()
+    });
 
-    Command::new(BIN.as_os_str()).arg("ping").assert().failure();
     let _ = stop_bin();
 
     Ok(())

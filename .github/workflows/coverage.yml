@@ -16,8 +16,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Setup IPFS
+        uses: ibnesayeed/setup-ipfs@master
+        with:
+          run_daemon: true
+
       - name: Checkout Repository
         uses: actions/checkout@v3
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Use mold-linker
+        uses: rui314/setup-mold@v1
 
       - name: Install Rust Toolchain
         id: toolchain
@@ -25,9 +38,6 @@ jobs:
 
       - name: Override rust-toolchain.toml
         run: rustup override set ${{steps.toolchain.outputs.name}}
-
-      - name: Cache Project
-        uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov

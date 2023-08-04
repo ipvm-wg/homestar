@@ -1,5 +1,6 @@
 //! Error type for CLI / CLI-interaction.
 
+use crate::network::rpc;
 use miette::{miette, Diagnostic};
 use std::io;
 use tarpc::client::RpcError;
@@ -9,22 +10,25 @@ use tarpc::client::RpcError;
 pub enum Error {
     /// Generic CLI error.
     #[error("{error_message}")]
-    CliError {
+    Cli {
         /// Error message.
         error_message: String,
     },
-    /// Propagated RPC error.
+    /// Propagated RPC error related to [tarpc::client::RpcError].
     #[error(transparent)]
-    RpcError(#[from] RpcError),
+    Rpc(#[from] RpcError),
+    /// Propagated error related to an .
+    #[error(transparent)]
+    RpcMessage(#[from] rpc::Error),
     /// Propagated IO error.
     #[error("error writing data to console: {0}")]
-    WriteError(#[from] io::Error),
+    Io(#[from] io::Error),
 }
 
 impl Error {
     /// Create a new [Error].
     pub fn new(err: miette::ErrReport) -> Self {
-        Error::CliError {
+        Error::Cli {
             error_message: err.to_string(),
         }
     }

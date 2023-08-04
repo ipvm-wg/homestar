@@ -1,23 +1,41 @@
 use std::{
+    fmt,
     io::{self, Write},
-    net::SocketAddr,
 };
 use tabled::{
     settings::{
         object::Rows,
         style::{BorderColor, BorderSpanCorrection},
-        themes::Colorization,
         Alignment, Color, Modify, Panel, Style,
     },
-    Table, Tabled,
+    Table,
 };
 
-const TABLE_TITLE: &str = "homestar(╯°□°)╯";
+/// Panel title for the output table.
+pub(crate) const TABLE_TITLE: &str = "homestar(╯°□°)╯";
 
 /// Output response wrapper.
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Output(String);
 
+impl fmt::Display for Output {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.trim_end())
+    }
+}
+
 impl Output {
+    /// Create a new output response.
+    pub(crate) fn new(table: String) -> Self {
+        Self(table)
+    }
+
+    /// Get the inner string as a reference.
+    #[allow(dead_code)]
+    pub(crate) fn inner(&self) -> &str {
+        &self.0
+    }
+
     /// Print ouput response to console via [io::stdout].
     pub(crate) fn echo(&self) -> Result<(), io::Error> {
         let stdout = io::stdout();
@@ -26,14 +44,14 @@ impl Output {
     }
 }
 
-/// Ping response for display.
-#[derive(Tabled)]
-pub(crate) struct Ping {
-    address: SocketAddr,
-    response: String,
+/// Trait for console table output responses.
+pub(crate) trait ConsoleTable {
+    fn table(&self) -> Output;
+    fn echo_table(&self) -> Result<(), io::Error>;
 }
 
-trait ApplyStyle {
+/// Style trait for console table output responses.
+pub(crate) trait ApplyStyle {
     fn default(&mut self) -> Output;
 }
 
@@ -43,22 +61,10 @@ impl ApplyStyle for Table {
             .with(Style::modern())
             .with(Panel::header(TABLE_TITLE))
             .with(Modify::new(Rows::first()).with(Alignment::left()))
-            .with(Colorization::exact([Color::FG_WHITE], Rows::first()))
-            .with(Colorization::exact(
-                [Color::FG_BRIGHT_GREEN],
-                Rows::single(1),
-            ))
             .with(BorderColor::filled(Color::FG_WHITE))
             .with(BorderSpanCorrection)
             .to_string();
 
         Output(table)
-    }
-}
-
-impl Ping {
-    /// Display a singleton table of a `ping` response.
-    pub(crate) fn table(address: SocketAddr, response: String) -> Output {
-        Table::new(vec![Self { address, response }]).default()
     }
 }

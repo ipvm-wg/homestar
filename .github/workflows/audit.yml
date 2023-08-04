@@ -12,6 +12,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+
       - name: Run Audit-Check
         uses: rustsec/audit-check@v1.4.1
         with:

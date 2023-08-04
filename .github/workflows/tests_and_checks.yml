@@ -13,15 +13,16 @@ concurrency:
 
 jobs:
   run-checks:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
         rust-toolchain:
           - stable
           - nightly
           # minimum version
-          - 1.66
+          - 1.67
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
@@ -30,6 +31,12 @@ jobs:
       # https://github.com/Swatinem/rust-cache
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: check-${{ matrix.rust-toolchain }}-${{ matrix.os }}
+
+      - name: Use mold-linker
+        uses: rui314/setup-mold@v1
 
       - name: Install Rust Toolchain
         id: toolchain
@@ -49,7 +56,7 @@ jobs:
 
       # Check for security advisories
       - name: Check Advisories
-        if: ${{ matrix.rust-toolchain == 'stable' }}
+        if: ${{ matrix.rust-toolchain == 'stable' && matrix.os == 'ubuntu-latest' }}
         uses: EmbarkStudios/cargo-deny-action@v1
         with:
           command: check advisories
@@ -57,7 +64,7 @@ jobs:
 
       # Audit licenses, unreleased crates, and unexpected duplicate versions.
       - name: Check Bans, Licenses, and Sources
-        if: ${{ matrix.rust-toolchain == 'stable' }}
+        if: ${{ matrix.rust-toolchain == 'stable' && matrix.os == 'ubuntu-latest' }}
         uses: EmbarkStudios/cargo-deny-action@v1
         with:
           command: check bans licenses sources
@@ -68,19 +75,31 @@ jobs:
         run: cargo build --release
 
   run-tests-all-features:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
         rust-toolchain:
           - stable
           - nightly
+    runs-on: ${{ matrix.os }}
     steps:
+      - name: Setup IPFS
+        uses: ibnesayeed/setup-ipfs@master
+        with:
+          run_daemon: true
+
       - name: Checkout Repository
         uses: actions/checkout@v3
 
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: test-all-${{ matrix.rust-toolchain }}-${{ matrix.os }}
+
+      - name: Use mold-linker
+        uses: rui314/setup-mold@v1
 
       - name: Install Rust Toolchain
         id: toolchain
@@ -101,19 +120,26 @@ jobs:
         run: cargo test --doc
 
   run-tests-no-default-features:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
         rust-toolchain:
           - stable
           - nightly
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: test-0-${{ matrix.rust-toolchain }}-${{ matrix.os }}
+
+      - name: Use mold-linker
+        uses: rui314/setup-mold@v1
 
       - name: Install Rust Toolchain
         id: toolchain
@@ -128,7 +154,7 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run Tests
-        run: cargo nextest run --profile ci --no-default-features
+        run: cargo nextest run --profile ci --no-default-features --features "test-utils"
 
   run-docs:
     runs-on: ubuntu-latest
@@ -141,6 +167,11 @@ jobs:
 
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: doc
+
+      - name: Use mold-linker
+        uses: rui314/setup-mold@v1
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable

@@ -13,6 +13,8 @@
 private
 *.temp
 *.db
+*.db-shm
+*.db-wal
 *.tmp
 *.png
 *.dot
@@ -20,6 +22,10 @@ private
 .DS_Store
 homestar-guest-wasm/out
 homestar-wasm/out
+**/fixtures/test_*
+
+# ipfs
+.ipfs
 
 # daemon
 homestar.err

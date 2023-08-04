@@ -61,11 +61,11 @@ impl input::Parse<Arg> for Input<Arg> {
             let map = from_ipld::<BTreeMap<String, Ipld>>(ipld.to_owned())?;
 
             let func = map.get("func").ok_or_else(|| {
-                InputParseError::WorkflowError(WorkflowError::MissingFieldError("func".to_string()))
+                InputParseError::Workflow(WorkflowError::MissingField("func".to_string()))
             })?;
 
             let wasm_args = map.get("args").ok_or_else(|| {
-                InputParseError::WorkflowError(WorkflowError::MissingFieldError("args".to_string()))
+                InputParseError::Workflow(WorkflowError::MissingField("args".to_string()))
             })?;
 
             let args: Args<Arg> = wasm_args.to_owned().try_into()?;

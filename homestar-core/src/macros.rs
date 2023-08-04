@@ -19,7 +19,7 @@
 /// #
 ///
 /// if !has_permission(user, resource) {
-///     bail!(workflow::Error::UnknownError);
+///     bail!(workflow::Error::Unknown);
 /// }
 ///
 /// #     Ok(())

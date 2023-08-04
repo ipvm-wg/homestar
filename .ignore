@@ -15,3 +15,5 @@ LICENSE
 .gitignore
 .release-please-manifest.json
 .pre-commit-config.yaml
+
+**/fixtures

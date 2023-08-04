@@ -30,7 +30,7 @@ async fn test_wasm_exceeds_max_memory() {
     )
     .await;
 
-    if let Err(Error::WasmRuntimeError(err)) = env {
+    if let Err(Error::WasmRuntime(err)) = env {
         assert!(err.to_string().contains("exceeds memory limits"));
     } else {
         panic!("Expected WasmRuntimeError")
