@@ -39,7 +39,7 @@
     <a href="https://docs.rs/homestar-runtime">
       <img src="https://img.shields.io/static/v1?label=Docs&message=runtime.docs.rs&color=pink" alt="Docs">
     </a>
-    <a href="https://discord.gg/fissioncodes">
+    <a href="https://fission.codes/discord">
       <img src="https://img.shields.io/static/v1?label=Discord&message=join%20us!&color=mediumslateblue" alt="Discord">
     </a>
   </p>
@@ -220,7 +220,7 @@ a type of `fix`, `feat`, `docs`, `ci`, `refactor`, etc..., structured like so:
 
 ## Getting Help
 
-For usage questions, usecases, or issues reach out to us in our [Discord channel](https://discord.gg/fissioncodes).
+For usage questions, usecases, or issues reach out to us in our [Discord channel](https://fission.codes/discord).
 
 We would be happy to try to answer your question or try opening a new issue on Github.
 
