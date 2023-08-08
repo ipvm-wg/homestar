@@ -72,7 +72,7 @@ sec1 = { version = "0.7", features = ["pem", "der"] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_ipld_dagcbor = { workspace = true }
-serde_with = { version = "3.1", features = ["base64"] }
+serde_with = { version = "3.2", features = ["base64"] }
 stream-cancel = "0.8"
 strum = { version = "0.25", features = ["derive"] }
 tabled = { version = "0.13", features = ["std"] }
