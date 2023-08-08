@@ -353,11 +353,13 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Expired(list))) => {
             for (peer_id, multiaddr) in list {
                 info!("mDNS discover peer has expired: {peer_id}");
-                event_handler
-                    .swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .remove_address(&peer_id, &multiaddr);
+                if event_handler.swarm.behaviour_mut().mdns.has_node(&peer_id) {
+                    event_handler
+                        .swarm
+                        .behaviour_mut()
+                        .kademlia
+                        .remove_address(&peer_id, &multiaddr);
+                }
             }
         }
         SwarmEvent::NewListenAddr { address, .. } => {
