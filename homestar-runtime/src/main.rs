@@ -23,18 +23,32 @@ fn main() -> Result<()> {
             } else {
                 Settings::load()
             }
-            .expect("Failed to load settings");
+            .expect("runtime settings to be loaded");
 
             let _guard = if daemonize {
-                daemon::start(daemon_dir.clone()).expect("Failed to daemonize homestar runner");
+                daemon::start(daemon_dir.clone())
+                    .expect("runner to be started as a daemon process");
                 FileLogger::init(daemon_dir)
             } else {
                 Logger::init()
             };
 
-            info!("starting with settings: {:?}", settings,);
-            Db::set_url(database_url).expect("Failed to set DB url");
-            let db = Db::setup_connection_pool(settings.node()).expect("Failed to setup DB pool");
+            info!(
+                subject = "settings",
+                category = "homestar_init",
+                "starting with settings: {:?}",
+                settings,
+            );
+
+            let db = Db::setup_connection_pool(settings.node(), database_url)
+                .expect("to setup database pool");
+
+            info!(
+                subject = "database",
+                category = "homestar_init",
+                "starting with database: {}",
+                Db::url().expect("database url to be provided"),
+            );
 
             info!("starting Homestar runtime...");
             Runner::start(settings, db).expect("Failed to start runtime")

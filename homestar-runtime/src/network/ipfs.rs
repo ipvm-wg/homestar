@@ -66,7 +66,7 @@ impl IpfsCli {
 
         let DagPutResponse { cid } = self
             .0
-            .dag_put_with_options(Cursor::new(receipt_bytes.clone()), dag_builder)
+            .dag_put_with_options(Cursor::new(receipt_bytes), dag_builder)
             .await
             .expect("a CID");
 

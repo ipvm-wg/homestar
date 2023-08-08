@@ -18,6 +18,7 @@ use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Cid, Ipld};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
+    fmt,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -42,6 +43,7 @@ const RESOURCES_KEY: &str = "resources";
 #[diesel(table_name = crate::db::schema::workflows, primary_key(cid))]
 pub struct Stored {
     pub(crate) cid: Pointer,
+    pub(crate) name: Option<String>,
     pub(crate) num_tasks: i32,
     pub(crate) resources: IndexedResources,
     pub(crate) created_at: NaiveDateTime,
@@ -54,12 +56,14 @@ impl Stored {
     /// [db]: Database
     pub fn new(
         cid: Pointer,
+        name: Option<String>,
         num_tasks: i32,
         resources: IndexedResources,
         created_at: NaiveDateTime,
     ) -> Self {
         Self {
             cid,
+            name,
             num_tasks,
             resources,
             created_at,
@@ -70,9 +74,15 @@ impl Stored {
     /// Create a new [Stored] workflow for the [db] with a default timestamp.
     ///
     /// [db]: Database
-    pub fn new_with_resources(cid: Pointer, num_tasks: i32, resources: IndexedResources) -> Self {
+    pub fn new_with_resources(
+        cid: Pointer,
+        name: Option<String>,
+        num_tasks: i32,
+        resources: IndexedResources,
+    ) -> Self {
         Self {
             cid,
+            name,
             num_tasks,
             resources,
             created_at: Utc::now().naive_utc(),
@@ -84,8 +94,10 @@ impl Stored {
     ///
     /// [db]: Database
     pub fn default(cid: Pointer, num_tasks: i32) -> Self {
+        let name = cid.to_string();
         Self {
             cid,
+            name: Some(name),
             num_tasks,
             resources: IndexedResources::default(),
             created_at: Utc::now().naive_utc(),
@@ -132,40 +144,40 @@ pub struct Info {
     pub(crate) resources: IndexedResources,
 }
 
+impl fmt::Display for Info {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "cid: {}, progress: {}/{}",
+            self.cid, self.progress_count, self.num_tasks
+        )
+    }
+}
+
 impl Info {
-    /// Create a new workflow set of [Info] given a [Cid], progress / step,
-    /// [IndexedResources], and number of tasks.
-    pub fn new(cid: Cid, num_tasks: u32, progress: Vec<Cid>, resources: IndexedResources) -> Self {
+    /// Create a workflow information structure from a [Stored] workflow and
+    /// `progress` vector.
+    pub fn new(stored: Stored, progress: Vec<Cid>) -> Self {
         let progress_count = progress.len() as u32;
+        let cid = stored.cid.cid();
         Self {
             cid,
-            num_tasks,
+            num_tasks: stored.num_tasks as u32,
             progress,
             progress_count,
-            resources,
+            resources: stored.resources,
         }
     }
 
     /// Create a default workflow [Info] given a [Cid] and number of tasks.
-    pub fn default(cid: Cid, num_tasks: u32) -> Self {
+    pub fn default(stored: Stored) -> Self {
+        let cid = stored.cid.cid();
         Self {
             cid,
-            num_tasks,
+            num_tasks: stored.num_tasks as u32,
             progress: vec![],
             progress_count: 0,
-            resources: IndexedResources::default(),
-        }
-    }
-
-    /// Create a default workflow [Info] given a [Cid], number of tasks,
-    /// and [IndexedResources].
-    pub fn default_with_resources(cid: Cid, num_tasks: u32, resources: IndexedResources) -> Self {
-        Self {
-            cid,
-            num_tasks,
-            progress: vec![],
-            progress_count: 0,
-            resources,
+            resources: stored.resources,
         }
     }
 
@@ -240,6 +252,7 @@ impl Info {
     pub(crate) async fn init(
         workflow_cid: Cid,
         workflow_len: u32,
+        name: String,
         resources: IndexedResources,
         p2p_timeout: Duration,
         event_sender: Arc<mpsc::Sender<Event>>,
@@ -247,7 +260,11 @@ impl Info {
     ) -> Result<(Self, NaiveDateTime)> {
         let timestamp = Utc::now().naive_utc();
         match Db::get_workflow_info(workflow_cid, &mut conn) {
-            Ok(info) => Ok((info, timestamp)),
+            Ok((Some(stored_name), info)) if stored_name != name => {
+                Db::update_local_name(name, &mut conn)?;
+                Ok((info, timestamp))
+            }
+            Ok((_, info)) => Ok((info, timestamp)),
             Err(_err) => {
                 info!(
                     cid = workflow_cid.to_string(),
@@ -256,6 +273,7 @@ impl Info {
                 let result = Db::store_workflow(
                     Stored::new(
                         Pointer::new(workflow_cid),
+                        Some(name),
                         workflow_len as i32,
                         resources,
                         timestamp,
@@ -263,8 +281,7 @@ impl Info {
                     &mut conn,
                 )?;
 
-                let workflow_info =
-                    Self::default_with_resources(workflow_cid, workflow_len, result.resources);
+                let workflow_info = Self::default(result);
 
                 // spawn a task to retrieve the workflow info from the
                 // network and store it in the database if it finds it.
@@ -295,7 +312,7 @@ impl Info {
             .as_mut()
             .and_then(|conn| Db::get_workflow_info(workflow_cid, conn).ok())
         {
-            Some(workflow_info) => Ok(workflow_info),
+            Some((_name, workflow_info)) => Ok(workflow_info),
             None => {
                 info!(
                     cid = workflow_cid.to_string(),
@@ -463,7 +480,11 @@ mod test {
         );
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let mut workflow_info = Info::default(workflow.clone().to_cid().unwrap(), workflow.len());
+        let stored_info = Stored::default(
+            Pointer::new(workflow.clone().to_cid().unwrap()),
+            workflow.len() as i32,
+        );
+        let mut workflow_info = Info::default(stored_info);
         workflow_info.increment_progress(task1.to_cid().unwrap());
         workflow_info.increment_progress(task2.to_cid().unwrap());
         let ipld = Ipld::from(workflow_info.clone());

@@ -41,7 +41,7 @@ pub(crate) enum ServerMessage {
     ///
     /// [Runner]: crate::Runner
     GracefulShutdown(oneshot::Sender<()>),
-    Run(ReadWorkflow),
+    Run((Option<String>, ReadWorkflow)),
     RunAck(response::AckWorkflow),
     RunErr(runner::Error),
     Skip,
@@ -51,7 +51,10 @@ pub(crate) enum ServerMessage {
 #[tarpc::service]
 pub(crate) trait Interface {
     /// Returns a greeting for name.
-    async fn run(workflow_file: ReadWorkflow) -> Result<response::AckWorkflow, Error>;
+    async fn run(
+        name: Option<String>,
+        workflow_file: ReadWorkflow,
+    ) -> Result<response::AckWorkflow, Error>;
     /// Ping the server.
     async fn ping() -> String;
     /// Stop the server.
@@ -110,11 +113,12 @@ impl Interface for ServerHandler {
     async fn run(
         self,
         _: context::Context,
+        name: Option<String>,
         workflow_file: ReadWorkflow,
     ) -> Result<response::AckWorkflow, Error> {
         let (tx, rx) = oneshot::channel();
         self.runner_sender
-            .send((ServerMessage::Run(workflow_file), Some(tx)))
+            .send((ServerMessage::Run((name, workflow_file)), Some(tx)))
             .await
             .map_err(|e| Error::FailureToSendOnChannel(e.to_string()))?;
 
@@ -245,8 +249,9 @@ impl Client {
     /// [Workflow]: homestar_core::Workflow
     pub async fn run(
         &self,
+        name: Option<String>,
         workflow_file: ReadWorkflow,
     ) -> Result<Result<response::AckWorkflow, Error>, RpcError> {
-        self.cli.run(self.ctx, workflow_file).await
+        self.cli.run(self.ctx, name, workflow_file).await
     }
 }

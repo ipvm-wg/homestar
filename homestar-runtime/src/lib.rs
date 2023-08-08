@@ -31,6 +31,11 @@ mod tasks;
 mod worker;
 pub mod workflow;
 
+/// Test utilities.
+#[cfg(any(test, feature = "test-utils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
+pub mod test_utils;
+
 pub use db::Db;
 pub use event_handler::channel;
 pub use logger::*;
@@ -39,8 +44,3 @@ pub use runner::Runner;
 pub use settings::Settings;
 pub(crate) use worker::Worker;
 pub use workflow::WORKFLOW_TAG;
-
-/// Test utilities.
-#[cfg(any(test, feature = "test-utils"))]
-#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
-pub mod test_utils;

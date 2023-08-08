@@ -48,13 +48,23 @@ where
     }
 
     /// Return *only* deferred/awaited inputs.
-    pub fn deferreds(&self) -> Vec<Cid> {
-        self.0.iter().fold(vec![], |mut acc, input| {
+    pub fn deferreds(&self) -> impl Iterator<Item = Cid> + '_ {
+        self.0.iter().filter_map(|input| {
             if let Input::Deferred(awaited_promise) = input {
-                acc.push(awaited_promise.instruction_cid());
-                acc
+                Some(awaited_promise.instruction_cid())
             } else {
-                acc
+                None
+            }
+        })
+    }
+
+    /// Return *only* [Ipld::Link] [Cid]s.
+    pub fn links(&self) -> impl Iterator<Item = Cid> + '_ {
+        self.0.iter().filter_map(|input| {
+            if let Input::Ipld(Ipld::Link(link)) = input {
+                Some(link.to_owned())
+            } else {
+                None
             }
         })
     }

@@ -460,8 +460,11 @@ mod test {
         );
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let workflow_info =
-            workflow::Info::default(workflow.clone().to_cid().unwrap(), workflow.len());
+        let stored_info = workflow::Stored::default(
+            Pointer::new(workflow.clone().to_cid().unwrap()),
+            workflow.len() as i32,
+        );
+        let workflow_info = workflow::Info::default(stored_info);
         let workflow_cid_bytes = workflow_info.cid_as_bytes();
         let bytes = workflow_info.capsule().unwrap();
         let record = Record::new(workflow_cid_bytes, bytes);

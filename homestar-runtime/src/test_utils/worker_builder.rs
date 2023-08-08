@@ -1,8 +1,6 @@
 //! Module for building out [Worker]s for testing purposes.
 
 use super::{db::MemoryDb, event};
-#[cfg(feature = "ipfs")]
-use crate::network::IpfsCli;
 use crate::{
     db::Database, event_handler::Event, settings, worker::WorkerMessage, workflow, Settings, Worker,
 };
@@ -17,59 +15,17 @@ use libipld::Cid;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-#[cfg(feature = "ipfs")]
 pub(crate) struct WorkerBuilder<'a> {
     db: MemoryDb,
     event_sender: Arc<mpsc::Sender<Event>>,
     runner_sender: mpsc::Sender<WorkerMessage>,
-    ipfs: IpfsCli,
-    workflow: Workflow<'a, Arg>,
-    workflow_settings: workflow::Settings,
-}
-
-#[cfg(not(feature = "ipfs"))]
-pub(crate) struct WorkerBuilder<'a> {
-    db: MemoryDb,
-    event_sender: Arc<mpsc::Sender<Event>>,
-    runner_sender: mpsc::Sender<WorkerMessage>,
+    name: Option<String>,
     workflow: Workflow<'a, Arg>,
     workflow_settings: workflow::Settings,
 }
 
 impl<'a> WorkerBuilder<'a> {
     /// Create a new, default instance of a builder to generate a test [Worker].
-    #[cfg(feature = "ipfs")]
-    pub(crate) fn new(settings: settings::Node) -> Self {
-        let ipfs = IpfsCli::default();
-
-        let config = Resources::default();
-        let (instruction1, instruction2, _) =
-            workflow_test_utils::related_wasm_instructions::<Arg>();
-        let task1 = Task::new(
-            RunInstruction::Expanded(instruction1),
-            config.clone().into(),
-            UcanPrf::default(),
-        );
-        let task2 = Task::new(
-            RunInstruction::Expanded(instruction2),
-            config.into(),
-            UcanPrf::default(),
-        );
-
-        let (evt_tx, _rx) = event::setup_event_channel(settings.clone());
-        let (wk_tx, _rx) = event::setup_worker_channel(settings.clone());
-        Self {
-            db: MemoryDb::setup_connection_pool(&settings).unwrap(),
-            event_sender: evt_tx.into(),
-            runner_sender: wk_tx,
-            ipfs,
-            workflow: Workflow::new(vec![task1, task2]),
-            workflow_settings: workflow::Settings::default(),
-        }
-    }
-
-    /// Create a new, default instance of a builder to generate a test [Worker].
-    #[cfg(not(feature = "ipfs"))]
     pub(crate) fn new(settings: settings::Node) -> Self {
         let config = Resources::default();
         let (instruction1, instruction2, _) =
@@ -87,38 +43,26 @@ impl<'a> WorkerBuilder<'a> {
 
         let (evt_tx, _rx) = event::setup_event_channel(settings.clone());
         let (wk_tx, _rx) = event::setup_worker_channel(settings.clone());
+
+        let workflow = Workflow::new(vec![task1, task2]);
+        let workflow_cid = workflow.clone().to_cid().unwrap();
         Self {
-            db: MemoryDb::setup_connection_pool(&settings).unwrap(),
+            db: MemoryDb::setup_connection_pool(&settings, None).unwrap(),
             event_sender: evt_tx.into(),
             runner_sender: wk_tx,
-            workflow: Workflow::new(vec![task1, task2]),
+            name: Some(workflow_cid.to_string()),
+            workflow,
             workflow_settings: workflow::Settings::default(),
         }
     }
 
     /// Build a [Worker] from the current state of the builder.
-    #[cfg(feature = "ipfs")]
     #[allow(dead_code)]
     pub(crate) async fn build(self) -> Worker<'a, MemoryDb> {
         Worker::new(
             self.workflow,
             self.workflow_settings,
-            self.event_sender,
-            self.runner_sender,
-            self.db,
-            self.ipfs,
-        )
-        .await
-        .unwrap()
-    }
-
-    /// Build a [Worker] from the current state of the builder.
-    #[cfg(not(feature = "ipfs"))]
-    #[allow(dead_code)]
-    pub(crate) async fn build(self) -> Worker<'a, MemoryDb> {
-        Worker::new(
-            self.workflow,
-            self.workflow_settings,
+            self.name,
             self.event_sender,
             self.runner_sender,
             self.db,
