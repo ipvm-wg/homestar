@@ -24,12 +24,19 @@ RUN cargo init --lib homestar-core && \
 
 RUN echo "fn main() {}" > ./homestar-runtime/src/main.rs
 
+RUN mkdir -p ./homestar-runtime/src/test_utils/proc_macro
+RUN mkdir -p ./homestar-runtime/migrations
+
 # copy cargo.*
 COPY Cargo.lock Cargo.toml diesel.toml ./
 COPY ../homestar-core/Cargo.toml ./homestar-core/
 COPY ../homestar-functions/Cargo.toml ./homestar-functions/
 COPY ../homestar-wasm/Cargo.toml ./homestar-wasm/
-COPY ../homestar-runtime/Cargo.toml ../homestar-runtime/migrations ./homestar-runtime/
+COPY ../homestar-runtime/Cargo.toml ./homestar-runtime/
+COPY ../homestar-runtime/migrations ./homestar-runtime/migrations
+COPY ../homestar-runtime/src/test_utils/proc_macro ./homestar-runtime/src/test_utils/proc_macro
+
+ENTRYPOINT ["/bin/bash"]
 
 # cache depencies
 RUN mkdir .cargo
