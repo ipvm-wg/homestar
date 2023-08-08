@@ -75,7 +75,7 @@ serde_ipld_dagcbor = { workspace = true }
 serde_with = { version = "3.2", features = ["base64"] }
 stream-cancel = "0.8"
 strum = { version = "0.25", features = ["derive"] }
-tabled = { version = "0.13", features = ["std"] }
+tabled = { version = "0.14", features = ["std"] }
 tarpc = { version = "0.33", features = ["serde-transport", "serde-transport-bincode", "tcp"] }
 thiserror = { workspace = true }
 time = { workspace = true }
