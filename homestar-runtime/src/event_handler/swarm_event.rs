@@ -92,6 +92,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
     event_handler: &mut EventHandler<DB>,
 ) {
     match event {
+        // TODO: add identify for adding compatable kademlia nodes.
+        // TODO: use kademlia to discover new gossip nodes.
         SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossip_event)) => match *gossip_event {
             gossipsub::Event::Message {
                 message,
@@ -379,16 +381,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         SwarmEvent::ConnectionEstablished {
             peer_id, endpoint, ..
         } => {
-            let behavior = event_handler.swarm.behaviour_mut();
-            // only listener addresses should be added to the routing table.
-            // TODO: add identify here to discover more listen addresses and add those.
-            if endpoint.is_listener() {
-                // ignores if the peer failed or not to be added in the routing table.
-                behavior
-                    .kademlia
-                    .add_address(&peer_id, endpoint.get_remote_address().clone());
-            }
-
             // add peer to connected peers list
             event_handler.connected_peers.insert(peer_id, endpoint);
         }

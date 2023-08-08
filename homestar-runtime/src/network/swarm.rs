@@ -11,7 +11,9 @@ use libp2p::{
     core::upgrade,
     gossipsub::{self, MessageId, SubscriptionError, TopicHash},
     kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
-    mdns, noise,
+    mdns,
+    multiaddr::Protocol,
+    noise,
     request_response::{self, ProtocolSupport},
     swarm::{NetworkBehaviour, Swarm, SwarmBuilder},
     tcp, yamux, StreamProtocol, Transport,
@@ -29,6 +31,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         .with_context(|| "Failed to generate/import keypair for libp2p".to_string())?;
 
     let peer_id = keypair.public().to_peer_id();
+    info!(peer_id=?peer_id.to_string(), "local peer ID generated");
 
     let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
         .upgrade(upgrade::Version::V1Lazy)
@@ -57,15 +60,10 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
 
     startup(&mut swarm, &settings.network)?;
 
-    // subscribe to `receipts` topic
-    swarm
-        .behaviour_mut()
-        .gossip_subscribe(pubsub::RECEIPTS_TOPIC)?;
-
     Ok(swarm)
 }
 
-fn startup<T: NetworkBehaviour>(swarm: &mut Swarm<T>, settings: &settings::Network) -> Result<()> {
+fn startup(swarm: &mut Swarm<ComposedBehaviour>, settings: &settings::Network) -> Result<()> {
     // Listen-on given address
     swarm.listen_on(settings.listen_address.to_string().parse()?)?;
 
@@ -79,7 +77,27 @@ fn startup<T: NetworkBehaviour>(swarm: &mut Swarm<T>, settings: &settings::Netwo
             // log dial failure and continue
             .map_err(|e| warn!(err=?e, "Failed to dial trusted node"))
             .ok();
+
+        // add node to kademlia routing table
+        if let Some(peer_id) = trusted_addr.into_iter().find_map(|proto| match proto {
+            Protocol::P2p(peer_id) => Some(peer_id),
+            _ => None,
+        }) {
+            info!(trusted_address=?trusted_addr, "added configured trusted node to kademlia routing table");
+            swarm
+                .behaviour_mut()
+                .kademlia
+                .add_address(&peer_id, trusted_addr.clone());
+        } else {
+            warn!(trusted_address=?trusted_addr, "trusted node address did not include a peer ID. not added to kademlia routing table")
+        }
     }
+
+    // join `receipts` topic
+    swarm
+        .behaviour_mut()
+        .gossip_subscribe(pubsub::RECEIPTS_TOPIC)?;
+
     Ok(())
 }
 
