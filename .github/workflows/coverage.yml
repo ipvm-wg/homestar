@@ -16,8 +16,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Setup IPFS
+        uses: ibnesayeed/setup-ipfs@master
+        with:
+          run_daemon: true
+
       - name: Checkout Repository
         uses: actions/checkout@v3
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Use mold-linker
+        uses: rui314/setup-mold@v1
 
       - name: Install Rust Toolchain
         id: toolchain
@@ -26,29 +39,11 @@ jobs:
       - name: Override rust-toolchain.toml
         run: rustup override set ${{steps.toolchain.outputs.name}}
 
-      - name: Cache Project
-        uses: Swatinem/rust-cache@v2
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Generate Code coverage
-        env:
-          CARGO_INCREMENTAL: '0'
-          LLVM_PROFILE_FILE: "homestar-%p-%m.profraw"
-          RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
-          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
-        # covering nexttest's doc-test issue
-        run: cargo test --all-features
-
-      - name: Install grcov
-        run: "curl -L https://github.com/mozilla/grcov/releases/download/v0.8.12/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -"
-
-      - name: Run grcov
-        run: "./grcov . --llvm --binary-path target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore '/*' -o lcov.info"
-
-      - name: Install covfix
-        run: cargo install --force rust-covfix
-
-      - name: Run covfix
-        run: rust-covfix lcov.info -o lcov.info --verbose
+      - name: Generate Code Coverage
+        run: cargo llvm-cov --all-features --workspace --doctests --lcov --output-path lcov.info
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3

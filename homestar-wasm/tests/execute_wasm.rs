@@ -30,7 +30,7 @@ async fn test_wasm_exceeds_max_memory() {
     )
     .await;
 
-    if let Err(Error::WasmRuntimeError(err)) = env {
+    if let Err(Error::WasmRuntime(err)) = env {
         assert!(err.to_string().contains("exceeds memory limits"));
     } else {
         panic!("Expected WasmRuntimeError")
@@ -307,10 +307,13 @@ async fn test_execute_wasms_in_seq_with_threaded_result() {
     // Short-circuit resolve with known value.
     let resolved = parsed
         .resolve(|_| {
-            Ok(InstructionResult::Ok(Arg::Value(
-                wasmtime::component::Val::String("RoundRound".into()),
-            )))
+            Box::pin(async {
+                Ok(InstructionResult::Ok(Arg::Value(
+                    wasmtime::component::Val::String("RoundRound".into()),
+                )))
+            })
         })
+        .await
         .unwrap();
 
     let res2 = env2.execute(resolved).await.unwrap();
@@ -376,10 +379,13 @@ async fn test_execute_wasms_with_multiple_inits() {
     // Short-circuit resolve with known value.
     let resolved = parsed
         .resolve(|_| {
-            Ok(InstructionResult::Ok(Arg::Ipld(Ipld::String(
-                "RoundRound".into(),
-            ))))
+            Box::pin(async {
+                Ok(InstructionResult::Ok(Arg::Value(
+                    wasmtime::component::Val::String("RoundRound".into()),
+                )))
+            })
         })
+        .await
         .unwrap();
 
     let res2 = env2.execute(resolved).await.unwrap();

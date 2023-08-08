@@ -77,8 +77,10 @@ allow = [
     "BSD-3-Clause",
     "CC0-1.0",
     "ISC",
+    "LicenseRef-UFL-1.0",
     "MIT",
     "MPL-2.0",
+    "OFL-1.1",
     "Zlib"
 ]
 # List of explicitly disallowed licenses
@@ -194,7 +196,7 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # List of URLs for allowed Git repositories
 allow-git = [
-    "https://github.com/ucan-wg/rs-ucan",
+    "https://github.com/zhiburt/tabled.git",
     "https://github.com/bytecodealliance/preview2-prototyping",
     "https://github.com/bytecodealliance/wasmtime",
     "https://github.com/bytecodealliance/wit-bindgen",

@@ -4,12 +4,15 @@ use crate::{
 };
 use anyhow::Result;
 use diesel::r2d2::{self, CustomizeConnection, ManageConnection};
-use std::sync::Arc;
+use std::{env, sync::Arc};
 
 const PRAGMAS: &str = "
 PRAGMA busy_timeout = 1000;         -- sleep if the database is busy
 PRAGMA foreign_keys = ON;           -- enforce foreign keys
 ";
+
+/// Environment variable name for a test database URL.
+pub(crate) const ENV: &str = "TEST_DATABASE_URL";
 
 /// Database connection options.
 #[derive(Debug, Clone)]
@@ -26,7 +29,7 @@ where
 
 /// Sqlite in-memory [Database] [Pool].
 #[derive(Debug)]
-pub struct MemoryDb(Arc<Pool>);
+pub(crate) struct MemoryDb(Arc<Pool>);
 
 impl Clone for MemoryDb {
     fn clone(&self) -> Self {
@@ -35,8 +38,19 @@ impl Clone for MemoryDb {
 }
 
 impl Database for MemoryDb {
-    fn setup_connection_pool(_settings: &settings::Node) -> Result<Self> {
-        let manager = r2d2::ConnectionManager::<diesel::SqliteConnection>::new(":memory:");
+    fn setup_connection_pool(settings: &settings::Node) -> Result<Self> {
+        let database_url = env::var(ENV).unwrap_or_else(|_| {
+            settings
+                .db
+                .url
+                .as_ref()
+                .map_or_else(|| "test.db".to_string(), |url| url.to_string())
+        });
+
+        let manager = r2d2::ConnectionManager::<diesel::SqliteConnection>::new(format!(
+            "file:{}?mode=memory&cache=shared",
+            database_url
+        ));
 
         // setup PRAGMAs
         manager
@@ -44,7 +58,7 @@ impl Database for MemoryDb {
             .and_then(|mut conn| ConnectionCustomizer.on_acquire(&mut conn))?;
 
         let pool = r2d2::Pool::builder()
-            .max_size(1)
+            .max_size(3)
             .connection_customizer(Box::new(ConnectionCustomizer))
             .build(manager)
             .expect("DATABASE_URL must be set to an SQLite DB file");

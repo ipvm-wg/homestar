@@ -13,9 +13,10 @@ pub struct Settings {
     pub(crate) retry_initial_delay: Duration,
     pub(crate) p2p_check_timeout: Duration,
     pub(crate) p2p_timeout: Duration,
+    pub(crate) timeout: Duration,
 }
 
-#[cfg(not(test))]
+#[cfg(all(not(test), not(feature = "test-utils")))]
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -25,11 +26,12 @@ impl Default for Settings {
             retry_initial_delay: Duration::from_millis(500),
             p2p_check_timeout: Duration::new(5, 0),
             p2p_timeout: Duration::new(60, 0),
+            timeout: Duration::new(3600, 0),
         }
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -37,8 +39,9 @@ impl Default for Settings {
             retry_backoff_strategy: BackoffStrategy::Exponential,
             retry_max_delay: Duration::new(1, 0),
             retry_initial_delay: Duration::from_millis(50),
-            p2p_check_timeout: Duration::new(1, 0),
-            p2p_timeout: Duration::new(1, 0),
+            p2p_check_timeout: Duration::from_millis(10),
+            p2p_timeout: Duration::from_millis(10),
+            timeout: Duration::from_secs(120),
         }
     }
 }

@@ -100,13 +100,13 @@ impl<T> Env<T> {
         let param_types = self
             .bindings
             .as_mut()
-            .ok_or(Error::WasmInstantiationError)?
+            .ok_or(Error::WasmInstantiation)?
             .func()
             .params(&self.store);
         let result_types = self
             .bindings
             .as_mut()
-            .ok_or(Error::WasmInstantiationError)?
+            .ok_or(Error::WasmInstantiation)?
             .func()
             .results(&self.store);
 
@@ -123,13 +123,13 @@ impl<T> Env<T> {
                             .value(),
                         Arg::Value(v) => v,
                     },
-                    Input::Deferred(await_promise) => bail!(Error::PromiseError(
-                        ResolveError::UnresolvedCidError(format!(
+                    Input::Deferred(await_promise) => {
+                        bail!(Error::ResolvePromise(ResolveError::UnresolvedCid(format!(
                             "deferred task not yet resolved for {}: {}",
                             await_promise.result(),
                             await_promise.instruction_cid()
-                        ))
-                    )),
+                        ))))
+                    }
                 };
                 acc.push(v);
                 Ok::<_, Error>(acc)
@@ -142,14 +142,14 @@ impl<T> Env<T> {
 
         self.bindings
             .as_mut()
-            .ok_or(Error::WasmInstantiationError)?
+            .ok_or(Error::WasmInstantiation)?
             .func()
             .call_async(&mut self.store, &params, &mut results_alloc)
             .await?;
 
         self.bindings
             .as_mut()
-            .ok_or(Error::WasmInstantiationError)?
+            .ok_or(Error::WasmInstantiation)?
             .func()
             .post_return_async(&mut self.store)
             .await?;
@@ -320,7 +320,7 @@ impl World {
             .func(fun_name)
             .or_else(|| __exports.func(&fun_name.to_kebab_case()))
             .or_else(|| __exports.func(&fun_name.to_snake_case()))
-            .ok_or_else(|| Error::WasmFunctionNotFoundError(fun_name.to_string()))?;
+            .ok_or_else(|| Error::WasmFunctionNotFound(fun_name.to_string()))?;
 
         Ok(World(func))
     }
@@ -343,21 +343,21 @@ fn component_from_bytes(bytes: &[u8], engine: Engine) -> Result<Component, Error
     match wasmparser::Parser::new(0).parse(bytes, true) {
         Ok(chunk) => {
             if is_component(chunk) {
-                Component::from_binary(&engine, bytes).map_err(Error::IntoWasmComponentError)
+                Component::from_binary(&engine, bytes).map_err(Error::IntoWasmComponent)
             } else {
                 let component = ComponentEncoder::default()
                     .module(bytes)?
                     .validate(true)
                     .encode()?;
-                Component::from_binary(&engine, &component).map_err(Error::IntoWasmComponentError)
+                Component::from_binary(&engine, &component).map_err(Error::IntoWasmComponent)
             }
         }
         Err(_) => {
             let wasm_bytes = wat::parse_bytes(bytes)?;
             if is_component(wasmparser::Parser::new(0).parse(&wasm_bytes, true)?) {
-                Component::from_binary(&engine, &wasm_bytes).map_err(Error::IntoWasmComponentError)
+                Component::from_binary(&engine, &wasm_bytes).map_err(Error::IntoWasmComponent)
             } else {
-                Err(Error::WatComponentError(
+                Err(Error::WatComponent(
                     "WAT must reference a Wasm component.".to_string(),
                 ))
             }

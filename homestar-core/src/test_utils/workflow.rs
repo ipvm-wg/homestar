@@ -24,7 +24,7 @@ type NonceBytes = Vec<u8>;
 
 /// Return a `mocked` `wasm/run` [Instruction].
 pub fn wasm_instruction<'a, T>() -> Instruction<'a, T> {
-    let wasm = "bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".to_string();
+    let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
     let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
 
     Instruction::new(
@@ -100,7 +100,7 @@ where
 
 /// Return a `mocked` `wasm/run` [Instruction], along with it's [Nonce] as bytes.
 pub fn wasm_instruction_with_nonce<'a, T>() -> (Instruction<'a, T>, NonceBytes) {
-    let wasm = "bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".to_string();
+    let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
     let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
     let nonce = Nonce::generate();
 
@@ -120,7 +120,7 @@ pub fn wasm_instruction_with_nonce<'a, T>() -> (Instruction<'a, T>, NonceBytes) 
 
 /// Return a `mocked` [Instruction].
 pub fn instruction<'a, T>() -> Instruction<'a, T> {
-    let wasm = "bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".to_string();
+    let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
     let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
 
     Instruction::new(
@@ -132,7 +132,7 @@ pub fn instruction<'a, T>() -> Instruction<'a, T> {
 
 /// Return a `mocked` [Instruction], along with it's [Nonce] as bytes.
 pub fn instruction_with_nonce<'a, T>() -> (Instruction<'a, T>, NonceBytes) {
-    let wasm = "bafkreidztuwoszw2dfnzufjpsjmzj67x574qcdm2autnhnv43o3t4zmh7i".to_string();
+    let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
     let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
     let nonce = Nonce::generate();
 

@@ -4,7 +4,7 @@ use super::EventHandler;
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
-    db::{Connection, Database, Db},
+    db::Database,
     event_handler::{Handler, P2PSender},
     network::{
         pubsub,
@@ -15,12 +15,14 @@ use crate::{
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use homestar_core::workflow::Receipt as InvocationReceipt;
-use libipld::Cid;
+use libipld::{Cid, Ipld};
 use libp2p::{
     kad::{record::Key, Quorum, Record},
     PeerId,
 };
 use std::{num::NonZeroUsize, sync::Arc};
+#[cfg(feature = "ipfs")]
+use tokio::runtime::Handle;
 use tokio::sync::oneshot;
 use tracing::{error, info};
 
@@ -59,7 +61,7 @@ pub struct PeerRequest {
     pub(crate) sender: P2PSender,
 }
 
-/// Internal events to capture.
+/// Events to capture.
 #[derive(Debug)]
 pub enum Event {
     /// [Receipt] captured event.
@@ -86,14 +88,14 @@ impl Event {
     {
         match self {
             Event::CapturedReceipt(captured) => {
-                let mut conn = event_handler.db.conn()?;
-                let (cid, _bytes) = captured.store(event_handler, &mut conn)?;
+                let (cid, _receipt) = captured.store(event_handler)?;
                 info!(
                     cid = cid.to_string(),
                     "record replicated with quorum {}", event_handler.receipt_quorum
                 );
             }
             Event::Shutdown(tx) => {
+                info!("event_handler server shutting down");
                 event_handler.shutdown().await;
                 let _ = tx.send(());
             }
@@ -133,8 +135,7 @@ impl Captured {
     fn store<DB>(
         mut self,
         event_handler: &mut EventHandler<DB>,
-        conn: &mut Connection,
-    ) -> Result<(Cid, Vec<u8>)>
+    ) -> Result<(Cid, InvocationReceipt<Ipld>)>
     where
         DB: Database,
     {
@@ -149,9 +150,9 @@ impl Captured {
                 "message {msg_id} published on {} for receipt with cid: {receipt_cid}",
                 pubsub::RECEIPTS_TOPIC
             ),
-            Err(err) => {
+            Err(_err) => {
                 error!(
-                    error=?err, "message not published on {} for receipt with cid: {receipt_cid}",
+                    "message not published on {} for receipt with cid: {receipt_cid}",
                     pubsub::RECEIPTS_TOPIC
                 )
             }
@@ -169,7 +170,7 @@ impl Captured {
             Quorum::One
         };
 
-        if let Ok(receipt_bytes) = Receipt::invocation_capsule(invocation_receipt) {
+        if let Ok(receipt_bytes) = Receipt::invocation_capsule(&invocation_receipt) {
             let _id = event_handler
                 .swarm
                 .behaviour_mut()
@@ -178,10 +179,8 @@ impl Captured {
                     Record::new(instruction_bytes, receipt_bytes.to_vec()),
                     receipt_quorum,
                 )
-                .map_err(anyhow::Error::msg)?;
+                .map_err(anyhow::Error::new)?;
 
-            // Store workflow_receipt join information.
-            let _ = Db::store_workflow_receipt(self.workflow.cid, receipt_cid, conn);
             Arc::make_mut(&mut self.workflow).increment_progress(receipt_cid);
 
             let workflow_cid_bytes = self.workflow.cid_as_bytes();
@@ -192,7 +191,7 @@ impl Captured {
                 .behaviour_mut()
                 .kademlia
                 .start_providing(Key::new(&workflow_cid_bytes))
-                .map_err(anyhow::Error::msg)?;
+                .map_err(anyhow::Error::new)?;
 
             let key = RequestResponseKey::new(self.workflow.cid.to_string(), CapsuleTag::Workflow);
 
@@ -208,11 +207,9 @@ impl Captured {
                     Record::new(workflow_cid_bytes, workflow_bytes),
                     workflow_quorum,
                 )
-                .map_err(anyhow::Error::msg)?;
+                .map_err(anyhow::Error::new)?;
 
-            // TODO: Handle Workflow Complete / Num of Tasks finished.
-
-            Ok((receipt_cid, receipt_bytes.to_vec()))
+            Ok((receipt_cid, invocation_receipt))
         } else {
             Err(anyhow!("cannot convert receipt {receipt_cid} to bytes"))
         }
@@ -299,19 +296,15 @@ where
     }
 
     #[cfg(feature = "ipfs")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>, ipfs: IpfsCli) {
         match self {
             Event::CapturedReceipt(captured) => {
-                if let Err(err) = event_handler.db.conn().map(|mut conn| {
-                    captured.store(event_handler, &mut conn).map(|(cid, bytes)| {
-                        info!(
-                            cid = cid.to_string(),
-                            "record replicated with quorum {}", event_handler.receipt_quorum
-                        );
-
+                let _ = captured.store(event_handler).map(|(cid, receipt)| {
                         // Spawn client call in background, without awaiting.
-                        tokio::spawn(async move {
-                            match ipfs.put_receipt_bytes(bytes.to_vec()).await {
+                        let handle = Handle::current();
+                        handle.spawn(async move {
+                            match ipfs.put_receipt(receipt).await {
                                 Ok(put_cid) => {
                                     info!(cid = put_cid, "IPLD DAG node stored");
 
@@ -323,10 +316,7 @@ where
                                 }
                             }
                         });
-                    })
-                }) {
-                    error!(error=?err, "error storing event")
-                }
+                    });
             }
             event => {
                 if let Err(err) = event.handle_info(event_handler).await {

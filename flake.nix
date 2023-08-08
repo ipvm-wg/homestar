@@ -48,6 +48,7 @@
           cargo-nextest
           cargo-outdated
           cargo-sort
+          cargo-spellcheck
           cargo-udeps
           cargo-watch
           twiggy
@@ -55,6 +56,7 @@
         ];
 
         ci = pkgs.writeScriptBin "ci" ''
+          #!${pkgs.stdenv.shell}
           cargo fmt --check
           cargo clippy
           cargo build --release
@@ -63,91 +65,114 @@
         '';
 
         db = pkgs.writeScriptBin "db" ''
+          #!${pkgs.stdenv.shell}
           diesel setup
           diesel migration run
         '';
 
         dbReset = pkgs.writeScriptBin "db-reset" ''
+          #!${pkgs.stdenv.shell}
           diesel database reset
           diesel setup
           diesel migration run
         '';
 
         doc = pkgs.writeScriptBin "doc" ''
+          #!${pkgs.stdenv.shell}
           cargo doc --no-deps --document-private-items --open
         '';
 
+        docAll = pkgs.writeScriptBin "doc-all" ''
+          #!${pkgs.stdenv.shell}
+          cargo doc --document-private-items --open
+        '';
+
         compileWasm = pkgs.writeScriptBin "compile-wasm" ''
+          #!${pkgs.stdenv.shell}
           cargo build -p homestar-functions --target wasm32-unknown-unknown --release
         '';
 
         dockerBuild = arch:
           pkgs.writeScriptBin "docker-${arch}" ''
+            #!${pkgs.stdenv.shell}
             docker buildx build --file docker/Dockerfile --platform=linux/${arch} -t homestar-runtime --progress=plain .
           '';
 
         xFunc = cmd:
           pkgs.writeScriptBin "x-${cmd}" ''
+            #!${pkgs.stdenv.shell}
             cargo watch -c -x ${cmd}
           '';
 
         xFuncAll = cmd:
           pkgs.writeScriptBin "x-${cmd}-all" ''
+            #!${pkgs.stdenv.shell}
             cargo watch -c -s "cargo ${cmd} --all-features"
           '';
 
         xFuncNoDefault = cmd:
           pkgs.writeScriptBin "x-${cmd}-0" ''
+            #!${pkgs.stdenv.shell}
             cargo watch -c -s "cargo ${cmd} --no-default-features"
           '';
 
         xFuncPackage = cmd: crate:
           pkgs.writeScriptBin "x-${cmd}-${crate}" ''
+            #!${pkgs.stdenv.shell}
             cargo watch -c -s "cargo ${cmd} -p homestar-${crate} --all-features"
           '';
 
         xFuncTest = pkgs.writeScriptBin "x-test" ''
+          #!${pkgs.stdenv.shell}
           cargo watch -c -s "cargo nextest run --nocapture && cargo test --doc"
         '';
 
         xFuncTestAll = pkgs.writeScriptBin "x-test-all" ''
+          #!${pkgs.stdenv.shell}
           cargo watch -c -s "cargo nextest run --all-features --nocapture \
           && cargo test --doc --all-features"
         '';
 
         xFuncTestNoDefault = pkgs.writeScriptBin "x-test-0" ''
+          #!${pkgs.stdenv.shell}
           cargo watch -c -s "cargo nextest run --no-default-features --nocapture \
           && cargo test --doc --no-default-features"
         '';
 
         xFuncTestPackage = crate:
           pkgs.writeScriptBin "x-test-${crate}" ''
+            #!${pkgs.stdenv.shell}
             cargo watch -c -s "cargo nextest run -p homestar-${crate} --all-features \
             && cargo test --doc -p homestar-${crate} --all-features"
           '';
 
         nxTest = pkgs.writeScriptBin "nx-test" ''
+          #!${pkgs.stdenv.shell}
           cargo nextest run
           cargo test --doc
         '';
 
         nxTestAll = pkgs.writeScriptBin "nx-test-all" ''
+          #!${pkgs.stdenv.shell}
           cargo nextest run --all-features --nocapture
           cargo test --doc --all-features
         '';
 
         nxTestNoDefault = pkgs.writeScriptBin "nx-test-0" ''
+          #!${pkgs.stdenv.shell}
           cargo nextest run --no-default-features --nocapture
           cargo test --doc --no-default-features
         '';
 
         wasmTest = pkgs.writeScriptBin "wasm-ex-test" ''
+          #!${pkgs.stdenv.shell}
           cargo build -p homestar-functions --features example-test --target wasm32-unknown-unknown --release
           cp target/wasm32-unknown-unknown/release/homestar_functions.wasm homestar-wasm/fixtures/example_test.wasm
           wasm-tools component new homestar-wasm/fixtures/example_test.wasm -o homestar-wasm/fixtures/example_test_component.wasm
         '';
 
         wasmAdd = pkgs.writeScriptBin "wasm-ex-add" ''
+          #!${pkgs.stdenv.shell}
           cargo build -p homestar-functions --features example-add --target wasm32-unknown-unknown --release
           cp target/wasm32-unknown-unknown/release/homestar_functions.wasm homestar-wasm/fixtures/example_add.wasm
           wasm-tools component new homestar-wasm/fixtures/example_add.wasm -o homestar-wasm/fixtures/example_add_component.wasm
@@ -155,11 +180,17 @@
           wasm-tools print homestar-wasm/fixtures/example_add_component.wasm -o homestar-wasm/fixtures/example_add_component.wat
         '';
 
+        runIpfs = pkgs.writeScriptBin "run-ipfs" ''
+          #!${pkgs.stdenv.shell}
+          ipfs --repo-dir ./.ipfs --offline daemon
+        '';
+
         scripts = [
           ci
           db
           dbReset
           doc
+          docAll
           compileWasm
           (builtins.map (arch: dockerBuild arch) ["amd64" "arm64"])
           (builtins.map (cmd: xFunc cmd) ["build" "check" "run" "clippy"])
@@ -175,6 +206,7 @@
           nxTest
           nxTestAll
           nxTestNoDefault
+          runIpfs
           wasmTest
           wasmAdd
         ];
@@ -194,6 +226,7 @@
               pre-commit
               diesel-cli
               direnv
+              kubo
               self.packages.${system}.irust
             ]
             ++ format-pkgs
@@ -207,9 +240,23 @@
           NIX_PATH = "nixpkgs=" + pkgs.path;
           RUST_BACKTRACE = 1;
 
-          shellHook = ''
-            [ -e .git/hooks/pre-commit ] || pre-commit install --install-hooks && pre-commit install --hook-type commit-msg
-          '';
+          shellHook =
+            ''
+              [ -e .git/hooks/pre-commit ] || pre-commit install --install-hooks && pre-commit install --hook-type commit-msg
+
+              # Setup local Kubo config
+              if [ ! -e ./.ipfs ]; then
+                ipfs --repo-dir ./.ipfs --offline init
+              fi
+
+              # Run Kubo / IPFS
+              echo -e "To run Kubo as a local IPFS node, use the following command:"
+              echo -e "ipfs --repo-dir ./.ipfs --offline daemon"
+            ''
+            # See https://github.com/nextest-rs/nextest/issues/267
+            + (pkgs.lib.strings.optionalString pkgs.stdenv.isDarwin ''
+              export DYLD_FALLBACK_LIBRARY_PATH="$(rustc --print sysroot)/lib"
+            '');
         };
 
         packages.irust = pkgs.rustPlatform.buildRustPackage rec {

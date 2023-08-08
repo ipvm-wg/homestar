@@ -1,6 +1,5 @@
 //! Output of an invocation, referenced by its invocation pointer.
 
-use crate::db::schema::receipts;
 use anyhow::anyhow;
 use diesel::{
     backend::Backend,
@@ -42,7 +41,7 @@ const PROOF_KEY: &str = "prf";
 /// [Invocation]: homestar_core::workflow::Invocation
 /// [Instruction]: homestar_core::workflow::Instruction
 #[derive(Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Selectable)]
-#[diesel(primary_key(cid))]
+#[diesel(table_name = crate::db::schema::receipts, primary_key(cid))]
 pub struct Receipt {
     cid: Pointer,
     ran: Pointer,
@@ -101,9 +100,9 @@ impl Receipt {
     ///
     /// [DagCbor]: DagCborCodec
     pub fn invocation_capsule(
-        invocation_receipt: InvocationReceipt<Ipld>,
+        invocation_receipt: &InvocationReceipt<Ipld>,
     ) -> anyhow::Result<Vec<u8>> {
-        let receipt_ipld = Ipld::from(&invocation_receipt);
+        let receipt_ipld = Ipld::from(invocation_receipt);
         let capsule = if let Ipld::Map(mut map) = receipt_ipld {
             map.insert(VERSION_KEY.into(), consts::INVOCATION_VERSION.into());
             Ok(Ipld::Map(BTreeMap::from([(
@@ -253,31 +252,25 @@ impl TryFrom<Ipld> for Receipt {
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
-
         let cid = from_ipld(
             map.get(CID_KEY)
                 .ok_or_else(|| anyhow!("missing {CID_KEY}"))?
                 .to_owned(),
         )?;
-
         let ran = map
             .get(RAN_KEY)
             .ok_or_else(|| anyhow!("missing {RAN_KEY}"))?
             .try_into()?;
-
         let instruction = map
             .get(INSTRUCTION_KEY)
             .ok_or_else(|| anyhow!("missing {INSTRUCTION_KEY}"))?
             .try_into()?;
-
         let out = map
             .get(OUT_KEY)
             .ok_or_else(|| anyhow!("missing {OUT_KEY}"))?;
-
         let meta = map
             .get(METADATA_KEY)
             .ok_or_else(|| anyhow!("missing {METADATA_KEY}"))?;
-
         let issuer = map
             .get(ISSUER_KEY)
             .and_then(|ipld| match ipld {
@@ -286,11 +279,9 @@ impl TryFrom<Ipld> for Receipt {
             })
             .and_then(|ipld| from_ipld(ipld.to_owned()).ok())
             .map(Issuer::new);
-
         let prf = map
             .get(PROOF_KEY)
             .ok_or_else(|| anyhow!("missing {PROOF_KEY}"))?;
-
         let version = from_ipld(
             map.get(VERSION_KEY)
                 .ok_or_else(|| anyhow!("missing {VERSION_KEY}"))?
@@ -357,9 +348,8 @@ mod test {
     use super::*;
     use crate::{
         db::{schema, Database},
-        receipt::receipts,
         settings::Settings,
-        test_utils,
+        test_utils::{self, db::MemoryDb},
     };
     use diesel::prelude::*;
 
@@ -371,20 +361,27 @@ mod test {
         assert_eq!(invocation.meta(), &receipt.meta.0);
         assert_eq!(invocation.issuer(), &receipt.issuer);
         assert_eq!(invocation.prf(), &receipt.prf);
+        assert_eq!(invocation.to_cid().unwrap(), receipt.cid());
 
         let output_bytes = DagCborCodec
             .encode::<Ipld>(&invocation.out().clone().into())
             .unwrap();
         assert_eq!(output_bytes, receipt.output_encoded().unwrap());
+
+        let receipt_from_invocation =
+            Receipt::try_with(receipt.instruction.clone(), &invocation).unwrap();
+        assert_eq!(receipt_from_invocation, receipt);
+
+        let invocation_from_receipt = InvocationReceipt::try_from(receipt).unwrap();
+        assert_eq!(invocation_from_receipt, invocation);
     }
 
     #[test]
     fn receipt_sql_roundtrip() {
-        let mut conn =
-            test_utils::db::MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
-                .unwrap()
-                .conn()
-                .unwrap();
+        let mut conn = MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
+            .unwrap()
+            .conn()
+            .unwrap();
         let (_, receipt) = test_utils::receipt::receipts();
 
         let rows_inserted = diesel::insert_into(schema::receipts::table)
@@ -393,9 +390,7 @@ mod test {
             .unwrap();
 
         assert_eq!(1, rows_inserted);
-
-        let inserted_receipt = receipts::table.load::<Receipt>(&mut conn).unwrap();
-
+        let inserted_receipt = schema::receipts::table.load::<Receipt>(&mut conn).unwrap();
         assert_eq!(vec![receipt.clone()], inserted_receipt);
     }
 

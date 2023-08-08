@@ -137,16 +137,16 @@ impl TryFrom<Ipld> for Receipt<Ipld> {
 
         let ran = map
             .get(RAN_KEY)
-            .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(RAN_KEY.to_string()))?
+            .ok_or_else(|| WorkflowError::<Unit>::MissingField(RAN_KEY.to_string()))?
             .try_into()?;
 
         let out = map
             .get(OUT_KEY)
-            .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(OUT_KEY.to_string()))?;
+            .ok_or_else(|| WorkflowError::<Unit>::MissingField(OUT_KEY.to_string()))?;
 
         let meta = map
             .get(METADATA_KEY)
-            .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(METADATA_KEY.to_string()))?;
+            .ok_or_else(|| WorkflowError::<Unit>::MissingField(METADATA_KEY.to_string()))?;
 
         let issuer = map
             .get(ISSUER_KEY)
@@ -159,7 +159,7 @@ impl TryFrom<Ipld> for Receipt<Ipld> {
 
         let prf = map
             .get(PROOF_KEY)
-            .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(PROOF_KEY.to_string()))?;
+            .ok_or_else(|| WorkflowError::<Unit>::MissingField(PROOF_KEY.to_string()))?;
 
         Ok(Receipt {
             ran,

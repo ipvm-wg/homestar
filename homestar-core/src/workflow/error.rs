@@ -8,6 +8,7 @@ use crate::{
 };
 use libipld::Ipld;
 use serde::de::Error as DeError;
+use std::io;
 
 /// Generic error type for [Workflow] use cases.
 ///
@@ -18,7 +19,7 @@ pub enum Error<T> {
     ///
     /// [Cid]: libipld::cid::Cid
     #[error("failed to encode CID: {0}")]
-    CidError(#[from] libipld::cid::Error),
+    CidEncode(#[from] libipld::cid::Error),
     /// Error thrown when condition or dynamic check is not met.
     #[error("condition not met: {0}")]
     ConditionNotMet(String),
@@ -29,20 +30,20 @@ pub enum Error<T> {
     ///
     /// [DagCborCodec]: libipld::cbor::DagCborCodec
     #[error("failed to decode/encode DAG-CBOR: {0}")]
-    DagCborTranslationError(#[from] anyhow::Error),
+    DagCborTranslation(#[from] anyhow::Error),
     /// Error converting from [Ipld] structure via [serde].
     ///
     /// Transparently forwards from [libipld::error::SerdeError]'s `source` and
     /// `Display` methods through to an underlying error.
     #[error("cannot convert from Ipld structure: {0}")]
-    FromIpldError(#[from] libipld::error::SerdeError),
+    FromIpld(#[from] libipld::error::SerdeError),
     /// Invalid match discriminant or enumeration.
     #[error("invalid discriminant {0:#?}")]
     InvalidDiscriminant(T),
     /// Error related to a missing a field in a structure or key
     /// in a map.
     #[error("no {0} field set")]
-    MissingFieldError(String),
+    MissingField(String),
     /// Error during parsing a [Url].
     ///
     /// Transparently forwards from [url::ParseError]'s `source` and
@@ -50,20 +51,23 @@ pub enum Error<T> {
     ///
     /// [Url]: url::Url
     #[error(transparent)]
-    ParseResourceError(#[from] url::ParseError),
+    ParseResource(#[from] url::ParseError),
     /// Generic unknown error.
     #[error("unknown error")]
-    UnknownError,
+    Unknown,
     /// Unexpcted [Ipld] type.
     #[error("unexpected Ipld type: {0:#?}")]
-    UnexpectedIpldTypeError(Ipld),
+    UnexpectedIpldType(Ipld),
     /// Error when attempting to interpret a sequence of [u8]
     /// as a string.
     ///
     /// Transparently forwards from [std::str::Utf8Error]'s `source` and
     /// `Display` methods through to an underlying error.
     #[error(transparent)]
-    Utf8Error(#[from] std::str::Utf8Error),
+    Utf8(#[from] std::str::Utf8Error),
+    /// Propagated IO error.
+    #[error("error writing data to console: {0}")]
+    Io(#[from] io::Error),
 }
 
 impl<T> Error<T> {
@@ -72,7 +76,7 @@ impl<T> Error<T> {
     ///
     /// [SerdeError]: libipld::error::SerdeError
     pub fn unexpected_ipld(ipld: Ipld) -> Self {
-        Error::UnexpectedIpldTypeError(ipld)
+        Error::UnexpectedIpldType(ipld)
     }
 
     /// Return an `invalid type` [SerdeError] when not matching an expected
@@ -80,7 +84,7 @@ impl<T> Error<T> {
     ///
     /// [SerdeError]: libipld::error::SerdeError
     pub fn not_an_ipld_list() -> Self {
-        Error::FromIpldError(libipld::error::SerdeError::invalid_type(
+        Error::FromIpld(libipld::error::SerdeError::invalid_type(
             serde::de::Unexpected::Seq,
             &"an Ipld list / sequence",
         ))
@@ -89,13 +93,13 @@ impl<T> Error<T> {
 
 impl From<Error<Unit>> for Error<String> {
     fn from(_err: Error<Unit>) -> Self {
-        Error::UnknownError
+        Error::Unknown
     }
 }
 
 impl From<Error<String>> for Error<Unit> {
     fn from(_err: Error<String>) -> Error<Unit> {
-        Error::UnknownError
+        Error::Unknown
     }
 }
 
@@ -115,10 +119,10 @@ pub enum InputParseError<T> {
     /// Transparently forwards from [libipld::error::SerdeError]'s `source` and
     /// `Display` methods through to an underlying error.
     #[error("cannot convert from Ipld structure: {0}")]
-    FromIpldError(#[from] libipld::error::SerdeError),
+    FromIpld(#[from] libipld::error::SerdeError),
     /// Error converting from [Ipld] structure into [Args].
     #[error("cannot convert from Ipld structure into arguments: {0:#?}")]
-    IpldToArgsError(Args<T>),
+    IpldToArgs(Args<T>),
     /// Unexpected [Input] in [Task] structure.
     ///
     /// [Task]: crate::workflow::Task
@@ -128,7 +132,7 @@ pub enum InputParseError<T> {
     ///
     /// [Workflow errors]: Error
     #[error(transparent)]
-    WorkflowError(#[from] Error<T>),
+    Workflow(#[from] Error<T>),
 }
 
 impl<T> From<std::convert::Infallible> for InputParseError<T> {
@@ -148,19 +152,19 @@ pub enum ResolveError {
     /// Transparently forwards from [anyhow::Error]'s `source` and
     /// `Display` methods through to an underlying error.
     #[error(transparent)]
-    RuntimeError(#[from] anyhow::Error),
+    Runtime(#[from] anyhow::Error),
     /// Transport error when attempting to resolve [Workflow] [Input]'s [Cid].
     ///
     /// [Cid]: libipld::Cid
     /// [Workflow]: crate::Workflow
     #[error("transport error during resolve phase of input Cid: {0}")]
-    TransportError(String),
+    Transport(String),
     /// Unable to resolve a [Cid] within a [Workflow]'s [Input].
     ///
     /// [Cid]: libipld::Cid
     /// [Workflow]: crate::Workflow
     #[error("error resolving input Cid: {0}")]
-    UnresolvedCidError(String),
+    UnresolvedCid(String),
 }
 
 impl From<std::convert::Infallible> for ResolveError {

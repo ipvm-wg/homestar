@@ -39,7 +39,7 @@
     <a href="https://docs.rs/homestar-runtime">
       <img src="https://img.shields.io/static/v1?label=Docs&message=runtime.docs.rs&color=pink" alt="Docs">
     </a>
-    <a href="https://discord.gg/fissioncodes">
+    <a href="https://fission.codes/discord">
       <img src="https://img.shields.io/static/v1?label=Discord&message=join%20us!&color=mediumslateblue" alt="Discord">
     </a>
   </p>
@@ -220,7 +220,7 @@ a type of `fix`, `feat`, `docs`, `ci`, `refactor`, etc..., structured like so:
 
 ## Getting Help
 
-For usage questions, usecases, or issues reach out to us in our [Discord channel](https://discord.gg/fissioncodes).
+For usage questions, usecases, or issues reach out to us in our [Discord channel](https://fission.codes/discord).
 
 We would be happy to try to answer your question or try opening a new issue on Github.
 
@@ -228,6 +228,7 @@ We would be happy to try to answer your question or try opening a new issue on G
 
 - [What Is An IPVM][ipvm-wg]
 - [IPVM: High-Level Spec][ipvm-spec]
+- [Contributing Research]: [research]
 - [Seamless Services for an Open World][seamless-services] by Brooklyn Zelenka
 - [Foundations for Open-World Compute][foundations-for-openworld-compute] by Zeeshan Lakhani
 - [IPVM: The Long-Fabled Execution Layer][cod-ipvm] by Brooklyn Zelenka
@@ -271,6 +272,7 @@ conditions.
 [nix]:https://nixos.org/download.html
 [nix-flake]: https://nixos.wiki/wiki/Flakes
 [pre-commit]: https://pre-commit.com/
+[research]: https://github.com/ipvm-wg/research
 [seamless-services]: https://youtu.be/Kr3B3sXh_VA
 [ucan-invocation]: https://github.com/ucan-wg/invocation
 [wasm-component]: https://github.com/WebAssembly/component-model

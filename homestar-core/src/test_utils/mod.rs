@@ -1,12 +1,18 @@
 //! Test Utilities.
 
-#[cfg(feature = "test_utils")]
+#[cfg(feature = "test-utils")]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 pub mod cid;
-/// Random value generator for sampling data.
-#[cfg(feature = "test_utils")]
+#[cfg(feature = "test-utils")]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
+pub mod ports;
+#[cfg(feature = "test-utils")]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 mod rvg;
-#[cfg(feature = "test_utils")]
+#[cfg(feature = "test-utils")]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 pub mod workflow;
 
-#[cfg(feature = "test_utils")]
+#[cfg(feature = "test-utils")]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 pub use rvg::*;

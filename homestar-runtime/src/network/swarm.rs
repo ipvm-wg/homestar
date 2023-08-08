@@ -5,7 +5,6 @@
 
 use crate::{network::pubsub, settings, Receipt, RECEIPT_TAG, WORKFLOW_TAG};
 use anyhow::{anyhow, Context, Result};
-use bincode::{Decode, Encode};
 use enum_assoc::Assoc;
 use libp2p::{
     core::upgrade,
@@ -102,7 +101,7 @@ fn startup(swarm: &mut Swarm<ComposedBehaviour>, settings: &settings::Network) -
 }
 
 /// Key data structure for [request_response::Event] messages.
-#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct RequestResponseKey {
     pub(crate) cid: String,
     pub(crate) capsule_tag: CapsuleTag,
@@ -118,7 +117,7 @@ impl RequestResponseKey {
 }
 
 /// Tag for [RequestResponseKey] to indicate the type of capsule-wrapping.
-#[derive(Debug, Clone, Assoc, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, Assoc, Serialize, Deserialize)]
 #[func(pub(crate) fn tag(&self) -> &'static str)]
 #[func(pub(crate) fn capsule_type(s: &str) -> Option<Self>)]
 pub(crate) enum CapsuleTag {

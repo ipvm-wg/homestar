@@ -1,3 +1,4 @@
+/// Random value generator for sampling data.
 use proptest::{
     collection::vec,
     strategy::{Strategy, ValueTree},

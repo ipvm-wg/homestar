@@ -118,7 +118,7 @@ where
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
         let ipld = map
             .get(TASKS_KEY)
-            .ok_or_else(|| WorkflowError::<Unit>::MissingFieldError(TASKS_KEY.to_string()))?;
+            .ok_or_else(|| WorkflowError::<Unit>::MissingField(TASKS_KEY.to_string()))?;
 
         let tasks = if let Ipld::List(tasks) = ipld {
             tasks.iter().try_fold(vec![], |mut acc, ipld| {
