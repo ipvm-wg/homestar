@@ -4,6 +4,7 @@
 !**/Cargo.lock
 !**/build.rs
 !**/src
+!**/src/test_utils
 !**/config
 !**/migrations
 !diesel.toml
