@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   release-please:
-    runs-on: ubuntu-latest
+    runs-on: [ubuntu-latest, windows-latest, macos-latest]
     if: >
       github.ref == 'refs/heads/main' &&
       github.repository_owner == 'ipvm-wg' &&

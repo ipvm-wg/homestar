@@ -21,9 +21,12 @@ use libipld::Cid;
 #[cfg(not(test))]
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{ops::ControlFlow, rc::Rc, sync::Arc, task::Poll};
+#[cfg(not(windows))]
+use tokio::signal::unix::{signal, SignalKind};
+#[cfg(windows)]
+use tokio::signal::windows;
 use tokio::{
     runtime, select,
-    signal::unix::{signal, SignalKind},
     sync::{mpsc, oneshot},
     task::{AbortHandle, JoinHandle},
     time,
@@ -416,6 +419,7 @@ impl Runner {
 
     /// Captures shutdown signals for [Runner].
     #[allow(dead_code)]
+    #[cfg(not(windows))]
     async fn shutdown_signal() -> Result<()> {
         let mut sigint = signal(SignalKind::interrupt())?;
         let mut sigterm = signal(SignalKind::terminate())?;
@@ -425,7 +429,22 @@ impl Runner {
             _ = sigint.recv() => info!("SIGINT received, shutting down"),
             _ = sigterm.recv() => info!("SIGTERM received, shutting down"),
         }
+        Ok(())
+    }
 
+    #[allow(dead_code)]
+    #[cfg(windows)]
+    async fn shutdown_signal() -> Result<()> {
+        let mut sigint = windows::ctrl_close()?;
+        let mut sigterm = windows::ctrl_shutdown()?;
+        let mut sighup = windows::ctrl_break()?;
+
+        select! {
+            _ = tokio::signal::ctrl_c() => info!("CTRL-C received, shutting down"),
+            _ = sigint.recv() => info!("SIGINT received, shutting down"),
+            _ = sigterm.recv() => info!("SIGTERM received, shutting down"),
+            _ = sighup.recv() => info!("SIGHUP received, shutting down")
+        }
         Ok(())
     }
 
