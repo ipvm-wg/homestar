@@ -66,29 +66,25 @@ fn startup(swarm: &mut Swarm<ComposedBehaviour>, settings: &settings::Network) -
     // Listen-on given address
     swarm.listen_on(settings.listen_address.to_string().parse()?)?;
 
-    // Dial trusted nodes specified in settings. Failure here shouldn't halt node startup.
-    for trusted_addr in &settings.trusted_node_addresses {
-        swarm
-            .dial(trusted_addr.clone())
-            .map(|_| {
-                info!(trusted_address=?trusted_addr, "Successfully dialed configured trusted node")
-            })
+    // Dial nodes specified in settings. Failure here shouldn't halt node startup.
+    for addr in &settings.node_addresses {
+        match swarm.dial(addr.clone()) {
+            Ok(_) => info!(addr=?addr, "successfully dialed configured node"),
             // log dial failure and continue
-            .map_err(|e| warn!(err=?e, "Failed to dial trusted node"))
-            .ok();
+            Err(e) => warn!(err=?e, "failed to dial configured node"),
+        }
 
         // add node to kademlia routing table
-        if let Some(peer_id) = trusted_addr.into_iter().find_map(|proto| match proto {
-            Protocol::P2p(peer_id) => Some(peer_id),
-            _ => None,
-        }) {
-            info!(trusted_address=?trusted_addr, "added configured trusted node to kademlia routing table");
+        if let Some(Protocol::P2p(peer_id)) =
+            addr.iter().find(|proto| matches!(proto, Protocol::P2p(_)))
+        {
+            info!(addr=?addr, "added configured node to kademlia routing table");
             swarm
                 .behaviour_mut()
                 .kademlia
-                .add_address(&peer_id, trusted_addr.clone());
+                .add_address(&peer_id, addr.clone());
         } else {
-            warn!(trusted_address=?trusted_addr, "trusted node address did not include a peer ID. not added to kademlia routing table")
+            warn!(addr=?addr, err="configured node address did not include a peer ID", "node not added to kademlia routing table")
         }
     }
 
