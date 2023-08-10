@@ -24,19 +24,23 @@ use homestar_core::{
 };
 use libipld::{Cid, Ipld};
 use libp2p::{
-    gossipsub,
+    gossipsub, identify, kad,
     kad::{
         AddProviderOk, BootstrapOk, GetProvidersOk, GetRecordOk, KademliaEvent, PeerRecord,
         PutRecordOk, QueryResult,
     },
     mdns,
     multiaddr::Protocol,
+    rendezvous::Namespace,
     request_response,
     swarm::SwarmEvent,
-    PeerId,
+    PeerId, StreamProtocol,
 };
 use std::{collections::HashSet, fmt, time::Instant};
 use tracing::{debug, error, info};
+
+const RENDEZVOUS_PROTOCOL_NAME: StreamProtocol = StreamProtocol::new("/rendezvous/1.0.0");
+const RENDEZVOUS_NAMESPACE: &str = "homestar";
 
 /// Internal events within the [SwarmEvent] context related to finding results
 /// on the DHT.
@@ -93,8 +97,35 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
     event_handler: &mut EventHandler<DB>,
 ) {
     match event {
-        // TODO: add identify for adding compatable kademlia nodes.
         // TODO: use kademlia to discover new gossip nodes.
+        SwarmEvent::Behaviour(ComposedEvent::Identify(identify_event)) => match identify_event {
+            identify::Event::Error { peer_id, error } => {
+                error!(err=?error, peer_id=?peer_id, "Error while attempting to identify the remote.")
+            },
+            identify::Event::Received { peer_id, info } => {
+                debug!(peer_id=peer_id.to_string(), info=?info, "Identification information has been received from a peer.");
+
+                let behavior = event_handler.swarm.behaviour_mut();
+
+                // add listen addresses to kademlia routing table
+                if info.protocols.contains(&kad::PROTOCOL_NAME) {
+                    for addr in info.listen_addrs {
+                        behavior.kademlia.add_address(&peer_id, addr);
+                    }
+                }
+                // rendezvous
+                if info.protocols.contains(&RENDEZVOUS_PROTOCOL_NAME) {
+                    // register self with remote
+                    if let Err(err) = behavior.rendezvous_client.register(Namespace::from_static(RENDEZVOUS_NAMESPACE), peer_id, None) {
+                        error!(err=?err, peer_id=?peer_id, "Error while attempting to register self with rendezvous to remote.")
+                    }
+                    // discover other nodes
+                    behavior.rendezvous_client.discover(Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)), None, None, peer_id);
+                }
+            },
+            identify::Event::Sent { peer_id } => debug!(peer_id=peer_id.to_string(), "Identification information of the local node has been sent to a peer in response to an identification request."),
+            _ => ()
+        },
         SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossip_event)) => match *gossip_event {
             gossipsub::Event::Message {
                 message,

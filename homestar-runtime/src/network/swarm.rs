@@ -9,6 +9,7 @@ use enum_assoc::Assoc;
 use libp2p::{
     core::upgrade,
     gossipsub::{self, MessageId, SubscriptionError, TopicHash},
+    identify,
     kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
     mdns,
     multiaddr::Protocol,
@@ -176,6 +177,8 @@ pub(crate) enum ComposedEvent {
     RendezvousClient(rendezvous::client::Event),
     /// [rendezvous::server::Event] event
     RendezvousServer(rendezvous::server::Event),
+    // [identify::Event] event
+    Identify(identify::Event),
 }
 
 /// Message types to deliver on a topic.
@@ -198,10 +201,12 @@ pub(crate) struct ComposedBehaviour {
     pub(crate) request_response: request_response::cbor::Behaviour<RequestResponseKey, Vec<u8>>,
     /// [mdns::tokio::Behaviour] behaviour.
     pub(crate) mdns: mdns::tokio::Behaviour,
-    /// [rendezvous] client behaviour.
+    /// [rendezvous::client::Behaviour] behaviour.
     pub(crate) rendezvous_client: rendezvous::client::Behaviour,
-    /// [rendezvous] server behaviour.
+    /// [rendezvous::server::Behaviour] behaviour.
     pub(crate) rendezvous_server: rendezvous::server::Behaviour,
+    // [identify::Behaviour]
+    pub(crate) identify: identify::Behaviour,
 }
 
 impl ComposedBehaviour {
@@ -267,5 +272,11 @@ impl From<rendezvous::client::Event> for ComposedEvent {
 impl From<rendezvous::server::Event> for ComposedEvent {
     fn from(event: rendezvous::server::Event) -> Self {
         ComposedEvent::RendezvousServer(event)
+    }
+}
+
+impl From<identify::Event> for ComposedEvent {
+    fn from(event: identify::Event) -> Self {
+        ComposedEvent::Identify(event)
     }
 }
