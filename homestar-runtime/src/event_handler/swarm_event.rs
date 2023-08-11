@@ -31,13 +31,13 @@ use libp2p::{
     },
     mdns,
     multiaddr::Protocol,
-    rendezvous::Namespace,
+    rendezvous::{self, Namespace},
     request_response,
-    swarm::SwarmEvent,
+    swarm::{dial_opts::DialOpts, SwarmEvent},
     PeerId, StreamProtocol,
 };
 use std::{collections::HashSet, fmt, time::Instant};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 const RENDEZVOUS_PROTOCOL_NAME: StreamProtocol = StreamProtocol::new("/rendezvous/1.0.0");
 const RENDEZVOUS_NAMESPACE: &str = "homestar";
@@ -100,10 +100,16 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         // TODO: use kademlia to discover new gossip nodes.
         SwarmEvent::Behaviour(ComposedEvent::Identify(identify_event)) => match identify_event {
             identify::Event::Error { peer_id, error } => {
-                error!(err=?error, peer_id=?peer_id, "Error while attempting to identify the remote.")
-            },
+                error!(err=?error, peer_id=peer_id.to_string(), "error while attempting to identify the remote")
+            }
+            identify::Event::Sent { peer_id } => {
+                debug!(peer_id = peer_id.to_string(), "sent identify info to peer")
+            }
             identify::Event::Received { peer_id, info } => {
                 debug!(peer_id=peer_id.to_string(), info=?info, "Identification information has been received from a peer.");
+
+                // add external address (this may be broken for mdns?)
+                event_handler.swarm.add_external_address(info.observed_addr);
 
                 let behavior = event_handler.swarm.behaviour_mut();
 
@@ -116,16 +122,123 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 // rendezvous
                 if info.protocols.contains(&RENDEZVOUS_PROTOCOL_NAME) {
                     // register self with remote
-                    if let Err(err) = behavior.rendezvous_client.register(Namespace::from_static(RENDEZVOUS_NAMESPACE), peer_id, None) {
-                        error!(err=?err, peer_id=?peer_id, "Error while attempting to register self with rendezvous to remote.")
+                    if let Err(err) = behavior.rendezvous_client.register(
+                        Namespace::from_static(RENDEZVOUS_NAMESPACE),
+                        peer_id,
+                        None,
+                    ) {
+                        error!(
+                            err = format!("{err}"),
+                            peer_id = peer_id.to_string(),
+                            "failed to register with rendezvous peer"
+                        )
                     }
                     // discover other nodes
-                    behavior.rendezvous_client.discover(Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)), None, None, peer_id);
+                    behavior.rendezvous_client.discover(
+                        Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
+                        None,
+                        None,
+                        peer_id,
+                    );
                 }
-            },
-            identify::Event::Sent { peer_id } => debug!(peer_id=peer_id.to_string(), "Identification information of the local node has been sent to a peer in response to an identification request."),
-            _ => ()
+            }
+            identify::Event::Pushed { peer_id } => debug!(
+                peer_id = peer_id.to_string(),
+                "pushed identify info too peer"
+            ),
         },
+        SwarmEvent::Behaviour(ComposedEvent::RendezvousClient(rendezvous_c_event)) => {
+            match rendezvous_c_event {
+                rendezvous::client::Event::Discovered {
+                    rendezvous_node,
+                    registrations,
+                    cookie,
+                } => {
+                    // save cookie for later (when we are hungry for snacks again. yummy.)
+                    if cookie.namespace() == Some(&Namespace::from_static(RENDEZVOUS_NAMESPACE)) {
+                        event_handler
+                            .rendezvous_cookies
+                            .insert(rendezvous_node, cookie);
+                    } else {
+                        // don't add peers that aren't from our namespace
+                        warn!(peer_id=rendezvous_node.to_string(), namespace=?cookie.namespace(), "rendezvous peer gave records from an unexpected namespace");
+                        return;
+                    }
+                    // TODO: maybe do an async iter here or dial queue? this bit is IO heavy
+                    // dial discovered peers
+                    for registration in registrations {
+                        // TODO: do anything with ttl here?
+                        let opts = DialOpts::peer_id(registration.record.peer_id())
+                            .addresses(registration.record.addresses().to_vec())
+                            .condition(libp2p::swarm::dial_opts::PeerCondition::Disconnected)
+                            .build();
+                        match event_handler.swarm.dial(opts) {
+                            Ok(_) => (),
+                            // TODO: may be too verbose here
+                            Err(err) => {
+                                warn!(err=?err, peer_id=registration.record.peer_id().to_string(), "failed to dial peer discovered through rendezvous")
+                            }
+                        }
+                    }
+                }
+                rendezvous::client::Event::DiscoverFailed {
+                    rendezvous_node,
+                    error,
+                    ..
+                } => {
+                    error!(err=?error, peer_id=rendezvous_node.to_string(), "failed to discover peers from rendezvous peer")
+                }
+                rendezvous::client::Event::Registered {
+                    rendezvous_node,
+                    ttl,
+                    ..
+                } => debug!(
+                    peer_id = rendezvous_node.to_string(),
+                    ttl = ttl,
+                    "registered self with rendezvous peer"
+                ),
+                rendezvous::client::Event::RegisterFailed {
+                    rendezvous_node,
+                    error,
+                    ..
+                } => {
+                    error!(err=?error, peer_id=rendezvous_node.to_string(), "failed to register self with rendezvous peer")
+                }
+                rendezvous::client::Event::Expired { peer } => {
+                    // re-discover records from peer
+                    let cookie = event_handler.rendezvous_cookies.get(&peer).cloned();
+                    event_handler
+                        .swarm
+                        .behaviour_mut()
+                        .rendezvous_client
+                        .discover(
+                            Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
+                            cookie,
+                            None,
+                            peer,
+                        );
+                }
+            }
+        }
+        SwarmEvent::Behaviour(ComposedEvent::RendezvousServer(rendezvous_s_event)) => {
+            match rendezvous_s_event {
+                rendezvous::server::Event::DiscoverServed { enquirer, .. } => debug!(
+                    peer_id = enquirer.to_string(),
+                    "served rendezvous discover request to peer"
+                ),
+                rendezvous::server::Event::DiscoverNotServed { enquirer, error } => {
+                    error!(err=?error, peer_id=enquirer.to_string(), "did not serve rendezvous discover request")
+                }
+                rendezvous::server::Event::PeerNotRegistered {
+                    peer,
+                    namespace,
+                    error,
+                } => {
+                    error!(err=?error, namespace=?namespace, peer_id=peer.to_string(), "did not register peer with rendezvous")
+                }
+                _ => (),
+            }
+        }
         SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossip_event)) => match *gossip_event {
             gossipsub::Event::Message {
                 message,
@@ -145,7 +258,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 Err(err) => info!(err=?err, "cannot handle incoming event message"),
             },
             gossipsub::Event::Subscribed { peer_id, topic } => {
-                debug!("{peer_id} subscribed to topic {topic} over gossipsub")
+                debug!(
+                    peer_id = peer_id.to_string(),
+                    topic = topic.to_string(),
+                    "subscribed to topic over gossipsub"
+                )
             }
             _ => {}
         },
@@ -375,17 +492,31 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         },
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Discovered(list))) => {
             for (peer_id, multiaddr) in list {
-                info!("mDNS discovered a new peer: {peer_id}");
+                info!(
+                    peer_id = peer_id.to_string(),
+                    addr = multiaddr.to_string(),
+                    "mDNS discovered a new peer"
+                );
                 event_handler
                     .swarm
                     .behaviour_mut()
                     .kademlia
-                    .add_address(&peer_id, multiaddr);
+                    .add_address(&peer_id, multiaddr.clone());
+                let _ = event_handler.swarm.dial(
+                    DialOpts::peer_id(peer_id)
+                        .addresses(vec![multiaddr])
+                        .build(),
+                );
             }
         }
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Expired(list))) => {
             for (peer_id, multiaddr) in list {
                 info!("mDNS discover peer has expired: {peer_id}");
+                event_handler
+                    .swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .remove_address(&peer_id, &multiaddr);
                 if event_handler.swarm.behaviour_mut().mdns.has_node(&peer_id) {
                     event_handler
                         .swarm

@@ -33,7 +33,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         .with_context(|| "Failed to generate/import keypair for libp2p".to_string())?;
 
     let peer_id = keypair.public().to_peer_id();
-    info!(peer_id=?peer_id.to_string(), "local peer ID generated");
+    info!(peer_id = peer_id.to_string(), "local peer ID generated");
 
     let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
         .upgrade(upgrade::Version::V1Lazy)
