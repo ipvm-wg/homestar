@@ -14,6 +14,8 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+#[cfg(all(feature = "websocket-server", feature = "websocket-notify"))]
+use homestar_core::ipld::DagJson;
 use homestar_core::workflow::Receipt as InvocationReceipt;
 use libipld::{Cid, Ipld};
 use libp2p::{
@@ -28,7 +30,7 @@ use tracing::{error, info};
 
 /// A [Receipt] captured (inner) event.
 #[derive(Debug, Clone)]
-pub struct Captured {
+pub(crate) struct Captured {
     /// The captured receipt.
     pub(crate) receipt: Receipt,
     /// The captured workflow information.
@@ -40,7 +42,7 @@ pub struct Captured {
 /// A structured query for finding a [Record] in the DHT and
 /// returning to a [P2PSender].
 #[derive(Debug, Clone)]
-pub struct QueryRecord {
+pub(crate) struct QueryRecord {
     /// The record identifier, which is a [Cid].
     pub(crate) cid: Cid,
     /// The record capsule tag, which can be part of a key.
@@ -52,7 +54,7 @@ pub struct QueryRecord {
 /// A structured query for finding a [Record] in the DHT and
 /// returning to a [P2PSender].
 #[derive(Debug, Clone)]
-pub struct PeerRequest {
+pub(crate) struct PeerRequest {
     /// The peer to send a request to.
     pub(crate) peer: PeerId,
     /// The request key, which is a [Cid].
@@ -63,7 +65,8 @@ pub struct PeerRequest {
 
 /// Events to capture.
 #[derive(Debug)]
-pub enum Event {
+#[allow(dead_code)]
+pub(crate) enum Event {
     /// [Receipt] captured event.
     CapturedReceipt(Captured),
     /// General shutdown event.
@@ -299,24 +302,57 @@ where
     #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>, ipfs: IpfsCli) {
         match self {
+            #[cfg(all(feature = "websocket-server", feature = "websocket-notify"))]
             Event::CapturedReceipt(captured) => {
                 let _ = captured.store(event_handler).map(|(cid, receipt)| {
-                        // Spawn client call in background, without awaiting.
-                        let handle = Handle::current();
-                        handle.spawn(async move {
-                            match ipfs.put_receipt(receipt).await {
-                                Ok(put_cid) => {
-                                    info!(cid = put_cid, "IPLD DAG node stored");
+                    // Spawn client call in background, without awaiting.
+                    let handle = Handle::current();
+                    // clone for IPLD conversion
+                    let receipt_bytes: Vec<u8> = receipt.clone().try_into().unwrap();
+                    handle.spawn(async move {
+                        match ipfs.put_receipt_bytes(receipt_bytes).await {
+                            Ok(put_cid) => {
+                                info!(cid = put_cid, "IPLD DAG node stored");
 
-                                    #[cfg(debug_assertions)]
-                                    debug_assert_eq!(put_cid, cid.to_string());
-                                }
-                                Err(err) => {
-                                    info!(error=?err, cid=cid.to_string(), "Failed to store IPLD DAG node")
-                                }
+                                #[cfg(debug_assertions)]
+                                debug_assert_eq!(put_cid, cid.to_string());
                             }
-                        });
+                            Err(err) => {
+                                info!(error=?err, cid=cid.to_string(), "Failed to store IPLD DAG node")
+                            }
+                        }
                     });
+
+
+                    let ws_tx = event_handler.ws_sender();
+                    handle.spawn(async move {
+                        if let Ok(json_bytes) = receipt.to_json()
+                        {
+                            let _ = ws_tx.notify(json_bytes);
+                        }
+                    });
+
+                });
+            }
+            #[cfg(not(any(feature = "websocket-server", feature = "websocket-notify")))]
+            Event::CapturedReceipt(captured) => {
+                let _ = captured.store(event_handler).map(|(cid, receipt)| {
+                    // Spawn client call in background, without awaiting.
+                    let handle = Handle::current();
+                    handle.spawn(async move {
+                        match ipfs.put_receipt(receipt).await {
+                            Ok(put_cid) => {
+                                info!(cid = put_cid, "IPLD DAG node stored");
+
+                                #[cfg(debug_assertions)]
+                                debug_assert_eq!(put_cid, cid.to_string());
+                            }
+                            Err(err) => {
+                                info!(error=?err, cid=cid.to_string(), "Failed to store IPLD DAG node")
+                            }
+                        }
+                    });
+                });
             }
             event => {
                 if let Err(err) = event.handle_info(event_handler).await {

@@ -26,9 +26,6 @@ use wit_component::ComponentEncoder;
 // One unit of fuel represents around 100k instructions.
 const UNIT_OF_COMPUTE_INSTRUCTIONS: u64 = 100_000;
 
-// TODO: Implement errors over thiserror and bubble up traps from here to
-// our error set.
-
 /// Incoming `state` from host runtime.
 #[allow(missing_debug_implementations)]
 pub struct State {

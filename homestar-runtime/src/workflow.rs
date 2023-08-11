@@ -152,43 +152,48 @@ impl<'a> Builder<'a> {
     fn aot(self) -> anyhow::Result<AOTContext<'a>> {
         let lookup_table = self.lookup_table()?;
 
-        let (dag, resources) =
-            self.into_inner().tasks().into_iter().enumerate().try_fold(
-                (Dag::default(), IndexMap::new()),
-                |(mut dag, mut resources), (i, task)| {
-                    let instr_cid = task.instruction_cid()?;
-                    // Clone as we're owning the struct going backward.
-                    let ptr: Pointer = Invocation::<Arg>::from(task.clone()).try_into()?;
+        let (dag, resources) = self.into_inner().tasks().into_iter().enumerate().try_fold(
+            (Dag::default(), IndexMap::new()),
+            |(mut dag, mut resources), (i, task)| {
+                let instr_cid = task.instruction_cid()?;
+                // Clone as we're owning the struct going backward.
+                let ptr: Pointer = Invocation::<Arg>::from(task.clone()).try_into()?;
 
-                    let RunInstruction::Expanded(instr) = task.into_instruction() else {
-                        bail!("workflow tasks/instructions must be expanded / inlined")
-                    };
+                let RunInstruction::Expanded(instr) = task.into_instruction() else {
+                    bail!("workflow tasks/instructions must be expanded / inlined")
+                };
 
+                resources
+                    .entry(instr_cid)
+                    .or_insert_with(|| Resource::Url(instr.resource().to_owned()));
+
+                let parsed = instr.input().parse()?;
+                let reads = parsed
+                    .args()
+                    .deferreds()
+                    .fold(vec![], |mut in_flow_reads, cid| {
+                        if let Some(v) = lookup_table.get(&cid) {
+                            in_flow_reads.push(*v)
+                        }
+                        // TODO: else, it's a Promise from another task outside
+                        // of the workflow.
+                        in_flow_reads
+                    });
+
+                parsed.args().links().for_each(|cid| {
                     resources
                         .entry(instr_cid)
-                        .or_insert_with(|| Resource::Url(instr.resource().to_owned()));
+                        .or_insert_with(|| Resource::Cid(cid.to_owned()));
+                });
 
-                    let parsed = instr.input().parse()?;
-                    let reads = parsed.args().deferreds().into_iter().fold(
-                        vec![],
-                        |mut in_flow_reads, cid| {
-                            if let Some(v) = lookup_table.get(&cid) {
-                                in_flow_reads.push(*v)
-                            }
-                            // TODO: else, it's a CID from another task outside
-                            // of the workflow.
-                            in_flow_reads
-                        },
-                    );
+                let node = Node::new(Vertex::new(instr.to_owned(), parsed, ptr))
+                    .with_name(instr_cid.to_string())
+                    .with_result(i);
 
-                    let node = Node::new(Vertex::new(instr.to_owned(), parsed, ptr))
-                        .with_name(instr_cid.to_string())
-                        .with_result(i);
-
-                    dag.add_node(node.with_reads(reads));
-                    Ok::<_, anyhow::Error>((dag, resources))
-                },
-            )?;
+                dag.add_node(node.with_reads(reads));
+                Ok::<_, anyhow::Error>((dag, resources))
+            },
+        )?;
 
         Ok(AOTContext {
             dag,

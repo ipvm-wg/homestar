@@ -2,6 +2,7 @@
 //! [Workflow].
 //!
 //! [Scheduler]: TaskScheduler
+//! [Workflow]: homestar_core::Workflow
 
 use crate::{
     db::{Connection, Database},
@@ -12,16 +13,13 @@ use crate::{
         Event,
     },
     network::swarm::CapsuleTag,
-    workflow::{self, Builder, IndexedResources, Resource, Vertex},
+    workflow::{self, IndexedResources, Resource, Vertex},
     Db,
 };
 use anyhow::{anyhow, Result};
 use dagga::Node;
-use futures::future::LocalBoxFuture;
-use homestar_core::{
-    workflow::{InstructionResult, LinkMap, Pointer},
-    Workflow,
-};
+use futures::future::BoxFuture;
+use homestar_core::workflow::{InstructionResult, LinkMap, Pointer};
 use homestar_wasm::io::Arg;
 use indexmap::IndexMap;
 use libipld::Cid;
@@ -44,6 +42,7 @@ pub(crate) struct ExecutionGraph<'a> {
     /// Vector of [resources] to fetch for executing functions in [Workflow].
     ///
     /// [resources]: Resource
+    /// [Workflow]: homestar_core::Workflow
     pub(crate) indexed_resources: IndexedResources,
 }
 
@@ -58,12 +57,14 @@ pub(crate) struct TaskScheduler<'a> {
     /// [ExecutionGraph] of what's been run so far for a [Workflow] of `batched`
     /// [Tasks].
     ///
+    /// [Workflow]: homestar_core::Workflow
     /// [Tasks]: homestar_core::workflow::Task
     pub(crate) ran: Option<Schedule<'a>>,
 
     /// [ExecutionGraph] of what's left to run for a [Workflow] of `batched`
     /// [Tasks].
     ///
+    /// [Workflow]: homestar_core::Workflow
     /// [Tasks]: homestar_core::workflow::Task
     pub(crate) run: Schedule<'a>,
 
@@ -75,16 +76,15 @@ pub(crate) struct TaskScheduler<'a> {
     ///
     /// This is transferred from the [ExecutionGraph] for executing the
     /// schedule by a worker.
+    ///
+    /// [Workflow]: homestar_core::Workflow
     pub(crate) resources: IndexMap<Resource, Vec<u8>>,
 }
 
-/// Scheduler context containing the a schedule for executing tasks
-/// and a map of [IndexedResources].
+/// Scheduler context containing the a schedule for executing tasks.
 pub(crate) struct SchedulerContext<'a> {
     /// Scheduler for a series of tasks, including what's run.
     pub(crate) scheduler: TaskScheduler<'a>,
-    /// Map of instructions => resources, for a [Workflow].
-    pub(crate) indexed_resources: IndexedResources,
 }
 
 impl<'a> TaskScheduler<'a> {
@@ -99,7 +99,7 @@ impl<'a> TaskScheduler<'a> {
     /// [Workflow]: homestar_core::Workflow
     #[allow(unknown_lints, clippy::needless_pass_by_ref_mut)]
     pub(crate) async fn init<F>(
-        workflow: Workflow<'a, Arg>,
+        mut graph: Arc<ExecutionGraph<'a>>,
         workflow_cid: Cid,
         settings: Arc<workflow::Settings>,
         event_sender: Arc<mpsc::Sender<Event>>,
@@ -107,13 +107,13 @@ impl<'a> TaskScheduler<'a> {
         fetch_fn: F,
     ) -> Result<SchedulerContext<'a>>
     where
-        F: FnOnce(Vec<Resource>) -> LocalBoxFuture<'a, Result<IndexMap<Resource, Vec<u8>>>>,
+        F: FnOnce(Vec<Resource>) -> BoxFuture<'a, Result<IndexMap<Resource, Vec<u8>>>>,
     {
-        let builder = Builder::new(workflow);
-        let graph = builder.graph()?;
-        let mut schedule = graph.schedule;
+        let mut_graph = Arc::make_mut(&mut graph);
+        let schedule: &mut Schedule<'a> = mut_graph.schedule.as_mut();
         let schedule_length = schedule.len();
         let mut resources_to_fetch: Vec<Resource> = vec![];
+
         let resume = schedule
             .iter()
             .enumerate()
@@ -121,7 +121,7 @@ impl<'a> TaskScheduler<'a> {
             .try_for_each(|(idx, vec)| {
                 let folded_pointers = vec.iter().try_fold(vec![], |mut ptrs, node| {
                     let cid = Cid::from_str(node.name())?;
-                    graph
+                    mut_graph
                         .indexed_resources
                         .get(&cid)
                         .map(|resource| {
@@ -208,23 +208,21 @@ impl<'a> TaskScheduler<'a> {
                 Ok(SchedulerContext {
                     scheduler: Self {
                         linkmap: Arc::new(linkmap.into()),
-                        ran: Some(schedule),
+                        ran: Some(schedule.to_vec()),
                         run: pivot,
                         resume_step: step,
                         resources: fetched,
                     },
-                    indexed_resources: graph.indexed_resources,
                 })
             }
             _ => Ok(SchedulerContext {
                 scheduler: Self {
                     linkmap: Arc::new(LinkMap::<InstructionResult<Arg>>::new().into()),
                     ran: None,
-                    run: schedule,
+                    run: schedule.to_vec(),
                     resume_step: None,
                     resources: fetched,
                 },
-                indexed_resources: graph.indexed_resources,
             }),
         }
     }
@@ -236,7 +234,7 @@ mod test {
     use crate::{
         db::Database,
         test_utils::{self, db::MemoryDb},
-        workflow as wf, Receipt,
+        workflow, Receipt,
     };
     use futures::FutureExt;
     use homestar_core::{
@@ -246,6 +244,7 @@ mod test {
             config::Resources, instruction::RunInstruction, prf::UcanPrf, Invocation,
             Receipt as InvocationReceipt, Task,
         },
+        Workflow,
     };
     use libipld::Ipld;
 
@@ -266,11 +265,11 @@ mod test {
             UcanPrf::default(),
         );
 
-        let db = MemoryDb::setup_connection_pool(&settings.node).unwrap();
+        let db = MemoryDb::setup_connection_pool(&settings.node, None).unwrap();
         let mut conn = db.conn().unwrap();
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let workflow_cid = workflow.clone().to_cid().unwrap();
-        let workflow_settings = wf::Settings::default();
+        let workflow_settings = workflow::Settings::default();
         let fetch_fn = |_rscs: Vec<Resource>| {
             {
                 async {
@@ -281,13 +280,16 @@ mod test {
                     Ok(index_map)
                 }
             }
-            .boxed_local()
+            .boxed()
         };
+
+        let builder = workflow::Builder::new(workflow);
+        let graph = builder.graph().unwrap();
 
         let (tx, mut _rx) = test_utils::event::setup_event_channel(settings.node);
 
         let scheduler_ctx = TaskScheduler::init(
-            workflow,
+            graph.into(),
             workflow_cid,
             workflow_settings.into(),
             tx.into(),
@@ -335,7 +337,7 @@ mod test {
         )
         .unwrap();
 
-        let db = MemoryDb::setup_connection_pool(&settings.node).unwrap();
+        let db = MemoryDb::setup_connection_pool(&settings.node, None).unwrap();
         let mut conn = db.conn().unwrap();
         let stored_receipt = MemoryDb::store_receipt(receipt.clone(), &mut conn).unwrap();
 
@@ -343,7 +345,7 @@ mod test {
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let workflow_cid = workflow.clone().to_cid().unwrap();
-        let workflow_settings = wf::Settings::default();
+        let workflow_settings = workflow::Settings::default();
         let fetch_fn = |_rscs: Vec<Resource>| {
             {
                 async {
@@ -354,13 +356,16 @@ mod test {
                     Ok(index_map)
                 }
             }
-            .boxed_local()
+            .boxed()
         };
 
         let (tx, mut _rx) = test_utils::event::setup_event_channel(settings.node);
 
+        let builder = workflow::Builder::new(workflow);
+        let graph = builder.graph().unwrap();
+
         let scheduler_ctx = TaskScheduler::init(
-            workflow,
+            graph.into(),
             workflow_cid,
             workflow_settings.into(),
             tx.into(),
@@ -429,14 +434,14 @@ mod test {
         )
         .unwrap();
 
-        let db = MemoryDb::setup_connection_pool(&settings.node).unwrap();
+        let db = MemoryDb::setup_connection_pool(&settings.node, None).unwrap();
         let mut conn = db.conn().unwrap();
         let rows_inserted = MemoryDb::store_receipts(vec![receipt1, receipt2], &mut conn).unwrap();
         assert_eq!(2, rows_inserted);
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let workflow_cid = workflow.clone().to_cid().unwrap();
-        let workflow_settings = wf::Settings::default();
+        let workflow_settings = workflow::Settings::default();
         let fetch_fn = |_rscs: Vec<Resource>| {
             async {
                 let mut index_map = IndexMap::new();
@@ -444,13 +449,16 @@ mod test {
                 index_map.insert(Resource::Url(instruction2.resource().to_owned()), vec![]);
                 Ok(index_map)
             }
-            .boxed_local()
+            .boxed()
         };
 
         let (tx, mut _rx) = test_utils::event::setup_event_channel(settings.node);
 
+        let builder = workflow::Builder::new(workflow);
+        let graph = builder.graph().unwrap();
+
         let scheduler_ctx = TaskScheduler::init(
-            workflow,
+            graph.into(),
             workflow_cid,
             workflow_settings.into(),
             tx.into(),

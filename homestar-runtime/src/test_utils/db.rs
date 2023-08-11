@@ -38,8 +38,22 @@ impl Clone for MemoryDb {
 }
 
 impl Database for MemoryDb {
-    fn setup_connection_pool(settings: &settings::Node) -> Result<Self> {
-        let database_url = env::var(ENV).unwrap_or_else(|_| {
+    fn set_url(database_url: Option<String>) -> Option<String> {
+        database_url.map(|url| {
+            env::set_var(ENV, &url);
+            url
+        })
+    }
+
+    fn url() -> Result<String> {
+        Ok(env::var(ENV)?)
+    }
+
+    fn setup_connection_pool(
+        settings: &settings::Node,
+        database_url: Option<String>,
+    ) -> Result<Self> {
+        let database_url = Self::set_url(database_url).unwrap_or_else(|| {
             settings
                 .db
                 .url

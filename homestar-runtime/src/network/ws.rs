@@ -27,7 +27,26 @@ use tokio::{
 use tracing::{debug, info};
 
 /// Type alias for websocket sender.
-pub type Sender = Arc<broadcast::Sender<String>>;
+#[derive(Debug, Clone)]
+pub(crate) struct Notifier(Arc<broadcast::Sender<Vec<u8>>>);
+
+impl Notifier {
+    #[allow(dead_code)]
+    fn inner(&self) -> &Arc<broadcast::Sender<Vec<u8>>> {
+        &self.0
+    }
+
+    #[allow(dead_code)]
+    fn into_inner(self) -> Arc<broadcast::Sender<Vec<u8>>> {
+        self.0
+    }
+
+    /// Send a message to all connected websocket clients.
+    pub(crate) fn notify(&self, msg: Vec<u8>) -> Result<()> {
+        let _ = self.0.send(msg)?;
+        Ok(())
+    }
+}
 
 /// Message type for messages sent back from the
 /// websocket server to the [runner] for example.
@@ -45,13 +64,15 @@ pub(crate) enum Message {
 #[derive(Clone)]
 pub(crate) struct Server {
     addr: SocketAddr,
-    msg_sender: Arc<Sender>,
+    msg_sender: Notifier,
 }
 
 impl Server {
     /// Setup bounded, MPMC channel for runtime to send and received messages
     /// through the websocket connection(s).
-    fn setup_channel(capacity: usize) -> (broadcast::Sender<String>, broadcast::Receiver<String>) {
+    fn setup_channel(
+        capacity: usize,
+    ) -> (broadcast::Sender<Vec<u8>>, broadcast::Receiver<Vec<u8>>) {
         broadcast::channel(capacity)
     }
 
@@ -71,7 +92,7 @@ impl Server {
 
         Ok(Self {
             addr,
-            msg_sender: Arc::new(sender.into()),
+            msg_sender: Notifier(sender.into()),
         })
     }
 
@@ -95,7 +116,7 @@ impl Server {
 
     /// Get websocket message sender for broadcasting messages to websocket
     /// clients.
-    pub(crate) fn sender(&self) -> Arc<Sender> {
+    pub(crate) fn notifier(&self) -> Notifier {
         self.msg_sender.clone()
     }
 }
@@ -150,17 +171,13 @@ async fn handle_socket(mut socket: ws::WebSocket, state: Server) {
 
     // By splitting socket we can send and receive at the same time.
     let (mut socket_sender, mut socket_receiver) = socket.split();
-    let mut subscribed_rx = state.msg_sender.subscribe();
+    let mut subscribed_rx = state.msg_sender.inner().subscribe();
     let handle = Handle::current();
 
     let mut send_task = handle.spawn(async move {
         while let Ok(msg) = subscribed_rx.recv().await {
             // In any websocket error, break loop.
-            if socket_sender
-                .send(AxumMsg::Binary(msg.into()))
-                .await
-                .is_err()
-            {
+            if socket_sender.send(AxumMsg::Binary(msg)).await.is_err() {
                 break;
             }
         }
