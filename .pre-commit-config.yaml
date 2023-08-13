@@ -41,6 +41,14 @@ repos:
         entry: alejandra
         files: \.nix$
         language: system
+      - id: taplo
+        name: taplo
+        description: Format toml files.
+        language: system
+        entry: taplo
+        args: ["fmt"]
+        types:
+          - toml
 
   - repo: https://github.com/DevinR528/cargo-sort
     rev: v1.0.9

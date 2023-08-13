@@ -7,9 +7,10 @@ use async_trait::async_trait;
 use enum_assoc::Assoc;
 use std::path::PathBuf;
 
-pub(crate) mod fetch;
+mod fetch;
 mod wasm;
 
+pub(crate) use fetch::*;
 pub(crate) use wasm::*;
 
 const WASM_OP: &str = "wasm/run";

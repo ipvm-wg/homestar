@@ -2,14 +2,21 @@
 
 //! Sets up a [libp2p] [Swarm], containing the state of the network and the way
 //! it should behave.
+//!
+//! [libp2p]: libp2p
+//! [Swarm]: libp2p::Swarm
 
 use crate::{network::pubsub, settings, Receipt, RECEIPT_TAG, WORKFLOW_TAG};
 use anyhow::{anyhow, Context, Result};
 use enum_assoc::Assoc;
+use faststr::FastStr;
 use libp2p::{
     core::upgrade,
     gossipsub::{self, MessageId, SubscriptionError, TopicHash},
-    kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
+    kad::{
+        record::store::{MemoryStore, MemoryStoreConfig},
+        Kademlia, KademliaConfig, KademliaEvent,
+    },
     mdns,
     multiaddr::Protocol,
     noise,
@@ -43,7 +50,23 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         transport,
         ComposedBehaviour {
             gossipsub: pubsub::new(keypair, settings)?,
-            kademlia: Kademlia::new(peer_id, MemoryStore::new(peer_id)),
+            kademlia: Kademlia::with_config(
+                peer_id,
+                MemoryStore::with_config(
+                    peer_id,
+                    MemoryStoreConfig {
+                        // TODO: if below a better max, rely on cache-store or
+                        // blockstore to fetch result if requested directly.
+                        max_value_bytes: 10 * 1024 * 1024,
+                        ..Default::default()
+                    },
+                ),
+                {
+                    let mut cfg = KademliaConfig::default();
+                    cfg.set_max_packet_size(10 * 1024 * 1024);
+                    cfg
+                },
+            ),
             request_response: request_response::cbor::Behaviour::new(
                 [(
                     StreamProtocol::new("/homestar-exchange/1.0.0"),
@@ -64,12 +87,23 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
     )
     .build();
 
-    startup(&mut swarm, &settings.network)?;
+    init(&mut swarm, &settings.network)?;
 
     Ok(swarm)
 }
 
-fn startup(swarm: &mut Swarm<ComposedBehaviour>, settings: &settings::Network) -> Result<()> {
+/// Initialize a [Swarm] with given [settings::Network].
+///
+/// Steps includes:
+/// - Listen on given address.
+/// - Dial nodes specified in configuration and add them to kademlia.
+/// - Subscribe to `receipts` topic for [gossipsub].
+///
+/// [gossipsub]: libp2p::gossipsub
+pub(crate) fn init(
+    swarm: &mut Swarm<ComposedBehaviour>,
+    settings: &settings::Network,
+) -> Result<()> {
     // Listen-on given address
     swarm.listen_on(settings.listen_address.to_string().parse()?)?;
 
@@ -106,7 +140,7 @@ fn startup(swarm: &mut Swarm<ComposedBehaviour>, settings: &settings::Network) -
 /// Key data structure for [request_response::Event] messages.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct RequestResponseKey {
-    pub(crate) cid: String,
+    pub(crate) cid: FastStr,
     pub(crate) capsule_tag: CapsuleTag,
 }
 
@@ -114,12 +148,12 @@ impl RequestResponseKey {
     /// Create a new [RequestResponseKey] with a given [Cid] string and capsule tag.
     ///
     /// [Cid]: libipld::Cid
-    pub(crate) fn new(cid: String, capsule_tag: CapsuleTag) -> Self {
+    pub(crate) fn new(cid: FastStr, capsule_tag: CapsuleTag) -> Self {
         Self { cid, capsule_tag }
     }
 }
 
-/// Tag for [RequestResponseKey] to indicate the type of capsule-wrapping.
+/// Tag for [RequestResponseKey] to indicate the type of capsule wrapping.
 #[derive(Debug, Clone, Assoc, Serialize, Deserialize)]
 #[func(pub(crate) fn tag(&self) -> &'static str)]
 #[func(pub(crate) fn capsule_type(s: &str) -> Option<Self>)]

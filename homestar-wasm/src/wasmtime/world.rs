@@ -109,15 +109,14 @@ impl<T> Env<T> {
 
         let params: Vec<component::Val> = iter::zip(param_types.iter(), args.into_inner())
             .try_fold(vec![], |mut acc, (typ, arg)| {
-                // Remove unwraps
                 let v = match arg {
-                    Input::Ipld(ipld) => RuntimeVal::try_from(ipld, &InterfaceType::from(typ))
-                        .unwrap()
-                        .value(),
+                    Input::Ipld(ipld) => {
+                        RuntimeVal::try_from(ipld, &InterfaceType::from(typ))?.value()
+                    }
                     Input::Arg(val) => match val.into_inner() {
-                        Arg::Ipld(ipld) => RuntimeVal::try_from(ipld, &InterfaceType::from(typ))
-                            .unwrap()
-                            .value(),
+                        Arg::Ipld(ipld) => {
+                            RuntimeVal::try_from(ipld, &InterfaceType::from(typ))?.value()
+                        }
                         Arg::Value(v) => v,
                     },
                     Input::Deferred(await_promise) => {

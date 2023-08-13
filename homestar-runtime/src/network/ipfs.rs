@@ -1,4 +1,6 @@
 //! Ipfs Client container for an [Arc]'ed [IpfsClient].
+//!
+//! [IpfsClient]: ipfs_api::IpfsClient
 
 use anyhow::Result;
 use futures::TryStreamExt;

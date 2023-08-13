@@ -35,7 +35,7 @@ homestar.pid
 # locks
 homestar-wasm/Cargo.lock
 
-# examples-npm
+# examples
 node_modules
 examples/**/**/build
 examples/**/**.svelte-kit
@@ -43,8 +43,7 @@ examples/**/**/package
 examples/**/**/.env.*
 examples/**/**/vite.config.js.timestamp-*
 examples/**/**/vite.config.ts.timestamp-*
+examples/**/tmp/*
 
 !examples/**/**/.env.example
-
-# temp
-examples/websocket-relay
+!examples/**/tmp/.gitkeep

@@ -141,11 +141,11 @@ impl Receipt {
         self.cid().to_bytes()
     }
 
-    /// Return the [Cid] of the [Receipt]'s associated [Instruction].
+    /// Return the Pointer-wrapped [Cid] of the [Receipt]'s associated [Instruction].
     ///
     /// [Instruction]: homestar_core::workflow::Instruction
-    pub fn instruction(&self) -> String {
-        self.instruction.to_string()
+    pub fn instruction(&self) -> &Pointer {
+        &self.instruction
     }
 
     /// Get instruction [Pointer] inner [Cid] as bytes.

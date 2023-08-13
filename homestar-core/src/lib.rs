@@ -23,7 +23,7 @@ pub mod macros;
 #[cfg(any(test, feature = "test-utils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 pub mod test_utils;
-mod unit;
+pub mod unit;
 pub mod workflow;
 
 pub use consts::*;

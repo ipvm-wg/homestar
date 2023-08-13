@@ -1,8 +1,8 @@
 use super::IndexedResources;
 use crate::{
+    channel::{AsyncBoundedChannel, AsyncBoundedChannelSender},
     db::{Connection, Database},
     event_handler::{
-        channel::BoundedChannel,
         event::QueryRecord,
         swarm_event::{FoundEvent, ResponseEvent},
         Event,
@@ -13,16 +13,15 @@ use crate::{
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::{NaiveDateTime, Utc};
 use diesel::{Associations, Identifiable, Insertable, Queryable, Selectable};
+use faststr::FastStr;
 use homestar_core::{ipld::DagJson, workflow::Pointer};
 use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Cid, Ipld};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::BTreeMap,
-    fmt,
-    sync::Arc,
-    time::{Duration, Instant},
+use std::{collections::BTreeMap, fmt, sync::Arc, time::Duration};
+use tokio::{
+    runtime::Handle,
+    time::{self, Instant},
 };
-use tokio::{runtime::Handle, sync::mpsc};
 use tracing::info;
 
 /// [Workflow] header tag, for sharing workflow information over libp2p.
@@ -252,16 +251,16 @@ impl Info {
     pub(crate) async fn init(
         workflow_cid: Cid,
         workflow_len: u32,
-        name: String,
+        name: FastStr,
         resources: IndexedResources,
         p2p_timeout: Duration,
-        event_sender: Arc<mpsc::Sender<Event>>,
+        event_sender: Arc<AsyncBoundedChannelSender<Event>>,
         mut conn: Connection,
     ) -> Result<(Self, NaiveDateTime)> {
         let timestamp = Utc::now().naive_utc();
         match Db::get_workflow_info(workflow_cid, &mut conn) {
             Ok((Some(stored_name), info)) if stored_name != name => {
-                Db::update_local_name(name, &mut conn)?;
+                Db::update_local_name(&name, &mut conn)?;
                 Ok((info, timestamp))
             }
             Ok((_, info)) => Ok((info, timestamp)),
@@ -270,10 +269,11 @@ impl Info {
                     cid = workflow_cid.to_string(),
                     "workflow information not available in the database"
                 );
+
                 let result = Db::store_workflow(
                     Stored::new(
                         Pointer::new(workflow_cid),
-                        Some(name),
+                        Some(name.into_string()),
                         workflow_len as i32,
                         resources,
                         timestamp,
@@ -304,7 +304,7 @@ impl Info {
     pub(crate) async fn gather<'a>(
         workflow_cid: Cid,
         p2p_timeout: Duration,
-        event_sender: Arc<mpsc::Sender<Event>>,
+        event_sender: Arc<AsyncBoundedChannelSender<Event>>,
         mut conn: Option<Connection>,
         handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> Result<Self>>,
     ) -> Result<Self> {
@@ -336,19 +336,21 @@ impl Info {
     async fn retrieve_from_query<'a>(
         workflow_cid: Cid,
         p2p_timeout: Duration,
-        event_sender: Arc<mpsc::Sender<Event>>,
+        event_sender: Arc<AsyncBoundedChannelSender<Event>>,
         conn: Option<Connection>,
         handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> Result<Info>>,
     ) -> Result<Info> {
-        let (tx, rx) = BoundedChannel::oneshot();
-        event_sender.try_send(Event::FindRecord(QueryRecord::with(
-            workflow_cid,
-            CapsuleTag::Workflow,
-            tx,
-        )))?;
+        let (tx, rx) = AsyncBoundedChannel::oneshot();
+        event_sender
+            .send_async(Event::FindRecord(QueryRecord::with(
+                workflow_cid,
+                CapsuleTag::Workflow,
+                Some(tx),
+            )))
+            .await?;
 
-        match rx.recv_deadline(Instant::now() + p2p_timeout) {
-            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info)))) => {
+        match time::timeout_at(Instant::now() + p2p_timeout, rx.recv_async()).await {
+            Ok(Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info))))) => {
                 // store workflow receipts from info, as we've already stored
                 // the static information.
                 if let Some(mut conn) = conn {
@@ -357,15 +359,18 @@ impl Info {
 
                 Ok(workflow_info)
             }
-            Ok(ResponseEvent::Found(Err(err))) => {
+            Ok(Ok(ResponseEvent::Found(Err(err)))) => {
                 bail!("failure in attempting to find event: {err}")
             }
-            Ok(event) => {
+            Ok(Ok(event)) => {
                 bail!("received unexpected event {event:?} for workflow {workflow_cid}")
             }
+            Ok(Err(err)) => bail!("failure in attempting to find workflow: {err}"),
             Err(err) => handle_timeout_fn
                 .map(|f| f(workflow_cid, conn).context(err))
-                .unwrap_or(Err(err.into())),
+                .unwrap_or(Err(anyhow!(
+                    "timeout deadline reached for retrieving workflow info"
+                ))),
         }
     }
 }

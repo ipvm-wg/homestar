@@ -1,5 +1,5 @@
-//! Wrapper around [crossbeam::channel] to provide a common interface for
-//! bounded and non-tokio "oneshot" channels.
+//! Wrapper around [crossbeam::channel] and [flume::bounded] to provide common
+//! interfaces for sync/async bounded and non-tokio "oneshot" channels.
 
 use crossbeam::channel;
 
@@ -29,6 +29,36 @@ impl<T> BoundedChannel<T> {
     /// Create a oneshot (1) [BoundedChannel].
     pub fn oneshot() -> (BoundedChannelSender<T>, BoundedChannelReceiver<T>) {
         let (tx, rx) = channel::bounded(1);
+        (tx, rx)
+    }
+}
+
+/// [flume::Sender] for a bounded [flume::bounded] channel.
+pub type AsyncBoundedChannelSender<T> = flume::Sender<T>;
+
+/// [flume::Receiver] for a bounded [flume::bounded] channel.
+pub type AsyncBoundedChannelReceiver<T> = flume::Receiver<T>;
+
+/// A bounded [flume] channel with sender and receiver.
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub struct AsyncBoundedChannel<T> {
+    /// Sender for the channel.
+    tx: flume::Sender<T>,
+    /// REceiver for the channel.
+    rx: flume::Receiver<T>,
+}
+
+impl<T> AsyncBoundedChannel<T> {
+    /// Create a new [AsyncBoundedChannel] with a given capacity.
+    pub fn with(capacity: usize) -> (AsyncBoundedChannelSender<T>, AsyncBoundedChannelReceiver<T>) {
+        let (tx, rx) = flume::bounded(capacity);
+        (tx, rx)
+    }
+
+    /// Create a oneshot (1) [BoundedChannel].
+    pub fn oneshot() -> (AsyncBoundedChannelSender<T>, AsyncBoundedChannelReceiver<T>) {
+        let (tx, rx) = flume::bounded(1);
         (tx, rx)
     }
 }

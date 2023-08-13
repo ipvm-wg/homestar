@@ -8,12 +8,13 @@ use crate::{
     Unit,
 };
 use libipld::{self, serde::from_ipld, Ipld};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 const TASK_KEY: &str = "task";
 
 /// A signed [Task] wrapper/container.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Invocation<'a, T> {
     task: Task<'a, T>,
 }
@@ -100,5 +101,22 @@ mod test {
         let invocation = Invocation::new(task);
         let ipld = Ipld::try_from(invocation.clone()).unwrap();
         assert_eq!(invocation, Invocation::try_from(ipld).unwrap());
+    }
+
+    #[test]
+    fn ser_de() {
+        let config = Resources::default();
+        let instruction = test_utils::workflow::instruction::<Unit>();
+        let task = Task::new(
+            RunInstruction::Expanded(instruction.clone()),
+            config.into(),
+            UcanPrf::default(),
+        );
+        let invocation = Invocation::new(task);
+
+        let ser = serde_json::to_string(&invocation).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(invocation, de);
     }
 }

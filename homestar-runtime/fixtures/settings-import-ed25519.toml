@@ -1,10 +1,7 @@
-[monitoring]
-process_collector_interval = 10
-
 [node]
 
 [node.network.keypair_config]
 # path is relative to execution
 # generate a new key with openssl `openssl genpkey -algorithm ed25519 > ed25519_key.pem`
 # homestar supports ed25519 and secp256k1 keys
-existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem"}
+existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }

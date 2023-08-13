@@ -6,27 +6,24 @@
 
 use crate::{
     db::{Connection, Database},
-    event_handler::{
-        channel::BoundedChannel,
-        event::QueryRecord,
-        swarm_event::{FoundEvent, ResponseEvent},
-        Event,
-    },
-    network::swarm::CapsuleTag,
-    workflow::{self, IndexedResources, Resource, Vertex},
+    workflow::{IndexedResources, Resource, Vertex},
     Db,
 };
 use anyhow::{anyhow, Result};
 use dagga::Node;
+use fnv::FnvHashSet;
 use futures::future::BoxFuture;
 use homestar_core::workflow::{InstructionResult, LinkMap, Pointer};
 use homestar_wasm::io::Arg;
 use indexmap::IndexMap;
 use libipld::Cid;
-use std::{ops::ControlFlow, str::FromStr, sync::Arc, time::Instant};
-use tokio::sync::{mpsc, RwLock};
+use std::{ops::ControlFlow, str::FromStr, sync::Arc};
+use tokio::sync::RwLock;
 use tracing::info;
 
+/// Type alias for a [Dag] set of batched nodes.
+///
+/// [Dag]: dagga::Dag
 type Schedule<'a> = Vec<Vec<Node<Vertex<'a>, usize>>>;
 
 /// Type for [instruction]-based, batched, execution graph and set of task
@@ -78,7 +75,7 @@ pub(crate) struct TaskScheduler<'a> {
     /// schedule by a worker.
     ///
     /// [Workflow]: homestar_core::Workflow
-    pub(crate) resources: IndexMap<Resource, Vec<u8>>,
+    pub(crate) resources: Arc<RwLock<IndexMap<Resource, Vec<u8>>>>,
 }
 
 /// Scheduler context containing the a schedule for executing tasks.
@@ -100,32 +97,28 @@ impl<'a> TaskScheduler<'a> {
     #[allow(unknown_lints, clippy::needless_pass_by_ref_mut)]
     pub(crate) async fn init<F>(
         mut graph: Arc<ExecutionGraph<'a>>,
-        workflow_cid: Cid,
-        settings: Arc<workflow::Settings>,
-        event_sender: Arc<mpsc::Sender<Event>>,
         conn: &mut Connection,
         fetch_fn: F,
     ) -> Result<SchedulerContext<'a>>
     where
-        F: FnOnce(Vec<Resource>) -> BoxFuture<'a, Result<IndexMap<Resource, Vec<u8>>>>,
+        F: FnOnce(FnvHashSet<Resource>) -> BoxFuture<'a, Result<IndexMap<Resource, Vec<u8>>>>,
     {
         let mut_graph = Arc::make_mut(&mut graph);
         let schedule: &mut Schedule<'a> = mut_graph.schedule.as_mut();
         let schedule_length = schedule.len();
-        let mut resources_to_fetch: Vec<Resource> = vec![];
+        let mut resources_to_fetch: FnvHashSet<Resource> = FnvHashSet::default();
 
-        let resume = schedule
-            .iter()
-            .enumerate()
-            .rev()
-            .try_for_each(|(idx, vec)| {
+        let resume = 'resume: {
+            for (idx, vec) in schedule.iter().enumerate().rev() {
                 let folded_pointers = vec.iter().try_fold(vec![], |mut ptrs, node| {
                     let cid = Cid::from_str(node.name())?;
                     mut_graph
                         .indexed_resources
                         .get(&cid)
                         .map(|resource| {
-                            resources_to_fetch.push(resource.to_owned());
+                            resource.iter().for_each(|rsc| {
+                                resources_to_fetch.insert(rsc.to_owned());
+                            });
                             ptrs.push(Pointer::new(cid));
                         })
                         .ok_or_else(|| anyhow!("resource not found for instruction {cid}"))?;
@@ -133,66 +126,39 @@ impl<'a> TaskScheduler<'a> {
                 });
 
                 if let Ok(pointers) = folded_pointers {
-                    let pointers_len = pointers.len();
                     match Db::find_instruction_pointers(&pointers, conn) {
                         Ok(found) => {
                             let linkmap = found.iter().fold(
                                 LinkMap::<InstructionResult<Arg>>::new(),
                                 |mut map, receipt| {
-                                    if let Ok(cid) = receipt.instruction().try_into() {
-                                        let _ = map.insert(cid, receipt.output_as_arg());
-                                    }
+                                    let _ = map.insert(
+                                        receipt.instruction().cid(),
+                                        receipt.output_as_arg(),
+                                    );
+
                                     map
                                 },
                             );
 
                             if found.len() == vec.len() {
-                                ControlFlow::Break((idx + 1, linkmap))
+                                break 'resume ControlFlow::Break((idx + 1, linkmap));
                             } else if !found.is_empty() && found.len() < vec.len() {
-                                ControlFlow::Break((idx, linkmap))
+                                break 'resume ControlFlow::Break((idx, linkmap));
                             } else {
-                                ControlFlow::Continue(())
+                                continue;
                             }
                         }
                         Err(_) => {
                             info!("receipt not available in the database");
-                            let (tx, rx) = BoundedChannel::with(pointers_len);
-                            for ptr in &pointers {
-                                let _ = event_sender.try_send(Event::FindRecord(
-                                    QueryRecord::with(ptr.cid(), CapsuleTag::Receipt, tx.clone()),
-                                ));
-                            }
-
-                            let mut linkmap = LinkMap::<InstructionResult<Arg>>::new();
-                            let mut counter = 0;
-                            while let Ok(ResponseEvent::Found(Ok(FoundEvent::Receipt(found)))) =
-                                rx.recv_deadline(Instant::now() + settings.p2p_check_timeout)
-                            {
-                                if pointers.contains(&Pointer::new(found.cid())) {
-                                    if let Ok(cid) = found.instruction().try_into() {
-                                        let stored_receipt =
-                                            Db::commit_receipt(workflow_cid, found.clone(), conn)
-                                                .unwrap_or(found);
-
-                                        let _ = linkmap.insert(cid, stored_receipt.output_as_arg());
-                                        counter += 1;
-                                    }
-                                }
-                            }
-
-                            if counter == pointers_len {
-                                ControlFlow::Break((idx + 1, linkmap))
-                            } else if counter > 0 && counter < pointers_len {
-                                ControlFlow::Break((idx, linkmap))
-                            } else {
-                                ControlFlow::Continue(())
-                            }
+                            continue;
                         }
                     }
                 } else {
-                    ControlFlow::Continue(())
+                    continue;
                 }
-            });
+            }
+            ControlFlow::Continue(())
+        };
 
         let fetched = fetch_fn(resources_to_fetch).await?;
 
@@ -211,7 +177,7 @@ impl<'a> TaskScheduler<'a> {
                         ran: Some(schedule.to_vec()),
                         run: pivot,
                         resume_step: step,
-                        resources: fetched,
+                        resources: Arc::new(fetched.into()),
                     },
                 })
             }
@@ -221,7 +187,7 @@ impl<'a> TaskScheduler<'a> {
                     ran: None,
                     run: schedule.to_vec(),
                     resume_step: None,
-                    resources: fetched,
+                    resources: Arc::new(fetched.into()),
                 },
             }),
         }
@@ -231,11 +197,7 @@ impl<'a> TaskScheduler<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{
-        db::Database,
-        test_utils::{self, db::MemoryDb},
-        workflow, Receipt,
-    };
+    use crate::{db::Database, test_utils::db::MemoryDb, workflow, Receipt};
     use futures::FutureExt;
     use homestar_core::{
         ipld::DagCbor,
@@ -268,9 +230,7 @@ mod test {
         let db = MemoryDb::setup_connection_pool(&settings.node, None).unwrap();
         let mut conn = db.conn().unwrap();
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let workflow_cid = workflow.clone().to_cid().unwrap();
-        let workflow_settings = workflow::Settings::default();
-        let fetch_fn = |_rscs: Vec<Resource>| {
+        let fetch_fn = |_rscs: FnvHashSet<Resource>| {
             {
                 async {
                     let mut index_map = IndexMap::new();
@@ -286,18 +246,9 @@ mod test {
         let builder = workflow::Builder::new(workflow);
         let graph = builder.graph().unwrap();
 
-        let (tx, mut _rx) = test_utils::event::setup_event_channel(settings.node);
-
-        let scheduler_ctx = TaskScheduler::init(
-            graph.into(),
-            workflow_cid,
-            workflow_settings.into(),
-            tx.into(),
-            &mut conn,
-            fetch_fn,
-        )
-        .await
-        .unwrap();
+        let scheduler_ctx = TaskScheduler::init(graph.into(), &mut conn, fetch_fn)
+            .await
+            .unwrap();
 
         let ctx = scheduler_ctx.scheduler;
 
@@ -344,9 +295,7 @@ mod test {
         assert_eq!(receipt, stored_receipt);
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let workflow_cid = workflow.clone().to_cid().unwrap();
-        let workflow_settings = workflow::Settings::default();
-        let fetch_fn = |_rscs: Vec<Resource>| {
+        let fetch_fn = |_rscs: FnvHashSet<Resource>| {
             {
                 async {
                     let mut index_map = IndexMap::new();
@@ -359,21 +308,12 @@ mod test {
             .boxed()
         };
 
-        let (tx, mut _rx) = test_utils::event::setup_event_channel(settings.node);
-
         let builder = workflow::Builder::new(workflow);
         let graph = builder.graph().unwrap();
 
-        let scheduler_ctx = TaskScheduler::init(
-            graph.into(),
-            workflow_cid,
-            workflow_settings.into(),
-            tx.into(),
-            &mut conn,
-            fetch_fn,
-        )
-        .await
-        .unwrap();
+        let scheduler_ctx = TaskScheduler::init(graph.into(), &mut conn, fetch_fn)
+            .await
+            .unwrap();
 
         let ctx = scheduler_ctx.scheduler;
         let ran = ctx.ran.as_ref().unwrap();
@@ -440,9 +380,7 @@ mod test {
         assert_eq!(2, rows_inserted);
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let workflow_cid = workflow.clone().to_cid().unwrap();
-        let workflow_settings = workflow::Settings::default();
-        let fetch_fn = |_rscs: Vec<Resource>| {
+        let fetch_fn = |_rscs: FnvHashSet<Resource>| {
             async {
                 let mut index_map = IndexMap::new();
                 index_map.insert(Resource::Url(instruction1.resource().to_owned()), vec![]);
@@ -452,21 +390,12 @@ mod test {
             .boxed()
         };
 
-        let (tx, mut _rx) = test_utils::event::setup_event_channel(settings.node);
-
         let builder = workflow::Builder::new(workflow);
         let graph = builder.graph().unwrap();
 
-        let scheduler_ctx = TaskScheduler::init(
-            graph.into(),
-            workflow_cid,
-            workflow_settings.into(),
-            tx.into(),
-            &mut conn,
-            fetch_fn,
-        )
-        .await
-        .unwrap();
+        let scheduler_ctx = TaskScheduler::init(graph.into(), &mut conn, fetch_fn)
+            .await
+            .unwrap();
 
         let ctx = scheduler_ctx.scheduler;
         let ran = ctx.ran.as_ref().unwrap();

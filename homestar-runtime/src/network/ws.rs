@@ -1,7 +1,11 @@
 //! Sets up a websocket server for sending and receiving messages from browser
 //! clients.
 
-use crate::settings;
+use crate::{
+    channel::AsyncBoundedChannelReceiver,
+    runner::{self, WsSender},
+    settings,
+};
 use anyhow::{anyhow, Result};
 use axum::{
     extract::{
@@ -12,59 +16,70 @@ use axum::{
     routing::get,
     Router,
 };
+use faststr::FastStr;
 use futures::{stream::StreamExt, SinkExt};
+use homestar_core::Workflow;
+use homestar_wasm::io::Arg;
 use std::{
     net::{IpAddr, SocketAddr, TcpListener},
     ops::ControlFlow,
     str::FromStr,
-    sync::Arc,
+    time::Duration,
 };
 use tokio::{
     runtime::Handle,
     select,
-    sync::{broadcast, mpsc, oneshot},
+    sync::{broadcast, oneshot},
+    time::{self, Instant},
 };
-use tracing::{debug, info};
+use tracing::{debug, error, info, warn};
 
-/// Type alias for websocket sender.
-#[derive(Debug, Clone)]
-pub(crate) struct Notifier(Arc<broadcast::Sender<Vec<u8>>>);
-
-impl Notifier {
-    #[allow(dead_code)]
-    fn inner(&self) -> &Arc<broadcast::Sender<Vec<u8>>> {
-        &self.0
-    }
-
-    #[allow(dead_code)]
-    fn into_inner(self) -> Arc<broadcast::Sender<Vec<u8>>> {
-        self.0
-    }
-
-    /// Send a message to all connected websocket clients.
-    pub(crate) fn notify(&self, msg: Vec<u8>) -> Result<()> {
-        let _ = self.0.send(msg)?;
-        Ok(())
-    }
-}
+#[cfg(feature = "websocket-notify")]
+pub(crate) mod listener;
+#[cfg(feature = "websocket-notify")]
+pub(crate) mod notifier;
+#[cfg(feature = "websocket-notify")]
+pub(crate) use notifier::Notifier;
 
 /// Message type for messages sent back from the
 /// websocket server to the [runner] for example.
 ///
 /// [runner]: crate::Runner
+#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) enum Message {
     /// Notify the listener that the websocket server is shutting down
     /// gracefully.
     GracefulShutdown(oneshot::Sender<()>),
+    /// Error attempting to run a [Workflow].
+    RunErr(runner::Error),
+    /// Run a workflow, given a tuple of name, and [Workflow].
+    RunWorkflow((FastStr, Workflow<'static, Arg>)),
+    /// Acknowledgement of a [Workflow] run.
+    ///
+    /// TODO: Temporary Ack until we define semantics for JSON-RPC or similar.
+    RunWorkflowAck,
 }
 
-/// WebSocket server state information.
-#[allow(dead_code, missing_debug_implementations)]
-#[derive(Clone)]
+/// WebSocket server fields.
+#[allow(dead_code)]
+#[derive(Clone, Debug)]
 pub(crate) struct Server {
+    /// Address of the websocket server.
     addr: SocketAddr,
-    msg_sender: Notifier,
+    /// Message sender for broadcasting to clients connected to the
+    /// websocket server.
+    notifier: Notifier,
+    /// Receiver timeout for the websocket server.
+    receiver_timeout: Duration,
+}
+
+/// State used for the websocket server routes.
+#[derive(Clone, Debug)]
+struct ServerState {
+    notifier: Notifier,
+    runner_sender: WsSender,
+    receiver_timeout: Duration,
 }
 
 impl Server {
@@ -92,19 +107,32 @@ impl Server {
 
         Ok(Self {
             addr,
-            msg_sender: Notifier(sender.into()),
+            notifier: Notifier::new(sender),
+            receiver_timeout: settings.websocket_receiver_timeout,
         })
     }
 
     /// Start the websocket server given settings.
-    pub(crate) async fn start(self, mut rx: mpsc::Receiver<Message>) -> Result<()> {
-        let app = Router::new().route("/", get(ws_handler).with_state(self.clone()));
-        info!("websocket server listening on {}", self.addr);
+    pub(crate) async fn start(
+        &self,
+        rx: AsyncBoundedChannelReceiver<Message>,
+        runner_sender: WsSender,
+    ) -> Result<()> {
+        let addr = self.addr;
+        info!("websocket server listening on {}", addr);
+        let app = Router::new().route(
+            "/",
+            get(ws_handler).with_state(ServerState {
+                notifier: self.notifier.clone(),
+                runner_sender,
+                receiver_timeout: self.receiver_timeout,
+            }),
+        );
 
-        axum::Server::bind(&self.addr)
+        axum::Server::bind(&addr)
             .serve(app.into_make_service_with_connect_info::<SocketAddr>())
             .with_graceful_shutdown(async {
-                if let Some(Message::GracefulShutdown(tx)) = rx.recv().await {
+                if let Ok(Message::GracefulShutdown(tx)) = rx.recv_async().await {
                     info!("websocket server shutting down");
                     let _ = tx.send(());
                 }
@@ -117,14 +145,14 @@ impl Server {
     /// Get websocket message sender for broadcasting messages to websocket
     /// clients.
     pub(crate) fn notifier(&self) -> Notifier {
-        self.msg_sender.clone()
+        self.notifier.clone()
     }
 }
 
 async fn ws_handler(
     ws: WebSocketUpgrade,
     user_agent: Option<TypedHeader<headers::UserAgent>>,
-    State(state): State<Server>,
+    State(state): State<ServerState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> impl IntoResponse {
     let user_agent = if let Some(TypedHeader(user_agent)) = user_agent {
@@ -136,12 +164,10 @@ async fn ws_handler(
 
     // Finalize the upgrade process by returning upgrade callback.
     // We can customize the callback by sending additional info such as address.
-    ws.on_upgrade(move |socket| handle_socket(socket, state))
+    ws.on_upgrade(move |socket| handle_socket(socket, addr, state))
 }
 
-async fn handle_socket(mut socket: ws::WebSocket, state: Server) {
-    let addr = state.addr;
-
+async fn handle_socket(mut socket: ws::WebSocket, addr: SocketAddr, state: ServerState) {
     // Send a ping (unsupported by some browsers) just to kick things off and
     // get a response.
     if socket.send(AxumMsg::Ping(vec![1, 2, 3])).await.is_ok() {
@@ -160,18 +186,18 @@ async fn handle_socket(mut socket: ws::WebSocket, state: Server) {
     // block other client's connections.
     if let Some(msg) = socket.recv().await {
         if let Ok(msg) = msg {
-            if process_message(msg, addr).await.is_break() {
+            if process_message(msg, addr, &state).await.is_break() {
                 return;
             }
         } else {
-            info!("client {} abruptly disconnected", state.addr);
+            info!("client {} abruptly disconnected", addr);
             return;
         }
     }
 
     // By splitting socket we can send and receive at the same time.
     let (mut socket_sender, mut socket_receiver) = socket.split();
-    let mut subscribed_rx = state.msg_sender.inner().subscribe();
+    let mut subscribed_rx = state.notifier.inner().subscribe();
     let handle = Handle::current();
 
     let mut send_task = handle.spawn(async move {
@@ -187,7 +213,7 @@ async fn handle_socket(mut socket: ws::WebSocket, state: Server) {
         let mut cnt = 0;
         while let Some(Ok(msg)) = socket_receiver.next().await {
             cnt += 1;
-            if process_message(msg, addr).await.is_break() {
+            if process_message(msg, addr, &state).await.is_break() {
                 break;
             }
         }
@@ -206,13 +232,45 @@ async fn handle_socket(mut socket: ws::WebSocket, state: Server) {
 /// Process [messages].
 ///
 /// [messages]: Message
-async fn process_message(msg: AxumMsg, addr: SocketAddr) -> ControlFlow<(), ()> {
+async fn process_message(
+    msg: AxumMsg,
+    addr: SocketAddr,
+    state: &ServerState,
+) -> ControlFlow<(), ()> {
     match msg {
         AxumMsg::Text(t) => {
-            info!(">>> {} sent str: {:?}", addr, t);
+            debug!(">>> {} sent str: {:?}", addr, t);
         }
-        AxumMsg::Binary(d) => {
-            info!(">>> {} sent {} bytes: {:?}", addr, d.len(), d);
+        AxumMsg::Binary(bytes) => {
+            debug!(">>> {} sent {}", addr, bytes.len());
+            match serde_json::from_slice::<listener::Run<'_>>(&bytes) {
+                Ok(listener::Run {
+                    action,
+                    name,
+                    workflow,
+                }) if action.eq("run") => {
+                    let (tx, rx) = oneshot::channel();
+                    if let Err(err) = state
+                        .runner_sender
+                        .send((Message::RunWorkflow((name, workflow)), Some(tx)))
+                        .await
+                    {
+                        error!(err=?err, "error sending message to runner");
+                    }
+
+                    if (time::timeout_at(Instant::now() + state.receiver_timeout, rx).await)
+                        .is_err()
+                    {
+                        error!("did not acknowledge action=run message in time");
+                    }
+                }
+                Ok(_) => warn!("unknown action or message shape"),
+                // another message
+                Err(_err) => debug!(
+                    "{}",
+                    std::str::from_utf8(&bytes).unwrap_or(format!("{:?}", bytes).as_ref())
+                ),
+            }
         }
         AxumMsg::Close(c) => {
             if let Some(cf) = c {
@@ -221,19 +279,19 @@ async fn process_message(msg: AxumMsg, addr: SocketAddr) -> ControlFlow<(), ()> 
                     addr, cf.code, cf.reason
                 );
             } else {
-                info!(">>> {} somehow sent close message without CloseFrame", addr);
+                info!(">>> {} sent close message without CloseFrame", addr);
             }
             return ControlFlow::Break(());
         }
 
         AxumMsg::Pong(v) => {
-            info!(">>> {} sent pong with {:?}", addr, v);
+            debug!(">>> {} sent pong with {:?}", addr, v);
         }
         // You should never need to manually handle AxumMsg::Ping, as axum's websocket library
         // will do so for you automagically by replying with Pong and copying the v according to
         // spec. But if you need the contents of the pings you can see them here.
         AxumMsg::Ping(v) => {
-            info!(">>> {} sent ping with {:?}", addr, v);
+            debug!(">>> {} sent ping with {:?}", addr, v);
         }
     }
     ControlFlow::Continue(())
@@ -246,14 +304,19 @@ fn port_available(host: IpAddr, port: u16) -> bool {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::settings::Settings;
+    use crate::{channel, settings::Settings};
+    use tokio::sync::mpsc;
 
     #[tokio::test]
     async fn ws_connect() {
         let settings = Settings::load().unwrap();
-        let state = Server::new(settings.node().network()).unwrap();
-        let (_ws_tx, ws_rx) = mpsc::channel(1);
-        tokio::spawn(state.start(ws_rx));
+        let server = Server::new(settings.node().network()).unwrap();
+        let (_ws_tx, ws_rx) = channel::AsyncBoundedChannel::oneshot();
+        let (runner_tx, _runner_rx) = mpsc::channel(1);
+        let _ws_hdl = tokio::spawn({
+            let ws_server = server.clone();
+            async move { ws_server.start(ws_rx, runner_tx).await }
+        });
 
         tokio_tungstenite::connect_async("ws://localhost:1337".to_string())
             .await

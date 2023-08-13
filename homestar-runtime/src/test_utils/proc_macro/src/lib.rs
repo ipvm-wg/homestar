@@ -65,7 +65,7 @@ pub fn db_async_test(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #[homestar_runtime_proc_macro::runner_test]
 /// fn spawn_an_rpc_server_and_ping_it() {
 ///     let TestRunner { runner, settings } = TestRunner::start();
-///     let (tx, _rx) = Runner::setup_channel(1);
+///     let (tx, _rx) = Runner::setup_rpc_channel(1);
 ///     let rpc_server = rpc::Server::new(settings.node.network(), tx.into());
 ///     runner.runtime.block_on(rpc_server.spawn()).unwrap();
 ///     runner.runtime.spawn(async move {

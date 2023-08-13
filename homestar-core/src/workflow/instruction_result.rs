@@ -161,4 +161,23 @@ mod test {
         assert_eq!(res2, ipld2.try_into().unwrap());
         assert_eq!(res3, ipld3.try_into().unwrap());
     }
+
+    #[test]
+    fn ser_de() {
+        let res1 = InstructionResult::Error(Ipld::String("bad stuff".to_string()));
+        let res2 = InstructionResult::Ok(Ipld::String("ok stuff".to_string()));
+        let res3 = InstructionResult::Just(Ipld::String("just the right stuff".to_string()));
+
+        let ser = serde_json::to_string(&res1).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+        assert_eq!(res1, de);
+
+        let ser = serde_json::to_string(&res2).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+        assert_eq!(res2, de);
+
+        let ser = serde_json::to_string(&res3).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+        assert_eq!(res3, de);
+    }
 }

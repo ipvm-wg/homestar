@@ -1,38 +1,53 @@
 [workspace]
 members = [
-    # "examples/*",
-    "homestar-core",
-    "homestar-functions",
-    "homestar-runtime",
-    "homestar-wasm"]
+  "examples/*",
+  "homestar-core",
+  "homestar-functions",
+  "homestar-runtime",
+  "homestar-wasm",
+]
 
 [workspace.package]
 authors = [
-    "Zeeshan Lakhani <zeeshan@fission.codes>",
-    "Brooklyn Zelenka <hello@brooklynzelenka.com>"
+  "Zeeshan Lakhani <zeeshan@fission.codes>",
+  "Brooklyn Zelenka <hello@brooklynzelenka.com>",
 ]
 edition = "2021"
 license = "Apache"
-rust-version = "1.68"
+rust-version = "1.70.0"
 
 [workspace.dependencies]
 anyhow = { version = "1.0", features = ["backtrace"] }
 async-trait = "0.1"
 atomic_refcell = "0.1"
 byte-unit = { version = "4.0", default-features = false }
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+chrono = { version = "0.4", default-features = false, features = [
+  "clock",
+  "std",
+] }
 enum-assoc = "1.1"
 enum-as-inner = "0.6"
+faststr = { version = "0.2", features = ["serde"] }
 futures = "0.3"
 humantime = "2.1"
 itertools = "0.11"
 libipld = { version = "0.16", features = ["serde-codec"] }
 rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
 serde_ipld_dagcbor = "0.3"
 thiserror = "1.0"
 time = { version = "0.3", features = ["serde"] }
-tokio = { version = "1.32", features = ["fs", "io-util", "io-std", "macros", "rt",
-    "rt-multi-thread", "signal", "sync", "tracing"] }
+tokio = { version = "1.32", features = [
+  "fs",
+  "io-util",
+  "io-std",
+  "macros",
+  "rt",
+  "rt-multi-thread",
+  "signal",
+  "sync",
+  "tracing",
+] }
 tracing = "0.1"
 ucan = "0.4"
 ucan-key-support = "0.1"

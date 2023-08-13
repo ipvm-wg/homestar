@@ -6,6 +6,12 @@
 /// Generic error type for Wasm execution, conversions, instantiations, etc.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    /// Bubble-up [InterpreterError]s for Wasm <=> [Ipld] execution.
+    ///
+    /// [InterpreterError]: crate::error::InterpreterError
+    /// [Ipld]: libipld::Ipld
+    #[error(transparent)]
+    InterpreterError(#[from] crate::error::InterpreterError),
     /// Failure to convert from Wasm binary into Wasm component.
     #[error("cannot convert from binary structure to Wasm component")]
     IntoWasmComponent(#[source] anyhow::Error),
