@@ -340,4 +340,13 @@ mod test {
         );
         assert_eq!(instruction, ipld.try_into().unwrap())
     }
+
+    #[test]
+    fn ser_de() {
+        let (instruction, _bytes) = test_utils::workflow::instruction_with_nonce::<Unit>();
+        let ser = serde_json::to_string(&instruction).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(instruction, de);
+    }
 }

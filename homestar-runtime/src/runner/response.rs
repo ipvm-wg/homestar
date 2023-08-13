@@ -68,7 +68,7 @@ impl show::ConsoleTable for AckWorkflow {
         let table = self.table();
         let mut resource_table = Table::new(
             self.resources
-                .rscs()
+                .iter()
                 .map(|v| v.to_string())
                 .collect::<Vec<String>>(),
         );

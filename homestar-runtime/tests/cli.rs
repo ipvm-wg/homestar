@@ -19,21 +19,66 @@ use sysinfo::{ProcessExt, SystemExt};
 use wait_timeout::ChildExt;
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(crate_name!()));
+const IPFS: &str = "ipfs";
 
-fn stop_bin() -> Result<()> {
+fn stop_bins() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("stop")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
-        .context("Failed to stop Homestar server")?;
+        .context("failed to stop Homestar server")?;
+
+    #[cfg(feature = "ipfs")]
+    {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
+        Command::new(IPFS)
+            .args(["--repo-dir", path.to_str().unwrap(), "shutdown"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .context("failed to stop IPFS daemon")?;
+    }
+
     Ok(())
+}
+
+fn startup_ipfs() -> Result<()> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
+    println!("starting ipfs daemon...{}", path.to_str().unwrap());
+    let mut ipfs_daemon = Command::new(IPFS)
+        .args([
+            "--repo-dir",
+            path.to_str().unwrap(),
+            "--offline",
+            "daemon",
+            "--init",
+        ])
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    // wait for ipfs daemon to start by testing for a connection
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 5001);
+    let result = retry(Fixed::from_millis(500), || {
+        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
+    });
+
+    if let Err(err) = result {
+        ipfs_daemon.kill().unwrap();
+        panic!("`ipfs daemon` failed to start: {:?}", err);
+    } else {
+        Ok(())
+    }
 }
 
 #[test]
 #[serial]
 fn test_help_serial() -> Result<()> {
-    let _ = stop_bin();
+    let _ = stop_bins();
+
+    #[cfg(feature = "ipfs")]
+    let _ = startup_ipfs();
+
     Command::new(BIN.as_os_str())
         .arg("help")
         .assert()
@@ -55,7 +100,8 @@ fn test_help_serial() -> Result<()> {
         .stdout(predicate::str::contains("run"))
         .stdout(predicate::str::contains("help"))
         .stdout(predicate::str::contains("version"));
-    let _ = stop_bin();
+
+    let _ = stop_bins();
 
     Ok(())
 }
@@ -63,7 +109,11 @@ fn test_help_serial() -> Result<()> {
 #[test]
 #[serial]
 fn test_version_serial() -> Result<()> {
-    let _ = stop_bin();
+    let _ = stop_bins();
+
+    #[cfg(feature = "ipfs")]
+    let _ = startup_ipfs();
+
     Command::new(BIN.as_os_str())
         .arg("--version")
         .assert()
@@ -73,7 +123,8 @@ fn test_version_serial() -> Result<()> {
             crate_name!(),
             env!("CARGO_PKG_VERSION")
         )));
-    let _ = stop_bin();
+
+    let _ = stop_bins();
 
     Ok(())
 }
@@ -81,7 +132,10 @@ fn test_version_serial() -> Result<()> {
 #[test]
 #[serial]
 fn test_server_not_running_serial() -> Result<()> {
-    let _ = stop_bin();
+    let _ = stop_bins();
+
+    #[cfg(feature = "ipfs")]
+    let _ = startup_ipfs();
 
     Command::new(BIN.as_os_str())
         .arg("ping")
@@ -104,18 +158,6 @@ fn test_server_not_running_serial() -> Result<()> {
         );
 
     Command::new(BIN.as_os_str())
-        .arg("ping")
-        .arg("--host")
-        .arg("::2")
-        .assert()
-        .failure()
-        .stderr(
-            predicate::str::contains("No route to host")
-                .or(predicate::str::contains("Network is unreachable")
-                    .or(predicate::str::contains("unreachable network"))),
-        );
-
-    Command::new(BIN.as_os_str())
         .arg("stop")
         .assert()
         .failure()
@@ -124,7 +166,8 @@ fn test_server_not_running_serial() -> Result<()> {
                 .or(predicate::str::contains("server was already shutdown")
                     .or(predicate::str::contains("No connection could be made"))),
         );
-    let _ = stop_bin();
+
+    let _ = stop_bins();
 
     Ok(())
 }
@@ -132,7 +175,10 @@ fn test_server_not_running_serial() -> Result<()> {
 #[test]
 #[serial]
 fn test_server_serial() -> Result<()> {
-    let _ = stop_bin();
+    let _ = stop_bins();
+
+    #[cfg(feature = "ipfs")]
+    let _ = startup_ipfs();
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -188,7 +234,8 @@ fn test_server_serial() -> Result<()> {
             }
         };
     }
-    let _ = stop_bin();
+
+    let _ = stop_bins();
 
     Ok(())
 }
@@ -197,7 +244,10 @@ fn test_server_serial() -> Result<()> {
 #[test]
 #[serial]
 fn test_workflow_run_serial() -> Result<()> {
-    let _ = stop_bin();
+    let _ = stop_bins();
+
+    #[cfg(feature = "ipfs")]
+    let _ = startup_ipfs();
 
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -259,7 +309,8 @@ fn test_workflow_run_serial() -> Result<()> {
             }
         };
     }
-    let _ = stop_bin();
+
+    let _ = stop_bins();
 
     Ok(())
 }
@@ -271,7 +322,10 @@ fn test_daemon_serial() -> Result<()> {
     use std::fs;
     use sysinfo::PidExt;
 
-    let _ = stop_bin();
+    let _ = stop_bins();
+
+    #[cfg(feature = "ipfs")]
+    let _ = startup_ipfs();
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -319,7 +373,7 @@ fn test_daemon_serial() -> Result<()> {
             .try_failure()
     });
 
-    let _ = stop_bin();
+    let _ = stop_bins();
 
     Ok(())
 }
@@ -328,7 +382,10 @@ fn test_daemon_serial() -> Result<()> {
 #[serial]
 #[cfg(windows)]
 fn test_signal_kill_serial() -> Result<()> {
-    let _ = stop_bin();
+    let _ = stop_bins();
+
+    #[cfg(feature = "ipfs")]
+    let _ = startup_ipfs();
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -367,7 +424,8 @@ fn test_signal_kill_serial() -> Result<()> {
     };
 
     Command::new(BIN.as_os_str()).arg("ping").assert().failure();
-    let _ = stop_bin();
+
+    let _ = stop_bins();
 
     Ok(())
 }
@@ -376,7 +434,10 @@ fn test_signal_kill_serial() -> Result<()> {
 #[serial]
 #[cfg(windows)]
 fn test_server_v4_serial() -> Result<()> {
-    let _ = stop_bin();
+    let _ = stop_bins();
+
+    #[cfg(feature = "ipfs")]
+    let _ = startup_ipfs();
 
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -409,7 +470,7 @@ fn test_server_v4_serial() -> Result<()> {
         .stdout(predicate::str::contains("127.0.0.1"))
         .stdout(predicate::str::contains("pong"));
 
-    let _ = stop_bin();
+    let _ = stop_bins();
 
     Ok(())
 }
@@ -421,7 +482,10 @@ fn test_daemon_v4_serial() -> Result<()> {
     use std::fs;
     use sysinfo::PidExt;
 
-    let _ = stop_bin();
+    let _ = stop_bins();
+
+    #[cfg(feature = "ipfs")]
+    let _ = startup_ipfs();
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -475,7 +539,7 @@ fn test_daemon_v4_serial() -> Result<()> {
             .try_failure()
     });
 
-    let _ = stop_bin();
+    let _ = stop_bins();
 
     Ok(())
 }

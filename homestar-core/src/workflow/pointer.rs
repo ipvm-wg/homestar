@@ -164,7 +164,19 @@ impl TryFrom<&Ipld> for Await {
 /// [Task]: super::Task
 /// [Instruction]: super::Instruction
 /// [Receipt]: super::Receipt
-#[derive(Clone, Debug, AsExpression, FromSqlRow, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[derive(
+    Clone,
+    Debug,
+    AsExpression,
+    FromSqlRow,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Hash,
+    PartialOrd,
+    Ord,
+)]
 #[diesel(sql_type = Text)]
 #[repr(transparent)]
 pub struct Pointer(Cid);
@@ -247,5 +259,33 @@ where
     fn from_sql(bytes: DB::RawValue<'_>) -> deserialize::Result<Self> {
         let s = String::from_sql(bytes)?;
         Ok(Pointer::new(Cid::from_str(&s)?))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::test_utils::cid::generate_cid;
+    use rand::thread_rng;
+
+    #[test]
+    fn ser_de_pointer() {
+        let pointer = Pointer::new(generate_cid(&mut thread_rng()));
+        let ser = serde_json::to_string(&pointer).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(pointer, de);
+    }
+
+    #[test]
+    fn ser_de_await() {
+        let awaited = Await::new(
+            Pointer::new(generate_cid(&mut thread_rng())),
+            AwaitResult::Ok,
+        );
+        let ser = serde_json::to_string(&awaited).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(awaited, de);
     }
 }

@@ -18,7 +18,7 @@ use libp2p::{
 };
 use std::{sync::Arc, time::Duration};
 use swarm_event::ResponseEvent;
-use tokio::{select, sync::mpsc};
+use tokio::select;
 
 pub mod channel;
 pub(crate) mod error;
@@ -27,7 +27,7 @@ pub(crate) mod swarm_event;
 pub(crate) use error::RequestResponseError;
 pub(crate) use event::Event;
 
-type P2PSender = channel::BoundedChannelSender<ResponseEvent>;
+type P2PSender = channel::AsyncBoundedChannelSender<ResponseEvent>;
 
 /// Handler trait for [EventHandler] events.
 #[async_trait]
@@ -36,7 +36,7 @@ where
     DB: Database,
 {
     #[cfg(not(feature = "ipfs"))]
-    async fn handle_event(self, event_loop: &mut EventHandler<DB>);
+    async fn handle_event(self, event_handler: &mut EventHandler<DB>);
     #[cfg(feature = "ipfs")]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>, ipfs: IpfsCli);
 }
@@ -54,9 +54,9 @@ pub(crate) struct EventHandler<DB: Database> {
     p2p_provider_timeout: Duration,
     db: DB,
     swarm: Swarm<ComposedBehaviour>,
-    sender: Arc<mpsc::Sender<Event>>,
-    receiver: mpsc::Receiver<Event>,
-    query_senders: FnvHashMap<QueryId, (RequestResponseKey, P2PSender)>,
+    sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
+    receiver: channel::AsyncBoundedChannelReceiver<Event>,
+    query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
     connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
@@ -73,9 +73,9 @@ pub(crate) struct EventHandler<DB: Database> {
     p2p_provider_timeout: Duration,
     db: DB,
     swarm: Swarm<ComposedBehaviour>,
-    sender: Arc<mpsc::Sender<Event>>,
-    receiver: mpsc::Receiver<Event>,
-    query_senders: FnvHashMap<QueryId, (RequestResponseKey, P2PSender)>,
+    sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
+    receiver: channel::AsyncBoundedChannelReceiver<Event>,
+    query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
     connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
     rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
@@ -86,8 +86,13 @@ impl<DB> EventHandler<DB>
 where
     DB: Database,
 {
-    fn setup_channel(settings: &settings::Node) -> (mpsc::Sender<Event>, mpsc::Receiver<Event>) {
-        mpsc::channel(settings.network.events_buffer_len)
+    fn setup_channel(
+        settings: &settings::Node,
+    ) -> (
+        channel::AsyncBoundedChannelSender<Event>,
+        channel::AsyncBoundedChannelReceiver<Event>,
+    ) {
+        channel::AsyncBoundedChannel::with(settings.network.events_buffer_len)
     }
 
     /// Create an [EventHandler] with channel sender/receiver defaults.
@@ -137,13 +142,10 @@ where
     }
 
     /// Sequence for shutting down [EventHandler].
-    pub(crate) async fn shutdown(&mut self) {
-        self.receiver.close();
-        self.sender.closed().await
-    }
+    pub(crate) async fn shutdown(&mut self) {}
 
     /// Get a [Arc]'ed copy of the [EventHandler] channel sender.
-    pub(crate) fn sender(&self) -> Arc<mpsc::Sender<Event>> {
+    pub(crate) fn sender(&self) -> Arc<channel::AsyncBoundedChannelSender<Event>> {
         self.sender.clone()
     }
 
@@ -166,10 +168,16 @@ where
     pub(crate) async fn start(mut self) -> Result<()> {
         loop {
             select! {
-                swarm_event = self.swarm.select_next_some() =>
-                    swarm_event.handle_event(&mut self).await,
-                runtime_event = self.receiver.recv() =>
-                    if let Some(ev) = runtime_event { ev.handle_event(&mut self).await },
+                runtime_event = self.receiver.recv_async() => {
+                    if let Ok(ev) = runtime_event {
+                        let _ = ev.handle_event(&mut self).await;
+                    }
+                }
+                swarm_event = self.swarm.select_next_some() => {
+                     swarm_event.handle_event(&mut self).await;
+
+                }
+
             }
         }
     }
@@ -180,10 +188,15 @@ where
     pub(crate) async fn start(mut self, ipfs: IpfsCli) -> Result<()> {
         loop {
             select! {
-                swarm_event = self.swarm.select_next_some() =>
-                    swarm_event.handle_event(&mut self, ipfs.clone()).await,
-                runtime_event = self.receiver.recv() =>
-                    if let Some(ev) = runtime_event { ev.handle_event(&mut self, ipfs.clone()).await },
+                runtime_event = self.receiver.recv_async() => {
+                    if let Ok(ev) = runtime_event {
+                        ev.handle_event(&mut self, ipfs.clone()).await;
+                    }
+                }
+                swarm_event = self.swarm.select_next_some() => {
+                    let ipfs_clone = ipfs.clone();
+                        swarm_event.handle_event(&mut self, ipfs_clone).await;
+                }
             }
         }
     }

@@ -92,3 +92,22 @@ where
         Ok(UcanPrf::new(decoded))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::test_utils::cid::generate_cid;
+    use rand::thread_rng;
+
+    #[test]
+    fn ser_de() {
+        let cid1 = generate_cid(&mut thread_rng());
+        let cid2 = generate_cid(&mut thread_rng());
+
+        let prf = UcanPrf::new(vec![Link::new(cid1), Link::new(cid2)]);
+        let ser = serde_json::to_string(&prf).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(prf, de);
+    }
+}

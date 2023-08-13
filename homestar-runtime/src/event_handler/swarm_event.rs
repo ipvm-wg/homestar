@@ -5,11 +5,7 @@ use super::EventHandler;
 use crate::network::IpfsCli;
 use crate::{
     db::{Connection, Database},
-    event_handler::{
-        channel::BoundedChannel,
-        event::{PeerRequest, QueryRecord},
-        Event, Handler, RequestResponseError,
-    },
+    event_handler::{event::QueryRecord, Event, Handler, RequestResponseError},
     network::swarm::{CapsuleTag, ComposedEvent, RequestResponseKey, HOMESTAR_PROTOCOL_VER},
     receipt::{RECEIPT_TAG, VERSION_KEY},
     workflow,
@@ -36,7 +32,7 @@ use libp2p::{
     swarm::{dial_opts::DialOpts, SwarmEvent},
     PeerId, StreamProtocol,
 };
-use std::{collections::HashSet, fmt, time::Instant};
+use std::{collections::HashSet, fmt};
 use tracing::{debug, error, info, warn};
 
 const RENDEZVOUS_PROTOCOL_NAME: StreamProtocol = StreamProtocol::new("/rendezvous/1.0.0");
@@ -300,9 +296,16 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     providers,
                     ..
                 })) => {
-                    let _ = event_handler.query_senders.remove(&id).map(|(_, sender)| {
-                        sender.try_send(ResponseEvent::Providers(Ok(providers)))
-                    });
+                    let Some((key, sender)) = event_handler.query_senders.remove(&id) else {
+                        return;
+                    };
+
+                    if let Some(sender) = sender {
+                        let ev_sender = event_handler.sender();
+                        let _ = ev_sender
+                            .send_async(Event::Providers(Ok((providers, key, sender))))
+                            .await;
+                    }
 
                     // Finish the query. We are only interested in the first
                     // result from a provider.
@@ -313,12 +316,19 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         .query_mut(&id)
                         .map(|mut query| query.finish());
                 }
-                QueryResult::GetProviders(Err(err)) => {
-                    error!(err=?err, "error retrieving outbound query providers");
 
-                    let _ = event_handler.query_senders.remove(&id).map(|(_, sender)| {
-                        sender.try_send(ResponseEvent::Providers(Err(err.into())))
-                    });
+                QueryResult::GetProviders(Err(err)) => {
+                    warn!(err=?err, "error retrieving outbound query providers");
+
+                    let Some((_, sender)) = event_handler.query_senders.remove(&id) else {
+                        return;
+                    };
+
+                    if let Some(sender) = sender {
+                        let _ = sender
+                            .send_async(ResponseEvent::Providers(Err(err.into())))
+                            .await;
+                    }
                 }
                 QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
                     debug!(
@@ -327,84 +337,74 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     );
                     match peer_record.found_record() {
                         Ok(event) => {
-                            debug!("event: {event:#?}");
-                            let _ = event_handler.query_senders.remove(&id).map(|(_, sender)| {
-                                sender.try_send(ResponseEvent::Found(Ok(event)))
-                            });
+                            let Some((_, sender)) = event_handler.query_senders.remove(&id) else {
+                                return;
+                            };
+
+                            if let Some(sender) = sender {
+                                let _ = sender.send_async(ResponseEvent::Found(Ok(event))).await;
+                            }
                         }
                         Err(err) => {
-                            error!(err=?err, "error retrieving record");
-                            let _ = event_handler
-                                .query_senders
-                                .remove(&id)
-                                .map(|(_, sender)| sender.try_send(ResponseEvent::Found(Err(err))));
+                            warn!(err=?err, "error retrieving record");
+
+                            let Some((_, sender)) = event_handler.query_senders.remove(&id) else {
+                                return;
+                            };
+
+                            if let Some(sender) = sender {
+                                let _ = sender.send_async(ResponseEvent::Found(Err(err))).await;
+                            }
                         }
                     }
                 }
                 QueryResult::GetRecord(Ok(_)) => {}
                 QueryResult::GetRecord(Err(err)) => {
-                    error!(err=?err, "error retrieving record");
+                    warn!(err=?err, "error retrieving record");
 
                     // Upon an error, attempt to find the record on the DHT via
                     // a provider if it's a Workflow/Info one.
-
-                    if let Some((
-                        RequestResponseKey {
-                            cid: cid_str,
-                            capsule_tag: CapsuleTag::Workflow,
-                        },
-                        sender,
-                    )) = event_handler.query_senders.remove(&id)
-                    {
-                        let (tx, rx) = BoundedChannel::oneshot();
-                        if let Ok(cid) = Cid::try_from(cid_str.as_str()) {
-                            if let Err(err) = event_handler.sender().try_send(Event::GetProviders(
-                                QueryRecord::with(cid, CapsuleTag::Workflow, tx),
-                            )) {
-                                error!(err = ?err, "error opening channel to get providers");
-                                let _ = sender.try_send(ResponseEvent::Found(Err(err.into())));
-                                return;
-                            }
-
-                            match rx
-                                .recv_deadline(Instant::now() + event_handler.p2p_provider_timeout)
-                            {
-                                Ok(ResponseEvent::Providers(Ok(providers))) => {
-                                    for peer in providers {
-                                        let request = RequestResponseKey::new(
-                                            cid_str.to_string(),
-                                            CapsuleTag::Workflow,
-                                        );
-                                        let (tx, _rx) = BoundedChannel::oneshot();
-                                        if let Err(err) =
-                                            event_handler.sender().try_send(Event::OutboundRequest(
-                                                PeerRequest::with(peer, request, tx),
-                                            ))
-                                        {
-                                            error!(err = ?err, "error sending outbound request");
-                                            let _ = sender
-                                                .try_send(ResponseEvent::Found(Err(err.into())));
-                                        }
-                                    }
-                                }
-                                _ => {
-                                    let _ = sender.try_send(ResponseEvent::Found(Err(err.into())));
-                                }
+                    match event_handler.query_senders.remove(&id) {
+                        Some((
+                            RequestResponseKey {
+                                cid: ref cid_str,
+                                capsule_tag: CapsuleTag::Workflow,
+                            },
+                            sender,
+                        )) => {
+                            let ev_sender = event_handler.sender();
+                            if let Ok(cid) = Cid::try_from(cid_str.as_str()) {
+                                let _ = ev_sender
+                                    .send_async(Event::GetProviders(QueryRecord::with(
+                                        cid,
+                                        CapsuleTag::Workflow,
+                                        sender,
+                                    )))
+                                    .await;
                             }
                         }
-                    } else if let Some((RequestResponseKey { capsule_tag, .. }, sender)) =
-                        event_handler.query_senders.remove(&id)
-                    {
-                        let _ = sender.try_send(ResponseEvent::Found(Err(anyhow!(
-                            "not a valid provider record tag: {capsule_tag}"
-                        ))));
+                        Some((RequestResponseKey { capsule_tag, .. }, sender)) => {
+                            let _ = event_handler.query_senders.remove(&id);
+                            if let Some(sender) = sender {
+                                let _ = sender
+                                    .send_async(ResponseEvent::Found(Err(anyhow!(
+                                        "not a valid provider record tag: {capsule_tag}"
+                                    ))))
+                                    .await;
+                            } else {
+                                warn!("not a valid provider record tag: {capsule_tag}",)
+                            }
+                        }
+                        None => {
+                            info!("No provider found for outbound query {id:?}")
+                        }
                     }
                 }
                 QueryResult::PutRecord(Ok(PutRecordOk { key })) => {
                     debug!("successfully put record {key:#?}");
                 }
                 QueryResult::PutRecord(Err(err)) => {
-                    error!("error putting record: {err}")
+                    warn!("error putting record: {err}")
                 }
                 QueryResult::StartProviding(Ok(AddProviderOk { key })) => {
                     // Currently, we don't send anything to the <worker> channel,
@@ -416,11 +416,12 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     // Currently, we don't send anything to the <worker> channel,
                     // once they key is provided.
                     let _ = event_handler.query_senders.remove(&id);
-                    error!("error providing key: {:#?}", err.key());
+                    warn!("error providing key: {:#?}", err.key());
                 }
                 _ => {}
             }
         }
+
         SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
             request_response::Event::Message {
                 message,
@@ -464,7 +465,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             }
                         }
                         Err(err) => {
-                            error!(err=?err, cid=?cid, "error retrieving workflow info");
+                            warn!(err=?err, cid=?cid, "error retrieving workflow info");
 
                             let _ = event_handler
                                 .swarm
@@ -496,20 +497,26 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 request_id,
                 response,
             } => {
-                event_handler
-                    .request_response_senders
-                    .remove(&request_id)
-                    .map(|(RequestResponseKey { cid: key_cid, .. }, sender)| {
-                        Cid::try_from(key_cid.as_str()).map(|cid| {
-                            decode_capsule(cid, &response)
-                                .map(|event| sender.try_send(ResponseEvent::Found(Ok(event))))
-                                .map_err(|err| {
-                                    error!(err=?err, cid = key_cid,
-                                           "error returning capsule for request_id: {request_id}");
-                                    sender.try_send(ResponseEvent::Found(Err(err)))
-                                })
-                        })
-                    });
+                if let Some((RequestResponseKey { cid: key_cid, .. }, sender)) =
+                    event_handler.request_response_senders.remove(&request_id)
+                {
+                    if let Ok(cid) = Cid::try_from(key_cid.as_str()) {
+                        match decode_capsule(cid, &response) {
+                            Ok(event) => {
+                                let _ = sender.send_async(ResponseEvent::Found(Ok(event))).await;
+                            }
+                            Err(err) => {
+                                warn!(
+                                    err=?err,
+                                    cid = key_cid.as_str(),
+                                    "error returning capsule for request_id: {request_id}"
+                                );
+
+                                let _ = sender.send_async(ResponseEvent::Found(Err(err))).await;
+                            }
+                        }
+                    }
+                }
             }
         },
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Discovered(list))) => {
@@ -624,7 +631,7 @@ fn decode_capsule(key_cid: Cid, value: &Vec<u8>) -> Result<FoundEvent> {
             "decode mismatch: expected an Ipld map, got {ipld:#?}",
         )),
         Err(err) => {
-            error!(error=?err, "error deserializing record value");
+            warn!(error=?err, "error deserializing record value");
             Err(anyhow!("error deserializing record value"))
         }
     }

@@ -153,4 +153,13 @@ mod test {
         );
         assert_eq!(config, ipld.try_into().unwrap())
     }
+
+    #[test]
+    fn ser_de() {
+        let config = Resources::default();
+        let ser = serde_json::to_string(&config).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(config, de);
+    }
 }

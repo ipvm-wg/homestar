@@ -6,7 +6,9 @@ edition = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
-image = { version = "0.24", default-features = false, features = ["png"], optional = true }
+image = { version = "0.24", default-features = false, features = [
+  "png",
+], optional = true }
 wit-bindgen = "0.9"
 
 [dev-dependencies]

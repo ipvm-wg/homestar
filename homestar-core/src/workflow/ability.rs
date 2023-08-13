@@ -97,4 +97,13 @@ mod test {
         assert_eq!(ipld, Ipld::String("wasm/run".to_string()));
         assert_eq!(ability, ipld.try_into().unwrap())
     }
+
+    #[test]
+    fn ser_de() {
+        let ability = Ability::from("wasm/run");
+        let ser = serde_json::to_string(&ability).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(ability, de);
+    }
 }

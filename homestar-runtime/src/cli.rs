@@ -6,10 +6,10 @@ use crate::{
 };
 use anyhow::anyhow;
 use clap::{Args, Parser};
+use serde::{Deserialize, Serialize};
 use std::{
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, Ipv6Addr, SocketAddr},
     path::PathBuf,
-    str::FromStr,
     time::{Duration, SystemTime},
 };
 use tarpc::context;
@@ -21,6 +21,7 @@ pub(crate) use show::ConsoleTable;
 
 const TMP_DIR: &str = "/tmp";
 const HELP_TEMPLATE: &str = "{about} {version}
+
 
 USAGE:
     {usage}
@@ -40,21 +41,31 @@ pub struct Cli {
 /// General RPC arguments for [Client] commands.
 ///
 /// [Client]: crate::network::rpc::Client
-#[derive(Debug, Clone, Args)]
+#[derive(Debug, Clone, PartialEq, Args, Serialize, Deserialize)]
 pub struct RpcArgs {
     /// RPC Homestar runtime host to ping.
     #[clap(
             long = "host",
-            default_value_t = String::from("::1"),
+            default_value = "::1",
             value_hint = clap::ValueHint::Hostname
         )]
-    host: String,
+    host: IpAddr,
     /// RPC Homestar runtime port to ping.
     #[clap(short = 'p', long = "port", default_value_t = 3030)]
     port: u16,
     /// RPC Homestar runtime port to ping.
     #[clap(long = "timeout", default_value = "60s", value_parser = humantime::parse_duration)]
     timeout: Duration,
+}
+
+impl Default for RpcArgs {
+    fn default() -> Self {
+        Self {
+            host: Ipv6Addr::LOCALHOST.into(),
+            port: 3030,
+            timeout: Duration::from_secs(60),
+        }
+    }
 }
 
 /// CLI Argument types.
@@ -77,7 +88,7 @@ pub enum Command {
             value_name = "CONFIG",
             help = "runtime configuration file"
         )]
-        runtime_config: Option<String>,
+        runtime_config: Option<PathBuf>,
         /// Daemonize the runtime, false by default.
         #[arg(
             short = 'd',
@@ -105,7 +116,7 @@ pub enum Command {
         /// RPC host / port arguments.
         #[clap(flatten)]
         args: RpcArgs,
-        /// (optional) name of workflow.
+        /// (optional) name given to a workflow.
         #[arg(
             short = 'n',
             long = "name",
@@ -167,8 +178,8 @@ impl Command {
             } => {
                 let response = rt.block_on(async {
                     let client = args.client().await?;
-                    let response = client.run(name, workflow_file).await??;
-                    Ok::<response::AckWorkflow, Error>(response)
+                    let response = client.run(name.map(|n| n.into()), workflow_file).await??;
+                    Ok::<Box<response::AckWorkflow>, Error>(response)
                 })?;
 
                 response.echo_table()?;
@@ -181,8 +192,7 @@ impl Command {
 
 impl RpcArgs {
     async fn client(&self) -> Result<Client, Error> {
-        let host = IpAddr::from_str(&self.host).map_err(anyhow::Error::new)?;
-        let addr = SocketAddr::new(host, self.port);
+        let addr = SocketAddr::new(self.host, self.port);
         let mut ctx = context::current();
         ctx.deadline = SystemTime::now() + self.timeout;
         let client = Client::new(addr, ctx).await?;

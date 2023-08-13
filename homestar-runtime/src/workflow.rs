@@ -29,7 +29,6 @@ use itertools::Itertools;
 use libipld::{cbor::DagCborCodec, cid::Cid, prelude::Codec, serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::Path};
-use strum::AsRefStr;
 use url::Url;
 
 mod info;
@@ -49,7 +48,7 @@ pub struct Builder<'a>(Workflow<'a, Arg>);
 /// being accessed.
 ///
 /// [URI]: <https://en.wikipedia.org/wiki/Uniform_Resource_Identifier>
-#[derive(Debug, Clone, PartialEq, Eq, AsRefStr, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub(crate) enum Resource {
     /// Resource fetched by [Url].
@@ -156,6 +155,7 @@ impl<'a> Builder<'a> {
             (Dag::default(), IndexMap::new()),
             |(mut dag, mut resources), (i, task)| {
                 let instr_cid = task.instruction_cid()?;
+
                 // Clone as we're owning the struct going backward.
                 let ptr: Pointer = Invocation::<Arg>::from(task.clone()).try_into()?;
 
@@ -165,7 +165,7 @@ impl<'a> Builder<'a> {
 
                 resources
                     .entry(instr_cid)
-                    .or_insert_with(|| Resource::Url(instr.resource().to_owned()));
+                    .or_insert_with(|| vec![Resource::Url(instr.resource().to_owned())]);
 
                 let parsed = instr.input().parse()?;
                 let reads = parsed
@@ -183,7 +183,10 @@ impl<'a> Builder<'a> {
                 parsed.args().links().for_each(|cid| {
                     resources
                         .entry(instr_cid)
-                        .or_insert_with(|| Resource::Cid(cid.to_owned()));
+                        .and_modify(|prev_rscs| {
+                            prev_rscs.push(Resource::Cid(cid.to_owned()));
+                        })
+                        .or_insert_with(|| vec![Resource::Cid(cid.to_owned())]);
                 });
 
                 let node = Node::new(Vertex::new(instr.to_owned(), parsed, ptr))
@@ -218,25 +221,25 @@ impl<'a> Builder<'a> {
 /// A container for [IndexMap]s from [Cid] => resource.
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, AsExpression, FromSqlRow)]
 #[diesel(sql_type = Binary)]
-pub struct IndexedResources(IndexMap<Cid, Resource>);
+pub struct IndexedResources(IndexMap<Cid, Vec<Resource>>);
 
 impl IndexedResources {
     /// Create a new [IndexedResources] container from an [IndexMap] of
     /// [Resource]s.
     #[allow(dead_code)]
-    pub(crate) fn new(map: IndexMap<Cid, Resource>) -> IndexedResources {
+    pub(crate) fn new(map: IndexMap<Cid, Vec<Resource>>) -> IndexedResources {
         IndexedResources(map)
     }
 
     /// Reutrn a referenced [IndexMap] of [Resource]s.
     #[allow(dead_code)]
-    pub(crate) fn inner(&self) -> &IndexMap<Cid, Resource> {
+    pub(crate) fn inner(&self) -> &IndexMap<Cid, Vec<Resource>> {
         &self.0
     }
 
     /// Return an owned [IndexMap] of [Resource]s.
     #[allow(dead_code)]
-    pub(crate) fn into_inner(self) -> IndexMap<Cid, Resource> {
+    pub(crate) fn into_inner(self) -> IndexMap<Cid, Vec<Resource>> {
         self.0
     }
 
@@ -256,20 +259,20 @@ impl IndexedResources {
     ///
     /// [Instruction]: homestar_core::workflow::Instruction
     #[allow(dead_code)]
-    pub(crate) fn get(&self, cid: &Cid) -> Option<&Resource> {
+    pub(crate) fn get(&self, cid: &Cid) -> Option<&Vec<Resource>> {
         self.0.get(cid)
     }
 
     /// Iterate over all [Resource]s as references.
     #[allow(dead_code)]
-    pub(crate) fn rscs(&self) -> impl Iterator<Item = &Resource> {
-        self.0.values().dedup()
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Resource> {
+        self.0.values().flatten().dedup()
     }
 
     /// Iterate over all [Resource]s.
     #[allow(dead_code)]
-    pub(crate) fn into_rscs(self) -> impl Iterator<Item = Resource> {
-        self.0.into_values().dedup()
+    pub(crate) fn into_iter(self) -> impl Iterator<Item = Resource> {
+        self.0.into_values().flatten().dedup()
     }
 }
 
@@ -281,10 +284,14 @@ impl From<IndexedResources> for Ipld {
             .map(|(k, v)| {
                 (
                     k.to_string(),
-                    match v {
-                        Resource::Url(url) => Ipld::String(url.to_string()),
-                        Resource::Cid(cid) => Ipld::Link(cid),
-                    },
+                    Ipld::List(
+                        v.into_iter()
+                            .map(|v| match v {
+                                Resource::Url(url) => Ipld::String(url.to_string()),
+                                Resource::Cid(cid) => Ipld::Link(cid),
+                            })
+                            .collect(),
+                    ),
                 )
             })
             .collect();
@@ -300,15 +307,21 @@ impl TryFrom<Ipld> for IndexedResources {
             .into_iter()
             .map(|(k, v)| {
                 let cid = Cid::try_from(k)?;
-                let resource = match v {
-                    Ipld::String(url) => Resource::Url(Url::parse(&url)?),
-                    Ipld::Link(cid) => Resource::Cid(cid),
-                    _ => bail!("invalid resource type"),
-                };
+                let list = from_ipld::<Vec<Ipld>>(v)?;
+                let rscs = list
+                    .into_iter()
+                    .map(|v| {
+                        Ok(match v {
+                            Ipld::String(url) => Resource::Url(Url::parse(&url)?),
+                            Ipld::Link(cid) => Resource::Cid(cid),
+                            _ => bail!("invalid resource type"),
+                        })
+                    })
+                    .collect::<Result<Vec<Resource>, anyhow::Error>>()?;
 
-                Ok((cid, resource))
+                Ok((cid, rscs))
             })
-            .collect::<Result<IndexMap<Cid, Resource>, anyhow::Error>>()?;
+            .collect::<Result<IndexMap<Cid, Vec<Resource>>, anyhow::Error>>()?;
 
         Ok(IndexedResources(map))
     }

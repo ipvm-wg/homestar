@@ -10,7 +10,7 @@ pub(crate) mod pubsub;
 pub mod rpc;
 pub(crate) mod swarm;
 #[cfg(feature = "websocket-server")]
-pub mod ws;
+pub(crate) mod ws;
 
 #[cfg(feature = "ipfs")]
 pub(crate) use ipfs::IpfsCli;

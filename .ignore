@@ -1,4 +1,4 @@
-# cargo-watch ignores
+## cargo-watch ignores
 
 docker
 flake.lock
@@ -17,3 +17,6 @@ LICENSE
 .pre-commit-config.yaml
 
 **/fixtures
+
+## examples
+examples/websocket-relay/relay-app
