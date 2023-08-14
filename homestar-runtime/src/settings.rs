@@ -119,11 +119,14 @@ pub struct Network {
     ///
     /// [workflow::Info]: crate::workflow::Info
     pub(crate) workflow_quorum: usize,
-    /// Pubkey setup configuration
+    /// Pubkey setup configuration.
     pub(crate) keypair_config: PubkeyConfig,
     /// Multiaddrs of the trusted nodes to connect to on startup.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
     pub(crate) node_addresses: Vec<libp2p::Multiaddr>,
+    /// Multiaddrs of the external addresses this node will announce to the network.
+    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+    pub(crate) announce_addresses: Vec<libp2p::Multiaddr>,
 }
 
 /// Database-related settings for a homestar node.
@@ -176,6 +179,7 @@ impl Default for Network {
             workflow_quorum: 3,
             keypair_config: PubkeyConfig::Random,
             node_addresses: Vec::new(),
+            announce_addresses: Vec::new(),
         }
     }
 }

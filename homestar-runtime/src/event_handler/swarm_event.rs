@@ -108,9 +108,16 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             identify::Event::Received { peer_id, info } => {
                 debug!(peer_id=peer_id.to_string(), info=?info, "identify info received from peer");
 
-                // TODO: we need to get our _public_ address, so we must connect to a known public node to get a good address.
-                // add external address
-                event_handler.swarm.add_external_address(info.observed_addr);
+                if !event_handler
+                    .swarm
+                    .external_addresses()
+                    .any(|addr| addr == &info.observed_addr)
+                {
+                    // identify observed an external address that we weren't aware of
+                    // add it to the addresses we announce to other peers
+                    // TODO: this may not be a good thing to do if we are adding addresses from a private network that are not supposed to be public
+                    event_handler.swarm.add_external_address(info.observed_addr);
+                }
 
                 let behavior = event_handler.swarm.behaviour_mut();
 
