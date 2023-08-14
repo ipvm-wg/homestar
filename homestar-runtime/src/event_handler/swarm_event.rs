@@ -106,20 +106,25 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 debug!(peer_id = peer_id.to_string(), "sent identify info to peer")
             }
             identify::Event::Received { peer_id, info } => {
-                debug!(peer_id=peer_id.to_string(), info=?info, "Identification information has been received from a peer.");
+                debug!(peer_id=peer_id.to_string(), info=?info, "identify info received from peer");
 
-                // add external address (this may be broken for mdns?)
+                // TODO: we need to get our _public_ address, so we must connect to a known public node to get a good address.
+                // add external address
                 event_handler.swarm.add_external_address(info.observed_addr);
 
                 let behavior = event_handler.swarm.behaviour_mut();
 
-                // add listen addresses to kademlia routing table
+                // TODO: this blindly adds nodes to kad without checking if they are doing homestar things.
+                // kademlia
                 if info.protocols.contains(&kad::PROTOCOL_NAME) {
+                    // add listen addresses to kademlia routing table
                     for addr in info.listen_addrs {
                         behavior.kademlia.add_address(&peer_id, addr);
                     }
                 }
+
                 // rendezvous
+                // we are good to register self & discover with any node we contact. more peers = more better!
                 if info.protocols.contains(&RENDEZVOUS_PROTOCOL_NAME) {
                     // register self with remote
                     if let Err(err) = behavior.rendezvous_client.register(
@@ -172,9 +177,9 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             .addresses(registration.record.addresses().to_vec())
                             .condition(libp2p::swarm::dial_opts::PeerCondition::Disconnected)
                             .build();
+                        // TODO: we might be dialing too many peers here.
                         match event_handler.swarm.dial(opts) {
                             Ok(_) => (),
-                            // TODO: may be too verbose here
                             Err(err) => {
                                 warn!(err=?err, peer_id=registration.record.peer_id().to_string(), "failed to dial peer discovered through rendezvous")
                             }
@@ -245,6 +250,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 propagation_source,
                 message_id,
             } => match Receipt::try_from(message.data) {
+                // TODO: dont fail blindly if we get a non receipt message
                 Ok(receipt) => {
                     info!("got message: {receipt} from {propagation_source} with message id: {message_id}");
 
