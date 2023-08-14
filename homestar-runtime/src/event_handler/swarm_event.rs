@@ -10,7 +10,7 @@ use crate::{
         event::{PeerRequest, QueryRecord},
         Event, Handler, RequestResponseError,
     },
-    network::swarm::{CapsuleTag, ComposedEvent, RequestResponseKey},
+    network::swarm::{CapsuleTag, ComposedEvent, RequestResponseKey, HOMESTAR_PROTOCOL_VER},
     receipt::{RECEIPT_TAG, VERSION_KEY},
     workflow,
     workflow::WORKFLOW_TAG,
@@ -113,6 +113,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.swarm.add_external_address(info.observed_addr);
 
                 let behavior = event_handler.swarm.behaviour_mut();
+
+                if info.protocol_version == HOMESTAR_PROTOCOL_VER {
+                    debug!("peer was not a homestar node");
+                    return;
+                }
 
                 // TODO: this blindly adds nodes to kad without checking if they are doing homestar things.
                 // kademlia
@@ -503,11 +508,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     addr = multiaddr.to_string(),
                     "mDNS discovered a new peer"
                 );
-                event_handler
-                    .swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .add_address(&peer_id, multiaddr.clone());
                 let _ = event_handler.swarm.dial(
                     DialOpts::peer_id(peer_id)
                         .addresses(vec![multiaddr])
@@ -543,6 +543,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         SwarmEvent::ConnectionEstablished {
             peer_id, endpoint, ..
         } => {
+            debug!(endpoint=?endpoint, peer_id=peer_id.to_string(), "peer connection established");
             // add peer to connected peers list
             event_handler.connected_peers.insert(peer_id, endpoint);
         }
@@ -550,7 +551,26 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             info!("peer connection closed {peer_id}, cause: {cause:?}");
             event_handler.connected_peers.remove_entry(&peer_id);
         }
-        _ => {}
+        SwarmEvent::OutgoingConnectionError {
+            connection_id,
+            peer_id,
+            error,
+        } => {
+            error!(err=?error, peer_id=peer_id.map(|p| p.to_string()).unwrap_or_default(), connection_id=?connection_id, "outgoing connection error")
+        }
+        SwarmEvent::IncomingConnectionError {
+            connection_id,
+            local_addr,
+            send_back_addr,
+            error,
+        } => {
+            error!(err=?error, connection_id=?connection_id, local_address=local_addr.to_string(), remote_address=send_back_addr.to_string(), "incoming connection error")
+        }
+        SwarmEvent::ListenerError { listener_id, error } => {
+            error!(err=?error, listener_id=?listener_id, "listener error")
+        }
+        SwarmEvent::Dialing { .. } => todo!(),
+        e => debug!(e=?e, "uncaught event"),
     }
 }
 
