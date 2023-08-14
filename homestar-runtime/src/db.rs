@@ -8,6 +8,7 @@ use crate::{
 use anyhow::Result;
 use byte_unit::{AdjustedByte, Byte, ByteUnit};
 use diesel::{
+    dsl::now,
     prelude::*,
     r2d2::{self, CustomizeConnection, ManageConnection},
     BelongingToDsl, Connection as SingleConnection, RunQueryDsl, SqliteConnection,
@@ -69,7 +70,7 @@ impl Db {
 /// Database trait for working with different Sqlite connection pool and
 /// connection configurations.
 pub trait Database: Send + Sync + Clone {
-    /// Get database url.
+    /// Set database url.
     ///
     /// Contains a minimal side-effect to set the env if not already set.
     fn set_url(database_url: Option<String>) -> Option<String> {
@@ -82,9 +83,14 @@ pub trait Database: Send + Sync + Clone {
         )
     }
 
+    /// Get database url.
+    fn url() -> Result<String> {
+        Ok(env::var(ENV)?)
+    }
+
     /// Test a Sqlite connection to the database and run pending migrations.
     fn setup(url: &str) -> Result<SqliteConnection> {
-        info!("Using database at {:?}", url);
+        info!("using database at {}", url);
         let mut connection = SqliteConnection::establish(url)?;
         let _ = connection.run_pending_migrations(MIGRATIONS);
 
@@ -92,7 +98,10 @@ pub trait Database: Send + Sync + Clone {
     }
 
     /// Establish a pooled connection to Sqlite database.
-    fn setup_connection_pool(settings: &settings::Node) -> Result<Self>
+    fn setup_connection_pool(
+        settings: &settings::Node,
+        database_url: Option<String>,
+    ) -> Result<Self>
     where
         Self: Sized;
     /// Get a pooled connection for the database.
@@ -226,7 +235,7 @@ pub trait Database: Send + Sync + Clone {
     fn get_workflow_info(
         workflow_cid: Cid,
         conn: &mut Connection,
-    ) -> Result<workflow::Info, diesel::result::Error> {
+    ) -> Result<(Option<String>, workflow::Info), diesel::result::Error> {
         let workflow = Self::select_workflow(workflow_cid, conn)?;
         let associated_receipts = workflow::StoredReceipt::belonging_to(&workflow)
             .select(schema::workflows_receipts::receipt_cid)
@@ -237,18 +246,29 @@ pub trait Database: Send + Sync + Clone {
             .map(|pointer: Pointer| pointer.cid())
             .collect();
 
-        Ok(workflow::Info::new(
-            workflow_cid,
-            workflow.num_tasks as u32,
-            cids,
-            workflow.resources,
-        ))
+        let name = workflow.name.clone();
+        let info = workflow::Info::new(workflow, cids);
+
+        Ok((name, info))
+    }
+
+    /// Update the local (view) name of a workflow.
+    fn update_local_name(name: String, conn: &mut Connection) -> Result<(), diesel::result::Error> {
+        diesel::update(schema::workflows::dsl::workflows)
+            .filter(schema::workflows::created_at.lt(now))
+            .set(schema::workflows::name.eq(&name))
+            .execute(conn)?;
+
+        Ok(())
     }
 }
 
 impl Database for Db {
-    fn setup_connection_pool(settings: &settings::Node) -> Result<Self> {
-        let database_url = env::var(ENV).unwrap_or_else(|_| {
+    fn setup_connection_pool(
+        settings: &settings::Node,
+        database_url: Option<String>,
+    ) -> Result<Self> {
+        let database_url = Self::set_url(database_url).unwrap_or_else(|| {
             settings
                 .db
                 .url
@@ -305,7 +325,7 @@ mod test {
     fn check_pragmas_memory_db() {
         let settings = TestSettings::load();
 
-        let db = MemoryDb::setup_connection_pool(settings.node()).unwrap();
+        let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
         let mut conn = db.conn().unwrap();
 
         let journal_mode = diesel::dsl::sql::<diesel::sql_types::Text>("PRAGMA journal_mode")

@@ -21,9 +21,12 @@ use libipld::Cid;
 #[cfg(not(test))]
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{ops::ControlFlow, rc::Rc, sync::Arc, task::Poll};
+#[cfg(not(windows))]
+use tokio::signal::unix::{signal, SignalKind};
+#[cfg(windows)]
+use tokio::signal::windows;
 use tokio::{
     runtime, select,
-    signal::unix::{signal, SignalKind},
     sync::{mpsc, oneshot},
     task::{AbortHandle, JoinHandle},
     time,
@@ -40,13 +43,13 @@ pub(crate) use error::Error;
 const HOMESTAR_THREAD: &str = "homestar-runtime";
 
 /// Type alias for a [DashMap] containing running worker [JoinHandle]s.
-pub type RunningWorkerSet = DashMap<Cid, (JoinHandle<Result<()>>, delay_queue::Key)>;
+pub(crate) type RunningWorkerSet = DashMap<Cid, (JoinHandle<Result<()>>, delay_queue::Key)>;
 
 /// Type alias for a [DashMap] containing running task [AbortHandle]s.
-pub type RunningTaskSet = DashMap<Cid, Vec<AbortHandle>>;
+pub(crate) type RunningTaskSet = DashMap<Cid, Vec<AbortHandle>>;
 
 /// Trait for managing a [DashMap] of running task information.
-pub trait ModifiedSet {
+pub(crate) trait ModifiedSet {
     /// Append or insert a new [AbortHandle] into the [RunningTaskSet].
     fn append_or_insert(&self, cid: Cid, handles: Vec<AbortHandle>);
 }
@@ -87,7 +90,6 @@ pub struct Runner {
     running_workers: RunningWorkerSet,
     runtime: tokio::runtime::Runtime,
     settings: Arc<Settings>,
-    ws_msg_sender: Arc<ws::Sender>,
     ws_mpsc_sender: mpsc::Sender<ws::Message>,
 }
 
@@ -153,26 +155,26 @@ impl Runner {
         runtime: tokio::runtime::Runtime,
     ) -> Result<Runner> {
         let swarm = runtime.block_on(swarm::new(settings.node()))?;
-        let event_handler = EventHandler::new(swarm, db, settings.node());
-        let event_sender = event_handler.sender();
-
-        #[cfg(feature = "ipfs")]
-        let _event_handler_hdl = runtime.spawn({
-            let ipfs = IpfsCli::default();
-            event_handler.start(ipfs)
-        });
-
-        #[cfg(not(feature = "ipfs"))]
-        let _event_handler_hdl = runtime.spawn(event_handler.start());
 
         #[cfg(feature = "websocket-server")]
         {
             // Setup websocket communication.
             let ws_server = ws::Server::new(settings.node().network())?;
-            let ws_msg_tx = ws_server.sender();
-
+            let ws_msg_tx = ws_server.notifier();
             let (ws_tx, ws_rx) = mpsc::channel(settings.node.network.websocket_capacity);
             let _ws_hdl = runtime.spawn(ws_server.start(ws_rx));
+
+            let event_handler = EventHandler::new(swarm, db, settings.node(), ws_msg_tx);
+            let event_sender = event_handler.sender();
+
+            #[cfg(feature = "ipfs")]
+            let _event_handler_hdl = runtime.spawn({
+                let ipfs = IpfsCli::default();
+                event_handler.start(ipfs)
+            });
+
+            #[cfg(not(feature = "ipfs"))]
+            let _event_handler_hdl = runtime.spawn(event_handler.start());
 
             Ok(Self {
                 message_buffer_len: settings.node.network.events_buffer_len,
@@ -182,21 +184,34 @@ impl Runner {
                 running_workers: DashMap::new(),
                 runtime,
                 settings: settings.into(),
-                ws_msg_sender: ws_msg_tx,
                 ws_mpsc_sender: ws_tx,
             })
         }
 
         #[cfg(not(feature = "websocket-server"))]
-        Ok(Self {
-            message_buffer_len: settings.node.network.events_buffer_len,
-            event_sender,
-            expiration_queue: Rc::new(AtomicRefCell::new(DelayQueue::new())),
-            running_tasks: DashMap::new().into(),
-            running_workers: DashMap::new(),
-            runtime,
-            settings: settings.into(),
-        })
+        {
+            let event_handler = EventHandler::new(swarm, db, settings.node());
+            let event_sender = event_handler.sender();
+
+            #[cfg(feature = "ipfs")]
+            let _event_handler_hdl = runtime.spawn({
+                let ipfs = IpfsCli::default();
+                event_handler.start(ipfs)
+            });
+
+            #[cfg(not(feature = "ipfs"))]
+            let _event_handler_hdl = runtime.spawn(event_handler.start());
+
+            Ok(Self {
+                message_buffer_len: settings.node.network.events_buffer_len,
+                event_sender,
+                expiration_queue: Rc::new(AtomicRefCell::new(DelayQueue::new())),
+                running_tasks: DashMap::new().into(),
+                running_workers: DashMap::new(),
+                runtime,
+                settings: settings.into(),
+            })
+        }
     }
 
     /// Listen loop for [Runner] signals and messages.
@@ -295,21 +310,13 @@ impl Runner {
     /// [mpsc::Sender] of the event-handler.
     ///
     /// [EventHandler]: crate::EventHandler
-    pub fn event_sender(&self) -> Arc<mpsc::Sender<Event>> {
+    pub(crate) fn event_sender(&self) -> Arc<mpsc::Sender<Event>> {
         self.event_sender.clone()
     }
 
     /// Getter for the [RunningTaskSet], cloned as an [Arc].
-    pub fn running_tasks(&self) -> Arc<RunningTaskSet> {
+    pub(crate) fn running_tasks(&self) -> Arc<RunningTaskSet> {
         self.running_tasks.clone()
-    }
-
-    /// [tokio::sync::broadcast::Sender] for sending messages through the
-    /// webSocket server to subscribers.
-    #[cfg(feature = "websocket-server")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "websocket-server")))]
-    pub fn ws_msg_sender(&self) -> &ws::Sender {
-        &self.ws_msg_sender
     }
 
     /// Garbage-collect task [AbortHandle]s in the [RunningTaskSet] and
@@ -416,6 +423,7 @@ impl Runner {
 
     /// Captures shutdown signals for [Runner].
     #[allow(dead_code)]
+    #[cfg(not(windows))]
     async fn shutdown_signal() -> Result<()> {
         let mut sigint = signal(SignalKind::interrupt())?;
         let mut sigterm = signal(SignalKind::terminate())?;
@@ -425,7 +433,22 @@ impl Runner {
             _ = sigint.recv() => info!("SIGINT received, shutting down"),
             _ = sigterm.recv() => info!("SIGTERM received, shutting down"),
         }
+        Ok(())
+    }
 
+    #[allow(dead_code)]
+    #[cfg(windows)]
+    async fn shutdown_signal() -> Result<()> {
+        let mut sigint = windows::ctrl_close()?;
+        let mut sigterm = windows::ctrl_shutdown()?;
+        let mut sighup = windows::ctrl_break()?;
+
+        select! {
+            _ = tokio::signal::ctrl_c() => info!("CTRL-C received, shutting down"),
+            _ = sigint.recv() => info!("SIGINT received, shutting down"),
+            _ = sigterm.recv() => info!("SIGTERM received, shutting down"),
+            _ = sighup.recv() => info!("SIGHUP received, shutting down")
+        }
         Ok(())
     }
 
@@ -487,49 +510,38 @@ impl Runner {
                     }
                 }
             }
-            rpc::ServerMessage::Run(workflow_file) => {
+            rpc::ServerMessage::Run((name, workflow_file)) => {
                 let (workflow, workflow_settings) =
                     workflow_file.validate_and_parse().await.with_context(|| {
                         format!("failed to validate/parse workflow @ path: {workflow_file}",)
                     })?;
 
-                #[cfg(feature = "ipfs")]
-                let ipfs = IpfsCli::default();
-
-                #[cfg(feature = "ipfs")]
                 let worker = {
                     Worker::new(
                         workflow,
                         workflow_settings,
+                        name,
                         self.event_sender(),
                         runner_sender,
                         db.clone(),
-                        ipfs,
                     )
                     .await?
                 };
-
-                #[cfg(not(feature = "ipfs"))]
-                let worker = Worker::new(
-                    workflow,
-                    workflow_settings,
-                    self.event_sender(),
-                    runner_sender.into(),
-                    db.clone(),
-                )
-                .await?;
 
                 // Deliberate use of Arc::clone for readability, could just be
                 // `clone`, as the underlying type is an `Arc`.
                 let initial_info = Arc::clone(&worker.workflow_info);
                 let workflow_timeout = worker.workflow_settings.timeout;
+                let workflow_name = worker.workflow_name.to_string();
                 let timestamp = worker.workflow_started;
 
-                // Spawn worker, which schedules execution graph and runs it.
+                // Spawn worker, which initializees the scheduler and runs
+                // the workflow.
                 info!(
                     cid = worker.workflow_info.cid.to_string(),
                     "running workflow with settings: {:#?}", worker.workflow_settings
                 );
+
                 let handle = self.runtime.spawn(worker.run(self.running_tasks()));
 
                 // Add Cid to expirations timing wheel
@@ -544,7 +556,7 @@ impl Runner {
                     .insert(initial_info.cid, (handle, delay_key));
 
                 Ok(ControlFlow::Continue(rpc::ServerMessage::RunAck(
-                    response::AckWorkflow::new(initial_info, timestamp),
+                    response::AckWorkflow::new(initial_info, workflow_name, timestamp),
                 )))
             }
             msg => {

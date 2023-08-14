@@ -72,6 +72,14 @@ pub struct Network {
     /// [Swarm]: libp2p::swarm::Swarm
     #[serde(with = "http_serde::uri")]
     pub(crate) listen_address: Uri,
+    /// Mdns IPv6 enable flag.
+    pub(crate) mdns_enable_ipv6: bool,
+    /// Mdns query interval.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) mdns_query_interval: Duration,
+    /// Mdns TTL.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) mdns_ttl: Duration,
     /// Timeout for p2p requests for a provided record.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) p2p_provider_timeout: Duration,
@@ -149,6 +157,9 @@ impl Default for Network {
         Self {
             events_buffer_len: 100,
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
+            mdns_enable_ipv6: true,
+            mdns_query_interval: Duration::from_secs(5 * 60),
+            mdns_ttl: Duration::from_secs(60 * 9),
             p2p_provider_timeout: Duration::new(30, 0),
             pubsub_duplication_cache_time: Duration::new(1, 0),
             pubsub_heartbeat: Duration::new(60, 0),

@@ -51,7 +51,14 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
                 )],
                 request_response::Config::default(),
             ),
-            mdns: mdns::Behaviour::new(mdns::Config::default(), peer_id)?,
+            mdns: mdns::Behaviour::new(
+                mdns::Config {
+                    ttl: settings.network.mdns_ttl,
+                    query_interval: settings.network.mdns_query_interval,
+                    enable_ipv6: settings.network.mdns_enable_ipv6,
+                },
+                peer_id,
+            )?,
         },
         peer_id,
     )

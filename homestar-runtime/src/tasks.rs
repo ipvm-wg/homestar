@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use enum_assoc::Assoc;
 use std::path::PathBuf;
 
+pub(crate) mod fetch;
 mod wasm;
 
 pub(crate) use wasm::*;

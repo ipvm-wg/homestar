@@ -105,6 +105,15 @@ pub enum Command {
         /// RPC host / port arguments.
         #[clap(flatten)]
         args: RpcArgs,
+        /// (optional) name of workflow.
+        #[arg(
+            short = 'n',
+            long = "name",
+            value_name = "NAME",
+            help = "(optional) name given to a workflow"
+        )]
+        name: Option<String>,
+        /// Workflow file to run.
         #[arg(
             short='w',
             long = "workflow",
@@ -113,7 +122,6 @@ pub enum Command {
             value_parser = clap::value_parser!(file::ReadWorkflow),
             help = "path to workflow file"
         )]
-        /// Workflow file to run.
         workflow: file::ReadWorkflow,
     },
 }
@@ -129,7 +137,7 @@ impl Command {
     }
 
     /// Handle CLI commands related to [Client] RPC calls.
-    pub fn handle_rpc_command(&self) -> Result<(), Error> {
+    pub fn handle_rpc_command(self) -> Result<(), Error> {
         // Spin up a new tokio runtime on the current thread.
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -154,11 +162,12 @@ impl Command {
             }),
             Command::Run {
                 args,
+                name,
                 workflow: workflow_file,
             } => {
                 let response = rt.block_on(async {
                     let client = args.client().await?;
-                    let response = client.run(workflow_file.to_owned()).await??;
+                    let response = client.run(name, workflow_file).await??;
                     Ok::<response::AckWorkflow, Error>(response)
                 })?;
 

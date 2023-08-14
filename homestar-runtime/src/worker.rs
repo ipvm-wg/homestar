@@ -6,8 +6,6 @@
 
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
-#[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
-use crate::workflow::settings::BackoffStrategy;
 use crate::{
     db::Database,
     event_handler::{
@@ -18,23 +16,21 @@ use crate::{
     },
     network::swarm::CapsuleTag,
     runner::{ModifiedSet, RunningTaskSet},
-    scheduler::TaskScheduler,
-    tasks::{RegisteredTasks, WasmContext},
+    scheduler::{ExecutionGraph, TaskScheduler},
+    tasks::{fetch, RegisteredTasks, WasmContext},
     workflow::{self, Resource},
     Db, Receipt,
 };
 use anyhow::{anyhow, Result};
 use chrono::NaiveDateTime;
 use futures::FutureExt;
-#[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
-use futures::StreamExt;
 use homestar_core::{
     bail,
     ipld::DagCbor,
     workflow::{
         error::ResolveError,
         prf::UcanPrf,
-        receipt::metadata::{OP_KEY, WORKFLOW_KEY},
+        receipt::metadata::{OP_KEY, REPLAYED_KEY, WORKFLOW_KEY, WORKFLOW_NAME_KEY},
         InstructionResult, LinkMap, Pointer, Receipt as InvocationReceipt,
     },
     Workflow,
@@ -51,8 +47,6 @@ use tokio::{
     task::JoinSet,
 };
 use tracing::{debug, error};
-#[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
-use tryhard::RetryFutureConfig;
 
 /// [JoinSet] of tasks run by a [Worker].
 #[allow(dead_code)]
@@ -67,10 +61,11 @@ pub(crate) enum WorkerMessage {
 #[allow(dead_code)]
 #[allow(missing_debug_implementations)]
 pub(crate) struct Worker<'a, DB: Database> {
-    pub(crate) scheduler: TaskScheduler<'a>,
+    pub(crate) graph: Arc<ExecutionGraph<'a>>,
     pub(crate) event_sender: Arc<mpsc::Sender<Event>>,
     pub(crate) runner_sender: mpsc::Sender<WorkerMessage>,
     pub(crate) db: DB,
+    pub(crate) workflow_name: String,
     pub(crate) workflow_info: Arc<workflow::Info>,
     pub(crate) workflow_settings: Arc<workflow::Settings>,
     pub(crate) workflow_started: NaiveDateTime,
@@ -81,42 +76,32 @@ where
     DB: Database + 'static,
 {
     /// Instantiate a new [Worker] for a [Workflow].
-    #[cfg(not(feature = "ipfs"))]
+    ///
+    /// TODO: integrate settings within workflow
     #[allow(dead_code)]
     pub(crate) async fn new(
         workflow: Workflow<'a, Arg>,
         settings: workflow::Settings,
+        // Name would be runner specific, separated from core workflow spec.
+        name: Option<String>,
         event_sender: Arc<mpsc::Sender<Event>>,
         runner_sender: mpsc::Sender<WorkerMessage>,
         db: DB,
     ) -> Result<Worker<'a, DB>> {
         let p2p_timeout = settings.p2p_timeout;
         let workflow_len = workflow.len();
-        let workflow_settings = Arc::new(settings);
-        let workflow_settings_scheduler = workflow_settings.clone();
-        let workflow_settings_worker = workflow_settings.clone();
-
-        let fetch_fn = |rscs: Vec<Resource>| {
-            async { Self::get_resources(rscs, workflow_settings).await }.boxed_local()
-        };
-
         // Need to take ownership here to get the cid.
         let workflow_cid = workflow.to_owned().to_cid()?;
 
-        let scheduler_ctx = TaskScheduler::init(
-            workflow,
-            workflow_cid,
-            workflow_settings_scheduler,
-            event_sender.clone(),
-            &mut db.conn()?,
-            fetch_fn,
-        )
-        .await?;
+        let builder = workflow::Builder::new(workflow);
+        let graph = builder.graph()?;
+        let name = name.unwrap_or(workflow_cid.to_string());
 
         let (workflow_info, timestamp) = workflow::Info::init(
             workflow_cid,
             workflow_len,
-            scheduler_ctx.indexed_resources,
+            name.to_string(),
+            graph.indexed_resources.clone(),
             p2p_timeout,
             event_sender.clone(),
             db.conn()?,
@@ -124,68 +109,13 @@ where
         .await?;
 
         Ok(Self {
-            scheduler: scheduler_ctx.scheduler,
+            graph: graph.into(),
             event_sender,
             runner_sender,
             db,
+            workflow_name: name,
             workflow_info: workflow_info.into(),
-            workflow_settings: workflow_settings_worker,
-            workflow_started: timestamp,
-        })
-    }
-
-    /// Instantiate a new [Worker] for a [Workflow].
-    #[cfg(feature = "ipfs")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
-    #[allow(dead_code)]
-    pub(crate) async fn new(
-        workflow: Workflow<'a, Arg>,
-        settings: workflow::Settings,
-        event_sender: Arc<mpsc::Sender<Event>>,
-        runner_sender: mpsc::Sender<WorkerMessage>,
-        db: DB,
-        ipfs: IpfsCli,
-    ) -> Result<Worker<'a, DB>> {
-        let p2p_timeout = settings.p2p_timeout;
-        let workflow_len = workflow.len();
-        let workflow_settings = Arc::new(settings);
-        let workflow_settings_scheduler = workflow_settings.clone();
-        let workflow_settings_worker = workflow_settings.clone();
-
-        let fetch_fn = |rscs: Vec<Resource>| {
-            async { Self::get_resources(rscs, workflow_settings, ipfs).await }.boxed_local()
-        };
-
-        // Need to take ownership here to get the cid.
-        let workflow_cid = workflow.to_owned().to_cid()?;
-
-        let scheduler_ctx = TaskScheduler::init(
-            workflow,
-            workflow_cid,
-            workflow_settings_scheduler,
-            event_sender.clone(),
-            &mut db.conn()?,
-            fetch_fn,
-        )
-        .await?;
-
-        let (workflow_info, timestamp) = workflow::Info::init(
-            workflow_cid,
-            workflow_len,
-            scheduler_ctx.indexed_resources,
-            p2p_timeout,
-            event_sender.clone(),
-            db.conn()?,
-        )
-        .await?;
-
-        Ok(Self {
-            scheduler: scheduler_ctx.scheduler,
-            event_sender,
-            runner_sender,
-            db,
-            workflow_info: workflow_info.into(),
-            workflow_settings: workflow_settings_worker,
+            workflow_settings: settings.into(),
             workflow_started: timestamp,
         })
     }
@@ -209,10 +139,40 @@ where
     /// [Instruction]: homestar_core::workflow::Instruction
     /// [Swarm]: crate::network::swarm
     pub(crate) async fn run(self, running_tasks: Arc<RunningTaskSet>) -> Result<()> {
-        self.run_queue(running_tasks).await
+        let workflow_settings_fetch = self.workflow_settings.clone();
+        #[cfg(feature = "ipfs")]
+        let fetch_fn = {
+            let ipfs = IpfsCli::default();
+
+            move |rscs: Vec<Resource>| {
+                async move { fetch::get_resources(rscs, workflow_settings_fetch, ipfs).await }
+                    .boxed()
+            }
+        };
+
+        #[cfg(not(feature = "ipfs"))]
+        let fetch_fn = |rscs: Vec<Resource>| {
+            async move { fetch::get_resources(rscs, workflow_settings_fetch).await }.boxed()
+        };
+
+        let scheduler_ctx = TaskScheduler::init(
+            self.graph.clone(), // Arc'ed
+            self.workflow_info.cid,
+            self.workflow_settings.clone(),
+            self.event_sender.clone(),
+            &mut self.db.conn()?,
+            fetch_fn,
+        )
+        .await?;
+
+        self.run_queue(scheduler_ctx.scheduler, running_tasks).await
     }
 
-    async fn run_queue(mut self, running_tasks: Arc<RunningTaskSet>) -> Result<()> {
+    async fn run_queue(
+        mut self,
+        scheduler: TaskScheduler<'a>,
+        running_tasks: Arc<RunningTaskSet>,
+    ) -> Result<()> {
         async fn insert_into_map<T>(map: Arc<RwLock<LinkMap<T>>>, key: Cid, value: T)
         where
             T: Clone,
@@ -234,7 +194,8 @@ where
             if let Some(result) = linkmap.read().await.get(&cid) {
                 Ok(result.to_owned())
             } else {
-                match Db::find_instruction(cid, &mut db.conn()?) {
+                let conn = &mut db.conn()?;
+                match Db::find_instruction(cid, conn) {
                     Ok(found) => Ok(found.output_as_arg()),
                     Err(_) => {
                         debug!("no related instruction receipt found in the DB");
@@ -265,8 +226,7 @@ where
                         };
 
                         let receipt =
-                            Db::commit_receipt(workflow_cid, found.clone(), &mut db.conn()?)
-                                .unwrap_or(found);
+                            Db::commit_receipt(workflow_cid, found.clone(), conn).unwrap_or(found);
                         let found_result = receipt.output_as_arg();
 
                         // Store the result in the linkmap for use in next iterations.
@@ -276,8 +236,8 @@ where
                 }
             }
         }
-        // Need to take ownership of the schedule
-        for batch in self.scheduler.run.clone().into_iter() {
+        // Need to take ownership of the scheduler
+        for batch in scheduler.run.into_iter() {
             let (mut task_set, handles) = batch.into_iter().try_fold(
                 (TaskSet::new(), vec![]),
                 |(mut task_set, mut handles), node| {
@@ -290,14 +250,18 @@ where
 
                     let args = parsed.into_args();
                     let meta = Ipld::Map(BTreeMap::from([
+                        (REPLAYED_KEY.into(), scheduler.ran.is_some().into()),
                         (OP_KEY.into(), fun.to_string().into()),
                         (WORKFLOW_KEY.into(), self.workflow_info.cid().into()),
+                        (
+                            WORKFLOW_NAME_KEY.into(),
+                            self.workflow_name.to_string().into(),
+                        ),
                     ]));
 
                     match RegisteredTasks::ability(&instruction.op().to_string()) {
                         Some(RegisteredTasks::WasmRun) => {
-                            let wasm = self
-                                .scheduler
+                            let wasm = scheduler
                                 .resources
                                 .get(&Resource::Url(rsc.to_owned()))
                                 .ok_or_else(|| anyhow!("resource not available"))?
@@ -309,7 +273,7 @@ where
 
                             let db = self.db.clone();
                             let settings = self.workflow_settings.clone();
-                            let linkmap = self.scheduler.linkmap.clone();
+                            let linkmap = scheduler.linkmap.clone();
                             let event_sender = self.event_sender.clone();
                             let workflow_cid = self.workflow_info.cid();
 
@@ -361,7 +325,7 @@ where
                 );
 
                 let receipt = Receipt::try_with(instruction_ptr, &invocation_receipt)?;
-                self.scheduler.linkmap.write().await.insert(
+                scheduler.linkmap.write().await.insert(
                     Cid::try_from(receipt.instruction())?,
                     receipt.output_as_arg(),
                 );
@@ -369,7 +333,7 @@ where
                 // modify workflow info before progress update, in case
                 // that we time out getting info from the network, but later
                 // recovered where we last started from.
-                if let Some(step) = self.scheduler.resume_step {
+                if let Some(step) = scheduler.resume_step {
                     let current_progress_count = self.workflow_info.progress_count;
                     Arc::make_mut(&mut self.workflow_info)
                         .set_progress_count(std::cmp::max(current_progress_count, step as u32))
@@ -392,174 +356,6 @@ where
         }
         Ok(())
     }
-
-    #[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
-    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
-    async fn get_resources(
-        resources: Vec<Resource>,
-        settings: Arc<workflow::Settings>,
-        ipfs: IpfsCli,
-    ) -> Result<IndexMap<Resource, Vec<u8>>> {
-        use tokio::runtime::Handle;
-        let num_requests = resources.len();
-        let settings = settings.as_ref();
-        futures::stream::iter(resources.iter().map(|rsc| async {
-            let ipfs = ipfs.clone();
-            let handle = Handle::current();
-            // Have to enumerate configs here, as type variants are different
-            // and cannot be matched on.
-            match settings.retry_backoff_strategy {
-                BackoffStrategy::Exponential => {
-                    tryhard::retry_fn(|| {
-                        let rsc = rsc.clone();
-                        let client = ipfs.clone();
-                        handle.spawn(async move { Self::fetch(rsc, client).await })
-                    })
-                    .with_config(
-                        RetryFutureConfig::new(settings.retries)
-                            .exponential_backoff(settings.retry_initial_delay)
-                            .max_delay(settings.retry_max_delay),
-                    )
-                    .await
-                }
-                BackoffStrategy::Fixed => {
-                    tryhard::retry_fn(|| {
-                        let rsc = rsc.clone();
-                        let client = ipfs.clone();
-                        handle.spawn(async move { Self::fetch(rsc, client).await })
-                    })
-                    .with_config(
-                        RetryFutureConfig::new(settings.retries)
-                            .fixed_backoff(settings.retry_initial_delay)
-                            .max_delay(settings.retry_max_delay),
-                    )
-                    .await
-                }
-                BackoffStrategy::Linear => {
-                    tryhard::retry_fn(|| {
-                        let rsc = rsc.clone();
-                        let client = ipfs.clone();
-                        handle.spawn(async move { Self::fetch(rsc, client).await })
-                    })
-                    .with_config(
-                        RetryFutureConfig::new(settings.retries)
-                            .linear_backoff(settings.retry_initial_delay)
-                            .max_delay(settings.retry_max_delay),
-                    )
-                    .await
-                }
-                BackoffStrategy::None => {
-                    tryhard::retry_fn(|| {
-                        let rsc = rsc.clone();
-                        let client = ipfs.clone();
-                        handle.spawn(async move { Self::fetch(rsc, client).await })
-                    })
-                    .with_config(RetryFutureConfig::new(settings.retries).no_backoff())
-                    .await
-                }
-            }
-        }))
-        .buffer_unordered(num_requests)
-        .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .try_fold(IndexMap::default(), |mut acc, res| {
-            let inner = res??;
-            let answer = inner.1?;
-            acc.insert(inner.0, answer);
-            Ok::<_, anyhow::Error>(acc)
-        })
-    }
-
-    #[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
-    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
-    async fn fetch(rsc: Resource, client: IpfsCli) -> Result<(Resource, Result<Vec<u8>>)> {
-        match rsc {
-            Resource::Url(url) => {
-                let bytes = match (url.scheme(), url.domain(), url.path()) {
-                    ("ipfs", Some(cid), _) => {
-                        let cid = Cid::try_from(cid)?;
-                        client.get_cid(cid).await
-                    }
-                    (_, Some("ipfs.io"), _) => client.get_resource(&url).await,
-                    (_, _, path) if path.contains("/ipfs/") || path.contains("/ipns/") => {
-                        client.get_resource(&url).await
-                    }
-                    (_, Some(domain), _) => {
-                        let split: Vec<&str> = domain.splitn(3, '.').collect();
-                        // subdomain-gateway case:
-                        // <https://bafybeiemxf5abjwjbikoz4mc3a3dla6ual3jsgpdr4cjr3oz3evfyavhwq.ipfs.dweb.link/wiki/>
-                        if let (Ok(_cid), "ipfs") = (Cid::try_from(split[0]), split[1]) {
-                            client.get_resource(&url).await
-                        } else {
-                            // TODO: reqwest call
-                            todo!()
-                        }
-                    }
-                    // TODO: reqwest call
-                    (_, _, _) => todo!(),
-                };
-                Ok((Resource::Url(url), bytes))
-            }
-
-            Resource::Cid(cid) => {
-                let bytes = client.get_cid(cid).await;
-                Ok((Resource::Cid(cid), bytes))
-            }
-        }
-    }
-
-    /// TODO: Client calls (only) over http(s).
-    #[cfg(all(not(feature = "ipfs"), not(test), not(feature = "test-utils")))]
-    #[doc(hidden)]
-    #[allow(dead_code)]
-    async fn get_resources<T>(
-        _resources: Vec<Resource>,
-        _settings: Arc<workflow::Settings>,
-    ) -> Result<IndexMap<Resource, T>> {
-        Ok(IndexMap::default())
-    }
-
-    #[cfg(all(not(feature = "ipfs"), any(test, feature = "test-utils")))]
-    #[doc(hidden)]
-    #[allow(dead_code)]
-    async fn get_resources(
-        _resources: Vec<Resource>,
-        _settings: Arc<workflow::Settings>,
-    ) -> Result<IndexMap<Resource, Vec<u8>>> {
-        println!("Running in test mode");
-        use crate::tasks::FileLoad;
-        let path = std::path::PathBuf::from(format!(
-            "{}/../homestar-wasm/fixtures/example_test.wasm",
-            env!("CARGO_MANIFEST_DIR")
-        ));
-        let bytes = WasmContext::load(path).await?;
-        let mut map = IndexMap::default();
-        let rsc = "ipfs://bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy";
-        map.insert(Resource::Url(url::Url::parse(rsc)?), bytes);
-        Ok(map)
-    }
-
-    #[cfg(all(feature = "ipfs", any(test, feature = "test-utils")))]
-    #[doc(hidden)]
-    #[allow(dead_code)]
-    async fn get_resources(
-        _resources: Vec<Resource>,
-        _settings: Arc<workflow::Settings>,
-        _ipfs: IpfsCli,
-    ) -> Result<IndexMap<Resource, Vec<u8>>> {
-        println!("Running in test mode");
-        use crate::tasks::FileLoad;
-        let path = std::path::PathBuf::from(format!(
-            "{}/../homestar-wasm/fixtures/example_test.wasm",
-            env!("CARGO_MANIFEST_DIR")
-        ));
-        let bytes = WasmContext::load(path).await?;
-        let mut map = IndexMap::default();
-        let rsc = "ipfs://bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy";
-        map.insert(Resource::Url(url::Url::parse(rsc)?), bytes);
-        Ok(map)
-    }
 }
 
 impl<'a, DB> Drop for Worker<'a, DB>
@@ -579,7 +375,7 @@ mod test {
     use crate::{
         db::Database,
         test_utils::{self, db::MemoryDb, WorkerBuilder},
-        workflow::IndexedResources,
+        workflow::{self, IndexedResources},
     };
     use homestar_core::{
         ipld::DagCbor,
@@ -600,10 +396,6 @@ mod test {
         let worker = builder.build().await;
         let workflow_cid = worker.workflow_info.cid;
 
-        assert!(worker.scheduler.linkmap.read().await.is_empty());
-        assert!(worker.scheduler.ran.is_none());
-        assert_eq!(worker.scheduler.run.len(), 2);
-        assert_eq!(worker.scheduler.resume_step, None);
         assert_eq!(worker.workflow_info.cid, workflow_cid);
         assert_eq!(worker.workflow_info.num_tasks, 2);
         assert_eq!(worker.workflow_info.resources.len(), 2);
@@ -641,7 +433,8 @@ mod test {
                 receipt: next_receipt,
                 ..
             }) => {
-                let mut info = workflow::Info::default(workflow_cid, 2);
+                let stored = workflow::Stored::default(Pointer::new(workflow_cid), 2);
+                let mut info = workflow::Info::default(stored);
                 info.increment_progress(next_receipt.cid());
 
                 (next_receipt, info)
@@ -654,7 +447,8 @@ mod test {
                 receipt: next_next_receipt,
                 ..
             }) => {
-                let mut info = workflow::Info::default(workflow_cid, 2);
+                let stored = workflow::Stored::default(Pointer::new(workflow_cid), 2);
+                let mut info = workflow::Info::default(stored);
                 info.increment_progress(next_next_receipt.cid());
 
                 assert_ne!(next_next_receipt, next_receipt);
@@ -667,7 +461,7 @@ mod test {
         assert!(rx.recv().await.is_none());
 
         let mut conn = db.conn().unwrap();
-        let workflow_info = MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
+        let (_, workflow_info) = MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
 
         assert_eq!(workflow_info.num_tasks, 2);
         assert_eq!(workflow_info.cid, workflow_cid);
@@ -732,6 +526,7 @@ mod test {
         let _ = MemoryDb::store_workflow(
             workflow::Stored::new_with_resources(
                 Pointer::new(workflow_cid),
+                None,
                 builder.workflow_len() as i32,
                 IndexedResources::new(index_map),
             ),
@@ -740,20 +535,9 @@ mod test {
         let _ = MemoryDb::commit_receipt(workflow_cid, receipt.clone(), &mut conn).unwrap();
 
         let worker = builder.build().await;
-        let info = MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
+        let (_, info) = MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
 
         assert_eq!(Arc::new(info), worker.workflow_info);
-
-        assert_eq!(worker.scheduler.linkmap.read().await.len(), 1);
-        assert!(worker
-            .scheduler
-            .linkmap
-            .read()
-            .await
-            .contains_key(&instruction1.to_cid().unwrap()));
-        assert_eq!(worker.scheduler.ran.as_ref().unwrap().len(), 1);
-        assert_eq!(worker.scheduler.run.len(), 1);
-        assert_eq!(worker.scheduler.resume_step, Some(1));
         assert_eq!(worker.workflow_info.cid, workflow_cid);
         assert_eq!(worker.workflow_info.num_tasks, 2);
         assert_eq!(worker.workflow_info.resources.len(), 2);
@@ -782,7 +566,8 @@ mod test {
                 receipt: next_receipt,
                 ..
             }) => {
-                let mut info = workflow::Info::default(workflow_cid, 2);
+                let stored = workflow::Stored::default(Pointer::new(workflow_cid), 2);
+                let mut info = workflow::Info::default(stored);
                 info.increment_progress(next_receipt.cid());
 
                 assert_ne!(next_receipt, receipt);
@@ -795,7 +580,7 @@ mod test {
         assert!(rx.recv().await.is_none());
 
         let mut conn = db.conn().unwrap();
-        let workflow_info = MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
+        let (_, workflow_info) = MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
 
         assert_eq!(workflow_info.num_tasks, 2);
         assert_eq!(workflow_info.cid, workflow_cid);
@@ -872,6 +657,7 @@ mod test {
         let _ = MemoryDb::store_workflow(
             workflow::Stored::new_with_resources(
                 Pointer::new(workflow_cid),
+                None,
                 builder.workflow_len() as i32,
                 IndexedResources::new(index_map),
             ),
@@ -887,22 +673,6 @@ mod test {
 
         let worker = builder.build().await;
 
-        assert_eq!(worker.scheduler.linkmap.read().await.len(), 1);
-        assert!(!worker
-            .scheduler
-            .linkmap
-            .read()
-            .await
-            .contains_key(&instruction1.to_cid().unwrap()));
-        assert!(worker
-            .scheduler
-            .linkmap
-            .read()
-            .await
-            .contains_key(&instruction2.to_cid().unwrap()));
-        assert_eq!(worker.scheduler.ran.as_ref().unwrap().len(), 2);
-        assert!(worker.scheduler.run.is_empty());
-        assert_eq!(worker.scheduler.resume_step, None);
         assert_eq!(worker.workflow_info.cid, workflow_cid);
         assert_eq!(worker.workflow_info.num_tasks, 2);
         assert_eq!(worker.workflow_info.resources.len(), 2);
@@ -917,7 +687,7 @@ mod test {
         );
 
         let mut conn = db.conn().unwrap();
-        let workflow_info = MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
+        let (_, workflow_info) = MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
 
         assert_eq!(workflow_info.num_tasks, 2);
         assert_eq!(workflow_info.cid, workflow_cid);

@@ -378,7 +378,7 @@ mod test {
 
     #[test]
     fn receipt_sql_roundtrip() {
-        let mut conn = MemoryDb::setup_connection_pool(Settings::load().unwrap().node())
+        let mut conn = MemoryDb::setup_connection_pool(Settings::load().unwrap().node(), None)
             .unwrap()
             .conn()
             .unwrap();

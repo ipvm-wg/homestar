@@ -1,0 +1,9 @@
+[monitoring]
+process_collector_interval = 10
+
+[node]
+
+[node.network]
+events_buffer_len = 1000
+rpc_port = 9999
+rpc_host = "127.0.0.1"

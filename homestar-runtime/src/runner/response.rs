@@ -20,6 +20,7 @@ use tabled::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Tabled)]
 pub struct AckWorkflow {
     pub(crate) cid: Cid,
+    pub(crate) name: String,
     pub(crate) num_tasks: u32,
     #[tabled(skip)]
     pub(crate) progress: Vec<Cid>,
@@ -41,9 +42,14 @@ impl fmt::Display for AckWorkflow {
 
 impl AckWorkflow {
     /// Workflow information for response / display.
-    pub(crate) fn new(workflow_info: Arc<workflow::Info>, timestamp: NaiveDateTime) -> Self {
+    pub(crate) fn new(
+        workflow_info: Arc<workflow::Info>,
+        name: String,
+        timestamp: NaiveDateTime,
+    ) -> Self {
         Self {
             cid: workflow_info.cid,
+            name,
             num_tasks: workflow_info.num_tasks,
             progress: workflow_info.progress.clone(),
             progress_count: workflow_info.progress_count,

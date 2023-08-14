@@ -44,7 +44,7 @@ impl ReadWorkflow {
         match self.file.extension().and_then(OsStr::to_str) {
             None | Some("json") => {
                 let data = fs::read_to_string(&self.file.canonicalize()?).await?;
-                // TODO: Parse this from the workflow file
+                // TODO: Parse this from the workflow data/file itself.
                 let workflow_settings = workflow::Settings::default();
                 Ok((
                     DagJson::from_json_string(data).map_err(anyhow::Error::new)?,

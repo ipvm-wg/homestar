@@ -3,6 +3,7 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
+#[cfg(not(windows))]
 const PID_FILE: &str = "homestar.pid";
 
 /// Start the Homestar runtime as a daemon.
@@ -18,6 +19,6 @@ pub fn start(dir: PathBuf) -> Result<()> {
 
 /// Start the Homestar runtime as a daemon.
 #[cfg(windows)]
-pub fn start(dir: PathBuf) -> Result<()> {
+pub fn start(_dir: PathBuf) -> Result<()> {
     Err(anyhow::anyhow!("Daemonizing is not supported on Windows"))
 }
