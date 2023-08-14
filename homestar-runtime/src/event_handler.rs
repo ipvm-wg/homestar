@@ -57,6 +57,7 @@ pub(crate) struct EventHandler<DB: Database> {
     sender: Arc<mpsc::Sender<Event>>,
     receiver: mpsc::Receiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, P2PSender)>,
+    connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     ws_msg_sender: ws::Notifier,
 }
@@ -104,6 +105,7 @@ where
             receiver,
             query_senders: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
+            connected_peers: FnvHashMap::default(),
             ws_msg_sender,
         }
     }
