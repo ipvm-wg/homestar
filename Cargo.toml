@@ -32,7 +32,7 @@ rand = "0.8"
 serde_ipld_dagcbor = "0.3"
 thiserror = "1.0"
 time = { version = "0.3", features = ["serde"] }
-tokio = { version = "1.29", features = ["fs", "io-util", "io-std", "macros", "rt",
+tokio = { version = "1.31", features = ["fs", "io-util", "io-std", "macros", "rt",
     "rt-multi-thread", "signal", "sync", "tracing"] }
 tracing = "0.1"
 ucan = "0.4"
