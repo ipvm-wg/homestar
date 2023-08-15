@@ -93,6 +93,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
     event_handler: &mut EventHandler<DB>,
 ) {
     match event {
+        // TODO: add identify for adding compatable kademlia nodes.
+        // TODO: use kademlia to discover new gossip nodes.
         SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossip_event)) => match *gossip_event {
             gossipsub::Event::Message {
                 message,
@@ -370,6 +372,16 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             );
         }
         SwarmEvent::IncomingConnection { .. } => {}
+        SwarmEvent::ConnectionEstablished {
+            peer_id, endpoint, ..
+        } => {
+            // add peer to connected peers list
+            event_handler.connected_peers.insert(peer_id, endpoint);
+        }
+        SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
+            info!("peer connection closed {peer_id}, cause: {cause:?}");
+            event_handler.connected_peers.remove_entry(&peer_id);
+        }
         _ => {}
     }
 }

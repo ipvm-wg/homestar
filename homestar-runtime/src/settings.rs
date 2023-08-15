@@ -121,6 +121,9 @@ pub struct Network {
     pub(crate) workflow_quorum: usize,
     /// Pubkey setup configuration
     pub(crate) keypair_config: PubkeyConfig,
+    /// Multiaddrs of the trusted nodes to connect to on startup.
+    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+    pub(crate) node_addresses: Vec<libp2p::Multiaddr>,
 }
 
 /// Database-related settings for a homestar node.
@@ -172,6 +175,7 @@ impl Default for Network {
             websocket_capacity: 100,
             workflow_quorum: 3,
             keypair_config: PubkeyConfig::Random,
+            node_addresses: Vec::new(),
         }
     }
 }
@@ -265,8 +269,9 @@ mod test {
         default_modded_settings.network.websocket_port = 9999;
         default_modded_settings.gc_interval = Duration::from_secs(1800);
         default_modded_settings.shutdown_timeout = Duration::from_secs(20);
-
-        assert_eq!(settings.node, default_modded_settings);
+        default_modded_settings.network.node_addresses =
+            vec!["/ip4/127.0.0.1/tcp/9998/ws".to_string().try_into().unwrap()];
+        assert_eq!(settings.node(), &default_modded_settings);
     }
 
     #[test]

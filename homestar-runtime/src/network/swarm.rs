@@ -10,13 +10,16 @@ use libp2p::{
     core::upgrade,
     gossipsub::{self, MessageId, SubscriptionError, TopicHash},
     kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
-    mdns, noise,
+    mdns,
+    multiaddr::Protocol,
+    noise,
     request_response::{self, ProtocolSupport},
     swarm::{NetworkBehaviour, Swarm, SwarmBuilder},
     tcp, yamux, StreamProtocol, Transport,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use tracing::{info, warn};
 
 /// Build a new [Swarm] with a given transport and a tokio executor.
 pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> {
@@ -27,6 +30,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         .with_context(|| "Failed to generate/import keypair for libp2p".to_string())?;
 
     let peer_id = keypair.public().to_peer_id();
+    info!(peer_id=?peer_id.to_string(), "local peer ID generated");
 
     let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
         .upgrade(upgrade::Version::V1Lazy)
@@ -60,15 +64,43 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
     )
     .build();
 
-    // Listen-on given address
-    swarm.listen_on(settings.network.listen_address.to_string().parse()?)?;
+    startup(&mut swarm, &settings.network)?;
 
-    // subscribe to `receipts` topic
+    Ok(swarm)
+}
+
+fn startup(swarm: &mut Swarm<ComposedBehaviour>, settings: &settings::Network) -> Result<()> {
+    // Listen-on given address
+    swarm.listen_on(settings.listen_address.to_string().parse()?)?;
+
+    // Dial nodes specified in settings. Failure here shouldn't halt node startup.
+    for addr in &settings.node_addresses {
+        match swarm.dial(addr.clone()) {
+            Ok(_) => info!(addr=?addr, "successfully dialed configured node"),
+            // log dial failure and continue
+            Err(e) => warn!(err=?e, "failed to dial configured node"),
+        }
+
+        // add node to kademlia routing table
+        if let Some(Protocol::P2p(peer_id)) =
+            addr.iter().find(|proto| matches!(proto, Protocol::P2p(_)))
+        {
+            info!(addr=?addr, "added configured node to kademlia routing table");
+            swarm
+                .behaviour_mut()
+                .kademlia
+                .add_address(&peer_id, addr.clone());
+        } else {
+            warn!(addr=?addr, err="configured node address did not include a peer ID", "node not added to kademlia routing table")
+        }
+    }
+
+    // join `receipts` topic
     swarm
         .behaviour_mut()
         .gossip_subscribe(pubsub::RECEIPTS_TOPIC)?;
 
-    Ok(swarm)
+    Ok(())
 }
 
 /// Key data structure for [request_response::Event] messages.

@@ -12,7 +12,10 @@ use crate::{
 use anyhow::Result;
 use async_trait::async_trait;
 use fnv::FnvHashMap;
-use libp2p::{futures::StreamExt, kad::QueryId, request_response::RequestId, swarm::Swarm};
+use libp2p::{
+    core::ConnectedPoint, futures::StreamExt, kad::QueryId, request_response::RequestId,
+    swarm::Swarm, PeerId,
+};
 use std::{sync::Arc, time::Duration};
 use swarm_event::ResponseEvent;
 use tokio::{select, sync::mpsc};
@@ -54,6 +57,7 @@ pub(crate) struct EventHandler<DB: Database> {
     sender: Arc<mpsc::Sender<Event>>,
     receiver: mpsc::Receiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, P2PSender)>,
+    connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     ws_msg_sender: ws::Notifier,
 }
@@ -70,6 +74,7 @@ pub(crate) struct EventHandler<DB: Database> {
     sender: Arc<mpsc::Sender<Event>>,
     receiver: mpsc::Receiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, P2PSender)>,
+    connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
 }
 
@@ -100,6 +105,7 @@ where
             receiver,
             query_senders: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
+            connected_peers: FnvHashMap::default(),
             ws_msg_sender,
         }
     }
@@ -117,6 +123,7 @@ where
             sender: Arc::new(sender),
             receiver,
             query_senders: FnvHashMap::default(),
+            connected_peers: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
         }
     }
