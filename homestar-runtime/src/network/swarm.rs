@@ -62,7 +62,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
                 },
                 peer_id,
             )?,
-            rendezvous_client: rendezvous::client::Behaviour::new(keypair),
+            rendezvous_client: rendezvous::client::Behaviour::new(keypair.clone()),
             rendezvous_server: rendezvous::server::Behaviour::new(
                 rendezvous::server::Config::default(),
             ),

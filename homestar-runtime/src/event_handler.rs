@@ -59,6 +59,7 @@ pub(crate) struct EventHandler<DB: Database> {
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, P2PSender)>,
     connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
+    rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
     ws_msg_sender: ws::Notifier,
 }
 
@@ -107,6 +108,7 @@ where
             query_senders: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
             connected_peers: FnvHashMap::default(),
+            rendezvous_cookies: FnvHashMap::default(),
             ws_msg_sender,
         }
     }
