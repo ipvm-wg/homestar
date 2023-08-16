@@ -4,7 +4,8 @@ process_collector_interval = 10
 [node]
 
 [node.network]
-websocket_port = 9091
+rpc_port = 3032
+websocket_port = 9092
 node_addresses = [
-    "/ip4/127.0.0.1/tcp/9090/ws/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+    "/ip4/127.0.0.1/tcp/9091/ws/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
 ]
