@@ -160,7 +160,7 @@ impl Default for Network {
         Self {
             events_buffer_len: 100,
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
-            mdns_enable_ipv6: true,
+            mdns_enable_ipv6: false,
             mdns_query_interval: Duration::from_secs(5 * 60),
             mdns_ttl: Duration::from_secs(60 * 9),
             p2p_provider_timeout: Duration::new(30, 0),

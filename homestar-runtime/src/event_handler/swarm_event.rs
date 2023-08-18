@@ -98,72 +98,74 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 ) {
     match event {
         // TODO: use kademlia to discover new gossip nodes.
-        SwarmEvent::Behaviour(ComposedEvent::Identify(identify_event)) => match identify_event {
-            identify::Event::Error { peer_id, error } => {
-                error!(err=?error, peer_id=peer_id.to_string(), "error while attempting to identify the remote")
-            }
-            identify::Event::Sent { peer_id } => {
-                debug!(peer_id = peer_id.to_string(), "sent identify info to peer")
-            }
-            identify::Event::Received { peer_id, info } => {
-                debug!(peer_id=peer_id.to_string(), info=?info, "identify info received from peer");
-
-                if !event_handler
-                    .swarm
-                    .external_addresses()
-                    .any(|addr| addr == &info.observed_addr)
-                {
-                    // identify observed an external address that we weren't aware of
-                    // add it to the addresses we announce to other peers
-                    // TODO: this may not be a good thing to do if we are adding addresses from a private network that are not supposed to be public
-                    event_handler.swarm.add_external_address(info.observed_addr);
+        SwarmEvent::Behaviour(ComposedEvent::Identify(identify_event)) => {
+            match identify_event {
+                identify::Event::Error { peer_id, error } => {
+                    error!(err=?error, peer_id=peer_id.to_string(), "error while attempting to identify the remote")
                 }
-
-                let behavior = event_handler.swarm.behaviour_mut();
-
-                if info.protocol_version == HOMESTAR_PROTOCOL_VER {
-                    debug!("peer was not a homestar node");
-                    return;
+                identify::Event::Sent { peer_id } => {
+                    debug!(peer_id = peer_id.to_string(), "sent identify info to peer")
                 }
+                identify::Event::Received { peer_id, info } => {
+                    debug!(peer_id=peer_id.to_string(), info=?info, "identify info received from peer");
 
-                // TODO: this blindly adds nodes to kad without checking if they are doing homestar things.
-                // kademlia
-                if info.protocols.contains(&kad::PROTOCOL_NAME) {
-                    // add listen addresses to kademlia routing table
-                    for addr in info.listen_addrs {
-                        behavior.kademlia.add_address(&peer_id, addr);
+                    if !event_handler
+                        .swarm
+                        .external_addresses()
+                        .any(|addr| addr == &info.observed_addr)
+                    {
+                        // identify observed an external address that we weren't aware of
+                        // add it to the addresses we announce to other peers
+                        // TODO: this may not be a good thing to do if we are adding addresses from a private network that are not supposed to be public
+                        event_handler.swarm.add_external_address(info.observed_addr);
+                    }
+
+                    let behavior = event_handler.swarm.behaviour_mut();
+
+                    // don't bother talking with nodes that aren't running our protocol
+                    if info.protocol_version == HOMESTAR_PROTOCOL_VER {
+                        debug!(protocol_version=info.protocol_version, "peer was not using our homestar protocol version: {HOMESTAR_PROTOCOL_VER}");
+                        return;
+                    }
+
+                    // kademlia
+                    if info.protocols.contains(&kad::PROTOCOL_NAME) {
+                        // add listen addresses to kademlia routing table
+                        for addr in info.listen_addrs {
+                            behavior.kademlia.add_address(&peer_id, addr);
+                        }
+                    }
+
+                    // rendezvous
+                    // we are good to register self & discover with any node we contact. more peers = more better!
+                    if info.protocols.contains(&RENDEZVOUS_PROTOCOL_NAME) {
+                        // register self with remote
+                        if let Err(err) = behavior.rendezvous_client.register(
+                            Namespace::from_static(RENDEZVOUS_NAMESPACE),
+                            peer_id,
+                            None,
+                        ) {
+                            error!(
+                                err = format!("{err}"),
+                                peer_id = peer_id.to_string(),
+                                "failed to register with rendezvous peer"
+                            )
+                        }
+                        // discover other nodes
+                        behavior.rendezvous_client.discover(
+                            Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
+                            None,
+                            None,
+                            peer_id,
+                        );
                     }
                 }
-
-                // rendezvous
-                // we are good to register self & discover with any node we contact. more peers = more better!
-                if info.protocols.contains(&RENDEZVOUS_PROTOCOL_NAME) {
-                    // register self with remote
-                    if let Err(err) = behavior.rendezvous_client.register(
-                        Namespace::from_static(RENDEZVOUS_NAMESPACE),
-                        peer_id,
-                        None,
-                    ) {
-                        error!(
-                            err = format!("{err}"),
-                            peer_id = peer_id.to_string(),
-                            "failed to register with rendezvous peer"
-                        )
-                    }
-                    // discover other nodes
-                    behavior.rendezvous_client.discover(
-                        Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
-                        None,
-                        None,
-                        peer_id,
-                    );
-                }
+                identify::Event::Pushed { peer_id } => debug!(
+                    peer_id = peer_id.to_string(),
+                    "pushed identify info too peer"
+                ),
             }
-            identify::Event::Pushed { peer_id } => debug!(
-                peer_id = peer_id.to_string(),
-                "pushed identify info too peer"
-            ),
-        },
+        }
         SwarmEvent::Behaviour(ComposedEvent::RendezvousClient(rendezvous_c_event)) => {
             match rendezvous_c_event {
                 rendezvous::client::Event::Discovered {

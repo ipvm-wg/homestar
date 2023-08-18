@@ -86,11 +86,10 @@ fn startup(swarm: &mut Swarm<ComposedBehaviour>, settings: &settings::Network) -
 
     // Dial nodes specified in settings. Failure here shouldn't halt node startup.
     for addr in &settings.node_addresses {
-        match swarm.dial(addr.clone()) {
-            Ok(_) => info!(addr=?addr, "successfully dialed configured node"),
+        let _ = swarm
+            .dial(addr.clone())
             // log dial failure and continue
-            Err(e) => warn!(err=?e, "failed to dial configured node"),
-        }
+            .map_err(|e| warn!(err=?e, "failed to dial configured node"));
 
         // add node to kademlia routing table
         if let Some(Protocol::P2p(peer_id)) =
