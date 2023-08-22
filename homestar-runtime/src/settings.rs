@@ -160,6 +160,7 @@ impl Default for Network {
         Self {
             events_buffer_len: 100,
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
+            // TODO: we would like to enable this by default, however this breaks mdns on at least some linux distros. Requires further investigation.
             mdns_enable_ipv6: false,
             mdns_query_interval: Duration::from_secs(5 * 60),
             mdns_ttl: Duration::from_secs(60 * 9),

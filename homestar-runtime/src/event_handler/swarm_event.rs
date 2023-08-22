@@ -97,11 +97,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
     event_handler: &mut EventHandler<DB>,
 ) {
     match event {
-        // TODO: use kademlia to discover new gossip nodes.
         SwarmEvent::Behaviour(ComposedEvent::Identify(identify_event)) => {
             match identify_event {
                 identify::Event::Error { peer_id, error } => {
-                    error!(err=?error, peer_id=peer_id.to_string(), "error while attempting to identify the remote")
+                    warn!(err=?error, peer_id=peer_id.to_string(), "error while attempting to identify the remote")
                 }
                 identify::Event::Sent { peer_id } => {
                     debug!(peer_id = peer_id.to_string(), "sent identify info to peer")
@@ -145,7 +144,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             peer_id,
                             None,
                         ) {
-                            error!(
+                            warn!(
                                 err = format!("{err}"),
                                 peer_id = peer_id.to_string(),
                                 "failed to register with rendezvous peer"
@@ -166,8 +165,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 ),
             }
         }
-        SwarmEvent::Behaviour(ComposedEvent::RendezvousClient(rendezvous_c_event)) => {
-            match rendezvous_c_event {
+        SwarmEvent::Behaviour(ComposedEvent::RendezvousClient(rendezvous_client_event)) => {
+            match rendezvous_client_event {
                 rendezvous::client::Event::Discovered {
                     rendezvous_node,
                     registrations,
@@ -239,21 +238,21 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 }
             }
         }
-        SwarmEvent::Behaviour(ComposedEvent::RendezvousServer(rendezvous_s_event)) => {
-            match rendezvous_s_event {
+        SwarmEvent::Behaviour(ComposedEvent::RendezvousServer(rendezvous_server_event)) => {
+            match rendezvous_server_event {
                 rendezvous::server::Event::DiscoverServed { enquirer, .. } => debug!(
                     peer_id = enquirer.to_string(),
                     "served rendezvous discover request to peer"
                 ),
                 rendezvous::server::Event::DiscoverNotServed { enquirer, error } => {
-                    error!(err=?error, peer_id=enquirer.to_string(), "did not serve rendezvous discover request")
+                    warn!(err=?error, peer_id=enquirer.to_string(), "did not serve rendezvous discover request")
                 }
                 rendezvous::server::Event::PeerNotRegistered {
                     peer,
                     namespace,
                     error,
                 } => {
-                    error!(err=?error, namespace=?namespace, peer_id=peer.to_string(), "did not register peer with rendezvous")
+                    warn!(err=?error, namespace=?namespace, peer_id=peer.to_string(), "did not register peer with rendezvous")
                 }
                 _ => (),
             }
@@ -527,11 +526,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Expired(list))) => {
             for (peer_id, multiaddr) in list {
                 info!("mDNS discover peer has expired: {peer_id}");
-                event_handler
-                    .swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .remove_address(&peer_id, &multiaddr);
                 if event_handler.swarm.behaviour_mut().mdns.has_node(&peer_id) {
                     event_handler
                         .swarm
@@ -565,7 +559,12 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             peer_id,
             error,
         } => {
-            error!(err=?error, peer_id=peer_id.map(|p| p.to_string()).unwrap_or_default(), connection_id=?connection_id, "outgoing connection error")
+            error!(
+                err=?error,
+                peer_id=peer_id.map(|p| p.to_string()).unwrap_or_default(),
+                connection_id=?connection_id,
+                "outgoing connection error"
+            )
         }
         SwarmEvent::IncomingConnectionError {
             connection_id,
@@ -573,7 +572,13 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             send_back_addr,
             error,
         } => {
-            error!(err=?error, connection_id=?connection_id, local_address=local_addr.to_string(), remote_address=send_back_addr.to_string(), "incoming connection error")
+            error!(
+                err=?error,
+                connection_id=?connection_id,
+                local_address=local_addr.to_string(),
+                remote_address=send_back_addr.to_string(),
+                "incoming connection error"
+            )
         }
         SwarmEvent::ListenerError { listener_id, error } => {
             error!(err=?error, listener_id=?listener_id, "listener error")
