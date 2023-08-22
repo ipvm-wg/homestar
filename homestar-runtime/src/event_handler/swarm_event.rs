@@ -186,26 +186,22 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         event_handler
                             .rendezvous_cookies
                             .insert(rendezvous_node, cookie);
-                    } else {
-                        // don't add peers that aren't from our namespace
-                        warn!(peer_id=rendezvous_node.to_string(), namespace=?cookie.namespace(), "rendezvous peer gave records from an unexpected namespace");
-                        return;
-                    }
-                    // TODO: maybe do an async iter here or dial queue? this bit is IO heavy
-                    // dial discovered peers
-                    for registration in registrations {
-                        // TODO: do anything with ttl here?
-                        let opts = DialOpts::peer_id(registration.record.peer_id())
-                            .addresses(registration.record.addresses().to_vec())
-                            .condition(libp2p::swarm::dial_opts::PeerCondition::Disconnected)
-                            .build();
-                        // TODO: we might be dialing too many peers here.
-                        match event_handler.swarm.dial(opts) {
-                            Ok(_) => (),
-                            Err(err) => {
+
+                        // dial discovered peers
+                        for registration in registrations {
+                            // TODO: do anything with ttl here?
+                            let opts = DialOpts::peer_id(registration.record.peer_id())
+                                .addresses(registration.record.addresses().to_vec())
+                                .condition(libp2p::swarm::dial_opts::PeerCondition::Disconnected)
+                                .build();
+                            // TODO: we might be dialing too many peers here. Add settings to configure when we stop dialing new peers
+                            if let Err(err) = event_handler.swarm.dial(opts) {
                                 warn!(err=?err, peer_id=registration.record.peer_id().to_string(), "failed to dial peer discovered through rendezvous")
                             }
                         }
+                    } else {
+                        // don't add peers that aren't from our namespace
+                        warn!(peer_id=rendezvous_node.to_string(), namespace=?cookie.namespace(), "rendezvous peer gave records from an unexpected namespace");
                     }
                 }
                 rendezvous::client::Event::DiscoverFailed {
