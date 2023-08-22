@@ -84,6 +84,18 @@ fn startup(swarm: &mut Swarm<ComposedBehaviour>, settings: &settings::Network) -
     // Listen-on given address
     swarm.listen_on(settings.listen_address.to_string().parse()?)?;
 
+    // add external addresses from settings
+    if settings.announce_addresses.is_empty() {
+        for addr in settings.announce_addresses.iter() {
+            swarm.add_external_address(addr.clone());
+        }
+    } else {
+        warn!(
+            err = "no addresses to announce to peers defined in settings",
+            "node may be unreachable to external peers"
+        )
+    }
+
     // Dial nodes specified in settings. Failure here shouldn't halt node startup.
     for addr in &settings.node_addresses {
         let _ = swarm
