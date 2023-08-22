@@ -108,15 +108,24 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 identify::Event::Received { peer_id, info } => {
                     debug!(peer_id=peer_id.to_string(), info=?info, "identify info received from peer");
 
+                    // don't add an address we already have
                     if !event_handler
                         .swarm
                         .external_addresses()
                         .any(|addr| addr == &info.observed_addr)
                     {
-                        // identify observed an external address that we weren't aware of
-                        // add it to the addresses we announce to other peers
-                        // TODO: this may not be a good thing to do if we are adding addresses from a private network that are not supposed to be public
-                        event_handler.swarm.add_external_address(info.observed_addr);
+                        info.observed_addr
+                            .iter()
+                            // if _any_ part of the multiaddr includes a private IP, dont add it to our external address list
+                            .filter_map(|proto| match proto {
+                                Protocol::Ip4(ip) => Some(ip),
+                                _ => None,
+                            })
+                            .all(|proto| !proto.is_private())
+                            // identify observed a potentially valid external address that we weren't aware of.
+                            // add it to the addresses we announce to other peers
+                            // TODO: have a set of _maybe_ external addresses that we check with other peers first before adding it
+                            .then(|| event_handler.swarm.add_external_address(info.observed_addr));
                     }
 
                     let behavior = event_handler.swarm.behaviour_mut();
