@@ -5,7 +5,6 @@ members = [
     "homestar-functions",
     "homestar-runtime",
     "homestar-wasm"]
-resolver = "2"
 
 [workspace.package]
 authors = [
@@ -22,7 +21,7 @@ async-trait = "0.1"
 atomic_refcell = "0.1"
 byte-unit = { version = "4.0", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-enum-assoc = " 1.1"
+enum-assoc = "1.1"
 enum-as-inner = "0.6"
 futures = "0.3"
 humantime = "2.1"
