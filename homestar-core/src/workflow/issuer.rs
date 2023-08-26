@@ -1,5 +1,4 @@
-//! Issuer referring to a principal (principal of least authority) that issues
-//! a receipt.
+//! Issuer refers to a principal that issues a receipt.
 
 use crate::{workflow, Unit};
 use diesel::{
@@ -13,23 +12,23 @@ use diesel::{
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
-use ucan::ipld::Principle;
+use ucan::ipld::Principle as Principal;
 
 /// [Principal] issuer of a receipt. If omitted issuer is
 /// inferred from the [invocation] [task] audience.
 ///
 /// [invocation]: super::Invocation
 /// [task]: super::Task
-/// [Principal]: Principle
+/// [Principal]: Principal
 #[derive(Clone, Debug, Deserialize, Serialize, AsExpression, FromSqlRow, PartialEq)]
 #[diesel(sql_type = Text)]
 #[repr(transparent)]
-pub struct Issuer(Principle);
+pub struct Issuer(Principal);
 
 impl Issuer {
-    /// Create a new [Issuer], wrapping a [Principle].
-    pub fn new(principle: Principle) -> Self {
-        Issuer(principle)
+    /// Create a new [Issuer], wrapping a [Principal].
+    pub fn new(principal: Principal) -> Self {
+        Issuer(principal)
     }
 }
 
@@ -42,8 +41,8 @@ impl fmt::Display for Issuer {
 
 impl From<Issuer> for Ipld {
     fn from(issuer: Issuer) -> Self {
-        let principle = issuer.0.to_string();
-        Ipld::String(principle)
+        let principal = issuer.0.to_string();
+        Ipld::String(principal)
     }
 }
 
@@ -52,7 +51,7 @@ impl TryFrom<Ipld> for Issuer {
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let s = from_ipld::<String>(ipld)?;
-        Ok(Issuer(Principle::from_str(&s)?))
+        Ok(Issuer(Principal::from_str(&s)?))
     }
 }
 
@@ -70,6 +69,6 @@ where
 {
     fn from_sql(bytes: DB::RawValue<'_>) -> deserialize::Result<Self> {
         let s = String::from_sql(bytes)?;
-        Ok(Issuer(Principle::from_str(&s)?))
+        Ok(Issuer(Principal::from_str(&s)?))
     }
 }
