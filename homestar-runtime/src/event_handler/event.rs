@@ -299,7 +299,7 @@ impl Replay {
 
         receipts.into_iter().for_each(|receipt| {
             let invocation_receipt = InvocationReceipt::from(&receipt);
-            let invocation_notification = invocation_receipt.clone();
+            let invocation_notification = invocation_receipt;
             let receipt_cid = receipt.cid();
 
             let ws_tx = event_handler.ws_sender();
