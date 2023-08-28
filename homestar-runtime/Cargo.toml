@@ -99,7 +99,7 @@ assert_cmd = "2.0"
 criterion = "0.5"
 homestar-core = { version = "0.1", path = "../homestar-core", features = [ "test-utils" ] }
 homestar_runtime_proc_macro = { path = "src/test_utils/proc_macro", package = "homestar-runtime-tests-proc-macro" }
-nix = "0.26"
+nix = "0.27"
 once_cell = "1.18"
 predicates = "3.0"
 rand = { workspace = true }
