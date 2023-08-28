@@ -2,10 +2,10 @@
 
 ## Description
 
-An example application that connects to the `homestar-runtime` over a websocket
-connection in order to run a couple static Wasm-based, image processing
-workflows that chain inputs and outputs via [inlined promises][pipelines]. This
-application demonstrates:
+An example application that connects to a **single** `homestar-runtime` node
+over a websocket connection in order to run a couple static Wasm-based, image
+processing workflows that chain inputs and outputs via
+[inlined promises][pipelines]. This application demonstrates:
 
   * websocket notifications of [Ucan Invocation receipts][spec-receipts] sent
     between a UI-client and a `homestar` runner
@@ -28,7 +28,8 @@ application demonstrates:
 3. Press the *play* buttons on the UI to run workflows. Follow along with the
    video for more information.
 
-TODO: Embed Video
+   https://www.loom.com/share/b0f882adc2ea45709d1f3031b5e61e92?sid=29cb403e-c666-4753-82f5-e35bbb710151
+
 
 [ipfs]: https://ipfs.tech/
 [ipld]: https://ipld.io/
