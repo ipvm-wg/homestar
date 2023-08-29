@@ -1,10 +1,11 @@
 [workspace]
 members = [
-    "examples/*",
-    "homestar-core",
-    "homestar-functions",
-    "homestar-runtime",
-    "homestar-wasm"]
+  "examples/*",
+  "homestar-core",
+  "homestar-functions",
+  "homestar-runtime",
+  "homestar-wasm",
+]
 resolver = "2"
 
 [workspace.package]
