@@ -280,6 +280,7 @@ where
 
                 let additional_meta = Ipld::Map(BTreeMap::from([
                     (REPLAYED_KEY.into(), Ipld::Bool(true)),
+                    (WORKFLOW_KEY.into(), self.workflow_info.cid().into()),
                     (
                         WORKFLOW_NAME_KEY.into(),
                         self.workflow_name.to_string().into(),
@@ -309,13 +310,12 @@ where
                 let fun = parsed.fun().ok_or_else(|| anyhow!("no function defined"))?;
 
                 let args = parsed.into_args();
-                let receipt_meta = Ipld::Map(BTreeMap::from([
-                    (OP_KEY.into(), fun.to_string().into()),
-                    (WORKFLOW_KEY.into(), self.workflow_info.cid().into()),
-                ]));
+                let receipt_meta =
+                    Ipld::Map(BTreeMap::from([(OP_KEY.into(), fun.to_string().into())]));
 
                 let additional_meta = Ipld::Map(BTreeMap::from([
                     (REPLAYED_KEY.into(), Ipld::Bool(false)),
+                    (WORKFLOW_KEY.into(), self.workflow_info.cid().into()),
                     (
                         WORKFLOW_NAME_KEY.into(),
                         self.workflow_name.to_string().into(),
