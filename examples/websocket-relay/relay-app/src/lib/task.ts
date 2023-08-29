@@ -2,7 +2,7 @@ export type Task = {
   id: number;
   workflowId: "one" | "two";
   operation: TaskOperation;
-  active: boolean;
+  selected: boolean;
   status: TaskStatus;
   message: string;
   receipt?: Receipt;

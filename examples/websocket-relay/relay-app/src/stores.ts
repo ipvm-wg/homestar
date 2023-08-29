@@ -33,7 +33,7 @@ export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
       workflowId: "one",
       operation: "crop",
       message: "Waiting for task to complete",
-      active: false,
+      selected: false,
       status: "waiting",
     },
     {
@@ -41,7 +41,7 @@ export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
       workflowId: "one",
       operation: "rotate90",
       message: "Waiting for task to complete.",
-      active: false,
+      selected: false,
       status: "waiting",
     },
     {
@@ -49,7 +49,7 @@ export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
       workflowId: "one",
       operation: "blur",
       message: "Waiting for task to complete.",
-      active: false,
+      selected: false,
       status: "waiting",
     },
   ],
@@ -59,7 +59,7 @@ export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
       workflowId: "two",
       operation: "crop",
       message: "Waiting for task to complete.",
-      active: false,
+      selected: false,
       status: "waiting",
     },
     {
@@ -67,7 +67,7 @@ export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
       workflowId: "two",
       operation: "rotate90",
       message: "Waiting for task to complete.",
-      active: false,
+      selected: false,
       status: "waiting",
     },
     {
@@ -75,7 +75,7 @@ export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
       workflowId: "two",
       operation: "grayscale",
       message: "Waiting for task to complete.",
-      active: false,
+      selected: false,
       status: "waiting",
     },
   ],

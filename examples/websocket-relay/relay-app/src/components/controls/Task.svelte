@@ -39,7 +39,7 @@
     <span class="capitalize">
       {task.operation}
     </span>
-    {#if task.active}
+    {#if task.selected}
       <span
         class="ml-auto cursor-pointer"
         on:click={() => collapse(task)}
@@ -57,7 +57,7 @@
       </span>
     {/if}
   </div>
-  {#if task.active}
+  {#if task.selected}
     <div transition:slide={{ easing: quartOut }}>
       {#if task.receipt}
         <p class="w-52 pl-1 pt-2 text-sm text-slate-700">{task.message}</p>

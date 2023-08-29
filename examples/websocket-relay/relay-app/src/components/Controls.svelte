@@ -24,10 +24,10 @@
     const { task } = event.detail;
 
     tasks[task.workflowId] = tasks[task.workflowId].map((t) => {
-      t.active = false;
+      t.selected = false;
 
       if (t.id === task.id) {
-        t.active = true;
+        t.selected = true;
       }
 
       return t;
@@ -38,7 +38,7 @@
     const { task } = event.detail;
 
     tasks[task.workflowId] = tasks[task.workflowId].map((t) => {
-      t.active = false;
+      t.selected = false;
       return t;
     });
   }
