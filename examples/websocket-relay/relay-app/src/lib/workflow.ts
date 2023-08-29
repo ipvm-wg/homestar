@@ -148,15 +148,6 @@ export async function handleMessage(event: MessageEvent) {
       return;
     }
 
-    if (message.receipt.meta.op !== activeWorkflow.tasks[activeWorkflow.step]) {
-      console.log(message.receipt.meta.op);
-      console.log(activeWorkflow.tasks[activeWorkflow.step]);
-      console.error(
-        "Received a receipt that did not match the expected workflow step"
-      );
-      return;
-    }
-
     const taskId = activeWorkflow.step + 1;
     const status = message.metadata.replayed ? "replayed" : "executed";
     const receipt = parseReceipt(message.receipt);
