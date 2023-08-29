@@ -3,29 +3,29 @@
 ## Description
 
 An example application that connects to a **single** `homestar-runtime` node
-over a websocket connection in order to run a couple static Wasm-based, image
-processing workflows that chain inputs and outputs via
+over a websocket connection in order to run static Wasm-based, image
+processing workflows that chain inputs and outputs using
 [inlined promises][pipelines]. This application demonstrates:
 
   * websocket notifications of [Ucan Invocation receipts][spec-receipts] sent
-    between a UI-client and a `homestar` runner
+    between a web client and a `homestar` runner
   * instantaneous replay of previously run, cached executions
-  * fetching of content (the original static image) over [IPFS][ipfs]
+  * fetching content (the original static image) over [IPFS][ipfs]
     through a local blockstore
-  * the [WIT][wit] + [Ipld][ipld] interpreter in-action for
+  * the [WIT][wit] + [Ipld][ipld] interpreter for
     [Wasm(time)][wasmtime] embedded execution within a `homestar` runner.
 
 ## Usage
 
 1. Run `cargo run -- start -c config/settings.toml` to start the runtime and
-   (for example purposes), an IPFS daemon as a background process. This will
-   feature ANSI-coded logging by default for the *relay web application*.
+   an IPFS daemon as a background process. This runtime includes
+   ANSI-coded logging by default.
 
 2. In a separate terminal window, run `npm install --prefix relay-app` to
-   install dependencies, and then `npm run --prefix relay-app dev` to start the
+   install dependencies and `npm run --prefix relay-app dev` to start the
    relay web application (UI) on `http://localhost:5173/` by default.
 
-3. Press the *play* buttons on the UI to run workflows. Follow along with the
+3. Press the *play* buttons on the UI to run workflows. Follow along with this
    video for more information.
 
    https://www.loom.com/share/b0f882adc2ea45709d1f3031b5e61e92?sid=29cb403e-c666-4753-82f5-e35bbb710151
