@@ -202,12 +202,12 @@ impl Captured {
             let ws_tx = event_handler.ws_sender();
             let metadata = self.metadata.to_owned();
             let receipt = NotifyReceipt::with(invocation_notification, receipt_cid, metadata);
-            if let Ok(json_bytes) = receipt.to_json() {
+            if let Ok(json) = receipt.to_json() {
                 info!(
                     cid = receipt_cid.to_string(),
                     "Sending receipt to websocket"
                 );
-                let _ = ws_tx.notify(json_bytes);
+                let _ = ws_tx.notify(json);
             }
         }
 
@@ -297,6 +297,15 @@ impl Replay {
                 .position(|p| p == receipt.instruction())
         });
 
+        #[cfg(debug_assertions)]
+        debug_assert_eq!(
+            receipts
+                .iter()
+                .map(|receipt| receipt.instruction())
+                .collect::<Vec<_>>(),
+            self.pointers.iter().collect::<Vec<_>>()
+        );
+
         receipts.into_iter().for_each(|receipt| {
             let invocation_receipt = InvocationReceipt::from(&receipt);
             let invocation_notification = invocation_receipt;
@@ -305,14 +314,15 @@ impl Replay {
             let ws_tx = event_handler.ws_sender();
             let metadata = self.metadata.to_owned();
             let receipt = NotifyReceipt::with(invocation_notification, receipt_cid, metadata);
-            if let Ok(json_bytes) = receipt.to_json() {
+            if let Ok(json) = receipt.to_json() {
                 info!(
                     cid = receipt_cid.to_string(),
                     "Sending receipt to websocket"
                 );
-                let _ = ws_tx.notify(json_bytes);
+                let _ = ws_tx.notify(json);
             }
         });
+
         Ok(())
     }
 }
