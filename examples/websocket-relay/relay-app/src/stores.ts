@@ -84,8 +84,14 @@ export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
 export const nodeStore: Readable<NodeType[]> = derived(
   taskStore,
   ($taskStore) => {
-    const workflowOneNodes = $taskStore["one"].reduce((nodes, task, index) => {
-      if (task.status === "executed" || task.status === "replayed") {
+    const workflowOneTasks = $taskStore["one"]
+    const workflowOneNodes = workflowOneTasks.reduce((nodes, task, index) => {
+      const previous = index !== 0 ? workflowOneTasks[index - 1] : null
+
+      if (
+        (task.status === "executed" || task.status === "replayed") &&
+        (previous ? previous.status !== 'waiting' && previous.status !== "failure" : true)
+      ) {
         const idOffset = 2;
 
         // @ts-ignore
@@ -110,8 +116,14 @@ export const nodeStore: Readable<NodeType[]> = derived(
       return nodes;
     }, []);
 
-    const workflowTwoNodes = $taskStore["two"].reduce((nodes, task, index) => {
-      if (task.status === "executed" || task.status === "replayed") {
+    const workflowTwoTasks = $taskStore["two"]
+    const workflowTwoNodes = workflowTwoTasks.reduce((nodes, task, index) => {
+      const previous = index !== 0 ? workflowTwoTasks[index - 1] : null
+
+      if (
+        (task.status === "executed" || task.status === "replayed") &&
+        (previous ? previous.status !== 'waiting' && previous.status !== "failure" : true)
+      ) {
         const idOffset = 5;
 
         // Check for a matching task in workflow one
