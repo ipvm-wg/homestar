@@ -39,7 +39,7 @@ wasmtime = { version = "11.0", features = ["async", "component-model", "default"
 wasmtime-component-util = "12.0"
 wasmtime-wasi = { version = "11.0", features = ["tokio"] }
 wat = "1.0"
-wit-component = "0.13"
+wit-component = "0.14"
 
 [dev-dependencies]
 criterion = "0.5"
