@@ -36,7 +36,7 @@ tracing = { workspace = true }
 wasi-common = "11.0"
 wasmparser = "0.111"
 wasmtime = { version = "11.0", features = ["async", "component-model", "default"] }
-wasmtime-component-util = "11.0"
+wasmtime-component-util = "12.0"
 wasmtime-wasi = { version = "11.0", features = ["tokio"] }
 wat = "1.0"
 wit-component = "0.13"
