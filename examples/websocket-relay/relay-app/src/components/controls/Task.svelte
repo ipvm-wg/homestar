@@ -61,8 +61,6 @@
     <div transition:slide={{ easing: quartOut }}>
       {#if task.receipt}
         <p class="w-52 pl-1 pt-2 text-sm text-slate-700">{task.message}</p>
-        <TaskValue label="Receipt CID" val={task.receipt.cid} />
-        <TaskValue label="Instruction" val={task.receipt.instruction} />
         <TaskValue label="Ran" val={task.receipt.ran} />
       {:else}
         <p class="w-52 pl-1 pt-2 text-sm text-slate-700">{task.message}</p>
