@@ -38,13 +38,12 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::assert_eq;
-
     use super::*;
     use homestar_core::{
         test_utils,
         workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
     };
+    use std::assert_eq;
 
     #[test]
     fn run_json() {
