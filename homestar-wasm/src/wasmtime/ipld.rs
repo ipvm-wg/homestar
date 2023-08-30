@@ -10,10 +10,7 @@
 
 use crate::error::{InterpreterError, TagsError};
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
-use itertools::{
-    FoldWhile::{Continue, Done},
-    Itertools, Position,
-};
+use itertools::{FoldWhile::Done, Itertools};
 use libipld::{
     cid::{
         self,
@@ -28,7 +25,6 @@ use rust_decimal::{
 };
 use std::{
     collections::{BTreeMap, VecDeque},
-    iter,
     rc::Rc,
     str,
 };
@@ -70,7 +66,6 @@ impl<'a> From<&'a Type> for InterfaceType<'a> {
         match typ {
             Type::List(_)
             | Type::Record(_)
-            | Type::Union(_)
             | Type::S8
             | Type::S16
             | Type::S32
@@ -114,17 +109,20 @@ impl Tags {
         Ok(self.0.try_borrow()?)
     }
 
+    #[allow(dead_code)]
     fn push(&mut self, tag: String) -> Result<(), TagsError> {
         self.try_borrow_mut()?.push_front(tag);
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn pop(&self) -> Result<String, TagsError> {
         self.try_borrow_mut()?
             .pop_front()
             .ok_or(TagsError::TagsEmpty)
     }
 
+    #[allow(dead_code)]
     fn empty(&self) -> bool {
         self.borrow().is_empty()
     }
@@ -170,7 +168,6 @@ impl RuntimeVal {
     /// Convert from [Ipld] to [RuntimeVal] with a given [InterfaceType].
     ///
     /// TODOs:
-    ///  * check Unions over lists and tags
     ///  * Enums
     ///  * Structs / Records
     ///  * Results / Options
@@ -181,103 +178,6 @@ impl RuntimeVal {
         // TODO: Configure for recursion.
         stacker::maybe_grow(64 * 1024, 1024 * 1024, || {
             let dyn_type = match ipld {
-                Ipld::Map(mut v)
-                    if matches!(interface_ty.inner(), Some(Type::Union(_))) && v.len() == 1 =>
-                {
-                    let inner =
-                        interface_ty
-                            .inner()
-                            .ok_or_else(|| InterpreterError::TypeMismatch {
-                                expected: "<union>".to_string(),
-                                given: interface_ty.inner().map(|t| format!("{t:#?}")),
-                            })?;
-
-                    // already pattern matched against
-                    let union_inst = inner.unwrap_union();
-
-                    let (key, elem) = v.pop_first().ok_or_else(|| {
-                        InterpreterError::MapType(
-                            "IPLD map must contain at least one discriminant".to_string(),
-                        )
-                    })?;
-
-                    let (discriminant, mut tags) = union_inst
-                        .types()
-                        .zip(iter::repeat(elem))
-                        .enumerate()
-                        .with_position()
-                        .fold_while(Ok((Ok(Val::Bool(false)), Tags::default())), |acc, pos| {
-                            let is_last = matches!(pos.0, Position::Last | Position::Only);
-                            let (idx, (ty, elem)) = pos.1;
-                            match RuntimeVal::try_from(elem, &InterfaceType::TypeRef(&ty)) {
-                                Ok(RuntimeVal(value, tags)) => {
-                                    if value.ty() == ty {
-                                        Done(Ok((union_inst.new_val(idx as u32, value), tags)))
-                                    } else {
-                                        Continue(acc)
-                                    }
-                                }
-                                Err(err) => {
-                                    if is_last {
-                                        Done(Err(InterpreterError::NoDiscriminantMatched(
-                                            err.to_string(),
-                                        )))
-                                    } else {
-                                        Continue(acc)
-                                    }
-                                }
-                            }
-                        })
-                        .into_inner()?;
-
-                    tags.push(key)?;
-
-                    RuntimeVal::new_with_tags(discriminant?, tags)
-                }
-                v if matches!(interface_ty.inner(), Some(Type::Union(_))) => {
-                    let inner =
-                        interface_ty
-                            .inner()
-                            .ok_or_else(|| InterpreterError::TypeMismatch {
-                                expected: "<union>".to_string(),
-                                given: interface_ty.inner().map(|t| format!("{t:#?}")),
-                            })?;
-
-                    // already pattern matched against
-                    let union_inst = inner.unwrap_union();
-
-                    let discriminant = union_inst
-                        .types()
-                        .zip(iter::repeat(v))
-                        .enumerate()
-                        .with_position()
-                        .fold_while(Ok(Val::Bool(false)), |acc, pos| {
-                            let is_last = matches!(pos.0, Position::Last | Position::Only);
-                            let (idx, (ty, elem)) = pos.1;
-                            match RuntimeVal::try_from(elem, &InterfaceType::TypeRef(&ty)) {
-                                Ok(RuntimeVal(value, _tags)) => {
-                                    if value.ty() == ty {
-                                        Done(union_inst.new_val(idx as u32, value))
-                                    } else {
-                                        Continue(acc)
-                                    }
-                                }
-                                Err(err) => {
-                                    if is_last {
-                                        Done(Err(InterpreterError::NoDiscriminantMatched(
-                                            err.to_string(),
-                                        )
-                                        .into()))
-                                    } else {
-                                        Continue(acc)
-                                    }
-                                }
-                            }
-                        })
-                        .into_inner()?;
-
-                    RuntimeVal::new(discriminant)
-                }
                 Ipld::Null => match interface_ty {
                     InterfaceType::Type(Type::String)
                     | InterfaceType::TypeRef(Type::String)
@@ -375,7 +275,6 @@ impl RuntimeVal {
                     RuntimeVal::new(list_inst.new_val(vec.into_boxed_slice())?)
                 }
                 // Handle edge-casing via Ipld representations.
-                // i.e. true, as [true] as part of a Ipld-schema union.
                 Ipld::List(v) => v
                     .into_iter()
                     .fold_while(Ok(RuntimeVal::new(Val::Bool(false))), |_acc, elem| {
@@ -540,16 +439,6 @@ impl TryFrom<RuntimeVal> for Ipld {
                     }
                     None => Ipld::List(vec![]),
                 },
-                RuntimeVal(Val::Union(u), tags) if !tags.empty() => {
-                    let inner = Ipld::try_from(RuntimeVal::new(u.payload().to_owned()))?;
-
-                    // Keep tag.
-                    let tag = tags.pop()?;
-                    Ipld::from(BTreeMap::from([(tag, inner)]))
-                }
-                RuntimeVal(Val::Union(u), tags) if tags.empty() => {
-                    Ipld::try_from(RuntimeVal::new(u.payload().to_owned()))?
-                }
                 // Rest of Wit types are unhandled going to Ipld.
                 v => Err(InterpreterError::IpldToWit(format!("{v:#?}")))?,
             };
@@ -564,13 +453,10 @@ mod test {
     use super::*;
     use crate::test_utils;
     use libipld::{
-        cbor::DagCborCodec,
         ipld,
         multihash::{Code, MultihashDigest},
-        prelude::Encode,
         DagCbor,
     };
-    use serde_ipld_dagcbor::from_slice;
     use std::collections::BTreeMap;
 
     const RAW: u64 = 0x55;
@@ -918,84 +804,6 @@ mod test {
         );
 
         assert_eq!(Ipld::try_from(runtime).unwrap(), ipld);
-    }
-
-    #[test]
-    fn try_union_roundtrip_keyed() {
-        let mut bytes_kind_b = Vec::new();
-        KeyedUnion::B(2)
-            .encode(DagCborCodec, &mut bytes_kind_b)
-            .unwrap();
-        let ipld_kind_b: Ipld = from_slice(&bytes_kind_b).unwrap();
-
-        let ty = test_utils::component::setup_component("(union bool u16)".to_string(), 8);
-        let unwrapped = ty.unwrap_union();
-
-        let val_union_1 = unwrapped.new_val(1, Val::U16(2)).unwrap();
-        let runtime_1 =
-            RuntimeVal::new_with_tags(val_union_1, Tags::new(vec!["b".to_string()].into()));
-
-        assert_eq!(
-            RuntimeVal::try_from(ipld_kind_b.clone(), &InterfaceType::Type(ty.clone())).unwrap(),
-            runtime_1
-        );
-
-        assert_eq!(Ipld::try_from(runtime_1).unwrap(), ipld_kind_b);
-
-        let val_union_0 = unwrapped.new_val(0, Val::Bool(true)).unwrap();
-        let runtime_0 =
-            RuntimeVal::new_with_tags(val_union_0, Tags::new(vec!["A".to_string()].into()));
-
-        let mut bytes_kind_a = Vec::new();
-        KeyedUnion::A(true)
-            .encode(DagCborCodec, &mut bytes_kind_a)
-            .unwrap();
-        let ipld_kind_a: Ipld = from_slice(&bytes_kind_a).unwrap();
-
-        assert_eq!(
-            RuntimeVal::try_from(ipld_kind_a.clone(), &InterfaceType::Type(ty.clone())).unwrap(),
-            runtime_0
-        );
-
-        assert_eq!(Ipld::try_from(runtime_0).unwrap(), ipld_kind_a);
-    }
-
-    #[test]
-    fn try_union_roundtrip_kinded() {
-        let mut bytes_kind_b = Vec::new();
-        KindedUnion::B(2)
-            .encode(DagCborCodec, &mut bytes_kind_b)
-            .unwrap();
-        let ipld_kind_b: Ipld = from_slice(&bytes_kind_b).unwrap();
-
-        let ty = test_utils::component::setup_component("(union bool u16)".to_string(), 8);
-        let unwrapped = ty.unwrap_union();
-
-        let val_union_1 = unwrapped.new_val(1, Val::U16(2)).unwrap();
-        let runtime_1 = RuntimeVal::new(val_union_1);
-
-        assert_eq!(
-            RuntimeVal::try_from(ipld_kind_b.clone(), &InterfaceType::Type(ty.clone())).unwrap(),
-            runtime_1
-        );
-
-        assert_eq!(Ipld::try_from(runtime_1).unwrap(), ipld_kind_b);
-
-        let val_union_0 = unwrapped.new_val(0, Val::Bool(true)).unwrap();
-        let runtime_0 = RuntimeVal::new(val_union_0);
-
-        let mut bytes_kind_a = Vec::new();
-        KindedUnion::A(true)
-            .encode(DagCborCodec, &mut bytes_kind_a)
-            .unwrap();
-        let ipld_kind_a: Ipld = from_slice(&bytes_kind_a).unwrap();
-
-        assert_eq!(
-            RuntimeVal::try_from(ipld_kind_a.clone(), &InterfaceType::Type(ty.clone())).unwrap(),
-            runtime_0
-        );
-
-        assert_eq!(Ipld::try_from(runtime_0).unwrap(), ipld_kind_a);
     }
 
     #[test]
