@@ -108,11 +108,14 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 identify::Event::Received { peer_id, info } => {
                     debug!(peer_id=peer_id.to_string(), info=?info, "identify info received from peer");
 
+                    let num_addresses = event_handler.swarm.external_addresses().count();
+
                     // don't add an address we already have
                     if !event_handler
                         .swarm
                         .external_addresses()
                         .any(|addr| addr == &info.observed_addr)
+                        && num_addresses < event_handler.external_address_limit
                     {
                         info.observed_addr
                             .iter()
@@ -124,7 +127,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             .all(|proto| !proto.is_private())
                             // identify observed a potentially valid external address that we weren't aware of.
                             // add it to the addresses we announce to other peers
-                            // TODO: have a set of _maybe_ external addresses that we check with other peers first before adding it
+                            // TODO: have a set of _maybe_ external addresses that we validate with other peers first before adding it
                             .then(|| event_handler.swarm.add_external_address(info.observed_addr));
                     }
 

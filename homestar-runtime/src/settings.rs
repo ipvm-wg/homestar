@@ -127,6 +127,8 @@ pub struct Network {
     /// Multiaddrs of the external addresses this node will announce to the network.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
     pub(crate) announce_addresses: Vec<libp2p::Multiaddr>,
+    /// Limit on the number of external addresses we annoucne to other peers.
+    pub(crate) max_announce_addresses: usize,
 }
 
 /// Database-related settings for a homestar node.
@@ -181,6 +183,7 @@ impl Default for Network {
             keypair_config: PubkeyConfig::Random,
             node_addresses: Vec::new(),
             announce_addresses: Vec::new(),
+            max_announce_addresses: 10,
         }
     }
 }
