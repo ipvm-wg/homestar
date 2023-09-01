@@ -263,7 +263,8 @@ where
             if scheduler.ran.as_ref().is_some_and(|ran| !ran.is_empty()) {
                 info!(
                     workflow_cid = self.workflow_info.cid.to_string(),
-                    "no tasks left to run, sending last batch for workflow",
+                    "{} tasks left to run, sending last batch for workflow",
+                    scheduler.ran.as_ref().unwrap().len()
                 );
                 let mut pointers = Vec::new();
                 for batch in scheduler
