@@ -40,7 +40,7 @@ signature = "2.0"
 thiserror = { workspace = true }
 tracing = { workspace = true }
 ucan = { workspace = true }
-url = { version = "2.3", features = ["serde"] }
+url = { version = "2.4", features = ["serde"] }
 uuid = { version = "1.4", default-features = false, features = ["v4", "fast-rng"] }
 xid = "1.0"
 
