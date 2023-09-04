@@ -263,9 +263,9 @@ dependencies = [
 
 [[package]]
 name = "async-once-cell"
-version = "0.4.4"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b49bd4c5b769125ea6323601c39815848972880efd33ffb2d01f9f909adc699"
+checksum = "9338790e78aa95a416786ec8389546c4b6a1dfc3dc36071ed9518a9413a542eb"
 
 [[package]]
 name = "async-recursion"
@@ -7923,9 +7923,9 @@ dependencies = [
 
 [[package]]
 name = "wnfs-common"
-version = "0.1.23"
+version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dfcb4584f3866ead49adae8c05cec6f633139d19283448aa7807280612e24b7"
+checksum = "0e7dd203b73bbbbbf175a8a733ef6aa843f020095f5f4d1e6cd3b7fdce8ba4d8"
 dependencies = [
  "anyhow",
  "async-once-cell",
