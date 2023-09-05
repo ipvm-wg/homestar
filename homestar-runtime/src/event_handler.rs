@@ -13,8 +13,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use fnv::FnvHashMap;
 use libp2p::{
-    core::ConnectedPoint, futures::StreamExt, kad::QueryId, request_response::RequestId,
-    swarm::Swarm, PeerId,
+    core::ConnectedPoint, futures::StreamExt, kad::QueryId, rendezvous::Cookie,
+    request_response::RequestId, swarm::Swarm, PeerId,
 };
 use std::{sync::Arc, time::Duration};
 use swarm_event::ResponseEvent;
@@ -59,7 +59,9 @@ pub(crate) struct EventHandler<DB: Database> {
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, P2PSender)>,
     connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
+    rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
     ws_msg_sender: ws::Notifier,
+    external_address_limit: u32,
 }
 
 /// Event loop handler for [libp2p] network events and commands.
@@ -75,7 +77,9 @@ pub(crate) struct EventHandler<DB: Database> {
     receiver: mpsc::Receiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, P2PSender)>,
     connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
+    rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
+    external_address_limit: u32,
 }
 
 impl<DB> EventHandler<DB>
@@ -106,7 +110,9 @@ where
             query_senders: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
             connected_peers: FnvHashMap::default(),
+            rendezvous_cookies: FnvHashMap::default(),
             ws_msg_sender,
+            external_address_limit: settings.network.max_announce_addresses,
         }
     }
 
@@ -124,7 +130,9 @@ where
             receiver,
             query_senders: FnvHashMap::default(),
             connected_peers: FnvHashMap::default(),
+            rendezvous_cookies: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
+            external_address_limit: settings.network.max_announce_addresses,
         }
     }
 

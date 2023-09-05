@@ -9,10 +9,11 @@ use enum_assoc::Assoc;
 use libp2p::{
     core::upgrade,
     gossipsub::{self, MessageId, SubscriptionError, TopicHash},
+    identify,
     kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
     mdns,
     multiaddr::Protocol,
-    noise,
+    noise, rendezvous,
     request_response::{self, ProtocolSupport},
     swarm::{NetworkBehaviour, Swarm, SwarmBuilder},
     tcp, yamux, StreamProtocol, Transport,
@@ -20,6 +21,8 @@ use libp2p::{
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use tracing::{info, warn};
+
+pub(crate) const HOMESTAR_PROTOCOL_VER: &str = "homestar/0.0.1";
 
 /// Build a new [Swarm] with a given transport and a tokio executor.
 pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> {
@@ -30,7 +33,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         .with_context(|| "Failed to generate/import keypair for libp2p".to_string())?;
 
     let peer_id = keypair.public().to_peer_id();
-    info!(peer_id=?peer_id.to_string(), "local peer ID generated");
+    info!(peer_id = peer_id.to_string(), "local peer ID generated");
 
     let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
         .upgrade(upgrade::Version::V1Lazy)
@@ -42,7 +45,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
     let mut swarm = SwarmBuilder::with_tokio_executor(
         transport,
         ComposedBehaviour {
-            gossipsub: pubsub::new(keypair, settings)?,
+            gossipsub: pubsub::new(keypair.clone(), settings)?,
             kademlia: Kademlia::new(peer_id, MemoryStore::new(peer_id)),
             request_response: request_response::cbor::Behaviour::new(
                 [(
@@ -59,6 +62,14 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
                 },
                 peer_id,
             )?,
+            rendezvous_client: rendezvous::client::Behaviour::new(keypair.clone()),
+            rendezvous_server: rendezvous::server::Behaviour::new(
+                rendezvous::server::Config::default(),
+            ),
+            identify: identify::Behaviour::new(
+                identify::Config::new(HOMESTAR_PROTOCOL_VER.to_string(), keypair.public())
+                    .with_agent_version(format!("homestar-runtime/{}", env!("CARGO_PKG_VERSION"))),
+            ),
         },
         peer_id,
     )
@@ -73,13 +84,24 @@ fn startup(swarm: &mut Swarm<ComposedBehaviour>, settings: &settings::Network) -
     // Listen-on given address
     swarm.listen_on(settings.listen_address.to_string().parse()?)?;
 
+    // add external addresses from settings
+    if settings.announce_addresses.is_empty() {
+        for addr in settings.announce_addresses.iter() {
+            swarm.add_external_address(addr.clone());
+        }
+    } else {
+        warn!(
+            err = "no addresses to announce to peers defined in settings",
+            "node may be unreachable to external peers"
+        )
+    }
+
     // Dial nodes specified in settings. Failure here shouldn't halt node startup.
     for addr in &settings.node_addresses {
-        match swarm.dial(addr.clone()) {
-            Ok(_) => info!(addr=?addr, "successfully dialed configured node"),
+        let _ = swarm
+            .dial(addr.clone())
             // log dial failure and continue
-            Err(e) => warn!(err=?e, "failed to dial configured node"),
-        }
+            .map_err(|e| warn!(err=?e, "failed to dial configured node"));
 
         // add node to kademlia routing table
         if let Some(Protocol::P2p(peer_id)) =
@@ -151,6 +173,12 @@ pub(crate) enum ComposedEvent {
     RequestResponse(request_response::Event<RequestResponseKey, Vec<u8>>),
     /// [mdns::Event] event.
     Mdns(mdns::Event),
+    /// [rendezvous::client::Event] event.
+    RendezvousClient(rendezvous::client::Event),
+    /// [rendezvous::server::Event] event.
+    RendezvousServer(rendezvous::server::Event),
+    /// [identify::Event] event.
+    Identify(identify::Event),
 }
 
 /// Message types to deliver on a topic.
@@ -173,6 +201,12 @@ pub(crate) struct ComposedBehaviour {
     pub(crate) request_response: request_response::cbor::Behaviour<RequestResponseKey, Vec<u8>>,
     /// [mdns::tokio::Behaviour] behaviour.
     pub(crate) mdns: mdns::tokio::Behaviour,
+    /// [rendezvous::client::Behaviour] behaviour.
+    pub(crate) rendezvous_client: rendezvous::client::Behaviour,
+    /// [rendezvous::server::Behaviour] behaviour.
+    pub(crate) rendezvous_server: rendezvous::server::Behaviour,
+    /// [identify::Behaviour] behaviour.
+    pub(crate) identify: identify::Behaviour,
 }
 
 impl ComposedBehaviour {
@@ -226,5 +260,23 @@ impl From<request_response::Event<RequestResponseKey, Vec<u8>>> for ComposedEven
 impl From<mdns::Event> for ComposedEvent {
     fn from(event: mdns::Event) -> Self {
         ComposedEvent::Mdns(event)
+    }
+}
+
+impl From<rendezvous::client::Event> for ComposedEvent {
+    fn from(event: rendezvous::client::Event) -> Self {
+        ComposedEvent::RendezvousClient(event)
+    }
+}
+
+impl From<rendezvous::server::Event> for ComposedEvent {
+    fn from(event: rendezvous::server::Event) -> Self {
+        ComposedEvent::RendezvousServer(event)
+    }
+}
+
+impl From<identify::Event> for ComposedEvent {
+    fn from(event: identify::Event) -> Self {
+        ComposedEvent::Identify(event)
     }
 }

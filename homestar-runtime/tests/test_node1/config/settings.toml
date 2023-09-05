@@ -4,8 +4,9 @@ process_collector_interval = 10
 [node]
 
 [node.network]
-websocket_port = 9090
-trusted_node_addresses = ["/ip4/127.0.0.1/tcp/9091/ws"]
+rpc_port = 3031
+websocket_port = 9091
+node_addresses = ["/ip4/127.0.0.1/tcp/9092/ws"]
 
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "../../fixtures/__testkey_ed25519.pem" }

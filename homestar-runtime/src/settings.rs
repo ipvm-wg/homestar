@@ -119,11 +119,17 @@ pub struct Network {
     ///
     /// [workflow::Info]: crate::workflow::Info
     pub(crate) workflow_quorum: usize,
-    /// Pubkey setup configuration
+    /// Pubkey setup configuration.
     pub(crate) keypair_config: PubkeyConfig,
     /// Multiaddrs of the trusted nodes to connect to on startup.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
     pub(crate) node_addresses: Vec<libp2p::Multiaddr>,
+    /// Multiaddrs of the external addresses this node will announce to the
+    /// network.
+    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+    pub(crate) announce_addresses: Vec<libp2p::Multiaddr>,
+    /// Limit on the number of external addresses we annoucne to other peers.
+    pub(crate) max_announce_addresses: u32,
 }
 
 /// Database-related settings for a homestar node.
@@ -157,7 +163,8 @@ impl Default for Network {
         Self {
             events_buffer_len: 100,
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
-            mdns_enable_ipv6: true,
+            // TODO: we would like to enable this by default, however this breaks mdns on at least some linux distros. Requires further investigation.
+            mdns_enable_ipv6: false,
             mdns_query_interval: Duration::from_secs(5 * 60),
             mdns_ttl: Duration::from_secs(60 * 9),
             p2p_provider_timeout: Duration::new(30, 0),
@@ -176,6 +183,8 @@ impl Default for Network {
             workflow_quorum: 3,
             keypair_config: PubkeyConfig::Random,
             node_addresses: Vec::new(),
+            announce_addresses: Vec::new(),
+            max_announce_addresses: 10,
         }
     }
 }
