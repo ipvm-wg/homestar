@@ -1,5 +1,6 @@
 import { get as getStore } from "svelte/store";
 
+import { base64CatStore } from "../stores";
 import type { Receipt, TaskOperation, TaskStatus, Meta } from "$lib/task";
 
 import {
@@ -420,14 +421,13 @@ function sendEmulated(
   });
 }
 
-const catResponse = await fetch("./spacecat");
-const base64Cat = await catResponse.text();
-
 function sampleReceipt(
   status: TaskStatus,
   workflowId: string,
   op: TaskOperation
 ) {
+  const base64Cat = getStore(base64CatStore)
+
   return {
     metadata: {
       name: workflowId,

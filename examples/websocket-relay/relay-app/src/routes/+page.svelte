@@ -4,7 +4,7 @@
   import Svelvet from "svelvet";
 
   import { connect } from "$lib/channel";
-  import { edgeStore, nodeStore } from "../stores";
+  import { base64CatStore, edgeStore, nodeStore } from "../stores";
   import Controls from "$components/Controls.svelte";
   import Header from "$components/Header.svelte";
   import WorkflowDetail from "$components/WorkflowDetail.svelte";
@@ -31,6 +31,16 @@
   function toggleWorflowModal() {
     showWorkflowModal = !showWorkflowModal;
   }
+
+  async function initializeSpaceCat() {
+    const catResponse = await fetch("./spacecat");
+    const cat = await catResponse.text();
+
+    base64CatStore.set(cat);
+  }
+
+  // Set spacecat unmodified image
+  initializeSpaceCat();
 
   // Connect to websocket server
   connect();
