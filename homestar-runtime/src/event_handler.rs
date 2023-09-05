@@ -61,7 +61,7 @@ pub(crate) struct EventHandler<DB: Database> {
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
     ws_msg_sender: ws::Notifier,
-    external_address_limit: usize,
+    external_address_limit: u32,
 }
 
 /// Event loop handler for [libp2p] network events and commands.
@@ -79,7 +79,7 @@ pub(crate) struct EventHandler<DB: Database> {
     connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
     rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
-    external_address_limit: usize,
+    external_address_limit: u32,
 }
 
 impl<DB> EventHandler<DB>
@@ -132,6 +132,7 @@ where
             connected_peers: FnvHashMap::default(),
             rendezvous_cookies: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
+            external_address_limit: settings.network.max_announce_addresses,
         }
     }
 

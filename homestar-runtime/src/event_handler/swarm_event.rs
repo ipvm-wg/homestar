@@ -110,13 +110,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
                     let num_addresses = event_handler.swarm.external_addresses().count();
 
-                    // don't add an address we already have
-                    if !event_handler
-                        .swarm
-                        .external_addresses()
-                        .any(|addr| addr == &info.observed_addr)
-                        && num_addresses < event_handler.external_address_limit
-                    {
+                    // underlying structure is a hashset, so no worry on dupes
+                    if num_addresses < event_handler.external_address_limit as usize {
                         info.observed_addr
                             .iter()
                             // if _any_ part of the multiaddr includes a private IP, dont add it to our external address list

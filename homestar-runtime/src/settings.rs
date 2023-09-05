@@ -124,11 +124,12 @@ pub struct Network {
     /// Multiaddrs of the trusted nodes to connect to on startup.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
     pub(crate) node_addresses: Vec<libp2p::Multiaddr>,
-    /// Multiaddrs of the external addresses this node will announce to the network.
+    /// Multiaddrs of the external addresses this node will announce to the
+    /// network.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
     pub(crate) announce_addresses: Vec<libp2p::Multiaddr>,
     /// Limit on the number of external addresses we annoucne to other peers.
-    pub(crate) max_announce_addresses: usize,
+    pub(crate) max_announce_addresses: u32,
 }
 
 /// Database-related settings for a homestar node.

@@ -20,13 +20,11 @@ jobs:
         rust-toolchain:
           - stable
           - nightly
-          # minimum version
-          # 1.68 fixes: https://github.com/rust-lang/cargo/pull/11347
-          - 1.68
+          - 1.70.0
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Smarter caching action, speeds up build times compared to regular cache:
       # https://github.com/Swatinem/rust-cache
@@ -91,7 +89,7 @@ jobs:
           run_daemon: true
 
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
@@ -131,7 +129,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
@@ -164,7 +162,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
