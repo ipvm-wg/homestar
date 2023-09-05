@@ -22,7 +22,7 @@ jobs:
           run_daemon: true
 
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Cache Project
         uses: Swatinem/rust-cache@v2

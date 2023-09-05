@@ -1,6 +1,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
-#![deny(unreachable_pub, private_in_public)]
+#![deny(unreachable_pub)]
 
 //! homestar-runtime is a determistic Wasm runtime and effectful workflow/job
 //! system intended to be embedded inside or run alongside IPFS.
