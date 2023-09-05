@@ -7,7 +7,4 @@ export default defineConfig({
     target: "es2022",
   },
   plugins: [sveltekit()],
-  test: {
-    include: ["src/**/*.{test,spec}.{js,ts}"],
-  },
 });
