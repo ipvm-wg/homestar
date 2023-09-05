@@ -18,6 +18,8 @@ fn main() -> Result<()> {
             daemon_dir,
             database_url,
         } => {
+            // Load settings first, so we can daemonize before starting the
+            // runtime.
             let settings = if let Some(file) = runtime_config {
                 Settings::load_from_file(file)
             } else {

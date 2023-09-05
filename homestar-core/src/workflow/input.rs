@@ -134,7 +134,7 @@ where
 ///
 /// [URI]: [url::Url]
 /// [Ability]: super::Ability
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Input<T> {
     /// [Ipld] Literals.
     Ipld(Ipld),
@@ -323,6 +323,14 @@ where
             let resolved_results = future::join_all(futures).await;
             Ipld::List(resolved_results)
         }
+        Ipld::Link(link) => {
+            let mut f = Arc::clone(&lookup_fn);
+            if let Ok(func_ret) = Arc::make_mut(&mut f)(link).await {
+                func_ret.into_inner().into()
+            } else {
+                Ipld::Link(link)
+            }
+        }
         _ => ipld,
     }
 }
@@ -375,5 +383,23 @@ mod test {
 
         assert_eq!(ipld, Ipld::List(vec![Ipld::Bool(true)]));
         assert_eq!(args, ipld.try_into().unwrap());
+    }
+
+    #[test]
+    fn ser_de_ipld() {
+        let input: Input<Unit> = Input::Ipld(Ipld::Bool(true));
+        let ser = serde_json::to_string(&input).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(input, de);
+    }
+
+    #[test]
+    fn ser_de_arg_ipld() {
+        let input: Input<Ipld> = Input::Arg(InstructionResult::Just(Ipld::Bool(false)));
+        let ser = serde_json::to_string(&input).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(input, de);
     }
 }

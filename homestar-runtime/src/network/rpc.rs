@@ -1,10 +1,11 @@
 //! RPC server implementation.
 
 use crate::{
-    channel::{BoundedChannel, BoundedChannelReceiver, BoundedChannelSender},
-    runner::{self, file::ReadWorkflow, response},
+    channel::{AsyncBoundedChannel, AsyncBoundedChannelReceiver, AsyncBoundedChannelSender},
+    runner::{self, file::ReadWorkflow, response, RpcSender},
     settings,
 };
+use faststr::FastStr;
 use futures::{future, StreamExt};
 use std::{io, net::SocketAddr, sync::Arc, time::Duration};
 use stream_cancel::Valved;
@@ -13,19 +14,12 @@ use tarpc::{
     context,
     server::{self, incoming::Incoming, Channel},
 };
-use tokio::{
-    runtime::Handle,
-    select,
-    sync::{mpsc, oneshot},
-    time,
-};
+use tokio::{runtime::Handle, select, sync::oneshot, time};
 use tokio_serde::formats::MessagePack;
 use tracing::{info, warn};
 
 mod error;
 pub use error::Error;
-
-type RunnerSender = Arc<mpsc::Sender<(ServerMessage, Option<oneshot::Sender<ServerMessage>>)>>;
 
 /// Message type for messages sent back from the
 /// websocket server to the [runner] for example.
@@ -41,8 +35,17 @@ pub(crate) enum ServerMessage {
     ///
     /// [Runner]: crate::Runner
     GracefulShutdown(oneshot::Sender<()>),
-    Run((Option<String>, ReadWorkflow)),
-    RunAck(response::AckWorkflow),
+    /// Message sent to start a [Workflow] run by reading a [Workflow] file.
+    ///
+    /// [Workflow]: homestar_core::Workflow
+    Run((Option<FastStr>, ReadWorkflow)),
+    /// Acknowledgement of a [Workflow] run.
+    ///
+    /// [Workflow]: homestar_core::Workflow
+    RunAck(Box<response::AckWorkflow>),
+    /// Error attempting to run a [Workflow].
+    ///
+    /// [Workflow]: homestar_core::Workflow
     RunErr(runner::Error),
     Skip,
 }
@@ -52,9 +55,9 @@ pub(crate) enum ServerMessage {
 pub(crate) trait Interface {
     /// Returns a greeting for name.
     async fn run(
-        name: Option<String>,
+        name: Option<FastStr>,
         workflow_file: ReadWorkflow,
-    ) -> Result<response::AckWorkflow, Error>;
+    ) -> Result<Box<response::AckWorkflow>, Error>;
     /// Ping the server.
     async fn ping() -> String;
     /// Stop the server.
@@ -67,14 +70,13 @@ pub(crate) struct Server {
     /// [SocketAddr] of the RPC server.
     pub(crate) addr: SocketAddr,
     /// Sender for messages to be sent to the RPC server.
-    pub(crate) sender: Arc<BoundedChannelSender<ServerMessage>>,
+    pub(crate) sender: Arc<AsyncBoundedChannelSender<ServerMessage>>,
     /// Receiver for messages sent to the RPC server.
-    pub(crate) receiver: BoundedChannelReceiver<ServerMessage>,
+    pub(crate) receiver: AsyncBoundedChannelReceiver<ServerMessage>,
     /// Sender for messages to be sent to the [Runner].
     ///
     /// [Runner]: crate::Runner
-    pub(crate) runner_sender: RunnerSender,
-
+    pub(crate) runner_sender: Arc<RpcSender>,
     /// Maximum number of connections to the RPC server.
     pub(crate) max_connections: usize,
     /// Timeout for the RPC server.
@@ -94,12 +96,12 @@ pub struct Client {
 #[allow(dead_code)]
 struct ServerHandler {
     addr: SocketAddr,
-    runner_sender: RunnerSender,
+    runner_sender: Arc<RpcSender>,
     timeout: Duration,
 }
 
 impl ServerHandler {
-    fn new(addr: SocketAddr, runner_sender: RunnerSender, timeout: Duration) -> Self {
+    fn new(addr: SocketAddr, runner_sender: Arc<RpcSender>, timeout: Duration) -> Self {
         Self {
             addr,
             runner_sender,
@@ -113,9 +115,9 @@ impl Interface for ServerHandler {
     async fn run(
         self,
         _: context::Context,
-        name: Option<String>,
+        name: Option<FastStr>,
         workflow_file: ReadWorkflow,
-    ) -> Result<response::AckWorkflow, Error> {
+    ) -> Result<Box<response::AckWorkflow>, Error> {
         let (tx, rx) = oneshot::channel();
         self.runner_sender
             .send((ServerMessage::Run((name, workflow_file)), Some(tx)))
@@ -154,8 +156,8 @@ impl Interface for ServerHandler {
 
 impl Server {
     /// Create a new instance of the RPC server.
-    pub(crate) fn new(settings: &settings::Network, runner_sender: RunnerSender) -> Self {
-        let (tx, rx) = BoundedChannel::oneshot();
+    pub(crate) fn new(settings: &settings::Network, runner_sender: Arc<RpcSender>) -> Self {
+        let (tx, rx) = AsyncBoundedChannel::oneshot();
         Self {
             addr: SocketAddr::new(settings.rpc_host, settings.rpc_port),
             sender: tx.into(),
@@ -167,7 +169,7 @@ impl Server {
     }
 
     /// Return a RPC server channel sender.
-    pub(crate) fn sender(&self) -> Arc<BoundedChannelSender<ServerMessage>> {
+    pub(crate) fn sender(&self) -> Arc<AsyncBoundedChannelSender<ServerMessage>> {
         self.sender.clone()
     }
 
@@ -199,13 +201,11 @@ impl Server {
                 .for_each(|_| async {});
 
             select! {
-                biased;
-                Ok(msg) = tokio::task::spawn_blocking(move || self.receiver.recv()) =>
-                    if let Ok(ServerMessage::GracefulShutdown(tx)) = msg {
-                        info!("RPC server shutting down");
-                        drop(exit);
-                        let _ = tx.send(());
-                    },
+                Ok(ServerMessage::GracefulShutdown(tx)) = self.receiver.recv_async() => {
+                    info!("RPC server shutting down");
+                    drop(exit);
+                    let _ = tx.send(());
+                }
                 _ = fut => warn!("RPC server exited unexpectedly"),
             }
         });
@@ -249,9 +249,9 @@ impl Client {
     /// [Workflow]: homestar_core::Workflow
     pub async fn run(
         &self,
-        name: Option<String>,
+        name: Option<FastStr>,
         workflow_file: ReadWorkflow,
-    ) -> Result<Result<response::AckWorkflow, Error>, RpcError> {
+    ) -> Result<Result<Box<response::AckWorkflow>, Error>, RpcError> {
         self.cli.run(self.ctx, name, workflow_file).await
     }
 }

@@ -3,7 +3,7 @@
 use config::{Config, ConfigError, Environment, File};
 use http::Uri;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DisplayFromStr, DurationSeconds};
+use serde_with::{serde_as, DisplayFromStr, DurationMilliSeconds, DurationSeconds};
 use std::{
     net::{IpAddr, Ipv6Addr},
     path::PathBuf,
@@ -16,6 +16,7 @@ pub(crate) use pubkey_config::PubkeyConfig;
 /// Application settings.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Settings {
+    #[serde(default)]
     pub(crate) monitoring: Monitoring,
     pub(crate) node: Node,
 }
@@ -115,6 +116,9 @@ pub struct Network {
     /// Number of *bounded* clients to send messages to, used for a
     /// [tokio::sync::broadcast::channel]
     pub(crate) websocket_capacity: usize,
+    /// Websocket-server timeout for receiving messages from the runner.
+    #[serde_as(as = "DurationMilliSeconds<u64>")]
+    pub(crate) websocket_receiver_timeout: Duration,
     /// Quorum for [workflow::Info] records on the DHT.
     ///
     /// [workflow::Info]: crate::workflow::Info
@@ -149,6 +153,14 @@ pub(crate) struct Database {
     pub(crate) max_pool_size: u32,
 }
 
+impl Default for Monitoring {
+    fn default() -> Self {
+        Self {
+            process_collector_interval: 10,
+        }
+    }
+}
+
 impl Default for Database {
     fn default() -> Self {
         Self {
@@ -161,7 +173,7 @@ impl Default for Database {
 impl Default for Network {
     fn default() -> Self {
         Self {
-            events_buffer_len: 100,
+            events_buffer_len: 1024,
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             // TODO: we would like to enable this by default, however this breaks mdns on at least some linux distros. Requires further investigation.
             mdns_enable_ipv6: false,
@@ -179,7 +191,8 @@ impl Default for Network {
             transport_connection_timeout: Duration::new(20, 0),
             websocket_host: Uri::from_static("127.0.0.1"),
             websocket_port: 1337,
-            websocket_capacity: 100,
+            websocket_capacity: 1024,
+            websocket_receiver_timeout: Duration::from_millis(200),
             workflow_quorum: 3,
             keypair_config: PubkeyConfig::Random,
             node_addresses: Vec::new(),
@@ -225,13 +238,8 @@ impl Settings {
     }
 
     /// Load settings from file string that must conform to a [PathBuf].
-    pub fn load_from_file<F>(file: F) -> Result<Self, ConfigError>
-    where
-        F: AsRef<str>,
-        PathBuf: From<F>,
-    {
-        let path = PathBuf::from(file);
-        Self::build(path)
+    pub fn load_from_file(file: PathBuf) -> Result<Self, ConfigError> {
+        Self::build(file)
     }
 
     fn build(path: PathBuf) -> Result<Self, ConfigError> {

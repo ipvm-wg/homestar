@@ -90,7 +90,12 @@ pub trait Database: Send + Sync + Clone {
 
     /// Test a Sqlite connection to the database and run pending migrations.
     fn setup(url: &str) -> Result<SqliteConnection> {
-        info!("using database at {}", url);
+        info!(
+            subject = "database",
+            category = "homestar_init",
+            "setting up database at {}, running migrations if needed",
+            url
+        );
         let mut connection = SqliteConnection::establish(url)?;
         let _ = connection.run_pending_migrations(MIGRATIONS);
 
@@ -153,7 +158,7 @@ pub trait Database: Send + Sync + Clone {
         })
     }
 
-    /// Find receipt for a given [Instruction] [Pointer], which is indexed.
+    /// Find receipts given a set of [Instruction] [Pointer]s, which is indexed.
     ///
     /// [Instruction]: homestar_core::workflow::Instruction
     fn find_instruction_pointers(
@@ -168,10 +173,34 @@ pub trait Database: Send + Sync + Clone {
     /// Find receipt for a given [Instruction] [Cid], which is indexed.
     ///
     /// [Instruction]: homestar_core::workflow::Instruction
-    fn find_instruction(cid: Cid, conn: &mut Connection) -> Result<Receipt, diesel::result::Error> {
+    fn find_instruction_by_cid(
+        cid: Cid,
+        conn: &mut Connection,
+    ) -> Result<Receipt, diesel::result::Error> {
         schema::receipts::dsl::receipts
             .filter(schema::receipts::instruction.eq(Pointer::new(cid)))
             .first(conn)
+    }
+
+    /// Find a receipt for a given [Cid].
+    fn find_receipt_by_cid(
+        cid: Cid,
+        conn: &mut Connection,
+    ) -> Result<Receipt, diesel::result::Error> {
+        schema::receipts::dsl::receipts
+            .filter(schema::receipts::cid.eq(Pointer::new(cid)))
+            .select(Receipt::as_select())
+            .get_result(conn)
+    }
+
+    /// Find receipts given a batch of [Receipt] [Pointer]s.
+    fn find_receipt_pointers(
+        pointers: &Vec<Pointer>,
+        conn: &mut Connection,
+    ) -> Result<Vec<Receipt>, diesel::result::Error> {
+        schema::receipts::dsl::receipts
+            .filter(schema::receipts::cid.eq_any(pointers))
+            .load(conn)
     }
 
     /// Store localized workflow cid and information, e.g. number of tasks.
@@ -253,10 +282,10 @@ pub trait Database: Send + Sync + Clone {
     }
 
     /// Update the local (view) name of a workflow.
-    fn update_local_name(name: String, conn: &mut Connection) -> Result<(), diesel::result::Error> {
+    fn update_local_name(name: &str, conn: &mut Connection) -> Result<(), diesel::result::Error> {
         diesel::update(schema::workflows::dsl::workflows)
             .filter(schema::workflows::created_at.lt(now))
-            .set(schema::workflows::name.eq(&name))
+            .set(schema::workflows::name.eq(name))
             .execute(conn)?;
 
         Ok(())

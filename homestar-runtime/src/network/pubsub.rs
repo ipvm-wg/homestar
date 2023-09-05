@@ -1,4 +1,6 @@
 //! [gossipsub] initializer for PubSub across connected peers.
+//!
+//! [gossipsub]: libp2p::gossipsub
 
 use crate::settings;
 use anyhow::Result;
@@ -17,6 +19,8 @@ use std::{
 pub(crate) const RECEIPTS_TOPIC: &str = "receipts";
 
 /// Setup [gossipsub] mesh protocol with default configuration.
+///
+/// [gossipsub]: libp2p::gossipsub
 pub(crate) fn new(keypair: Keypair, settings: &settings::Node) -> Result<gossipsub::Behaviour> {
     // To content-address message, we can take the hash of message and use it as an ID.
     let message_id_fn = |message: &Message| {

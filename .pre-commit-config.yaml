@@ -41,6 +41,14 @@ repos:
         entry: alejandra
         files: \.nix$
         language: system
+      - id: taplo
+        name: taplo
+        description: Format toml files.
+        language: system
+        entry: taplo
+        args: ["fmt"]
+        types:
+          - toml
 
   - repo: https://github.com/DevinR528/cargo-sort
     rev: v1.0.9
@@ -67,6 +75,7 @@ repos:
       - id: check-yaml
       - id: check-json
       - id: check-added-large-files
+        args: ['--maxkb=2000']
       - id: detect-private-key
         exclude: __testkey
       - id: check-executables-have-shebangs

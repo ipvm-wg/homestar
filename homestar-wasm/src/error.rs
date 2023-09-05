@@ -44,11 +44,6 @@ pub enum InterpreterError {
     /// [Ipld]: libipld::Ipld
     #[error("{0}")]
     MapType(String),
-    /// Failure to match or find [Wit union] discriminant.
-    ///
-    /// [Wit union]: wasmtime::component::Union
-    #[error("no match within <union>: {0}")]
-    NoDiscriminantMatched(String),
     /// Bubble-up [TagsError] errors while executing the interpreter.
     #[error(transparent)]
     Tags(#[from] TagsError),

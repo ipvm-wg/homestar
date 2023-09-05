@@ -48,3 +48,17 @@ impl From<Error<String>> for InputParseError<Unit> {
         InputParseError::Workflow(err.into())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn ser_de() {
+        let unit = Unit;
+        let ser = serde_json::to_string(&unit).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(unit, de);
+    }
+}

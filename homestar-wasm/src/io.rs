@@ -8,12 +8,13 @@ use homestar_core::workflow::{
     Error as WorkflowError, Input,
 };
 use libipld::{serde::from_ipld, Ipld};
+use serde::{Deserialize, Serialize};
 use std::{collections::btree_map::BTreeMap, fmt};
 use wasmtime;
 
 /// Argument for Wasm execution, which can either be
 /// an [Ipld] structure or a [wasmtime::component::Val].
-#[derive(Clone, Debug, PartialEq, EnumAsInner)]
+#[derive(Clone, Debug, PartialEq, EnumAsInner, Serialize, Deserialize)]
 pub enum Arg {
     /// [Ipld] structure, which can be interpreted into a Wasm [Val].
     ///
@@ -22,6 +23,7 @@ pub enum Arg {
     /// A direct [Wasm value] as argument input.
     ///
     /// [Wasm value]: wasmtime::component::Val
+    #[serde(skip)]
     Value(wasmtime::component::Val),
 }
 

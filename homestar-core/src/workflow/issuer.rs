@@ -72,3 +72,17 @@ where
         Ok(Issuer(Principal::from_str(&s)?))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn ser_de() {
+        let issuer = Issuer::new(Principal::from_str("did:example:alice").unwrap());
+        let ser = serde_json::to_string(&issuer).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(issuer, de);
+    }
+}

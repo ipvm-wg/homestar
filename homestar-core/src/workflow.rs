@@ -179,8 +179,8 @@ mod test {
 
         let json_bytes = workflow.to_json().unwrap();
         let json_string = workflow.to_json_string().unwrap();
-
         let json_val = json::from(json_string.clone());
+
         assert_eq!(json_string, json_val.to_string());
         assert_eq!(json_bytes, json_string.as_bytes());
         let wf_from_json1: Workflow<'_, Unit> = DagJson::from_json(json_string.as_bytes()).unwrap();
@@ -209,5 +209,30 @@ mod test {
         let ipld = Ipld::from(workflow.clone());
         let ipld_to_workflow = ipld.try_into().unwrap();
         assert_eq!(workflow, ipld_to_workflow);
+    }
+
+    #[test]
+    fn ser_de() {
+        let config = Resources::default();
+        let instruction1 = test_utils::workflow::instruction::<Unit>();
+        let (instruction2, _) = test_utils::workflow::wasm_instruction_with_nonce::<Unit>();
+
+        let task1 = Task::new(
+            RunInstruction::Expanded(instruction1),
+            config.clone().into(),
+            UcanPrf::default(),
+        );
+        let task2 = Task::new(
+            RunInstruction::Expanded(instruction2),
+            config.into(),
+            UcanPrf::default(),
+        );
+
+        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+
+        let ser = serde_json::to_string(&workflow).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(workflow, de);
     }
 }

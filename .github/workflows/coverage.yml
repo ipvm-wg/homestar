@@ -19,7 +19,7 @@ jobs:
       - name: Setup IPFS
         uses: ibnesayeed/setup-ipfs@master
         with:
-          run_daemon: true
+          run_daemon: false
 
       - name: Checkout Repository
         uses: actions/checkout@v4

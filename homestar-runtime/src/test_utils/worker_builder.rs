@@ -2,7 +2,8 @@
 
 use super::{db::MemoryDb, event};
 use crate::{
-    db::Database, event_handler::Event, settings, worker::WorkerMessage, workflow, Settings, Worker,
+    channel::AsyncBoundedChannelSender, db::Database, event_handler::Event, settings,
+    worker::WorkerMessage, workflow, Settings, Worker,
 };
 use homestar_core::{
     ipld::DagCbor,
@@ -12,12 +13,11 @@ use homestar_core::{
 };
 use homestar_wasm::io::Arg;
 use libipld::Cid;
-use std::sync::Arc;
 use tokio::sync::mpsc;
 
 pub(crate) struct WorkerBuilder<'a> {
     db: MemoryDb,
-    event_sender: Arc<mpsc::Sender<Event>>,
+    event_sender: AsyncBoundedChannelSender<Event>,
     runner_sender: mpsc::Sender<WorkerMessage>,
     name: Option<String>,
     workflow: Workflow<'a, Arg>,
@@ -48,7 +48,7 @@ impl<'a> WorkerBuilder<'a> {
         let workflow_cid = workflow.clone().to_cid().unwrap();
         Self {
             db: MemoryDb::setup_connection_pool(&settings, None).unwrap(),
-            event_sender: evt_tx.into(),
+            event_sender: evt_tx,
             runner_sender: wk_tx,
             name: Some(workflow_cid.to_string()),
             workflow,
@@ -63,7 +63,7 @@ impl<'a> WorkerBuilder<'a> {
             self.workflow,
             self.workflow_settings,
             self.name,
-            self.event_sender,
+            self.event_sender.into(),
             self.runner_sender,
             self.db,
         )
@@ -102,8 +102,11 @@ impl<'a> WorkerBuilder<'a> {
 
     /// Build a [Worker] with a specific Event [mpsc::Sender].
     #[allow(dead_code)]
-    pub(crate) fn with_event_sender(mut self, event_sender: Arc<mpsc::Sender<Event>>) -> Self {
-        self.event_sender = event_sender;
+    pub(crate) fn with_event_sender(
+        mut self,
+        event_sender: AsyncBoundedChannelSender<Event>,
+    ) -> Self {
+        self.event_sender = event_sender.into();
         self
     }
 

@@ -10,7 +10,6 @@ pub struct Settings {
     pub(crate) retries: u32,
     pub(crate) retry_max_delay: Duration,
     pub(crate) retry_initial_delay: Duration,
-    pub(crate) p2p_check_timeout: Duration,
     pub(crate) p2p_timeout: Duration,
     pub(crate) timeout: Duration,
 }
@@ -22,7 +21,6 @@ impl Default for Settings {
             retries: 10,
             retry_max_delay: Duration::new(60, 0),
             retry_initial_delay: Duration::from_millis(500),
-            p2p_check_timeout: Duration::new(5, 0),
             p2p_timeout: Duration::new(60, 0),
             timeout: Duration::new(3600, 0),
         }
@@ -36,7 +34,6 @@ impl Default for Settings {
             retries: 1,
             retry_max_delay: Duration::new(1, 0),
             retry_initial_delay: Duration::from_millis(50),
-            p2p_check_timeout: Duration::from_millis(10),
             p2p_timeout: Duration::from_millis(10),
             timeout: Duration::from_secs(120),
         }

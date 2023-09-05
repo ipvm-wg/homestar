@@ -35,18 +35,22 @@ libsqlite3-sys = { version = "0.26", features = ["bundled"] }
 once_cell = { version = "1.18", optional = true }
 proptest = { version = "1.2", optional = true }
 rand = { workspace = true }
-serde = { version = "1.0", features = ["derive"] }
+serde = { workspace = true }
 signature = "2.0"
 thiserror = { workspace = true }
 tracing = { workspace = true }
 ucan = { workspace = true }
 url = { version = "2.3", features = ["serde"] }
-uuid = { version = "1.4", default-features = false, features = ["v4", "fast-rng"] }
+uuid = { version = "1.4", default-features = false, features = [
+  "v4",
+  "fast-rng",
+] }
 xid = "1.0"
 
 [dev-dependencies]
 criterion = "0.5"
 json = "0.12"
+serde_json = { version = "1.0" }
 
 [features]
 default = []

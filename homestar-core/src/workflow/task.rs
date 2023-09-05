@@ -247,4 +247,20 @@ mod test {
 
         assert_eq!(task2, ipld2.try_into().unwrap());
     }
+
+    #[test]
+    fn ser_de() {
+        let config = Resources::default();
+        let instruction = test_utils::workflow::instruction::<Unit>();
+        let task = Task::new(
+            RunInstruction::Expanded(instruction.clone()),
+            config.into(),
+            UcanPrf::default(),
+        );
+
+        let ser = serde_json::to_string(&task).unwrap();
+        let de = serde_json::from_str(&ser).unwrap();
+
+        assert_eq!(task, de);
+    }
 }

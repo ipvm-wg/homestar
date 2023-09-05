@@ -251,6 +251,7 @@ conditions.
 
 [apache]: https://www.apache.org/licenses/LICENSE-2.0
 [blog-1]: https://fission.codes/blog/ipfs-thing-breaking-down-ipvm/
+[buildx]: https://docs.docker.com/engine/reference/commandline/buildx/
 [cargo-expand]: https://github.com/dtolnay/cargo-expand
 [cargo-nextest]: https://nexte.st/index.html
 [cargo-nextest-install]: https://nexte.st/book/installation.html

@@ -1,6 +1,3 @@
-[monitoring]
-process_collector_interval = 10
-
 [node]
 
 [node.network]
