@@ -20,9 +20,7 @@ jobs:
         rust-toolchain:
           - stable
           - nightly
-          # minimum version
-          # 1.68 fixes: https://github.com/rust-lang/cargo/pull/11347
-          - 1.68
+          - 1.70.0
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository

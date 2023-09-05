@@ -14,7 +14,7 @@ authors = [
 ]
 edition = "2021"
 license = "Apache"
-rust-version = "1.68"
+rust-version = "1.70.0"
 
 [workspace.dependencies]
 anyhow = { version = "1.0", features = ["backtrace"] }
