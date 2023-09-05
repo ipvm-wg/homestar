@@ -228,7 +228,7 @@ We would be happy to try to answer your question or try opening a new issue on G
 
 - [What Is An IPVM][ipvm-wg]
 - [IPVM: High-Level Spec][ipvm-spec]
-- [Contributing Research]: [research]
+- [Contributing Research][research]
 - [Seamless Services for an Open World][seamless-services] by Brooklyn Zelenka
 - [Foundations for Open-World Compute][foundations-for-openworld-compute] by Zeeshan Lakhani
 - [IPVM: The Long-Fabled Execution Layer][cod-ipvm] by Brooklyn Zelenka
