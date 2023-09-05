@@ -60,7 +60,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
                     MemoryStoreConfig {
                         // TODO: if below a better max, rely on cache-store or
                         // blockstore to fetch result if requested directly.
-                        // 2gb right now
+                        // 2gb at the moment
                         max_value_bytes: 10 * 1024 * 1024,
                         ..Default::default()
                     },
