@@ -30,6 +30,7 @@ processing workflows that chain inputs and outputs using
 
    https://www.loom.com/share/b0f882adc2ea45709d1f3031b5e61e92?sid=29cb403e-c666-4753-82f5-e35bbb710151
 
+Note that IPFS may attempt to upgrade to a new version and produce an error after the update. Delete the `tmp/.ipfs/` directory and restart to reset the IPFS repo state.
 
 [ipfs]: https://ipfs.tech/
 [ipld]: https://ipld.io/
