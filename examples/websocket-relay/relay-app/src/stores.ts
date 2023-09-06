@@ -7,8 +7,8 @@ import type { Workflow, WorkflowId, WorkflowState } from "$lib/workflow";
 import type { Maybe } from "$lib";
 import type { Task } from "$lib/task";
 
-const catResponse = await fetch("./spacecat");
-const base64Cat = await catResponse.text();
+// Initialized in +page.svelte
+export const base64CatStore: Writable<string> = writable("")
 
 export const channelStore: Writable<Maybe<Channel>> = writable(null);
 
@@ -82,9 +82,10 @@ export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
 });
 
 export const nodeStore: Readable<NodeType[]> = derived(
-  taskStore,
-  ($taskStore) => {
-    const workflowOneTasks = $taskStore["one"]
+  [base64CatStore, taskStore],
+  ($stores) => {
+    const [ base64Cat, taskStore ] = $stores
+    const workflowOneTasks = taskStore["one"]
     const workflowOneNodes = workflowOneTasks.reduce((nodes, task, index) => {
       const previous = index !== 0 ? workflowOneTasks[index - 1] : null
 
@@ -116,7 +117,7 @@ export const nodeStore: Readable<NodeType[]> = derived(
       return nodes;
     }, []);
 
-    const workflowTwoTasks = $taskStore["two"]
+    const workflowTwoTasks = taskStore["two"]
     const workflowTwoNodes = workflowTwoTasks.reduce((nodes, task, index) => {
       const previous = index !== 0 ? workflowTwoTasks[index - 1] : null
 
@@ -127,7 +128,7 @@ export const nodeStore: Readable<NodeType[]> = derived(
         const idOffset = 5;
 
         // Check for a matching task in workflow one
-        const matchingOneTask = $taskStore.one.find(
+        const matchingOneTask = taskStore.one.find(
           (t) => t.operation === task.operation
         );
 
