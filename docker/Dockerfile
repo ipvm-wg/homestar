@@ -24,8 +24,9 @@ RUN cargo init --lib homestar-core && \
 
 RUN echo "fn main() {}" > ./homestar-runtime/src/main.rs
 
-RUN mkdir -p ./homestar-runtime/src/test_utils/proc_macro
-RUN mkdir -p ./homestar-runtime/migrations
+RUN mkdir -p ./homestar-runtime/src/test_utils/proc_macro ./homestar-runtime/migrations
+RUN mkdir -p ./examples
+RUN bash -c 'pushd ./examples && cargo init dummy-app && popd'
 
 # copy cargo.*
 COPY Cargo.lock Cargo.toml diesel.toml ./
