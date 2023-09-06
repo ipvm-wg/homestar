@@ -8,7 +8,6 @@
   import CheckCircleIcon from "$components/icons/CheckCircle.svelte";
   import ChevronDownIcon from "$components/icons/ChevronDown.svelte";
   import ChevronUpIcon from "$components/icons/ChevronUp.svelte";
-  import MinusCircleIcon from "$components/icons/MinusCircle.svelte";
   import XCircleIcon from "$components/icons/XCircle.svelte";
   import TaskValue from "$components/controls/TaskValue.svelte";
 
@@ -29,9 +28,7 @@
   <div class="flex flex-cols gap-2 items-center">
     {#if task.status === "waiting"}
       <CircleIcon />
-    {:else if task.status === "replayed"}
-      <MinusCircleIcon />
-    {:else if task.status === "executed"}
+    {:else if task.status === "executed" || task.status === "replayed"}
       <CheckCircleIcon />
     {:else if task.status === "failure"}
       <XCircleIcon />
