@@ -40,6 +40,7 @@
         format-pkgs = with pkgs; [
           nixpkgs-fmt
           alejandra
+          taplo
         ];
 
         cargo-installs = with pkgs; [
