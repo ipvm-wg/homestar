@@ -38,7 +38,9 @@ impl Settings {
 pub struct Monitoring {
     /// Monitoring collection interval.
     #[allow(dead_code)]
-    process_collector_interval: u64,
+    pub process_collector_interval: u64,
+    /// Metrics port for prometheus scraping.
+    pub metrics_port: u16,
 }
 
 /// Server settings.
@@ -156,6 +158,7 @@ pub(crate) struct Database {
 impl Default for Monitoring {
     fn default() -> Self {
         Self {
+            metrics_port: 4000,
             process_collector_interval: 10,
         }
     }

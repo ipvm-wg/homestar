@@ -9,6 +9,7 @@ use crate::{
     channel::{AsyncBoundedChannel, AsyncBoundedChannelReceiver, AsyncBoundedChannelSender},
     db::Database,
     event_handler::{Event, EventHandler},
+    metrics,
     network::{rpc, swarm},
     worker::WorkerMessage,
     workflow, Settings, Worker,
@@ -258,6 +259,10 @@ impl Runner {
         let (rpc_tx, mut rpc_rx) = Self::setup_rpc_channel(message_buffer_len);
         let (runner_worker_tx, mut runner_worker_rx) =
             Self::setup_worker_channel(message_buffer_len);
+
+        #[cfg(feature = "metrics")]
+        self.runtime
+            .block_on(metrics::start(&self.settings.monitoring))?;
 
         let shutdown_timeout = self.settings.node.shutdown_timeout;
         let rpc_server = rpc::Server::new(self.settings.node.network(), rpc_tx.into());
