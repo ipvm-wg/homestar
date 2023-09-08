@@ -2615,7 +2615,6 @@ dependencies = [
  "miette",
  "names",
  "nix 0.27.1",
- "num_cpus",
  "once_cell",
  "openssl",
  "predicates",
