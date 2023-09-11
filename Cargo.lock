@@ -8553,9 +8553,9 @@ dependencies = [
 
 [[package]]
 name = "wnfs-common"
-version = "0.1.24"
+version = "0.1.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e7dd203b73bbbbbf175a8a733ef6aa843f020095f5f4d1e6cd3b7fdce8ba4d8"
+checksum = "b26029429da960a0626100fae5399cb3ba3f302e192ad3e5824bdff5716c6521"
 dependencies = [
  "anyhow",
  "async-once-cell",
