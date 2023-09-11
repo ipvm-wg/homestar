@@ -1,87 +1,90 @@
 //! Node metrics, including system, process, network, and database information
 
-use anyhow::Result;
-use metrics::{describe_gauge, Unit};
+use anyhow::{anyhow, Context, Result};
+use metrics::{describe_counter, describe_gauge, Unit};
 use std::time::Duration;
-use sysinfo::{CpuRefreshKind, Disk, DiskExt, ProcessRefreshKind, RefreshKind, System, SystemExt};
+use sysinfo::{
+    get_current_pid, CpuRefreshKind, Disk, DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind,
+    System, SystemExt,
+};
 use tracing::{info, warn};
 
 /// Create and describe gauges for node metrics.
 pub(crate) fn describe() {
     // System metrics
     describe_gauge!(
-        "system_available_memory",
+        "system_available_memory_bytes",
         Unit::Bytes,
         "The amount of available memory."
     );
     describe_gauge!(
-        "system_used_memory",
+        "system_used_memory_bytes",
         Unit::Bytes,
         "The amount of used memory."
     );
     describe_gauge!(
-        "system_free_swap",
+        "system_free_swap_bytes",
         Unit::Bytes,
         "The amount of free swap space."
     );
     describe_gauge!(
-        "system_used_swap",
+        "system_used_swap_bytes",
         Unit::Bytes,
         "The amount of used swap space."
     );
     describe_gauge!(
-        "system_disk_available_space",
+        "system_disk_available_space_bytes",
         Unit::Bytes,
         "The total amount of available disk space."
     );
-    describe_gauge!("system_uptime", Unit::Seconds, "The total system uptime.");
     describe_gauge!(
-        "system_load_average",
+        "system_uptime_seconds",
+        Unit::Seconds,
+        "The total system uptime."
+    );
+    describe_gauge!(
+        "system_load_average_percentage",
         Unit::Percent,
         "The load average over a five minute interval."
     );
 
-    // describe_gauge!(
-    //     "process_cpu_usage_percentage",
-    //     Unit::Percent,
-    //     "The CPU percentage used."
-    // );
-    // describe_gauge!(
-    //     "process_virtual_memory_bytes",
-    //     Unit::Bytes,
-    //     "The virtual memory size in bytes."
-    // );
-    // describe_gauge!("process_memory_bytes", Unit::Bytes, "Memory size in bytes.");
-    // describe_gauge!(
-    //     "process_disk_total_written_bytes",
-    //     Unit::Bytes,
-    //     "The total bytes written to disk."
-    // );
-    // describe_gauge!(
-    //     "process_disk_written_bytes",
-    //     Unit::Bytes,
-    //     "The bytes written to disk."
-    // );
-    // describe_gauge!(
-    //     "process_disk_total_read_bytes",
-    //     Unit::Bytes,
-    //     "Total bytes Read from disk."
-    // );
-    // describe_gauge!(
-    //     "process_disk_read_bytes",
-    //     Unit::Bytes,
-    //     "The bytes read from disk."
-    // );
-    // describe_gauge!(
-    //     "process_disk_written_bytes",
-    //     Unit::Bytes,
-    //     "The bytes written to disk."
-    // );
-    // describe_gauge!(
-    //     "process_uptime_seconds",
-    //     Unit::Seconds,
-    //     "How much time the process has been running in seconds."
-    // );
+    // Process metrics
+    describe_gauge!(
+        "process_cpu_usage_percentage",
+        Unit::Percent,
+        "The CPU percentage used."
+    );
+    describe_gauge!(
+        "process_virtual_memory_bytes",
+        Unit::Bytes,
+        "The virtual memory size in bytes."
+    );
+    describe_gauge!("process_memory_bytes", Unit::Bytes, "Memory size in bytes.");
+    describe_gauge!(
+        "process_disk_total_written_bytes",
+        Unit::Bytes,
+        "The total bytes written to disk."
+    );
+    describe_gauge!(
+        "process_disk_written_bytes",
+        Unit::Bytes,
+        "The bytes written to disk since last refresh."
+    );
+    describe_gauge!(
+        "process_disk_total_read_bytes",
+        Unit::Bytes,
+        "Total bytes read from disk."
+    );
+    describe_gauge!(
+        "process_disk_read_bytes",
+        Unit::Bytes,
+        "The bytes read from disk since last refresh."
+    );
+    describe_counter!(
+        "process_uptime_seconds",
+        Unit::Seconds,
+        "How much time the process has been running in seconds."
+    );
 }
 
 /// Collect node metrics on a settings-defined interval.
@@ -120,61 +123,54 @@ async fn collect_stats(sys: System) -> Result<()> {
     }
 
     // System metrics
-    metrics::gauge!("system_available_memory", sys.available_memory() as f64);
-    metrics::gauge!("system_used_memory", sys.used_memory() as f64);
-    metrics::gauge!("system_free_swap", sys.free_swap() as f64);
-    metrics::gauge!("system_used_swap", sys.used_swap() as f64);
     metrics::gauge!(
-        "system_disk_available_space",
+        "system_available_memory_bytes",
+        sys.available_memory() as f64
+    );
+    metrics::gauge!("system_used_memory_bytes", sys.used_memory() as f64);
+    metrics::gauge!("system_free_swap_bytes", sys.free_swap() as f64);
+    metrics::gauge!("system_used_swap_bytes", sys.used_swap() as f64);
+    metrics::gauge!(
+        "system_disk_available_space_bytes",
         compute_available_disk_space(sys.disks()) as f64
     );
-    metrics::gauge!("system_uptime", sys.uptime() as f64);
-    metrics::gauge!("system_load_average", sys.load_average().five);
+    metrics::gauge!("system_uptime_seconds", sys.uptime() as f64);
+    metrics::gauge!("system_load_average_percentage", sys.load_average().five);
 
     // Process metrics
-    // let pid = get_current_pid().map_err(|e| anyhow!("no process pid found {}", e))?;
+    let pid = get_current_pid().map_err(|e| anyhow!("no process pid found {}", e))?;
+    let proc = sys.process(pid).context("no process associated with pid")?;
 
-    // let is_process_refreshed = sys.refresh_process(pid);
-    // sys.refresh_cpu();
+    let cpus = sys.physical_core_count().unwrap_or(1);
+    metrics::gauge!(
+        "process_cpu_usage_percentage",
+        f64::from(proc.cpu_usage() / (cpus as f32))
+    );
+    metrics::gauge!(
+        "process_virtual_memory_bytes",
+        (proc.virtual_memory()) as f64
+    );
+    metrics::gauge!("process_memory_bytes", (proc.memory()) as f64);
 
-    // if is_process_refreshed {
-    //     let proc = sys.process(pid).context("no process associated with pid")?;
-    //     let cpus = num_cpus::get();
-    //     let disk = proc.disk_usage();
+    let process_disk_usage = proc.disk_usage();
+    metrics::gauge!(
+        "process_disk_total_written_bytes",
+        process_disk_usage.total_written_bytes as f64,
+    );
+    metrics::gauge!(
+        "process_disk_written_bytes",
+        process_disk_usage.written_bytes as f64
+    );
+    metrics::gauge!(
+        "process_disk_total_read_bytes",
+        process_disk_usage.total_read_bytes as f64,
+    );
+    metrics::gauge!(
+        "process_disk_read_bytes",
+        process_disk_usage.read_bytes as f64
+    );
 
-    //     // cpu-usage divided by # of cores.
-    //     metrics::gauge!(
-    //         "process_cpu_usage_percentage",
-    //         f64::from(sys.global_cpu_info().cpu_usage() / (cpus as f32))
-    //     );
-
-    // The docs for sysinfo indicate that `virtual_memory`
-    // returns in KB, but that is incorrect.
-    // See this issue: https://github.com/GuillaumeGomez/sysinfo/issues/428#issuecomment-774098021
-    // And this PR: https://github.com/GuillaumeGomez/sysinfo/pull/430/files
-    //     metrics::gauge!(
-    //         "process_virtual_memory_bytes",
-    //         (proc.virtual_memory()) as f64
-    //     );
-    //     metrics::gauge!("process_memory_bytes", (proc.memory() * 1_000) as f64);
-    //     metrics::gauge!("process_uptime_seconds", proc.run_time() as f64);
-    //     metrics::gauge!(
-    //         "process_disk_total_written_bytes",
-    //         disk.total_written_bytes as f64,
-    //     );
-    //     metrics::gauge!("process_disk_written_bytes", disk.written_bytes as f64);
-    //     metrics::gauge!(
-    //         "process_disk_total_read_bytes",
-    //         disk.total_read_bytes as f64,
-    //     );
-    //     metrics::gauge!("process_disk_read_bytes", disk.read_bytes as f64);
-    // } else {
-    //     info!(
-    //         subject = "metrics.process_collection",
-    //         category = "metrics",
-    //         "failed to refresh process information, metrics may show old results"
-    //     );
-    // }
+    metrics::gauge!("process_uptime_seconds", proc.run_time() as f64);
 
     Ok(())
 }
@@ -224,7 +220,6 @@ fn log_static_info() {
         "Total swap on machine: {}",
         sys.total_swap(),
     );
-
     info!(
         subject = "metrics",
         category = "homestar_runtime",
