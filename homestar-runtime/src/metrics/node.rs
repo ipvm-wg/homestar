@@ -1,12 +1,14 @@
 //! Node metrics, including system, process, network, and database information
 
+use crate::db::ENV as DATABASE_URL;
 use anyhow::{anyhow, Context, Result};
 use metrics::{describe_counter, describe_gauge, Unit};
-use std::time::Duration;
+use std::{env, time::Duration};
 use sysinfo::{
     get_current_pid, CpuRefreshKind, Disk, DiskExt, NetworkExt, Networks, NetworksExt, ProcessExt,
     ProcessRefreshKind, RefreshKind, System, SystemExt,
 };
+use tokio::fs;
 use tracing::{info, warn};
 
 /// Create and describe gauges for node metrics.
@@ -88,14 +90,21 @@ pub(crate) fn describe() {
 
     // Network metrics
     describe_counter!(
-        "network_transmitted",
+        "network_transmitted_bytes",
         Unit::Bytes,
         "The bytes transmitted since last refresh."
     );
     describe_counter!(
-        "network_received",
+        "network_received_bytes",
         Unit::Bytes,
         "The bytes received since last refresh."
+    );
+
+    // Databsae metrics
+    describe_counter!(
+        "database_size_bytes",
+        Unit::Bytes,
+        "The sqlite database size."
     );
 }
 
@@ -142,6 +151,13 @@ async fn collect_stats(sys: System) -> Result<()> {
         networks
             .iter()
             .fold(0, |acc, interface| acc + interface.1.received())
+    }
+    async fn compute_database_size() -> Option<u64> {
+        let url = env::var(DATABASE_URL).unwrap();
+        match fs::metadata(url).await {
+            Ok(metadata) => Some(metadata.len()),
+            Err(_) => None,
+        }
     }
 
     // System metrics
@@ -197,13 +213,18 @@ async fn collect_stats(sys: System) -> Result<()> {
     // Network metrics
     let networks = sys.networks();
     metrics::gauge!(
-        "network_transmitted",
+        "network_transmitted_bytes",
         compute_network_transmitted(networks) as f64
     );
     metrics::gauge!(
-        "network_received",
+        "network_received_bytes",
         compute_network_received(networks) as f64
     );
+
+    // Database metrics
+    if let Some(database_size) = compute_database_size().await {
+        metrics::gauge!("database_size_bytes", database_size as f64);
+    }
 
     Ok(())
 }

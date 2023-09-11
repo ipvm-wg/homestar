@@ -25,7 +25,7 @@ use tracing::info;
 pub mod schema;
 pub(crate) mod utils;
 
-const ENV: &str = "DATABASE_URL";
+pub(crate) const ENV: &str = "DATABASE_URL";
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
 const PRAGMAS: &str = "
 PRAGMA journal_mode = WAL;          -- better write-concurrency
