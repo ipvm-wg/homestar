@@ -4,8 +4,8 @@ use anyhow::{anyhow, Context, Result};
 use metrics::{describe_counter, describe_gauge, Unit};
 use std::time::Duration;
 use sysinfo::{
-    get_current_pid, CpuRefreshKind, Disk, DiskExt, ProcessExt, ProcessRefreshKind, RefreshKind,
-    System, SystemExt,
+    get_current_pid, CpuRefreshKind, Disk, DiskExt, NetworkExt, Networks, NetworksExt, ProcessExt,
+    ProcessRefreshKind, RefreshKind, System, SystemExt,
 };
 use tracing::{info, warn};
 
@@ -85,6 +85,18 @@ pub(crate) fn describe() {
         Unit::Seconds,
         "How much time the process has been running in seconds."
     );
+
+    // Network metrics
+    describe_counter!(
+        "network_transmitted",
+        Unit::Bytes,
+        "The bytes transmitted since last refresh."
+    );
+    describe_counter!(
+        "network_received",
+        Unit::Bytes,
+        "The bytes received since last refresh."
+    );
 }
 
 /// Collect node metrics on a settings-defined interval.
@@ -120,6 +132,16 @@ async fn collect_stats(sys: System) -> Result<()> {
         disks
             .iter()
             .fold(0, |acc, disk| acc + disk.available_space())
+    }
+    fn compute_network_transmitted(networks: &Networks) -> u64 {
+        networks
+            .iter()
+            .fold(0, |acc, interface| acc + interface.1.transmitted())
+    }
+    fn compute_network_received(networks: &Networks) -> u64 {
+        networks
+            .iter()
+            .fold(0, |acc, interface| acc + interface.1.received())
     }
 
     // System metrics
@@ -171,6 +193,17 @@ async fn collect_stats(sys: System) -> Result<()> {
     );
 
     metrics::gauge!("process_uptime_seconds", proc.run_time() as f64);
+
+    // Network metrics
+    let networks = sys.networks();
+    metrics::gauge!(
+        "network_transmitted",
+        compute_network_transmitted(networks) as f64
+    );
+    metrics::gauge!(
+        "network_received",
+        compute_network_received(networks) as f64
+    );
 
     Ok(())
 }
