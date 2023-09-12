@@ -2,7 +2,7 @@
 members = [
   "examples/*",
   "homestar-core",
-  "homestar-functions",
+  "homestar-functions/*",
   "homestar-runtime",
   "homestar-wasm",
 ]
@@ -75,7 +75,9 @@ debug-assertions = false
 opt-level = 0
 debug-assertions = false
 
-[profile.release.package.homestar-functions]
+# Example: `cargo build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn`
+[profile.release-wasm-fn]
+inherits = "release"
 codegen-units = 1
 # Tell `rustc` to optimize for small code size.
 opt-level = "z" # 'z' to optimize "aggressively" for size

@@ -1,0 +1,17 @@
+[package]
+name = "homestar-functions-add"
+publish = false
+version = "0.1.0"
+edition = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+wit-bindgen = "0.11"
+
+[lib]
+doc = false
+bench = false
+crate-type = ["cdylib"]
+
+[features]
+default = []

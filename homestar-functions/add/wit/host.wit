@@ -1,4 +1,4 @@
-package example:add
+package homestar-functions:add
 
 world add {
   export add-two: func(input: s32) -> s32
