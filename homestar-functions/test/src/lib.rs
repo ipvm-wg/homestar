@@ -1,15 +1,17 @@
-use std::io::Cursor;
-
 wit_bindgen::generate!({
-    path: "wit/test.wit",
     world: "test",
+    exports: {
+        world: Component,
+    }
 });
+
+use std::io::Cursor;
 
 pub struct Component;
 
 type Matrix = Vec<Vec<u16>>;
 
-impl Test for Component {
+impl Guest for Component {
     fn add_one(a: i32) -> i32 {
         a + 1
     }
@@ -83,12 +85,10 @@ impl Test for Component {
     }
 }
 
-export_test!(Component);
-
 #[cfg(test)]
 mod test_mod {
     use super::*;
-    #[cfg(feature = "run_image_tests")]
+    #[cfg(feature = "run-image-tests")]
     use std::path::Path;
 
     #[test]
@@ -112,7 +112,7 @@ mod test_mod {
         assert_eq!(Component::transpose(transposed), matrix);
     }
 
-    #[cfg(feature = "run_image_tests")]
+    #[cfg(feature = "run-image-tests")]
     #[test]
     fn blur() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
@@ -134,7 +134,7 @@ mod test_mod {
             .expect("Failed to write blurred.png to filesystem");
     }
 
-    #[cfg(feature = "run_image_tests")]
+    #[cfg(feature = "run-image-tests")]
     #[test]
     fn crop() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
@@ -156,7 +156,7 @@ mod test_mod {
             .expect("Failed to write cropped.png to filesystem");
     }
 
-    #[cfg(feature = "run_image_tests")]
+    #[cfg(feature = "run-image-tests")]
     #[test]
     fn grayscale() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
@@ -178,7 +178,7 @@ mod test_mod {
             .expect("Failed to write graycat.jpg to filesystem");
     }
 
-    #[cfg(feature = "run_image_tests")]
+    #[cfg(feature = "run-image-tests")]
     #[test]
     fn rotate() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();
@@ -200,7 +200,7 @@ mod test_mod {
             .expect("Failed to write graycat.jpg to filesystem");
     }
 
-    #[cfg(feature = "run_image_tests")]
+    #[cfg(feature = "run-image-tests")]
     #[test]
     fn mixed() {
         let img = image::open(Path::new("./fixtures/synthcat.jpg")).unwrap();

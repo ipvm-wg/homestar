@@ -1,4 +1,4 @@
-package example:test
+package homestar-functions:test
 
 world test {
   export add-one: func(a: s32) -> s32

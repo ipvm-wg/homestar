@@ -2,7 +2,7 @@
 members = [
   "examples/*",
   "homestar-core",
-  "homestar-functions",
+  "homestar-functions/*",
   "homestar-runtime",
   "homestar-wasm",
 ]
@@ -75,7 +75,19 @@ debug-assertions = false
 opt-level = 0
 debug-assertions = false
 
-[profile.release.package.homestar-functions]
+[profile.release.package.homestar-functions-add]
+codegen-units = 1
+# Tell `rustc` to optimize for small code size.
+opt-level = "z" # 'z' to optimize "aggressively" for size
+# Strip debug symbols
+# "symbols" issue: https://github.com/rust-lang/rust/issues/93294
+strip = "symbols"
+# Amount of debug information.
+# 0/false: no debug info at all; 1: line tables only; 2/true: full debug info
+debug = false
+debug-assertions = false
+
+[profile.release.package.homestar-functions-test]
 codegen-units = 1
 # Tell `rustc` to optimize for small code size.
 opt-level = "z" # 'z' to optimize "aggressively" for size
