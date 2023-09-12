@@ -1,5 +1,5 @@
 [monitoring]
-process_collector_interval = 5
+process_collector_interval = 5000
 metrics_port = 4000
 
 [node]

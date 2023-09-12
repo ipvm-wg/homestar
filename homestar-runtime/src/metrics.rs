@@ -1,4 +1,4 @@
-//! Collect metrics and monitoring endpoint for Prometheus
+//! Collect metrics and setup recorder and scrape endpoint.
 
 use crate::settings;
 use anyhow::Result;
