@@ -87,11 +87,6 @@
           cargo doc --document-private-items --open
         '';
 
-        compileWasm = pkgs.writeScriptBin "compile-wasm" ''
-          #!${pkgs.stdenv.shell}
-          cargo build -p homestar-functions --target wasm32-unknown-unknown --release
-        '';
-
         dockerBuild = arch:
           pkgs.writeScriptBin "docker-${arch}" ''
             #!${pkgs.stdenv.shell}
@@ -166,14 +161,14 @@
 
         wasmTest = pkgs.writeScriptBin "wasm-ex-test" ''
           #!${pkgs.stdenv.shell}
-          cargo build -p homestar-functions-test --target wasm32-unknown-unknown --release
+          cargo build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn
           cp target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_test.wasm homestar-wasm/fixtures/example_test.wasm
           wasm-tools component new homestar-wasm/fixtures/example_test.wasm -o homestar-wasm/fixtures/example_test_component.wasm
         '';
 
         wasmAdd = pkgs.writeScriptBin "wasm-ex-add" ''
           #!${pkgs.stdenv.shell}
-          cargo build -p homestar-functions-add --target wasm32-unknown-unknown --release
+          cargo build -p homestar-functions-add --target wasm32-unknown-unknown --profile release-wasm-fn
           cp target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_add.wasm homestar-wasm/fixtures/example_add.wasm
           wasm-tools component new homestar-wasm/fixtures/example_add.wasm -o homestar-wasm/fixtures/example_add_component.wasm
           wasm-tools print homestar-wasm/fixtures/example_add.wasm -o homestar-wasm/fixtures/example_add.wat
@@ -191,7 +186,6 @@
           dbReset
           doc
           docAll
-          compileWasm
           (builtins.map (arch: dockerBuild arch) ["amd64" "arm64"])
           (builtins.map (cmd: xFunc cmd) ["build" "check" "run" "clippy"])
           (builtins.map (cmd: xFuncAll cmd) ["build" "check" "run" "clippy"])
