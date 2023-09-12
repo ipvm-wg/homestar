@@ -75,19 +75,9 @@ debug-assertions = false
 opt-level = 0
 debug-assertions = false
 
-[profile.release.package.homestar-functions-add]
-codegen-units = 1
-# Tell `rustc` to optimize for small code size.
-opt-level = "z" # 'z' to optimize "aggressively" for size
-# Strip debug symbols
-# "symbols" issue: https://github.com/rust-lang/rust/issues/93294
-strip = "symbols"
-# Amount of debug information.
-# 0/false: no debug info at all; 1: line tables only; 2/true: full debug info
-debug = false
-debug-assertions = false
-
-[profile.release.package.homestar-functions-test]
+# Example: `cargo build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn`
+[profile.release-wasm-fn]
+inherits = "release"
 codegen-units = 1
 # Tell `rustc` to optimize for small code size.
 opt-level = "z" # 'z' to optimize "aggressively" for size
