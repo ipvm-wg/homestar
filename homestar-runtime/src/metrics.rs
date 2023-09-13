@@ -7,6 +7,7 @@ use tokio::runtime::Handle;
 mod exporter;
 mod node;
 
+/// Start metrics collection and setup scrape endpoint.
 pub(crate) async fn start(settings: &settings::Monitoring) -> Result<()> {
     let handle = Handle::current();
     exporter::setup_metrics_recorder(settings)?;

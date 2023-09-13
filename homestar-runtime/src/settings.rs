@@ -37,7 +37,6 @@ impl Settings {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Monitoring {
     /// Monitoring collection interval in milliseconds.
-    #[allow(dead_code)]
     pub process_collector_interval: u64,
     /// Metrics port for prometheus scraping.
     pub metrics_port: u16,
