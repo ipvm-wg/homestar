@@ -2,8 +2,23 @@
 
 I can't even begin to describe just how WIP this is at the moment:
 
+Dependency Graph
+
 ```mermaid
-flowchart LR
+flowchart
+    subgraph Services
+        account-system
+        odd-jobs
+        dashboard
+        task-registry
+        ucan-pay
+    end
+
+    subgraph Payment
+        delegated-payment-channels-ucan-or-interlegder
+        settlement-rails
+    end
+
     subgraph Networking
         Receipt-DHT
         pubsub
@@ -26,7 +41,10 @@ flowchart LR
         end
     end
 
-    Wasm_Standard_Library
+    subgraph Wasm
+        deterministic-Wasm-runtime
+        Wasm_Standard_Library
+    end
 
     subgraph Effects
       Effect_Plugin_system
@@ -45,10 +63,6 @@ flowchart LR
         Storage
     end
 
-    subgraph Safety
-      dataflow-checks
-    end
-
     subgraph Trust
         ucan-delegation
         ucan-invocation
@@ -56,19 +70,15 @@ flowchart LR
         attestation
 
         subgraph Optimistic-Verification
-            fair-scheduling
-            verifying
-            adjudicating
-            staking
-            slashing
+            direction LR
+
+            verify
+            adjudicate
+            stake
+            slash
         end
 
         wasm-snarks
-    end
-
-    subgraph Payment
-        delegated-payment-channels-ucan-or-interlegder
-        settlement-rails
     end
 
     subgraph DX
@@ -82,25 +92,48 @@ flowchart LR
         subgraph Packaging
             static-binary
             Docker
-            brew
-            crate
+            Nix
+            Brew
+            Crate-SDK
         end
 
         docs
     end
 
-    subgraph Services
-        account-system
-        odd-jobs
-        dashboard
-        task-registry
-    end
-
     content-handles --> wasm-load
-    ucan-delegation --> ucan-invocation --> attestation --> Optimistic-Verification -.->|ahead of| wasm-snarks
+    wasm-snarks -.->|after| Optimistic-Verification
+    attestation --> ucan-invocation --> ucan-delegation
     block-streaming --> wasm-load
     matchmaking-coordination --> pubsub
 
     matchmaking-coordination --> announce-capabilities
     matchmaking-coordination --> request-tasks
-```
+
+    delegated-payment-channels-ucan-or-interlegder --> settlement-rails
+
+    Crypto --> Randomness_Oracle
+    HTTPS --> DNS
+
+    dashboard --> odd-jobs --> account-system
+    dashboard --> task-registry --> account-system
+
+    odd-jobs --> deterministic-Wasm-runtime
+    odd-jobs --> wasm-load
+    odd-jobs --> scheduling
+
+    ucan-pay --> account-system
+    ucan-pay --> Payment
+
+    Wasm_Standard_Library --> deterministic-Wasm-runtime
+    odd-jobs --> Nix --> static-binary
+    Docker --> static-binary
+    Brew --> static-binary
+    static-binary --> Crate-SDK
+
+    adjudicate --> verify
+    adjudicate --> slash
+    slash --> stake
+    stake --> settlement-rails
+
+    slash --> attestation
+    ```
