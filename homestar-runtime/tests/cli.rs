@@ -1,7 +1,6 @@
 use crate::utils::{kill_homestar_process, startup_ipfs, stop_all_bins};
 use anyhow::Result;
 use assert_cmd::{crate_name, prelude::*};
-#[cfg(not(windows))]
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
 use retry::{delay::Fixed, retry};
