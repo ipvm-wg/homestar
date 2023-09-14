@@ -29,20 +29,26 @@ heck = "0.4"
 homestar-core = { version = "0.1", path = "../homestar-core" }
 itertools = { workspace = true }
 libipld = { workspace = true }
-rust_decimal = "1.32"
+rust_decimal = { version = "1.32", default-features = false }
 serde = { workspace = true }
 stacker = "0.1"
 thiserror = { workspace = true }
 tracing = { workspace = true }
-wasi-common = "11.0"
+wasi-common = { version = "11.0", default-features = false }
 wasmparser = "0.112"
-wasmtime = { version = "12.0", features = [
+wasmtime = { version = "12.0", default-features = false, features = [
   "async",
   "component-model",
-  "default",
+  "cranelift",
+  "parallel-compilation",
+  "pooling-allocator",
+  "vtune",
+  "wat",
 ] }
 wasmtime-component-util = "12.0"
-wasmtime-wasi = { version = "11.0", features = ["tokio"] }
+wasmtime-wasi = { version = "11.0", default-features = false, features = [
+  "tokio",
+] }
 wat = "1.0"
 wit-component = "0.14"
 
@@ -52,7 +58,8 @@ serde_ipld_dagcbor = { workspace = true }
 tokio = { workspace = true }
 
 [features]
-default = []
+default = ["wasmtime/default"]
+dev = []
 
 [package.metadata.docs.rs]
 all-features = true

@@ -35,6 +35,7 @@ jobs:
           shared-key: check-${{ matrix.rust-toolchain }}-${{ matrix.os }}
 
       - name: Use mold-linker
+        if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: rui314/setup-mold@v1
 
       - name: Install Rust Toolchain
@@ -71,13 +72,13 @@ jobs:
       # Only "test" release build on push event.
       - name: Test Release
         if: ${{ matrix.rust-toolchain == 'stable' && github.event_name == 'push' }}
-        run: cargo build --release
+        run: cargo build --workspace --release
 
   run-tests-all-features:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         rust-toolchain:
           - stable
           - nightly
@@ -98,6 +99,7 @@ jobs:
           shared-key: test-all-${{ matrix.rust-toolchain }}-${{ matrix.os }}
 
       - name: Use mold-linker
+        if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: rui314/setup-mold@v1
 
       - name: Install Rust Toolchain
@@ -113,16 +115,16 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run Tests
-        run: cargo nextest run --profile ci --all-features
+        run: cargo nextest run --workspace --profile ci --all-features
 
       - name: Run Doc Tests
-        run: cargo test --doc
+        run: cargo test --doc --workspace
 
   run-tests-no-default-features:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         rust-toolchain:
           - stable
           - nightly
@@ -138,6 +140,7 @@ jobs:
           shared-key: test-0-${{ matrix.rust-toolchain }}-${{ matrix.os }}
 
       - name: Use mold-linker
+        if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: rui314/setup-mold@v1
 
       - name: Install Rust Toolchain
@@ -153,7 +156,7 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run Tests
-        run: cargo nextest run --profile ci --no-default-features --features "test-utils"
+        run: cargo nextest run --workspace --profile ci --no-default-features --features "test-utils"
 
   run-docs:
     runs-on: ubuntu-latest
@@ -178,4 +181,4 @@ jobs:
       - name: Run Doc(s) compilation
         env:
           RUSTDOCFLAGS: -Dwarnings
-        run: cargo doc --document-private-items
+        run: cargo doc --workspace --document-private-items

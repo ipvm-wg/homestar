@@ -6,6 +6,7 @@ members = [
   "homestar-runtime",
   "homestar-wasm",
 ]
+default-members = ["homestar-core", "homestar-runtime", "homestar-wasm"]
 resolver = "2"
 
 [workspace.package]
@@ -28,17 +29,21 @@ chrono = { version = "0.4", default-features = false, features = [
 ] }
 enum-assoc = "1.1"
 enum-as-inner = "0.6"
-faststr = { version = "0.2", features = ["serde"] }
-futures = "0.3"
-humantime = "2.1"
+faststr = { version = "0.2", default-features = false, features = ["serde"] }
+futures = { version = "0.3", default-features = false }
+humantime = { version = "2.1", default-features = false }
 itertools = "0.11"
-libipld = { version = "0.16", features = ["serde-codec"] }
-rand = "0.8"
-serde = { version = "1.0", features = ["derive"] }
-serde_ipld_dagcbor = "0.3"
+libipld = { version = "0.16", default-features = false, features = [
+  "serde-codec",
+] }
+rand = { version = "0.8", default-features = false }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_ipld_dagcbor = { version = "0.3", default-features = false, features = [
+  "std",
+] }
 thiserror = "1.0"
-time = { version = "0.3", features = ["serde"] }
-tokio = { version = "1.32", features = [
+time = { version = "0.3", default-features = false, features = ["serde"] }
+tokio = { version = "1.32", default-features = false, features = [
   "fs",
   "io-util",
   "io-std",
@@ -49,13 +54,17 @@ tokio = { version = "1.32", features = [
   "sync",
   "tracing",
 ] }
-tracing = "0.1"
-ucan = "0.4"
+tracing = { version = "0.1", default-features = false }
+ucan = { version = "0.4", default-features = false }
 ucan-key-support = "0.1"
+
+[profile.dev.package."*"]
+opt-level = 3
 
 # Speedup build on macOS
 # See https://blog.rust-lang.org/2021/03/25/Rust-1.51.0.html#splitting-debug-information
 [profile.dev]
+opt-level = 1
 debug-assertions = true
 split-debuginfo = "unpacked"
 

@@ -50,6 +50,7 @@
           cargo-outdated
           cargo-sort
           cargo-spellcheck
+          cargo-unused-features
           cargo-udeps
           cargo-watch
           twiggy
@@ -76,6 +77,21 @@
           diesel database reset
           diesel setup
           diesel migration run
+        '';
+
+        devBuild = pkgs.writeScriptBin "cargo-build-dev" ''
+          #!${pkgs.stdenv.shell}
+          RUSTFLAGS="--cfg tokio_unstable" cargo build --no-default-features --features dev
+        '';
+
+        devCheck = pkgs.writeScriptBin "cargo-check-dev" ''
+          #!${pkgs.stdenv.shell}
+          RUSTFLAGS="--cfg tokio_unstable" cargo build --no-default-features --features dev
+        '';
+
+        devRunServer = pkgs.writeScriptBin "cargo-run-dev" ''
+          #!${pkgs.stdenv.shell}
+          cargo run --no-default-features --features dev -- start -c homestar-runtime/config/settings.toml
         '';
 
         doc = pkgs.writeScriptBin "doc" ''
@@ -185,6 +201,9 @@
           ci
           db
           dbReset
+          devCheck
+          devBuild
+          devRunServer
           doc
           docAll
           (builtins.map (arch: dockerBuild arch) ["amd64" "arm64"])

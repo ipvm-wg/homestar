@@ -18,20 +18,18 @@ RUN cargo init
 RUN rm -Rf src
 
 RUN cargo init --lib homestar-core && \
-    cargo init --lib homestar-functions && \
     cargo init --lib homestar-wasm && \
     cargo init --lib homestar-runtime
 
 RUN echo "fn main() {}" > ./homestar-runtime/src/main.rs
 
-RUN mkdir -p ./homestar-runtime/src/test_utils/proc_macro ./homestar-runtime/migrations
-RUN mkdir -p ./examples
-RUN bash -c 'pushd ./examples && cargo init dummy-app && popd'
+RUN mkdir -p ./homestar-runtime/src/test_utils/proc_macro ./homestar-runtime/migrations ./examples ./homestar-functions
+RUN bash -c 'pushd ./examples && cargo init dummy-app-examples && popd'
+RUN bash -c 'pushd ./homestar-functions && cargo init dummy-app-fns && popd'
 
 # copy cargo.*
 COPY Cargo.lock Cargo.toml diesel.toml ./
 COPY ../homestar-core/Cargo.toml ./homestar-core/
-COPY ../homestar-functions/Cargo.toml ./homestar-functions/
 COPY ../homestar-wasm/Cargo.toml ./homestar-wasm/
 COPY ../homestar-runtime/Cargo.toml ./homestar-runtime/
 COPY ../homestar-runtime/migrations ./homestar-runtime/migrations
@@ -49,10 +47,12 @@ RUN diesel migration run --migration-dir ./homestar-runtime/migrations
 RUN --mount=type=cache,id=cargo,target=$CARGO_HOME/registry \
     --mount=type=cache,id=git,target=$CARGO_HOME/.git \
     --mount=type=cache,id=target,target=./target,sharing=locked \
-    cargo build --workspace --target $CARGO_BUILD_TARGET --release
+    cargo build --target $CARGO_BUILD_TARGET --release
 
-# copy workspace
-COPY . ./
+# copy default-members workspace
+COPY ../homestar-core ./homestar-core
+COPY ../homestar-wasm ./homestar-wasm
+COPY ../homestar-runtime ./homestar-runtime
 
 # final build for release
 RUN cargo build -p homestar-runtime --target $CARGO_BUILD_TARGET --release --offline

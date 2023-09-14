@@ -6,10 +6,12 @@ publish = false
 
 [dependencies]
 clap = "4.3"
-homestar-runtime = { path = "../../homestar-runtime", features = [
-  "ipfs",
-  "websocket-notify",
+homestar-runtime = { path = "../../homestar-runtime", default-features = false, features = [
   "ansi-logs",
+  "ipfs",
+  "monitoring",
+  "wasmtime-default",
+  "websocket-notify",
 ] }
 miette = { version = "5.10", features = ["fancy"] }
 retry = "2.0"

@@ -25,7 +25,7 @@ homestar-wasm/out
 **/fixtures/test_*
 .zed
 result-alejandra
-
+report.json
 
 # ipfs
 .ipfs
