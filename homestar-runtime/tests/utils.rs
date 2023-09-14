@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
-use assert_cmd::{crate_name, prelude::*};
+use assert_cmd::crate_name;
 #[cfg(not(windows))]
+use assert_cmd::prelude::*;
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,
@@ -12,7 +13,9 @@ use std::{
     path::PathBuf,
     process::{Command, Stdio},
 };
-use sysinfo::{PidExt, ProcessExt, SystemExt};
+#[cfg(not(windows))]
+use sysinfo::PidExt;
+use sysinfo::{ProcessExt, SystemExt};
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(crate_name!()));
 const IPFS: &str = "ipfs";

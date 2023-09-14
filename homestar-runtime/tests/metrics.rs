@@ -1,7 +1,6 @@
 use crate::utils::{kill_homestar_process, stop_homestar};
 use anyhow::Result;
 use assert_cmd::crate_name;
-#[cfg(not(windows))]
 use once_cell::sync::Lazy;
 use reqwest::StatusCode;
 use retry::{delay::Fixed, retry, OperationResult};

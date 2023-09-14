@@ -96,12 +96,12 @@
 
         doc = pkgs.writeScriptBin "doc" ''
           #!${pkgs.stdenv.shell}
-          cargo doc --no-deps --document-private-items --open
+          cargo doc --workspace --no-deps --document-private-items --open
         '';
 
         docAll = pkgs.writeScriptBin "doc-all" ''
           #!${pkgs.stdenv.shell}
-          cargo doc --document-private-items --open
+          cargo doc --workspace --document-private-items --open
         '';
 
         dockerBuild = arch:
@@ -119,13 +119,13 @@
         xFuncAll = cmd:
           pkgs.writeScriptBin "x-${cmd}-all" ''
             #!${pkgs.stdenv.shell}
-            cargo watch -c -s "cargo ${cmd} --all-features"
+            cargo watch -c -s "cargo ${cmd} --workspace --all-features"
           '';
 
         xFuncNoDefault = cmd:
           pkgs.writeScriptBin "x-${cmd}-0" ''
             #!${pkgs.stdenv.shell}
-            cargo watch -c -s "cargo ${cmd} --no-default-features"
+            cargo watch -c -s "cargo ${cmd} --workspace --no-default-features"
           '';
 
         xFuncPackage = cmd: crate:
@@ -136,19 +136,19 @@
 
         xFuncTest = pkgs.writeScriptBin "x-test" ''
           #!${pkgs.stdenv.shell}
-          cargo watch -c -s "cargo nextest run --nocapture && cargo test --doc"
+          cargo watch -c -s "cargo nextest run --workspace --nocapture && cargo test --doc"
         '';
 
         xFuncTestAll = pkgs.writeScriptBin "x-test-all" ''
           #!${pkgs.stdenv.shell}
-          cargo watch -c -s "cargo nextest run --all-features --nocapture \
-          && cargo test --doc --all-features"
+          cargo watch -c -s "cargo nextest run --workspace --all-features --nocapture \
+          && cargo test --workspace --doc --all-features"
         '';
 
         xFuncTestNoDefault = pkgs.writeScriptBin "x-test-0" ''
           #!${pkgs.stdenv.shell}
-          cargo watch -c -s "cargo nextest run --no-default-features --nocapture \
-          && cargo test --doc --no-default-features"
+          cargo watch -c -s "cargo nextest run --workspace --no-default-features --nocapture \
+          && cargo test --workspace --doc --no-default-features"
         '';
 
         xFuncTestPackage = crate:
@@ -160,20 +160,20 @@
 
         nxTest = pkgs.writeScriptBin "nx-test" ''
           #!${pkgs.stdenv.shell}
-          cargo nextest run
-          cargo test --doc
+          cargo nextest run --workspace
+          cargo test --workspace --doc
         '';
 
         nxTestAll = pkgs.writeScriptBin "nx-test-all" ''
           #!${pkgs.stdenv.shell}
-          cargo nextest run --all-features --nocapture
-          cargo test --doc --all-features
+          cargo nextest run --workspace --all-features --nocapture
+          cargo test --workspace --doc --all-features
         '';
 
         nxTestNoDefault = pkgs.writeScriptBin "nx-test-0" ''
           #!${pkgs.stdenv.shell}
-          cargo nextest run --no-default-features --nocapture
-          cargo test --doc --no-default-features
+          cargo nextest run --workspace --no-default-features --nocapture
+          cargo test --workspace --doc --no-default-features
         '';
 
         wasmTest = pkgs.writeScriptBin "wasm-ex-test" ''
