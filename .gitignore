@@ -23,6 +23,9 @@ private
 homestar-guest-wasm/out
 homestar-wasm/out
 **/fixtures/test_*
+.zed
+result-alejandra
+
 
 # ipfs
 .ipfs

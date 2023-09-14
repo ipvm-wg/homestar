@@ -17,6 +17,7 @@ rust-version = { workspace = true }
 documentation = "https://docs.rs/homestar"
 repository = "https://github.com/ipvm-wg/homestar"
 authors = { workspace = true }
+autotests = false
 
 [lib]
 path = "src/lib.rs"
@@ -29,6 +30,10 @@ name = "homestar-runtime"
 path = "src/main.rs"
 doc = false
 bench = false
+
+[[test]]
+name = "integration"
+path = "tests/lib.rs"
 
 [dependencies]
 # return to version.workspace = true after the following issue is fixed:
@@ -95,6 +100,9 @@ libp2p = { version = "0.52", default-features = false, features = [
   "websocket",
 ] }
 libsqlite3-sys = { version = "0.26", features = ["bundled"] }
+metrics = { version = "0.21", optional = true }
+# Includes http-listener feature
+metrics-exporter-prometheus = { version = "0.12.1", optional = true }
 miette = { version = "5.10", features = ["fancy"] }
 names = { version = "0.14", default-features = false, optional = true }
 openssl = { version = "0.10", features = ["vendored"] }
@@ -102,7 +110,7 @@ proptest = { version = "1.2", optional = true }
 puffin = { version = "0.16", optional = true }
 puffin_egui = { version = "0.22.0", optional = true }
 rand = "0.8"
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.11", features = ["blocking", "json"] }
 sec1 = { version = "0.7", features = ["pem", "der"] }
 semver = "1.0"
 serde = { workspace = true }
@@ -111,6 +119,7 @@ serde_json = { version = "1.0", optional = true, features = ["raw_value"] }
 serde_with = { version = "3.3", features = ["base64"] }
 stream-cancel = "0.8"
 strum = { version = "0.25", features = ["derive"] }
+sysinfo = { version = "0.29", optional = true }
 tabled = { version = "0.14", features = ["std"] }
 tarpc = { version = "0.33", features = [
   "serde-transport",
@@ -147,18 +156,20 @@ homestar_runtime_proc_macro = { path = "src/test_utils/proc_macro", package = "h
 nix = { version = "0.27", features = ["signal"] }
 once_cell = "1.18"
 predicates = "3.0"
+prometheus-parse = "0.2.4"
 rand = { workspace = true }
 retry = "2.0"
-serial_test = "2.0"
-sysinfo = "0.29"
+serial_test = { version = "2.0", features = ["file_locks"] }
 tokio-tungstenite = "0.20"
 wait-timeout = "0.2"
 
 [features]
-default = ["ipfs", "websocket-notify"]
+default = ["ipfs", "monitoring", "websocket-notify"]
 ansi-logs = ["tracing-logfmt/ansi_logs"]
 console = ["dep:console-subscriber"]
 ipfs = ["dep:ipfs-api", "dep:ipfs-api-backend-hyper"]
+metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
+monitoring = ["metrics", "dep:sysinfo"]
 profile = ["dep:puffin", "dep:puffin_egui"]
 test-utils = ["dep:proptest"]
 websocket-notify = ["websocket-server", "dep:serde_json", "dep:names"]
