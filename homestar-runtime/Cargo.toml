@@ -146,7 +146,6 @@ tarpc = { version = "0.33", default-features = false, features = [
   "tcp",
 ] }
 thiserror = { workspace = true }
-time = { workspace = true }
 tokio = { workspace = true }
 tokio-serde = { version = "0.8", default-features = false, features = [
   "messagepack",

@@ -11,6 +11,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+
 jobs:
   coverage:
     runs-on: ubuntu-latest
@@ -29,6 +35,9 @@ jobs:
         with:
           cache-on-failure: true
           save-if: ${{ github.event_name == 'push' }}
+
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
 
       - name: Use mold-linker
         uses: rui314/setup-mold@v1

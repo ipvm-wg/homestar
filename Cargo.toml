@@ -42,7 +42,6 @@ serde_ipld_dagcbor = { version = "0.3", default-features = false, features = [
   "std",
 ] }
 thiserror = "1.0"
-time = { version = "0.3", default-features = false, features = ["serde"] }
 tokio = { version = "1.32", default-features = false, features = [
   "fs",
   "io-util",
