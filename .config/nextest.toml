@@ -17,4 +17,5 @@ test-group = 'serial'
 
 [[profile.ci.overrides]]
 filter = 'test(/_serial$/)'
+leak-timeout = "500ms"
 test-group = 'serial'

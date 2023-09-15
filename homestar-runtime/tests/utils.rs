@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use assert_cmd::crate_name;
 #[cfg(not(windows))]
 use assert_cmd::prelude::*;
+#[cfg(not(windows))]
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,

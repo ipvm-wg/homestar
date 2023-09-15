@@ -59,6 +59,7 @@ ucan = { version = "0.4", default-features = false }
 ucan-key-support = "0.1"
 
 [profile.dev.package."*"]
+debug-assertions = false
 opt-level = 3
 
 # Speedup build on macOS
