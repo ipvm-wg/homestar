@@ -1,4 +1,4 @@
-use crate::utils::{kill_homestar_process, stop_homestar};
+use crate::utils::stop_homestar;
 use anyhow::Result;
 use assert_cmd::crate_name;
 use once_cell::sync::Lazy;
@@ -8,8 +8,10 @@ use serial_test::file_serial;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
-    thread, time,
+    thread,
+    time::Duration,
 };
+use wait_timeout::ChildExt;
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(crate_name!()));
 const METRICS_URL: &str = "http://localhost:4000";
@@ -46,7 +48,7 @@ fn test_metrics_serial() -> Result<()> {
 
     let _ = stop_homestar();
 
-    Command::new(BIN.as_os_str())
+    let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
         .arg("tests/test_node2/config/settings.toml")
@@ -57,13 +59,22 @@ fn test_metrics_serial() -> Result<()> {
         .unwrap();
 
     let sample1 = sample_metrics();
-    thread::sleep(time::Duration::from_millis(600));
+    thread::sleep(Duration::from_millis(600));
     let sample2 = sample_metrics();
 
     assert_ne!(sample1, sample2);
 
+    if let Ok(None) = homestar_proc.try_wait() {
+        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
+            Some(status) => status.code(),
+            None => {
+                homestar_proc.kill().unwrap();
+                homestar_proc.wait().unwrap().code()
+            }
+        };
+    }
+
     let _ = stop_homestar();
-    let _ = kill_homestar_process();
 
     Ok(())
 }
