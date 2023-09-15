@@ -14,6 +14,8 @@ concurrency:
 env:
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
 
 jobs:
   run-checks:
@@ -28,6 +30,7 @@ jobs:
         include:
           - os: windows-latest
             rustflags: -C target-feature=+crt-static
+
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository
@@ -40,6 +43,10 @@ jobs:
         with:
           cache-on-failure: true
           shared-key: check-${{ matrix.rust-toolchain }}-${{ matrix.os }}
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
 
       - name: Use mold-linker
         if: ${{ matrix.os == 'ubuntu-latest' }}
@@ -92,6 +99,7 @@ jobs:
         include:
           - os: windows-latest
             rustflags: -C target-feature=+crt-static
+
     runs-on: ${{ matrix.os }}
     steps:
       - name: Setup IPFS
@@ -107,6 +115,10 @@ jobs:
         with:
           cache-on-failure: true
           shared-key: test-all-${{ matrix.rust-toolchain }}-${{ matrix.os }}
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
 
       - name: Use mold-linker
         if: ${{ matrix.os == 'ubuntu-latest' }}
@@ -141,6 +153,7 @@ jobs:
         include:
           - os: windows-latest
             rustflags: -C target-feature=+crt-static
+
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository
@@ -151,6 +164,10 @@ jobs:
         with:
           cache-on-failure: true
           shared-key: test-0-${{ matrix.rust-toolchain }}-${{ matrix.os }}
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
 
       - name: Use mold-linker
         if: ${{ matrix.os == 'ubuntu-latest' }}
@@ -184,6 +201,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: doc
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
 
       - name: Use mold-linker
         uses: rui314/setup-mold@v1
