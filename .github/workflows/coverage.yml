@@ -52,13 +52,16 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Generate Code Coverage
-        run: cargo llvm-cov --all-features --workspace --doctests --lcov --output-path lcov.info
+      # Temporary Disable https://github.com/time-rs/time/issues/618,
+      # which is an underlying dep
 
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v3
-        continue-on-error: true
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-          files: lcov.info
+      # - name: Generate Code Coverage
+      #   run: cargo llvm-cov --all-features --workspace --doctests --lcov --output-path lcov.info
+
+      # - name: Upload to codecov.io
+      #   uses: codecov/codecov-action@v3
+      #   continue-on-error: true
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+      #     fail_ci_if_error: false
+      #     files: lcov.info
