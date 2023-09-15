@@ -1,7 +1,8 @@
-use crate::utils::{kill_homestar_process, startup_ipfs, stop_all_bins};
+#[cfg(not(windows))]
+use crate::utils::kill_homestar_process;
+use crate::utils::{startup_ipfs, stop_all_bins};
 use anyhow::Result;
 use assert_cmd::{crate_name, prelude::*};
-#[cfg(not(windows))]
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
 use retry::{delay::Fixed, retry};
@@ -308,7 +309,7 @@ fn test_signal_kill_serial() -> Result<()> {
     #[cfg(feature = "ipfs")]
     let _ = startup_ipfs();
 
-    Command::new(BIN.as_os_str())
+    let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("--db")
         .arg("homestar.db")
@@ -332,7 +333,17 @@ fn test_signal_kill_serial() -> Result<()> {
         .stdout(predicate::str::contains("::1"))
         .stdout(predicate::str::contains("pong"));
 
-    let _ = kill_homestar_process();
+    let _ = Command::new(BIN.as_os_str()).arg("stop").output();
+
+    if let Ok(None) = homestar_proc.try_wait() {
+        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
+            Some(status) => status.code(),
+            None => {
+                homestar_proc.kill().unwrap();
+                homestar_proc.wait().unwrap().code()
+            }
+        };
+    }
 
     Command::new(BIN.as_os_str()).arg("ping").assert().failure();
 
@@ -380,6 +391,18 @@ fn test_server_v4_serial() -> Result<()> {
         .success()
         .stdout(predicate::str::contains("127.0.0.1"))
         .stdout(predicate::str::contains("pong"));
+
+    let _ = Command::new(BIN.as_os_str()).arg("stop").output();
+
+    if let Ok(None) = homestar_proc.try_wait() {
+        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
+            Some(status) => status.code(),
+            None => {
+                homestar_proc.kill().unwrap();
+                homestar_proc.wait().unwrap().code()
+            }
+        };
+    }
 
     let _ = stop_all_bins();
 

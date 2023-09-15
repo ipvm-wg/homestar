@@ -11,11 +11,11 @@ repos:
         entry: cargo fmt
         language: system
         types: [rust]
-        args: ["--", "--check"]
+        args: ["--all", "--", "--check"]
       - id: cargo-check
         name: cargo check
         description: Check the package for errors.
-        entry: cargo check
+        entry: cargo check --workspace
         language: system
         types: [rust]
         pass_filenames: false
@@ -32,7 +32,7 @@ repos:
         description: Check docs for warnings.
         entry: env RUSTDOCFLAGS=-Dwarnings cargo doc
         language: system
-        args: ["--document-private-items"]
+        args: ["--workspace", "--document-private-items"]
         types: [rust]
         pass_filenames: false
 
