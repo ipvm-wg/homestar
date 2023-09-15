@@ -1,4 +1,6 @@
-use crate::utils::{kill_homestar_process, startup_ipfs, stop_all_bins};
+#[cfg(not(windows))]
+use crate::utils::kill_homestar_process;
+use crate::utils::{startup_ipfs, stop_all_bins};
 use anyhow::Result;
 use assert_cmd::{crate_name, prelude::*};
 use once_cell::sync::Lazy;
