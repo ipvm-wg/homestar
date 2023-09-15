@@ -14,11 +14,12 @@ concurrency:
 env:
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: "sccache"
 
 jobs:
   run-checks:
+    env:
+        SCCACHE_GHA_ENABLED: "true"
+        RUSTC_WRAPPER: "sccache"
     strategy:
       fail-fast: false
       matrix:
@@ -45,32 +46,12 @@ jobs:
           shared-key: check-${{ matrix.rust-toolchain }}-${{ matrix.os }}
           save-if: ${{ github.event_name == 'push' }}
 
-      - name: Use mold-linker
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        uses: rui314/setup-mold@v1
-
-      # Check for security advisories
-      - name: Check Advisories
-        if: ${{ matrix.rust-toolchain == 'stable' && matrix.os == 'ubuntu-latest' }}
-        uses: EmbarkStudios/cargo-deny-action@v1
-        with:
-          command: check advisories
-        continue-on-error: true
-
-      # Audit licenses, unreleased crates, and unexpected duplicate versions.
-      - name: Check Bans, Licenses, and Sources
-        if: ${{ matrix.rust-toolchain == 'stable' && matrix.os == 'ubuntu-latest' }}
-        uses: EmbarkStudios/cargo-deny-action@v1
-        with:
-          command: check bans licenses sources
-
       - name: Sccache
         uses: mozilla-actions/sccache-action@v0.0.3
 
-      # Only "test" release build on push event.
-      - name: Test Release
-        if: ${{ matrix.rust-toolchain == 'stable' && github.event_name == 'push' }}
-        run: cargo build --workspace --release
+      - name: Use mold-linker
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        uses: rui314/setup-mold@v1
 
       - name: Install Rust Toolchain
         id: toolchain
@@ -88,7 +69,47 @@ jobs:
       - name: Run Linter
         run: cargo clippy --all -- -D warnings
 
+      # Only "test" release build on push event.
+      - name: Test Release
+        if: ${{ matrix.rust-toolchain == 'stable' && github.event_name == 'push' }}
+        run: cargo build --workspace --release
+
+  run-deny:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: deny-stable-ubuntu-latest
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Use mold-linker
+        uses: rui314/setup-mold@v1
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # Check for security advisories
+      - name: Check Advisories
+        uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          command: check advisories
+        continue-on-error: true
+
+      # Audit licenses, unreleased crates, and unexpected duplicate versions.
+      - name: Check Bans, Licenses, and Sources
+        uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          command: check bans licenses sources
+
   run-tests-all-features:
+    env:
+        SCCACHE_GHA_ENABLED: "true"
+        RUSTC_WRAPPER: "sccache"
     strategy:
       fail-fast: false
       matrix:
@@ -143,6 +164,9 @@ jobs:
         run: cargo test --doc --workspace
 
   run-tests-no-default-features:
+    env:
+        SCCACHE_GHA_ENABLED: "true"
+        RUSTC_WRAPPER: "sccache"
     strategy:
       fail-fast: false
       matrix:
@@ -189,10 +213,10 @@ jobs:
         run: cargo nextest run --workspace --profile ci --no-default-features --features "test-utils"
 
   run-docs:
+    env:
+        SCCACHE_GHA_ENABLED: "true"
+        RUSTC_WRAPPER: "sccache"
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
