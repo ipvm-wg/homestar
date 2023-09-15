@@ -45,28 +45,9 @@ jobs:
           shared-key: check-${{ matrix.rust-toolchain }}-${{ matrix.os }}
           save-if: ${{ github.event_name == 'push' }}
 
-      - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.3
-
       - name: Use mold-linker
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: rui314/setup-mold@v1
-
-      - name: Install Rust Toolchain
-        id: toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          components: rustfmt, clippy
-          toolchain: ${{ matrix.rust-toolchain }}
-
-      - name: Override rust-toolchain.toml
-        run: rustup override set ${{steps.toolchain.outputs.name}}
-
-      - name: Check Format
-        run: cargo fmt --all -- --check
-
-      - name: Run Linter
-        run: cargo clippy --all -- -D warnings
 
       # Check for security advisories
       - name: Check Advisories
@@ -83,10 +64,29 @@ jobs:
         with:
           command: check bans licenses sources
 
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
+
       # Only "test" release build on push event.
       - name: Test Release
         if: ${{ matrix.rust-toolchain == 'stable' && github.event_name == 'push' }}
         run: cargo build --workspace --release
+
+      - name: Install Rust Toolchain
+        id: toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          components: rustfmt, clippy
+          toolchain: ${{ matrix.rust-toolchain }}
+
+      - name: Override rust-toolchain.toml
+        run: rustup override set ${{steps.toolchain.outputs.name}}
+
+      - name: Check Format
+        run: cargo fmt --all -- --check
+
+      - name: Run Linter
+        run: cargo clippy --all -- -D warnings
 
   run-tests-all-features:
     strategy:
