@@ -1,8 +1,21 @@
-# Homestar Roadmap
+# Roadmap
 
-I can't even begin to describe just how WIP this is at the moment:
+## Phase 0: MVP
 
-Dependency Graph
+- Networking with libp2p
+- Wasm DHT (content addressing)
+- Receipt DHT (input addressing)
+- Deterministic Wasm Execution
+- Matchmaking
+- Workflow Coordinator
+
+## Phase 1
+
+## Phase 2
+
+## Phase 3
+
+## Dependency Graph
 
 ```mermaid
 flowchart
