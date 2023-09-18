@@ -6,134 +6,209 @@ Dependency Graph
 
 ```mermaid
 flowchart
-    subgraph Services
-        account-system
-        odd-jobs
-        dashboard
-        task-registry
-        ucan-pay
-    end
-
-    subgraph Payment
-        delegated-payment-channels-ucan-or-interlegder
-        settlement-rails
-    end
-
     subgraph Networking
-        Receipt-DHT
         pubsub
+        car
+        quic
+        webt
+        https
+    end
+    
+    subgraph ca_storage
+        layered_bs
+        pub_obj_store
+        priv_obj_store
+    end
+
+    subgraph task_storage
+        receipt_store
+        task_registry
+        wasm_retrieval
+        host_session_storage
+    end
+
+    subgraph execution
+        wasm_based_plugin_system
+        resource_limits
+        wasm_execution
     end
 
     subgraph scheduling
-        matchmaking-coordination
-        announce-capabilities
-        request-tasks
+        coordinator
+        dag_injector
+        workflow_static_analyser
+        workflow
+        affinity_probe
+        match_maker
     end
 
-    subgraph Data
-        subgraph Host
-            wasm-load[Load Wasm & other data by CID]
-            content-handles
+    subgraph tracking
+        host_logging_metrics_traces
+        workflow_progress_tracker
+    end
+
+    subgraph capabilities
+        ucan
+        did
+    end
+
+    subgraph trust
+        reputation
+        optimistic_verification
+        zk_wasm
+        validator
+        content_handle
+    end
+
+    subgraph payment
+        staking_escrow
+        payment_channels
+        settlement
+        stripe
+        eth
+    end
+
+    subgraph first_party_effects
+        subgraph cryptographic_effects
+            randomness_oracle_fx
+            encryption_fx
+            signature_fx
         end
 
-        subgraph Guest
-            block-streaming[Block streaming API in & out]
+        subgraph networking_effects
+            https_fx
+            dns_fx
+            email_fx
+        end
+
+        subgraph store_effects
+            block_object_reader_fx
+            block_object_writer_fx
+            block_object_reader_fx
+            persistence_fx
         end
     end
 
-    subgraph Wasm
-        deterministic-Wasm-runtime
-        Wasm_Standard_Library
+    subgraph services
+        user_account
+        swarm_federation
+        hosted_bootstrap
+        managed_homestar
+        self_hostable_homestar
     end
 
-    subgraph Effects
-      Effect_Plugin_system
-
-      subgraph first-party-effs
-        HTTPS
-        DNS
-        Randomness_Oracle
-        Crypto[crypto: encryption & signing]
-      end
+    subgraph sdk
+        javascript_sdk
+        python_sdk
+        rust_sdk
     end
 
-    subgraph Dynamic limits
-        Fuel
-        Memory
-        Storage
+    subgraph ui
+        dashboard
+        cli
     end
 
-    subgraph Trust
-        ucan-delegation
-        ucan-invocation
+    pubsub --> car
+    pubsub --> quic
+    pubsub --> webt
+    pubsub --> https
 
-        attestation
+    pub_obj_store --> layered_bs
+    priv_obj_store --> layered_bs
 
-        subgraph Optimistic-Verification
-            direction LR
+    layered_bs --> pubsub
 
-            verify
-            adjudicate
-            stake
-            slash
-        end
+    wasm_retrieval --> ca_storage
+    host_session_storage ----> ca_storage
+    receipt_store --> ca_storage
+    task_registry --> wasm_retrieval
 
-        wasm-snarks
-    end
+    wasm_based_plugin_system --> wasm_execution
+    resource_limits --> wasm_execution
+    wasm_execution --> task_registry
+    wasm_execution --> receipt_store
 
-    subgraph DX
-        subgraph DSLs
-            Rust
-            JS
-            Python
-            others-eg-apache-beam
-        end
+    coordinator --> match_maker
+    coordinator --> dag_injector
+    workflow_static_analyser --> workflow
+    match_maker --> affinity_probe
+    match_maker --> workflow
 
-        subgraph Packaging
-            static-binary
-            Docker
-            Nix
-            Brew
-            Crate-SDK
-        end
+    affinity_probe ---> wasm_based_plugin_system
 
-        docs
-    end
+    host_logging_metrics_traces --> workflow_progress_tracker
+    workflow_progress_tracker --> coordinator
 
-    content-handles --> wasm-load
-    wasm-snarks -.->|after| Optimistic-Verification
-    attestation --> ucan-invocation --> ucan-delegation
-    block-streaming --> wasm-load
-    matchmaking-coordination --> pubsub
+    ucan --> did
 
-    matchmaking-coordination --> announce-capabilities
-    matchmaking-coordination --> request-tasks
+    reputation --> optimistic_verification
+    optimistic_verification --> coordinator
+    optimistic_verification --> content_handle
+    optimistic_verification --> validator
+    validator -.-> receipt_store
 
-    delegated-payment-channels-ucan-or-interlegder --> settlement-rails
+    dag_injector --> workflow_static_analyser
+    dag_injector -...-> content_handle
+    workflow --> ucan
 
-    Crypto --> Randomness_Oracle
-    HTTPS --> DNS
+    optimistic_verification --> payment_channels
 
-    dashboard --> odd-jobs --> account-system
-    dashboard --> task-registry --> account-system
+    payment_channels --> staking_escrow
+    staking_escrow --> settlement
+    settlement --> stripe
+    settlement --> eth
 
-    odd-jobs --> deterministic-Wasm-runtime
-    odd-jobs --> wasm-load
-    odd-jobs --> scheduling
+    first_party_effects -.......-> wasm_based_plugin_system
 
-    ucan-pay --> account-system
-    ucan-pay --> Payment
+    user_account
+    swarm_federation --> self_hostable_homestar
+    swarm_federation --> hosted_bootstrap
+    managed_homestar --> self_hostable_homestar
+        
+    dashboard -.-> javascript_sdk
+    cli --> rust_sdk
+    ui ----> user_account
 
-    Wasm_Standard_Library --> deterministic-Wasm-runtime
-    odd-jobs --> Nix --> static-binary
-    Docker --> static-binary
-    Brew --> static-binary
-    static-binary --> Crate-SDK
+    %% zk_wasm --> resource_limits
+    stripe --> user_account
+```
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    times function run?
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+Trust
 
-    adjudicate --> verify
-    adjudicate --> slash
-    slash --> stake
-    stake --> settlement-rails
-
-    slash --> attestation
-    ```
+Networking Data
