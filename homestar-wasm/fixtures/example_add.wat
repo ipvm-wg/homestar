@@ -10,12 +10,12 @@
   (func (;1;) (type 1) (param i32) (result i32)
     block ;; label = @1
       i32.const 0
-      i32.load8_u offset=1049028
+      i32.load8_u offset=1049029
       br_if 0 (;@1;)
       call 0
       i32.const 0
       i32.const 1
-      i32.store8 offset=1049028
+      i32.store8 offset=1049029
     end
     local.get 0
     i32.const 2
@@ -3431,7 +3431,7 @@
                   return
                 end
                 i32.const 0
-                i32.load8_u offset=1049029
+                i32.load8_u offset=1049028
                 drop
                 local.get 2
                 i32.const 9

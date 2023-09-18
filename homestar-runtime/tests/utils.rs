@@ -106,6 +106,7 @@ pub(crate) fn kill_homestar_process() -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 #[cfg(windows)]
 pub(crate) fn kill_homestar_process() -> Result<()> {
     let system = sysinfo::System::new_all();
