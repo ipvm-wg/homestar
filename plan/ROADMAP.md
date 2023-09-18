@@ -171,6 +171,9 @@ flowchart
 
     %% zk_wasm --> resource_limits
     stripe --> user_account
+
+    https_fx ~~~ block_object_reader_fx
+    randomness_oracle_fx ~~~ https_fx
 ```
     
     
