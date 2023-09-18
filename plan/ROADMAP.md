@@ -7,49 +7,49 @@ Dependency Graph
 ```mermaid
 flowchart
     subgraph Networking
-        pubsub
-        car
-        quic
-        webt
-        https
+        pubsub[PubSub]
+        car[CAR Files]
+        quic[QUIC]
+        webt[WebTransport]
+        https[HTTPS]
     end
     
-    subgraph ca_storage
-        layered_bs
-        pub_obj_store
-        priv_obj_store
+    subgraph ca_storage[Content Addressed Storage]
+        layered_bs[Layered Blockstore]
+        pub_obj_store[Public Object Store]
+        priv_obj_store[Secret Object Store]
     end
 
-    subgraph task_storage
-        receipt_store
-        task_registry
-        wasm_retrieval
-        host_session_storage
+    subgraph task_storage[Task Storage]
+        receipt_store[Receipt Retrieval]
+        task_registry[Task Retrieval]
+        wasm_retrieval[Wasm Retrieval]
+        host_session_storage[Host Session Storage]
     end
 
-    subgraph execution
-        wasm_based_plugin_system
-        resource_limits
-        wasm_execution
+    subgraph execution[Execution]
+        wasm_based_plugin_system[Wasm-based Effects Plugin System]
+        resource_limits[Resource Limits]
+        wasm_execution[Wasm Runtime]
     end
 
-    subgraph scheduling
-        coordinator
-        dag_injector
-        workflow_static_analyser
-        workflow
-        affinity_probe
-        match_maker
+    subgraph scheduling[Scheduling]
+        coordinator[Coordinator]
+        dag_injector[DAG Injector]
+        workflow_static_analyser[Workflow Analyzer]
+        workflow[Workflow]
+        affinity_probe[Affinity Probe]
+        match_maker[Match Maker]
     end
 
-    subgraph tracking
-        host_logging_metrics_traces
-        workflow_progress_tracker
+    subgraph tracking[Tracking]
+        host_logging_metrics_traces[Host: Logging, Metrics, Traces]
+        workflow_progress_tracker[Workflow Progress Tracker]
     end
 
     subgraph capabilities
-        ucan
-        did
+        ucan[UCAN]
+        did[DID]
     end
 
     subgraph trust
