@@ -5,7 +5,7 @@ This directory contains the planning documentation for the Homestar project.
 - 🏛️ [Architecture]
 - 🗺️ [Roadmap]
 
-## Dictionary
+#f# Dictionary
 
 As with most projects, Homestar uses terms in a particular sense. Here's a dictionary to help align what words mean.
 
