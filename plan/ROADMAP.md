@@ -6,18 +6,28 @@ Dependency Graph
 
 ```mermaid
 flowchart
-    subgraph Networking
-        pubsub[PubSub]
+    subgraph networking
+        direction TB
+
         car[CAR Files]
         quic[QUIC]
         webt[WebTransport]
         https[HTTPS]
+    end
+
+    subgraph routing[Content Routing]
+        direction TB
+
+        pubsub[PubSub]
+        receipt-dht[Input Addressed DHT]
+        hash-dht[Content Addressed DHT]
     end
     
     subgraph ca_storage[Content Addressed Storage]
         layered_bs[Layered Blockstore]
         pub_obj_store[Public Object Store]
         priv_obj_store[Secret Object Store]
+        storage_abstraction[Storage Abstraction]
     end
 
     subgraph task_storage[Task Storage]
@@ -108,19 +118,18 @@ flowchart
         cli[CLI]
     end
 
-    pubsub --> car
-    pubsub --> quic
-    pubsub --> webt
-    pubsub --> https
-
     pub_obj_store --> layered_bs
     priv_obj_store --> layered_bs
 
-    layered_bs --> pubsub
+    layered_bs --> routing
 
-    wasm_retrieval --> ca_storage
-    host_session_storage ----> ca_storage
-    receipt_store --> ca_storage
+    receipt_store --> storage_abstraction
+    wasm_retrieval --> storage_abstraction
+    host_session_storage ----> storage_abstraction
+
+    storage_abstraction --> pub_obj_store
+    storage_abstraction --> priv_obj_store
+
     task_registry --> wasm_retrieval
 
     wasm_based_plugin_system --> wasm_execution
@@ -171,6 +180,8 @@ flowchart
 
     %% zk_wasm --> resource_limits
     stripe --> user_account
+
+    routing --> networking
 
     https_fx ~~~ block_object_reader_fx
     randomness_oracle_fx ~~~ https_fx
