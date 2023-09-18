@@ -57,7 +57,7 @@ flowchart
         workflow_progress_tracker[Workflow Progress Tracker]
     end
 
-    subgraph capabilities
+    subgraph capabilities[Capabilities]
         ucan[UCAN]
         did[DID]
     end
@@ -68,7 +68,6 @@ flowchart
         zk_wasm[ZK Wasm]
         validator[Validator]
         adjudicator[Adjudicator]
-        content_handle[Content Handle]
     end
 
     subgraph payment[Payment]
@@ -99,7 +98,7 @@ flowchart
         end
     end
 
-    subgraph services
+    subgraph reliability[Reliability]
         user_account[User Account]
         swarm_federation[Swarm/Federation]
         hosted_bootstrap[Hosted Bootstraps]
@@ -151,13 +150,15 @@ flowchart
     ucan --> did
 
     reputation --> optimistic_verification
+    reputation --> zk_wasm
+
     optimistic_verification --> coordinator
-    optimistic_verification --> content_handle
-    optimistic_verification --> validator
-    validator -.-> receipt_store
+    optimistic_verification --> adjudicator
+    adjudicator --> workflow
+    adjudicator --> validator
+    validator --> receipt_store
 
     dag_injector --> workflow_static_analyser
-    dag_injector -...-> content_handle
     workflow --> ucan
 
     optimistic_verification --> payment_channels
@@ -178,7 +179,6 @@ flowchart
     cli --> rust_sdk
     ui ----> user_account
 
-    %% zk_wasm --> resource_limits
     stripe --> user_account
 
     routing --> networking
