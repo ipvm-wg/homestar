@@ -52,60 +52,60 @@ flowchart
         did[DID]
     end
 
-    subgraph trust
-        reputation
-        optimistic_verification
-        zk_wasm
-        validator
-        content_handle
+    subgraph trust[Trust]
+        reputation[Reputation]
+        optimistic_verification[Optimistic Verification]
+        zk_wasm[ZK Wasm]
+        validator[Validator]
+        adjudicator[Adjudicator]
+        content_handle[Content Handle]
     end
 
-    subgraph payment
-        staking_escrow
-        payment_channels
-        settlement
-        stripe
-        eth
+    subgraph payment[Payment]
+        staking_escrow[Staking/Escrow]
+        payment_channels[Payment Channels]
+        settlement[Settlement]
+        stripe[Stripe]
+        eth[ETH]
     end
 
-    subgraph first_party_effects
-        subgraph cryptographic_effects
-            randomness_oracle_fx
-            encryption_fx
-            signature_fx
+    subgraph first_party_effects[1st Party Effects]
+        subgraph cryptographic_effects[Cryptographic Effects]
+            randomness_oracle_fx[Randomness Oracle]
+            encryption_fx[Encryption Effects]
+            signature_fx[Signature Effects]
         end
 
-        subgraph networking_effects
-            https_fx
-            dns_fx
-            email_fx
+        subgraph networking_effects[Networking Effects]
+            https_fx[HTTPS Get/Put/Patch/Post]
+            dns_fx[DNS Effects]
+            email_fx[Email Effects]
         end
 
-        subgraph store_effects
-            block_object_reader_fx
-            block_object_writer_fx
-            block_object_reader_fx
-            persistence_fx
+        subgraph store_effects[Storeage Effects]
+            block_object_reader_fx[Object Reader Effect]
+            block_object_writer_fx[Object Writer Effect]
+            persistence_fx[Persistence Effect]
         end
     end
 
     subgraph services
-        user_account
-        swarm_federation
-        hosted_bootstrap
-        managed_homestar
-        self_hostable_homestar
+        user_account[User Account]
+        swarm_federation[Swarm/Federation]
+        hosted_bootstrap[Hosted Bootstraps]
+        managed_homestar[Managed Homestar]
+        self_hostable_homestar[Self-Hostable Homestar]
     end
 
-    subgraph sdk
-        javascript_sdk
-        python_sdk
-        rust_sdk
+    subgraph sdk[SDK]
+        javascript_sdk[JavaScript SDK]
+        python_sdk[Python SDK]
+        rust_sdk[Rust SDK]
     end
 
-    subgraph ui
-        dashboard
-        cli
+    subgraph ui[UI]
+        dashboard[Dashboard]
+        cli[CLI]
     end
 
     pubsub --> car
@@ -155,8 +155,8 @@ flowchart
 
     payment_channels --> staking_escrow
     staking_escrow --> settlement
-    settlement --> stripe
     settlement --> eth
+    settlement --> stripe
 
     first_party_effects -.......-> wasm_based_plugin_system
 
@@ -175,43 +175,3 @@ flowchart
     https_fx ~~~ block_object_reader_fx
     randomness_oracle_fx ~~~ https_fx
 ```
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    times function run?
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-Trust
-
-Networking Data
