@@ -212,8 +212,12 @@ The MVP focuses on getting the basics running.
 - Developer Tooling
   - [ ] Rust Task template
   - [ ] JS task template
-- Add Iroh networking support (esp. NAT hole punching)
-- Add IPVM support to Kubo (`kubo run`)
+- Networking
+  - [ ] Iroh NAT traversal
+- Data
+  - [ ] Content handle injection
+  - [ ] Wasm block
+  - [ ] Add IPVM support to Kubo (`kubo run`)
 - Resource limits
 - (Co)effect Plugins
 - Documentation
