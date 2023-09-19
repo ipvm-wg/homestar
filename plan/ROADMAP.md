@@ -96,8 +96,9 @@ flowchart
         end
     end
 
-    subgraph reliability[Reliability]
+    subgraph reliability[UX]
         user_account[User Account]
+        task_registry[Task Registry]
         swarm_federation[Swarm/Federation]
         hosted_bootstrap[Hosted Bootstraps]
         managed_homestar[Managed Homestar]
@@ -178,6 +179,7 @@ flowchart
     ui ----> user_account
 
     stripe --> user_account
+    task_registry --> user_account
 
     routing --> networking
 
