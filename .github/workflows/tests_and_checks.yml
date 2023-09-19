@@ -36,6 +36,10 @@ jobs:
             rust:
               - '**/Cargo.*'
               - '**/src/**'
+              - '**/tests/**'
+              - '**/config/**'
+              - '**/build.rs'
+              - '**/migrations/**'
               - '**/fixtures/**'
             deny:
               - 'deny.toml'

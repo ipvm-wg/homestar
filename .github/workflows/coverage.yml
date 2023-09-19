@@ -34,6 +34,10 @@ jobs:
             rust:
               - '**/Cargo.*'
               - '**/src/**'
+              - '**/tests/**'
+              - '**/config/**'
+              - '**/build.rs'
+              - '**/migrations/**'
               - '**/fixtures/**'
 
   coverage:
