@@ -16,7 +16,37 @@ env:
   RUST_BACKTRACE: short
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      examples: ${{ steps.filter.outputs.examples }}
+      rust: ${{ steps.filter.outputs.rust }}
+      deny: ${{ steps.filter.outputs.deny }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            examples:
+              - 'examples/**'
+            rust:
+              - '**/Cargo.*'
+              - '**/src/**'
+              - '**/tests/**'
+              - '**/config/**'
+              - '**/build.rs'
+              - '**/migrations/**'
+              - '**/fixtures/**'
+            deny:
+              - 'deny.toml'
+
   run-checks:
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.examples == 'true' }}
     env:
         SCCACHE_GHA_ENABLED: "true"
         RUSTC_WRAPPER: "sccache"
@@ -75,6 +105,8 @@ jobs:
         run: cargo build --workspace --release
 
   run-deny:
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.examples == 'true' || needs.changes.outputs.deny == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -107,6 +139,8 @@ jobs:
           command: check bans licenses sources
 
   run-tests-all-features:
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
     env:
         SCCACHE_GHA_ENABLED: "true"
         RUSTC_WRAPPER: "sccache"
@@ -164,6 +198,8 @@ jobs:
         run: cargo test --doc --workspace
 
   run-tests-no-default-features:
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
     env:
         SCCACHE_GHA_ENABLED: "true"
         RUSTC_WRAPPER: "sccache"
@@ -213,6 +249,8 @@ jobs:
         run: cargo nextest run --workspace --profile ci --no-default-features --features "test-utils"
 
   run-docs:
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
     env:
         SCCACHE_GHA_ENABLED: "true"
         RUSTC_WRAPPER: "sccache"

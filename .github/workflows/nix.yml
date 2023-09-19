@@ -12,7 +12,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      nix: ${{ steps.filter.outputs.nix }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            nix:
+              - 'flake.nix'
+              - 'flake.lock'
+
   run-checks:
+    needs: changes
+    if: ${{ needs.changes.outputs.nix == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
