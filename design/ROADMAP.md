@@ -191,4 +191,4 @@ flowchart
 
 <!-- External Links -->
 
-[Homestar Star Map]: https://starmap.site/roadmap/github.com/ipvm-wg/Homestar/issues/321
+[Homestar Starmap]: https://starmap.site/roadmap/github.com/ipvm-wg/Homestar/issues/321
