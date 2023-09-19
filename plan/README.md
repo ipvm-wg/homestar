@@ -17,7 +17,7 @@ As with most projects, Homestar uses terms in a particular sense. Here's a dicti
 
 ```mermaid
 flowchart
-    subgraph networking
+    subgraph networking[Networking]
         direction TB
 
         car[CAR Files]
@@ -112,7 +112,6 @@ flowchart
 
     subgraph reliability[UX]
         user_account[User Account]
-        task_registry[Task Registry]
         swarm_federation[Swarm/Federation]
         hosted_bootstrap[Hosted Bootstraps]
         managed_homestar[Managed Homestar]
@@ -127,6 +126,7 @@ flowchart
 
     subgraph ui[UI]
         dashboard[Dashboard]
+        task_registry[Task Registry]
         cli[CLI]
     end
 
@@ -141,8 +141,6 @@ flowchart
 
     storage_abstraction --> pub_obj_store
     storage_abstraction --> priv_obj_store
-
-    task_registry --> wasm_retrieval
 
     wasm_based_plugin_system --> wasm_execution
     resource_limits --> wasm_execution
@@ -172,6 +170,8 @@ flowchart
     validator --> receipt_store
 
     dag_injector --> workflow_static_analyser
+
+    workflow --> wit_ipld
     workflow --> ucan
 
     optimistic_verification --> payment_channels
@@ -193,10 +193,8 @@ flowchart
     ui ----> user_account
 
     stripe --> user_account
-    task_registry --> user_account
 
     routing --> networking
-    workflow --> wit_ipld
 
     https_fx ~~~ block_object_reader_fx
     randomness_oracle_fx ~~~ https_fx
