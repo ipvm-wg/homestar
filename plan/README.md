@@ -43,7 +43,7 @@ flowchart
 
     subgraph task_storage[Task Storage]
         receipt_store[Receipt Retrieval]
-        task_registry[Task Retrieval]
+        task_store[Task Retrieval]
         wasm_retrieval[Wasm Retrieval]
         host_session_storage[Host Session Storage]
     end
@@ -146,7 +146,7 @@ flowchart
 
     wasm_based_plugin_system --> wasm_execution
     resource_limits --> wasm_execution
-    wasm_execution --> task_registry
+    wasm_execution --> task_store
     wasm_execution --> receipt_store
 
     coordinator --> match_maker
