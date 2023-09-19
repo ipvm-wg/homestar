@@ -3704,7 +3704,7 @@
     (export "__heap_base" (global 2))
     (@producers
       (processed-by "wit-component" "0.14.2")
-      (processed-by "wit-bindgen-rust" "0.11.0")
+      (processed-by "wit-bindgen-rust" "0.12.0")
     )
   )
   (core instance (;0;) (instantiate 0))
