@@ -18,9 +18,28 @@ env:
   RUSTC_WRAPPER: "sccache"
 
 jobs:
-  coverage:
+  changes:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            rust:
+              - '**/Cargo.*'
+              - '**/src/**'
+              - '**/fixtures/**'
 
+  coverage:
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
+    runs-on: ubuntu-latest
     steps:
       - name: Setup IPFS
         uses: ibnesayeed/setup-ipfs@master
