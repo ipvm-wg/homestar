@@ -1,6 +1,6 @@
 # Roadmap
 
-Refer to the [Homestar Star Map] for the latest roadmap.
+Refer to the [Homestar Starmap] for the latest detailed roadmap.
 
 ## High Level Dependencies
 
@@ -191,4 +191,4 @@ flowchart
 
 <!-- External Links -->
 
-[Homestar Star Map]: FIXME
+[Homestar Star Map]: https://starmap.site/roadmap/github.com/ipvm-wg/Homestar/issues/321)https://starmap.site/roadmap/github.com/ipvm-wg/Homestar/issues/321
