@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-clap = "4.3"
+clap = "4.4"
 homestar-runtime = { path = "../../homestar-runtime", default-features = false, features = [
   "ansi-logs",
   "ipfs",
