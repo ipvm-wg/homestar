@@ -45,7 +45,7 @@ wasmtime = { version = "12.0", default-features = false, features = [
   "vtune",
   "wat",
 ] }
-wasmtime-component-util = "12.0"
+wasmtime-component-util = "13.0"
 wasmtime-wasi = { version = "11.0", default-features = false, features = [
   "tokio",
 ] }

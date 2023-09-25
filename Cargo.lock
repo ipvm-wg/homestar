@@ -2459,7 +2459,7 @@ dependencies = [
  "wasi-common",
  "wasmparser 0.113.1",
  "wasmtime 12.0.2",
- "wasmtime-component-util 12.0.2",
+ "wasmtime-component-util 13.0.0",
  "wasmtime-wasi",
  "wat",
  "wit-component",
@@ -7015,6 +7015,12 @@ name = "wasmtime-component-util"
 version = "12.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74f421bc59c753dcd24e39601928a0f2915adf15f40d8ba0066c4cf23f92c9a0"
+
+[[package]]
+name = "wasmtime-component-util"
+version = "13.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21436177bf19f6b60dc0b83ad5872e849892a4a90c3572785e1a28c0e2e1132c"
 
 [[package]]
 name = "wasmtime-cranelift"
