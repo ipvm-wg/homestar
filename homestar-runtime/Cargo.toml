@@ -97,7 +97,7 @@ libp2p = { version = "0.52", default-features = false, features = [
   "noise",
   "cbor",
   "yamux",
-  "websocket",
+  "websocket"
 ] }
 libsqlite3-sys = { version = "0.26", features = ["bundled"] }
 metrics = { version = "0.21", optional = true }

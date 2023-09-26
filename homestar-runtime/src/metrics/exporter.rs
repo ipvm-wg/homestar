@@ -18,6 +18,13 @@ pub(crate) fn setup_metrics_recorder(settings: &settings::Monitoring) -> anyhow:
     #[cfg(feature = "monitoring")]
     node::describe();
 
+    // swarm_events::describe();
+    // homestar_events::describe();
+
+    // let mut registry = Registry::default();
+    // let metrics = Metrics::new(&mut registry);
+    // println!("LIBP2P METRICS {:?}", metrics);
+
     PrometheusBuilder::new()
         .set_buckets_for_metric(
             Matcher::Suffix("_duration_seconds".to_string()),

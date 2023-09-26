@@ -6,6 +6,8 @@ use crate::network::IpfsCli;
 use crate::{
     db::{Connection, Database},
     event_handler::{event::QueryRecord, Event, Handler, RequestResponseError},
+    metrics::MetricsEvent,
+    metrics_record,
     network::swarm::{CapsuleTag, ComposedEvent, RequestResponseKey, HOMESTAR_PROTOCOL_VER},
     receipt::{RECEIPT_TAG, VERSION_KEY},
     workflow,
@@ -92,6 +94,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
     event: SwarmEvent<ComposedEvent, THandlerErr>,
     event_handler: &mut EventHandler<DB>,
 ) {
+    println!("HANDLING SWARM EVENT");
     match event {
         SwarmEvent::Behaviour(ComposedEvent::Identify(identify_event)) => {
             match identify_event {

@@ -18,3 +18,20 @@ pub(crate) async fn start(settings: &settings::Monitoring) -> Result<()> {
 
     Ok(())
 }
+
+pub(crate) enum MetricsEvent {
+    SwarmPeer,
+}
+
+#[macro_export]
+macro_rules! metrics_record {
+    ($category: expr) => {
+        match $category {
+            MetricsEvent::SwarmPeer => println!("swarm event"),
+        }
+    };
+}
+
+fn test() {
+    metrics_record!(MetricsEvent::SwarmPeer)
+}

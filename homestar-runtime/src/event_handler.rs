@@ -195,7 +195,7 @@ where
                 }
                 swarm_event = self.swarm.select_next_some() => {
                     let ipfs_clone = ipfs.clone();
-                        swarm_event.handle_event(&mut self, ipfs_clone).await;
+                    swarm_event.handle_event(&mut self, ipfs_clone).await;
                 }
             }
         }
