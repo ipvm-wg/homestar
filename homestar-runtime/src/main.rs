@@ -30,9 +30,9 @@ fn main() -> Result<()> {
             let _guard = if daemonize {
                 daemon::start(daemon_dir.clone())
                     .expect("runner to be started as a daemon process");
-                FileLogger::init(daemon_dir)
+                FileLogger::init(daemon_dir, &settings.monitoring())
             } else {
-                Logger::init()
+                Logger::init(&settings.monitoring())
             };
 
             info!(

@@ -40,6 +40,8 @@ pub struct Monitoring {
     pub process_collector_interval: u64,
     /// Metrics port for prometheus scraping.
     pub metrics_port: u16,
+    /// Tokio console port.
+    pub console_subscriber_port: u16,
 }
 
 /// Server settings.
@@ -159,6 +161,7 @@ impl Default for Monitoring {
         Self {
             metrics_port: 4000,
             process_collector_interval: 5000,
+            console_subscriber_port: 5555,
         }
     }
 }
