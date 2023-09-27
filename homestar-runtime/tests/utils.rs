@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use assert_cmd::crate_name;
 #[cfg(not(windows))]
 use assert_cmd::prelude::*;
 #[cfg(not(windows))]
@@ -18,9 +17,13 @@ use std::{
 use sysinfo::PidExt;
 use sysinfo::{ProcessExt, SystemExt};
 
-static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(crate_name!()));
+/// Binary name, which is different than the crate name.
+pub(crate) const BIN_NAME: &str = "homestar";
+
+static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const IPFS: &str = "ipfs";
 
+/// Start-up IPFS daemon for tests with the feature turned-on.
 pub(crate) fn startup_ipfs() -> Result<()> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
     println!("starting ipfs daemon...{}", path.to_str().unwrap());
@@ -49,6 +52,7 @@ pub(crate) fn startup_ipfs() -> Result<()> {
     }
 }
 
+/// Stop the Homestar server/binary.
 pub(crate) fn stop_homestar() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("stop")
@@ -60,6 +64,7 @@ pub(crate) fn stop_homestar() -> Result<()> {
     Ok(())
 }
 
+/// Stop the IPFS daemon.
 pub(crate) fn stop_ipfs() -> Result<()> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
     Command::new(IPFS)
@@ -72,6 +77,7 @@ pub(crate) fn stop_ipfs() -> Result<()> {
     Ok(())
 }
 
+/// Stop all binaries.
 pub(crate) fn stop_all_bins() -> Result<()> {
     let _ = stop_ipfs();
     let _ = stop_homestar();
@@ -79,11 +85,12 @@ pub(crate) fn stop_all_bins() -> Result<()> {
     Ok(())
 }
 
+/// Kill the Homestar proc running as a daemon.
 #[cfg(not(windows))]
 pub(crate) fn kill_homestar_process() -> Result<()> {
     let system = sysinfo::System::new_all();
     let pid = system
-        .processes_by_exact_name("homestar-runtime")
+        .processes_by_exact_name(BIN_NAME)
         .collect::<Vec<_>>()
         .first()
         .map(|p| p.pid().as_u32())
@@ -106,12 +113,13 @@ pub(crate) fn kill_homestar_process() -> Result<()> {
     Ok(())
 }
 
+/// Kill the Homestar proc running as a daemon.
 #[allow(dead_code)]
 #[cfg(windows)]
 pub(crate) fn kill_homestar_process() -> Result<()> {
     let system = sysinfo::System::new_all();
     let pid = system
-        .processes_by_exact_name("homestar-runtime.exe")
+        .processes_by_exact_name(format!("{}.exe", BIN_NAME).as_str())
         .collect::<Vec<_>>()
         .first()
         .map(|x| x.pid())

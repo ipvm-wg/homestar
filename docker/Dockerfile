@@ -58,8 +58,8 @@ COPY ../homestar-runtime ./homestar-runtime
 RUN cargo build -p homestar-runtime --target $CARGO_BUILD_TARGET --release --offline
 
 RUN mv ./*.db /etc/
-RUN musl-strip ./target/$CARGO_BUILD_TARGET/release/homestar-runtime
-RUN mv ./target/$CARGO_BUILD_TARGET/release/homestar-runtime /usr/local/bin/homestar-runtime
+RUN musl-strip ./target/$CARGO_BUILD_TARGET/release/homestar
+RUN mv ./target/$CARGO_BUILD_TARGET/release/homestar /usr/local/bin/homestar-runtime
 RUN mv ./homestar-runtime/config /etc/config
 RUN mv $CARGO_HOME/bin/diesel /usr/local/bin/diesel
 RUN chmod +x /usr/local/bin/diesel

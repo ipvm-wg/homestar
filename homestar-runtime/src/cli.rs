@@ -20,7 +20,7 @@ pub(crate) mod show;
 pub(crate) use show::ConsoleTable;
 
 const TMP_DIR: &str = "/tmp";
-const HELP_TEMPLATE: &str = "{about} {version}
+const HELP_TEMPLATE: &str = "{name} {version}
 
 
 USAGE:
@@ -31,7 +31,7 @@ USAGE:
 
 /// CLI arguments.
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None, help_template = HELP_TEMPLATE)]
+#[command(bin_name = "homestar", name = "homestar", author, version, about, long_about = None, help_template = HELP_TEMPLATE)]
 pub struct Cli {
     /// Homestar [Command].
     #[clap(subcommand)]

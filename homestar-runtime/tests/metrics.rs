@@ -1,6 +1,5 @@
-use crate::utils::stop_homestar;
+use crate::utils::{stop_homestar, BIN_NAME};
 use anyhow::Result;
-use assert_cmd::crate_name;
 use once_cell::sync::Lazy;
 use reqwest::StatusCode;
 use retry::{delay::Fixed, retry, OperationResult};
@@ -13,7 +12,7 @@ use std::{
 };
 use wait_timeout::ChildExt;
 
-static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(crate_name!()));
+static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const METRICS_URL: &str = "http://localhost:4000";
 
 #[test]

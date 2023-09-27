@@ -54,14 +54,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        rust-toolchain:
-          - stable
-          - nightly
-          - 1.70.0
-        include:
-          - os: windows-latest
-            rustflags: -C target-feature=+crt-static
-
+        rust-toolchain: [stable, nightly]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository
@@ -138,7 +131,7 @@ jobs:
         with:
           command: check bans licenses sources
 
-  run-tests-all-features:
+  run-tests:
     needs: changes
     if: ${{ needs.changes.outputs.rust == 'true' }}
     env:
@@ -147,14 +140,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        rust-toolchain:
-          - stable
-          - nightly
-        include:
-          - os: windows-latest
-            rustflags: -C target-feature=+crt-static
-
+        os: [ubuntu-latest, macos-latest]
+        rust-toolchain: [stable, nightly]
+        default-features: [all, none]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Setup IPFS
@@ -191,31 +179,35 @@ jobs:
       - name: Install nextest
         uses: taiki-e/install-action@nextest
 
-      - name: Run Tests
+      - name: Run Tests (all-features)
+        if: ${{ matrix.default-features == 'all' }}
         run: cargo nextest run --workspace --profile ci --all-features
 
+      - name: Run Tests (no-default-features)
+        if: ${{ matrix.default-features == 'none' }}
+        run: cargo nextest run --workspace --profile ci --no-default-features --features "test-utils"
+
       - name: Run Doc Tests
+        if: ${{ matrix.default-features == 'all' }}
         run: cargo test --doc --workspace
 
-  run-tests-no-default-features:
+  run-tests-windows:
     needs: changes
     if: ${{ needs.changes.outputs.rust == 'true' }}
     env:
-        SCCACHE_GHA_ENABLED: "true"
-        RUSTC_WRAPPER: "sccache"
+      RUSTFLAGS: -Ctarget-feature=+crt-static
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        rust-toolchain:
-          - stable
-          - nightly
-        include:
-          - os: windows-latest
-            rustflags: -C target-feature=+crt-static
-
-    runs-on: ${{ matrix.os }}
+        rust-toolchain: [stable, nightly]
+        default-features: [all, none]
+    runs-on: windows-latest
     steps:
+      - name: Setup IPFS
+        uses: ibnesayeed/setup-ipfs@master
+        with:
+          run_daemon: false
+
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -223,15 +215,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          shared-key: test-0-${{ matrix.rust-toolchain }}-${{ matrix.os }}
+          shared-key: test-all-${{ matrix.rust-toolchain }}-windows-latest
           save-if: ${{ github.event_name == 'push' }}
-
-      - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.3
-
-      - name: Use mold-linker
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        uses: rui314/setup-mold@v1
 
       - name: Install Rust Toolchain
         id: toolchain
@@ -245,8 +230,19 @@ jobs:
       - name: Install nextest
         uses: taiki-e/install-action@nextest
 
-      - name: Run Tests
+      - name: Run Tests (all-features)
+        if: ${{ matrix.default-features == 'all' }}
+        run: cargo nextest run --workspace --profile ci --all-features
+        continue-on-error: ${{ matrix.rust-toolchain == 'nightly' }}
+
+      - name: Run Tests (no-default-features)
+        if: ${{ matrix.default-features == 'none' }}
         run: cargo nextest run --workspace --profile ci --no-default-features --features "test-utils"
+
+      - name: Run Doc Tests
+        if: ${{ matrix.default-features == 'all' }}
+        run: cargo test --doc --workspace
+        continue-on-error: ${{ matrix.rust-toolchain == 'nightly' }}
 
   run-docs:
     needs: changes

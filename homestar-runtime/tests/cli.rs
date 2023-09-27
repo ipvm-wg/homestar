@@ -1,8 +1,8 @@
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_process;
-use crate::utils::{startup_ipfs, stop_all_bins};
+use crate::utils::{startup_ipfs, stop_all_bins, BIN_NAME};
 use anyhow::Result;
-use assert_cmd::{crate_name, prelude::*};
+use assert_cmd::prelude::*;
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
 use retry::{delay::Fixed, retry};
@@ -15,7 +15,7 @@ use std::{
 };
 use wait_timeout::ChildExt;
 
-static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(crate_name!()));
+static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
 #[test]
 #[file_serial]
@@ -66,7 +66,7 @@ fn test_version_serial() -> Result<()> {
         .success()
         .stdout(predicate::str::contains(format!(
             "{} {}",
-            crate_name!(),
+            BIN_NAME,
             env!("CARGO_PKG_VERSION")
         )));
 
