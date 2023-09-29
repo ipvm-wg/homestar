@@ -1,6 +1,5 @@
 #[cfg(not(windows))]
-use crate::utils::kill_homestar_process;
-use crate::utils::{startup_ipfs, stop_all_bins, BIN_NAME};
+use crate::utils::{kill_homestar, kill_homestar_daemon, startup_ipfs, stop_all_bins, BIN_NAME};
 use anyhow::Result;
 use assert_cmd::prelude::*;
 use once_cell::sync::Lazy;
@@ -11,9 +10,7 @@ use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Command, Stdio},
-    time::Duration,
 };
-use wait_timeout::ChildExt;
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
@@ -171,16 +168,7 @@ fn test_server_serial() -> Result<()> {
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
 
-    if let Ok(None) = homestar_proc.try_wait() {
-        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
-            Some(status) => status.code(),
-            None => {
-                homestar_proc.kill().unwrap();
-                homestar_proc.wait().unwrap().code()
-            }
-        };
-    }
-
+    let _ = kill_homestar(homestar_proc);
     let _ = stop_all_bins();
 
     Ok(())
@@ -246,16 +234,7 @@ fn test_workflow_run_serial() -> Result<()> {
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
 
-    if let Ok(None) = homestar_proc.try_wait() {
-        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
-            Some(status) => status.code(),
-            None => {
-                homestar_proc.kill().unwrap();
-                homestar_proc.wait().unwrap().code()
-            }
-        };
-    }
-
+    let _ = kill_homestar(homestar_proc);
     let _ = stop_all_bins();
 
     Ok(())
@@ -295,7 +274,7 @@ fn test_daemon_serial() -> Result<()> {
         .stdout(predicate::str::contains("pong"));
 
     let _ = stop_all_bins();
-    let _ = kill_homestar_process();
+    let _ = kill_homestar_daemon();
 
     Ok(())
 }
@@ -334,16 +313,7 @@ fn test_signal_kill_serial() -> Result<()> {
         .stdout(predicate::str::contains("pong"));
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
-
-    if let Ok(None) = homestar_proc.try_wait() {
-        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
-            Some(status) => status.code(),
-            None => {
-                homestar_proc.kill().unwrap();
-                homestar_proc.wait().unwrap().code()
-            }
-        };
-    }
+    let _ = kill_homestar(homestar_proc);
 
     Command::new(BIN.as_os_str()).arg("ping").assert().failure();
 
@@ -394,16 +364,7 @@ fn test_server_v4_serial() -> Result<()> {
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
 
-    if let Ok(None) = homestar_proc.try_wait() {
-        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
-            Some(status) => status.code(),
-            None => {
-                homestar_proc.kill().unwrap();
-                homestar_proc.wait().unwrap().code()
-            }
-        };
-    }
-
+    let _ = kill_homestar(homestar_proc);
     let _ = stop_all_bins();
 
     Ok(())
@@ -449,7 +410,7 @@ fn test_daemon_v4_serial() -> Result<()> {
         .stdout(predicate::str::contains("pong"));
 
     let _ = stop_all_bins();
-    let _ = kill_homestar_process();
+    let _ = kill_homestar_daemon();
 
     Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::utils::{stop_homestar, BIN_NAME};
+use crate::utils::{kill_homestar, stop_homestar, BIN_NAME};
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use reqwest::StatusCode;
@@ -9,7 +9,6 @@ use std::{
     process::{Command, Stdio},
     time::Duration,
 };
-use wait_timeout::ChildExt;
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const METRICS_URL: &str = "http://localhost:4000";
@@ -46,10 +45,10 @@ fn test_metrics_serial() -> Result<()> {
 
     let _ = stop_homestar();
 
-    let mut homestar_proc = Command::new(BIN.as_os_str())
+    let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/test_node2/config/settings.toml")
+        .arg("tests/test_node1/config/settings.toml")
         .arg("--db")
         .arg("homestar.db")
         .stdout(Stdio::piped())
@@ -70,16 +69,7 @@ fn test_metrics_serial() -> Result<()> {
 
     assert_ne!(sample1, sample2);
 
-    if let Ok(None) = homestar_proc.try_wait() {
-        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
-            Some(status) => status.code(),
-            None => {
-                homestar_proc.kill().unwrap();
-                homestar_proc.wait().unwrap().code()
-            }
-        };
-    }
-
+    let _ = kill_homestar(homestar_proc);
     let _ = stop_homestar();
 
     Ok(())

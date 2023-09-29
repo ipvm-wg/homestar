@@ -11,11 +11,13 @@ use retry::{delay::Fixed, retry};
 use std::{
     net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
+    time::Duration,
 };
 #[cfg(not(windows))]
 use sysinfo::PidExt;
 use sysinfo::{ProcessExt, SystemExt};
+use wait_timeout::ChildExt;
 
 /// Binary name, which is different than the crate name.
 pub(crate) const BIN_NAME: &str = "homestar";
@@ -59,6 +61,20 @@ pub(crate) fn stop_homestar() -> Result<()> {
 }
 
 /// Stop the IPFS daemon.
+pub(crate) fn kill_homestar(mut homestar_proc: Child) -> Result<()> {
+    if let Ok(None) = homestar_proc.try_wait() {
+        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
+            Some(status) => status.code(),
+            None => {
+                homestar_proc.kill().unwrap();
+                homestar_proc.wait().unwrap().code()
+            }
+        };
+    }
+
+    Ok(())
+}
+
 pub(crate) fn stop_ipfs() -> Result<()> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
     Command::new(IPFS)
@@ -81,7 +97,7 @@ pub(crate) fn stop_all_bins() -> Result<()> {
 
 /// Kill the Homestar proc running as a daemon.
 #[cfg(not(windows))]
-pub(crate) fn kill_homestar_process() -> Result<()> {
+pub(crate) fn kill_homestar_daemon() -> Result<()> {
     let system = sysinfo::System::new_all();
     let pid = system
         .processes_by_exact_name(BIN_NAME)
@@ -110,7 +126,7 @@ pub(crate) fn kill_homestar_process() -> Result<()> {
 /// Kill the Homestar proc running as a daemon.
 #[allow(dead_code)]
 #[cfg(windows)]
-pub(crate) fn kill_homestar_process() -> Result<()> {
+pub(crate) fn kill_homestar_daemon() -> Result<()> {
     let system = sysinfo::System::new_all();
     let pid = system
         .processes_by_exact_name(format!("{}.exe", BIN_NAME).as_str())
