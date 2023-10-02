@@ -82,6 +82,38 @@ fn test_libp2p_listens_on_address() -> Result<()> {
     Ok(())
 }
 
+#[test]
+#[file_serial]
+fn test_rpc_listens_on_address() -> Result<()> {
+    let _ = stop_homestar();
+
+    let homestar_proc = Command::new(BIN.as_os_str())
+        .arg("start")
+        .arg("-c")
+        .arg("tests/test_node1/config/settings.toml")
+        .arg("--db")
+        .arg("homestar1.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let dead_proc = kill_homestar(homestar_proc);
+
+    let output = dead_proc
+        .unwrap()
+        .wait_with_output()
+        .expect("failed to wait on child");
+    let plain_stdout_bytes = strip_ansi_escapes::strip(output.stdout);
+    let stdout = String::from_utf8(plain_stdout_bytes).unwrap();
+
+    assert_eq!(
+        true,
+        predicate::str::contains("RPC server listening on [::1]:3031").eval(stdout.as_str())
+    );
+
+    Ok(())
+}
+
 // #[cfg(feature = "test-utils")]
 // #[test]
 // #[file_serial]
