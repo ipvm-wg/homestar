@@ -14,6 +14,7 @@ use std::{
     process::{Child, Command, Stdio},
     time::Duration,
 };
+use strip_ansi_escapes;
 #[cfg(not(windows))]
 use sysinfo::PidExt;
 use sysinfo::{ProcessExt, SystemExt};
