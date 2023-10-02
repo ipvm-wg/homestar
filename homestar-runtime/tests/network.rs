@@ -1,21 +1,23 @@
-use crate::utils::{kill_homestar, stop_homestar};
+use crate::utils::{kill_homestar, stop_homestar, BIN_NAME};
 use anyhow::Result;
-use assert_cmd::crate_name;
 use once_cell::sync::Lazy;
+use predicates::prelude::*;
 use serial_test::file_serial;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
 };
+use strip_ansi_escapes;
 
-static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(crate_name!()));
+#[allow(dead_code)]
+static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
 #[test]
 #[file_serial]
-fn test_libp2p_connect() -> Result<()> {
+fn test_libp2p_generates_peer_id() -> Result<()> {
     let _ = stop_homestar();
 
-    let homestar_proc1 = Command::new(BIN.as_os_str())
+    let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
         .arg("tests/test_node1/config/settings.toml")
@@ -25,19 +27,73 @@ fn test_libp2p_connect() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let homestar_proc2 = Command::new(BIN.as_os_str())
-        .arg("start")
-        .arg("-c")
-        .arg("tests/test_node2/config/settings.toml")
-        .arg("--db")
-        .arg("homestar2.db")
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
+    let dead_proc = kill_homestar(homestar_proc);
 
-    let _ = kill_homestar(homestar_proc1);
-    let _ = kill_homestar(homestar_proc2);
-    let _ = stop_homestar();
+    let output = dead_proc
+        .unwrap()
+        .wait_with_output()
+        .expect("failed to wait on child");
+    let plain_stdout_bytes = strip_ansi_escapes::strip(output.stdout);
+    let stdout = String::from_utf8(plain_stdout_bytes).unwrap();
+
+    assert_eq!(
+        true,
+        predicate::str::contains("local peer ID generated").eval(stdout.as_str())
+    );
+    assert_eq!(
+        true,
+        predicate::str::contains("peer_id=12D3KooWBYAug7e9eE7z1z1jaYjfVQCfRy8r3keVYD8jdsEGZHr")
+            .eval(stdout.as_str())
+    );
 
     Ok(())
 }
+
+// #[cfg(feature = "test-utils")]
+// #[test]
+// #[file_serial]
+// fn test_libp2p_connect() -> Result<()> {
+//     let _ = stop_homestar();
+
+//     let mut homestar_proc1 = Command::new(BIN.as_os_str())
+//         .arg("start")
+//         .arg("-c")
+//         .arg("tests/test_node1/config/settings.toml")
+//         .arg("--db")
+//         .arg("homestar1.db")
+//         .stdout(Stdio::piped())
+//         .spawn()
+//         .unwrap();
+
+// let dead_proc1 = kill_homestar(homestar_proc1);
+// thread::sleep(Duration::from_millis(600));
+// let homestar_proc2 = Command::new(BIN.as_os_str())
+//     .arg("start")
+//     .arg("-c")
+//     .arg("tests/test_node2/config/settings.toml")
+//     .arg("--db")
+//     .arg("homestar2.db")
+//     .stderr(Stdio::piped())
+//     .spawn()
+//     .unwrap();
+
+// let output: Output;
+
+// let dead_proc1 = kill_homestar(homestar_proc1);
+// let _ = kill_homestar(homestar_proc2);
+// let _ = stop_homestar();
+
+// let output = dead_proc1
+//     .unwrap()
+//     .wait_with_output()
+//     .expect("failed to wait on child");
+
+// assert_eq!(
+//     true,
+//     predicate::str::contains("local peer ID generated")
+//         .eval(String::from_utf8(output.stdout).unwrap().as_str())
+// );
+// println!("{:?}", output);
+
+// Ok(())
+// }

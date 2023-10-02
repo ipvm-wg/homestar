@@ -60,8 +60,8 @@ pub(crate) fn stop_homestar() -> Result<()> {
     Ok(())
 }
 
-/// Stop the IPFS daemon.
-pub(crate) fn kill_homestar(mut homestar_proc: Child) -> Result<()> {
+/// Kill the Homestar server/binary
+pub(crate) fn kill_homestar(mut homestar_proc: Child) -> Result<Child> {
     if let Ok(None) = homestar_proc.try_wait() {
         let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
             Some(status) => status.code(),
@@ -72,7 +72,7 @@ pub(crate) fn kill_homestar(mut homestar_proc: Child) -> Result<()> {
         };
     }
 
-    Ok(())
+    Ok(homestar_proc)
 }
 
 pub(crate) fn stop_ipfs() -> Result<()> {

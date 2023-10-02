@@ -182,6 +182,7 @@ retry = { version = "2.0", default-features = false }
 serial_test = { version = "2.0", default-features = false, features = [
   "file_locks",
 ] }
+strip-ansi-escapes = "0.2.0"
 tokio-tungstenite = { version = "0.20", default-features = false }
 wait-timeout = "0.2"
 
