@@ -60,21 +60,7 @@ pub(crate) fn stop_homestar() -> Result<()> {
     Ok(())
 }
 
-/// Kill the Homestar server/binary
-pub(crate) fn kill_homestar(mut homestar_proc: Child) -> Result<Child> {
-    if let Ok(None) = homestar_proc.try_wait() {
-        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
-            Some(status) => status.code(),
-            None => {
-                homestar_proc.kill().unwrap();
-                homestar_proc.wait().unwrap().code()
-            }
-        };
-    }
-
-    Ok(homestar_proc)
-}
-
+/// Stop the IPFS binary.
 pub(crate) fn stop_ipfs() -> Result<()> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
     Command::new(IPFS)
@@ -93,6 +79,28 @@ pub(crate) fn stop_all_bins() -> Result<()> {
     let _ = stop_homestar();
 
     Ok(())
+}
+
+/// Retrieve process output.
+pub(crate) fn retrieve_output(proc: Child) -> String {
+    let output = proc.wait_with_output().expect("failed to wait on child");
+    let plain_stdout_bytes = strip_ansi_escapes::strip(output.stdout);
+    String::from_utf8(plain_stdout_bytes).unwrap()
+}
+
+/// Kill the Homestar server/binary
+pub(crate) fn kill_homestar(mut homestar_proc: Child) -> Child {
+    if let Ok(None) = homestar_proc.try_wait() {
+        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
+            Some(status) => status.code(),
+            None => {
+                homestar_proc.kill().unwrap();
+                homestar_proc.wait().unwrap().code()
+            }
+        };
+    }
+
+    homestar_proc
 }
 
 /// Kill the Homestar proc running as a daemon.

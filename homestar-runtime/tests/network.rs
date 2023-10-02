@@ -1,4 +1,4 @@
-use crate::utils::{kill_homestar, stop_homestar, BIN_NAME};
+use crate::utils::{kill_homestar, retrieve_output, stop_homestar, BIN_NAME};
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
@@ -28,13 +28,7 @@ fn test_libp2p_generates_peer_id() -> Result<()> {
         .unwrap();
 
     let dead_proc = kill_homestar(homestar_proc);
-
-    let output = dead_proc
-        .unwrap()
-        .wait_with_output()
-        .expect("failed to wait on child");
-    let plain_stdout_bytes = strip_ansi_escapes::strip(output.stdout);
-    let stdout = String::from_utf8(plain_stdout_bytes).unwrap();
+    let stdout = retrieve_output(dead_proc);
 
     assert_eq!(
         true,
@@ -65,13 +59,7 @@ fn test_libp2p_listens_on_address() -> Result<()> {
         .unwrap();
 
     let dead_proc = kill_homestar(homestar_proc);
-
-    let output = dead_proc
-        .unwrap()
-        .wait_with_output()
-        .expect("failed to wait on child");
-    let plain_stdout_bytes = strip_ansi_escapes::strip(output.stdout);
-    let stdout = String::from_utf8(plain_stdout_bytes).unwrap();
+    let stdout = retrieve_output(dead_proc);
 
     assert_eq!(
         true,
@@ -98,13 +86,7 @@ fn test_rpc_listens_on_address() -> Result<()> {
         .unwrap();
 
     let dead_proc = kill_homestar(homestar_proc);
-
-    let output = dead_proc
-        .unwrap()
-        .wait_with_output()
-        .expect("failed to wait on child");
-    let plain_stdout_bytes = strip_ansi_escapes::strip(output.stdout);
-    let stdout = String::from_utf8(plain_stdout_bytes).unwrap();
+    let stdout = retrieve_output(dead_proc);
 
     assert_eq!(
         true,
@@ -130,13 +112,7 @@ fn test_websocket_listens_on_address() -> Result<()> {
         .unwrap();
 
     let dead_proc = kill_homestar(homestar_proc);
-
-    let output = dead_proc
-        .unwrap()
-        .wait_with_output()
-        .expect("failed to wait on child");
-    let plain_stdout_bytes = strip_ansi_escapes::strip(output.stdout);
-    let stdout = String::from_utf8(plain_stdout_bytes).unwrap();
+    let stdout = retrieve_output(dead_proc);
 
     assert_eq!(
         true,
