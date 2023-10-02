@@ -60,7 +60,12 @@ fn init(
             .add_directive("tower_http=info".parse().expect(DIRECTIVE_EXPECT))
     });
 
-    #[cfg(all(feature = "console", tokio_unstable))]
+    #[cfg(all(
+        feature = "console",
+        not(test),
+        not(feature = "test-utils"),
+        tokio_unstable
+    ))]
     let filter = filter
         .add_directive("tokio=trace".parse().expect(DIRECTIVE_EXPECT))
         .add_directive("runtime=trace".parse().expect(DIRECTIVE_EXPECT));
@@ -69,7 +74,12 @@ fn init(
         .with(filter)
         .with(format_layer);
 
-    #[cfg(all(feature = "console", tokio_unstable))]
+    #[cfg(all(
+        feature = "console",
+        not(test),
+        not(feature = "test-utils"),
+        tokio_unstable
+    ))]
     {
         let console_layer = console_subscriber::ConsoleLayer::builder()
             .retention(std::time::Duration::from_secs(60))
@@ -79,7 +89,12 @@ fn init(
         registry.with(console_layer).init();
     }
 
-    #[cfg(any(not(feature = "console"), not(tokio_unstable)))]
+    #[cfg(any(
+        not(feature = "console"),
+        test,
+        not(tokio_unstable),
+        feature = "test-utils",
+    ))]
     {
         registry.init();
     }
