@@ -6,6 +6,8 @@ use serial_test::file_serial;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
+    thread,
+    time::Duration,
 };
 
 #[allow(dead_code)]
@@ -123,51 +125,59 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
     Ok(())
 }
 
-// #[cfg(feature = "test-utils")]
-// #[test]
-// #[file_serial]
-// fn test_libp2p_connect() -> Result<()> {
-//     let _ = stop_homestar();
+#[test]
+#[file_serial]
+fn test_libp2p_connection_serial() -> Result<()> {
+    let _ = stop_homestar();
 
-//     let mut homestar_proc1 = Command::new(BIN.as_os_str())
-//         .arg("start")
-//         .arg("-c")
-//         .arg("tests/test_node1/config/settings.toml")
-//         .arg("--db")
-//         .arg("homestar1.db")
-//         .stdout(Stdio::piped())
-//         .spawn()
-//         .unwrap();
+    let homestar_proc1 = Command::new(BIN.as_os_str())
+        .arg("start")
+        .arg("-c")
+        .arg("tests/test_node1/config/settings.toml")
+        .arg("--db")
+        .arg("homestar1.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
 
-// let dead_proc1 = kill_homestar(homestar_proc1);
-// thread::sleep(Duration::from_millis(600));
-// let homestar_proc2 = Command::new(BIN.as_os_str())
-//     .arg("start")
-//     .arg("-c")
-//     .arg("tests/test_node2/config/settings.toml")
-//     .arg("--db")
-//     .arg("homestar2.db")
-//     .stderr(Stdio::piped())
-//     .spawn()
-//     .unwrap();
+    let homestar_proc2 = Command::new(BIN.as_os_str())
+        .arg("start")
+        .arg("-c")
+        .arg("tests/test_node2/config/settings.toml")
+        .arg("--db")
+        .arg("homestar2.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
 
-// let output: Output;
+    // Delays one second before kill
+    let dead_proc1 = kill_homestar(homestar_proc1);
+    let dead_proc2 = kill_homestar(homestar_proc2);
 
-// let dead_proc1 = kill_homestar(homestar_proc1);
-// let _ = kill_homestar(homestar_proc2);
-// let _ = stop_homestar();
+    let stdout1 = retrieve_output(dead_proc1);
+    let stdout2 = retrieve_output(dead_proc2);
 
-// let output = dead_proc1
-//     .unwrap()
-//     .wait_with_output()
-//     .expect("failed to wait on child");
+    // Homestar node 1 connects to node 2
+    assert_eq!(
+        true,
+        predicate::str::contains("peer connection established").eval(stdout1.as_str())
+    );
+    // assert_eq!(
+    //     true,
+    //     predicate::str::contains("peer_id=16Uiu2HAm4nuRTJXGe1VtYWrtoxTnJdjfM2ohWvXsFxyNXG2F395P")
+    //         .eval(stdout1.as_str())
+    // );
 
-// assert_eq!(
-//     true,
-//     predicate::str::contains("local peer ID generated")
-//         .eval(String::from_utf8(output.stdout).unwrap().as_str())
-// );
-// println!("{:?}", output);
+    // Homestar node 2 connects to node 1
+    assert_eq!(
+        true,
+        predicate::str::contains("peer connection established").eval(stdout2.as_str())
+    );
+    // assert_eq!(
+    //     true,
+    //     predicate::str::contains("peer_id=12D3KooWBYAug7e9eE7z1z1jaYjfVQCfRy8r3keVYD8jdsEGZHrT")
+    //         .eval(stdout2.as_str())
+    // );
 
-// Ok(())
-// }
+    Ok(())
+}
