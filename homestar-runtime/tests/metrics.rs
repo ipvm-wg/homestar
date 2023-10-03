@@ -7,7 +7,6 @@ use serial_test::file_serial;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
-    time::Duration,
 };
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
@@ -16,7 +15,7 @@ const METRICS_URL: &str = "http://localhost:4000";
 #[test]
 #[file_serial]
 fn test_metrics_serial() -> Result<()> {
-    fn sample_metrics() -> prometheus_parse::Value {
+    fn sample_metrics() -> Option<prometheus_parse::Value> {
         let body = retry(
             Fixed::from_millis(500).take(2),
             || match reqwest::blocking::get(METRICS_URL) {
@@ -38,9 +37,7 @@ fn test_metrics_serial() -> Result<()> {
             .samples
             .iter()
             .find(|sample| sample.metric.as_str() == "system_used_memory_bytes")
-            .expect("Could not find system_used_memory_bytes metric")
-            .value
-            .to_owned()
+            .and_then(|sample| Some(sample.value.to_owned()))
     }
 
     let _ = stop_homestar();
@@ -55,10 +52,19 @@ fn test_metrics_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let sample1 = sample_metrics();
+    // Try metrics server until the target metric is available
+    let sample1 = retry(Fixed::from_millis(100).take(3), || {
+        if let Some(sample) = sample_metrics() {
+            OperationResult::Ok(sample)
+        } else {
+            OperationResult::Retry("Could not find system_used_memory_bytes metric")
+        }
+    })
+    .unwrap();
 
+    // Resample until the metrics server updates the metric
     let sample2 = retry(Fixed::from_millis(500).take(5), || {
-        let sample2 = sample_metrics();
+        let sample2 = sample_metrics().unwrap();
         if sample1 != sample2 {
             OperationResult::Ok(sample2)
         } else {
