@@ -13,7 +13,7 @@ static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME))
 
 #[test]
 #[file_serial]
-fn test_libp2p_generates_peer_id() -> Result<()> {
+fn test_libp2p_generates_peer_id_serial() -> Result<()> {
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -44,7 +44,7 @@ fn test_libp2p_generates_peer_id() -> Result<()> {
 
 #[test]
 #[file_serial]
-fn test_libp2p_listens_on_address() -> Result<()> {
+fn test_libp2p_listens_on_address_serial() -> Result<()> {
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -71,7 +71,7 @@ fn test_libp2p_listens_on_address() -> Result<()> {
 
 #[test]
 #[file_serial]
-fn test_rpc_listens_on_address() -> Result<()> {
+fn test_rpc_listens_on_address_serial() -> Result<()> {
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -98,7 +98,7 @@ fn test_rpc_listens_on_address() -> Result<()> {
 #[cfg(feature = "websocket-server")]
 #[test]
 #[file_serial]
-fn test_websocket_listens_on_address() -> Result<()> {
+fn test_websocket_listens_on_address_serial() -> Result<()> {
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
