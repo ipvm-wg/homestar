@@ -95,6 +95,7 @@ fn test_rpc_listens_on_address() -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "websocket-server")]
 #[test]
 #[file_serial]
 fn test_websocket_listens_on_address() -> Result<()> {
