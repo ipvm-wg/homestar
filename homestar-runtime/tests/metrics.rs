@@ -12,7 +12,7 @@ use std::{
 use wait_timeout::ChildExt;
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
-const METRICS_URL: &str = "http://localhost:4000";
+const METRICS_URL: &str = "http://localhost:4144";
 
 #[test]
 #[file_serial]
@@ -58,7 +58,7 @@ fn test_metrics_serial() -> Result<()> {
 
     let sample1 = sample_metrics();
 
-    let sample2 = retry(Fixed::from_millis(500).take(5), || {
+    let sample2 = retry(Fixed::from_millis(500).take(4), || {
         let sample2 = sample_metrics();
         if sample1 != sample2 {
             OperationResult::Ok(sample2)
