@@ -22,7 +22,7 @@
   <span class="flex flex-row gap-4">
     <a
       class="text-white"
-      href="https://github.com/ipvm-wg/homestar"
+      href="https://github.com/ipvm-wg/homestar/tree/main/examples/websocket-relay"
       target="__blank"
       rel="noreferrer"
     >

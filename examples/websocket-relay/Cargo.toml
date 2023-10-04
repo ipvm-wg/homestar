@@ -14,6 +14,7 @@ homestar-runtime = { path = "../../homestar-runtime", default-features = false, 
 ] }
 miette = { version = "5.10", features = ["fancy"] }
 retry = "2.0"
+sysinfo = { version = "0.29", default-features = false }
 tracing = "0.1"
 
 [[bin]]

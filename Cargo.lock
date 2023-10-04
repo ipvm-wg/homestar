@@ -7391,6 +7391,7 @@ dependencies = [
  "homestar-runtime",
  "miette",
  "retry",
+ "sysinfo",
  "tracing",
 ]
 
