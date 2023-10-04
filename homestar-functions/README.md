@@ -19,9 +19,9 @@
 
 ##
 
-This is a template-like, example-driven crate (non-published) used for building
-Wasm components in order to run and test them on the latest [wasmtime][wasmtime]
-runtime, with the `component-model` feature turned on.
+This is a template-like, example-driven set of non-published crates used for
+building Wasm components in order to run and test them on the latest
+[wasmtime][wasmtime] runtime, with the `component-model` feature turned on.
 
 We use the components compiled from this crate as fixtures for our
 execution-and-[IPLD][ipld]-focused [homestar-wasm crate](../homestar-wasm). We
@@ -42,19 +42,19 @@ We then implement these functions in [lib.rs](./src/lib.rs) using
 ## Build
 
 Once functions are implemented, we can build the component in release-mode,
-targetting [`wasm32-unknown-unknown`][wasm32], using feature-flags for different
-module output(s):
+targetting [`wasm32-unknown-unknown`][wasm32], :
 
 ```console
 # from this directory:
-cargo build --features example-add --target wasm32-unknown-unknown --release
+cd test && cargo build --target wasm32-unknown-unknown --profile release-wasm-fn
 
 # or from the top-level workspace:
-cargo build -p homestar-functions --features example-add --target wasm32-unknown-unknown --release
+cargo build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn
 ```
 
-The guest Wasm module will be generated at
-`../target/wasm32-unknown-unknown/release/homestar_functions.wasm`.
+Guest Wasm modules will be generated within the
+`../target/wasm32-unknown-unknown/release` directory, e.g.
+`../target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_test.wasm`.
 
 Sadly, this module is **not yet** an actual `component`. But, we can leverage
 the [wasm-tools][wasm-tools] tooling ([wit-component][wit-component] in
@@ -63,7 +63,7 @@ it in a different directory:
 
 ```console
 wasm-tools component new /
-../target/wasm32-unknown-unknown/release/homestar_functions.wasm -o ../homestar-wasm/fixtures/
+../target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_test.wasm -o ../homestar-wasm/fixtures/
 ```
 
 *Of note*, [homestar-wasm's](../homestar-wasm) execution model will do

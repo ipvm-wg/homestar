@@ -51,18 +51,54 @@
 
 ## Outline
 
+- [Quickstart](#quickstart)
+- [Running Examples](#running-examples)
 - [Workspace](#workspace)
-- [Testing the Project](#testing-the-project)
-- [Running the Runtime on Docker](#running-the-runtime-on-docker)
 - [Contributing](#contributing)
+- [Releases](#releases)
 - [Getting Help](#getting-help)
 - [External Resources](#external-resources)
 - [License](#license)
 
+## Quickstart
+
+If you're looking to help develop `homestar`, please dive right into our
+[development](./DEVELOPMENT.md) guide. Otherwise, the easiest way
+to get started and see `homestar` in action is to follow-along and run our
+image-processing [websocket relay](./examples/websocket-relay) example,
+which integrates `homestar` with a browser application to run a
+statically-configured workflow. The associated `README.md` walks through
+what to install (i.e. `rust`, `node/npm`, `ipfs`), what commands
+to run, and embeds a video demonstrating its usage.
+
+Throughout the `homestar` ecosystem and documentation, we'll draw a distinction
+between the [host runtime][host-runtime] and the support for different
+[guest languages and bindings][guest]. If you're mainly interested in
+learning how to write and build-out Wasm components (in Rust), please jump
+into our [`homestar-functions`](./homestar-functions) directory
+and check out our examples there.
+
+## Running Examples
+
+All [examples](./examples) contain instructions for running
+them, including what to install and how to run them. Please clone this repo,
+and get started!
+
+Each example showcases something specific and interesting about `homestar`
+as a system.
+
+Our current list includes:
+
+- [websocket relay](./examples/websocket-relay) - An example (browser-based)
+  application that connects to the `homestar-runtime` over a websocket
+  connection in order to run a couple static Wasm-based, image processing
+  workflows that chain inputs and outputs.
+
 ## Workspace
 
-This repository is comprised of a few library packages and a binary that
-represents the `homestar` runtime.
+This repository is comprised of a few library packages and a library/binary that
+represents the `homestar` runtime. We recommend diving into each package's own
+`README.md` for more information when available.
 
 ### Core Crates
 
@@ -70,7 +106,8 @@ represents the `homestar` runtime.
 
   The *core* library implements much of the [Ucan Invocation][ucan-invocation]
   and [Ipvm Workflow][ipvm-workflow-spec] specifications and is used as the
-  foundation for other packages in this `workspace` and within the runtime engine.
+  foundation for other packages in this `workspace` and within the runtime
+  engine.
 
 - [homestar-wasm](./homestar-wasm)
 
@@ -86,137 +123,30 @@ represents the `homestar` runtime.
   and executing workflows as well as tasks within workflows, handling retries
   and failure modes, etc.
 
-### Non-published, Helper Crates
+### Non-published Crates
 
-- [homestar-functions](./homestar-functions)
+- [homestar-functions/*](./homestar-functions)
 
-  Currently, this is a helper and example crate for writing and compiling
-  [Wasm components][wasm-component] using [wit-bindgen][wit-bindgen].
+  `homestar-functions` is a directory of helper, test, and example crates for
+  writing and compiling [Wasm component][wasm-component] modules using
+  [wit-bindgen][wit-bindgen].
 
-  **It will be expanded upon as a default set of Wasm mods and functions.**
+- [examples/*](./examples)
 
-## Testing the Project
-
-- Running the tests:
-
-We recommend using [cargo nextest][cargo-nextest], which is installed by default
-in our [Nix flake](#nix) or can be [installed separately][cargo-nextest-install].
-
-  ```console
-  cargo nextest run --all-features --no-capture
-  ```
-
-The above command translates to this using the default `cargo test`:
-
-  ```console
-  cargo test --all-features -- --nocapture
-  ```
-
-## Running the Runtime on Docker
-
-We recommend setting your [Docker Engine][docker-engine] configuration
-with `experimental` and `buildkit` set to `true`, for example:
-
-``` json
-{
-  "builder": {
-    "gc": {
-      "defaultKeepStorage": "20GB",
-      "enabled": true
-    }
-  },
-  "experimental": true,
-  "features": {
-    "buildkit": true
-  }
-}
-```
-
-- Build a multi-plaform Docker image via [buildx][buildx]:
-
-  ```console
-  docker buildx build --file docker/Dockerfile --platform=linux/amd64,linux/arm64 -t homestar-runtime --progress=plain .
-  ```
-
-- Run a Docker image (depending on your platform):
-
-  ```console
-  docker run --platform=linux/arm64 -t homestar-runtime
-  ```
+  `examples` contains examples and demos showcasing `homestar` packages
+  and the `homestar runtime`. Each example is set up as its own crate,
+  demonstrating the necessary dependencies and setup(s).
 
 ## Contributing
 
 :balloon: We're thankful for any feedback and help in improving our project!
-We have a [contributing guide](./CONTRIBUTING.md) to help you get involved. We
-also adhere to our [Code of Conduct](./CODE_OF_CONDUCT.md).
+We have a focused [development](./DEVELOPMENT.md) guide, as well as a
+more general [contributing](./CONTRIBUTING.md) guide to help you get involved.
+We always adhere to our [Code of Conduct](./CODE_OF_CONDUCT.md).
 
-### Nix
-This repository contains a [Nix flake][nix-flake] that initiates both the Rust
-toolchain set in [rust-toolchain.toml](./rust-toolchain.toml) and a
-[pre-commit hook](#pre-commit-hook). It also installs
-[external dependencies](#external-dependencies), as well as helpful cargo
-binaries for development. Please install [nix][nix] and [direnv][direnv] to get
-started.
+## Releases
 
-Run `nix develop` or `direnv allow` to load the `devShell` flake output,
-according to your preference.
-
-### Formatting
-
-For formatting Rust in particular, we automatically format on `nightly`, as it
-uses specific nightly features we recommend by default.
-
-### Pre-commit Hook
-
-This project recommends using [pre-commit][pre-commit] for running pre-commit
-hooks. Please run this before every commit and/or push.
-
-- If you are doing interim commits locally, and for some reason if you _don't_
-  want pre-commit hooks to fire, you can run
-  `git commit -a -m "Your message here" --no-verify`.
-
-### Recommended Development Flow
-
-- We recommend leveraging [cargo-watch][cargo-watch],
-  [cargo-expand][cargo-expand] and [irust][irust] for Rust development.
-- We also recommend using [cargo-udeps][cargo-udeps] for removing unused
-  dependencies before commits and pull-requests.
-- If using our [Nix flake](./flake.nix), there are a number of handy
-  command shortcuts available for working with `cargo-watch`, `diesel`, and
-  other items, including:
-  * **`ci`**, which runs a sequence of commands to check formatting, lints, release
-    builds, and tests
-  * **`db`** and **`db-reset`** for running `diesel` setup and migrations
-  * **`doc`** for generating cargo docs with private-items documented
-  * **`compile-wasm`** for compiling [homestar-functions](./homestar-functions),
-    a [wit-bindgen][wit-bindgen]-driven example, to the `wasm32-unknown-unknown` target
-  * **`docker-<amd64,arm64>`** for running docker builds
-  * **`nx-test`**, which translates to `cargo nextest run && cargo test --doc`
-  * **`x-test`** for testing continuously as files change, translating to
-    `cargo watch -c -s "cargo nextest run && cargo test --doc"`
-  * **`x-<build,check,run,clippy>`** for running a variety of `cargo watch`
-    execution stages
-  * **`nx-test-<all,0>`**, which is just like `nx-test`, but adds `all` or `0`
-    for running tests either with the `all-features` flag or
-    `no-default-features` flag, respectively
-  * **`x-<build,check,run,clippy,test>-<core,wasm,runtime>`** for package-specific
-    builds, tests, etc.
-
-### Conventional Commits
-
-This project *lightly* follows the [Conventional Commits
-convention][commit-spec-site] to help explain
-commit history and tie in with our release process. The full specification
-can be found [here][commit-spec]. We recommend prefixing your commits with
-a type of `fix`, `feat`, `docs`, `ci`, `refactor`, etc..., structured like so:
-
-```
-<type>[optional scope]: <description>
-
-[optional body]
-
-[optional footer(s)]
-```
+TBA
 
 ## Getting Help
 
@@ -251,28 +181,17 @@ conditions.
 
 [apache]: https://www.apache.org/licenses/LICENSE-2.0
 [blog-1]: https://fission.codes/blog/ipfs-thing-breaking-down-ipvm/
-[buildx]: https://docs.docker.com/engine/reference/commandline/buildx/
-[cargo-expand]: https://github.com/dtolnay/cargo-expand
-[cargo-nextest]: https://nexte.st/index.html
-[cargo-nextest-install]: https://nexte.st/book/installation.html
-[cargo-udeps]: https://github.com/est31/cargo-udeps
-[cargo-watch]: https://github.com/watchexec/cargo-watch
 [cod-ipvm]: https://www.youtube.com/watch?v=3y1RB8wt_YY
-[commit-spec]: https://www.conventionalcommits.org/en/v1.0.0/#specification
-[commit-spec-site]: https://www.conventionalcommits.org/
 [demo-1]: https://www.loom.com/share/3204037368fe426ba3b4c952b0691c5c
-[direnv]:https://direnv.net/
 [foundations-for-openworld-compute]: https://youtu.be/dRz5mau6fsY
+[guest]: https://github.com/bytecodealliance/wit-bindgen#supported-guest-languages
+[host-runtime]: https://github.com/bytecodealliance/wit-bindgen#host-runtimes-for-components
 [ipfs-thing-ipvm]: https://www.youtube.com/watch?v=rzJWk1nlYvs
 [ipld]: https://ipld.io/
 [ipvm-spec]: https://github.com/ipvm-wg/spec
 [ipvm-wg]: https://github.com/ipvm-wg
 [ipvm-workflow-spec]: https://github.com/ipvm-wg/workflow
-[irust]: https://github.com/sigmaSd/IRust
 [mit]: http://opensource.org/licenses/MIT
-[nix]:https://nixos.org/download.html
-[nix-flake]: https://nixos.wiki/wiki/Flakes
-[pre-commit]: https://pre-commit.com/
 [research]: https://github.com/ipvm-wg/research
 [seamless-services]: https://youtu.be/Kr3B3sXh_VA
 [ucan-invocation]: https://github.com/ucan-wg/invocation
