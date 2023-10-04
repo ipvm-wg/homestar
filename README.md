@@ -80,7 +80,7 @@ and check out our examples there.
 
 ## Running Examples
 
-All [examples](./examples) contain detailed instructions for running
+All [examples](./examples) contain instructions for running
 them, including what to install and how to run them. Please clone this repo,
 and get started!
 
