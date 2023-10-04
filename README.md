@@ -64,7 +64,7 @@
 
 If you're looking to help develop `homestar`, please dive right into our
 [development](./DEVELOPMENT.md) guide. Otherwise, the easiest way
-to get started and "see" `homestar` in action is to follow-along and run our
+to get started and see `homestar` in action is to follow-along and run our
 image-processing [websocket relay](./examples/websocket-relay) example,
 which integrates `homestar` with a browser application to run a
 statically-configured workflow. The associated `README.md` walks through
