@@ -45,10 +45,6 @@
   </p>
 </div>
 
-<div align="center"><sub>:warning: Work in progress :warning:</sub></div>
-
-##
-
 ## Outline
 
 - [Quickstart](#quickstart)
@@ -63,7 +59,9 @@
 ## Quickstart
 
 If you're looking to help develop `homestar`, please dive right into our
-[development](./DEVELOPMENT.md) guide. Otherwise, the easiest way
+[development](./DEVELOPMENT.md) guide.
+
+Otherwise, the easiest way
 to get started and see `homestar` in action is to follow-along and run our
 image-processing [websocket relay](./examples/websocket-relay) example,
 which integrates `homestar` with a browser application to run a
@@ -73,8 +71,10 @@ to run, and embeds a video demonstrating its usage.
 
 Throughout the `homestar` ecosystem and documentation, we'll draw a distinction
 between the [host runtime][host-runtime] and the support for different
-[guest languages and bindings][guest]. If you're mainly interested in
-learning how to write and build-out Wasm components (in Rust), please jump
+[guest languages and bindings][guest].
+
+If you're mainly interested in
+learning how to write and build-out Wasm components (currently focused on authoring in Rust), please jump
 into our [`homestar-functions`](./homestar-functions) directory
 and check out our examples there.
 
@@ -89,7 +89,7 @@ as a system.
 
 Our current list includes:
 
-- [websocket relay](./examples/websocket-relay) - An example (browser-based)
+- [websocket relay](./examples/websocket-relay/README.md) - An example (browser-based)
   application that connects to the `homestar-runtime` over a websocket
   connection in order to run a couple static Wasm-based, image processing
   workflows that chain inputs and outputs.
@@ -154,7 +154,8 @@ For usage questions, usecases, or issues reach out to us in our [Discord channel
 
 We would be happy to try to answer your question or try opening a new issue on Github.
 
-## External Resources
+## Videos, Presentations, & Other Resources
+<a name="external-resources">
 
 - [What Is An IPVM][ipvm-wg]
 - [IPVM: High-Level Spec][ipvm-spec]

@@ -2,10 +2,12 @@
 
 ## Description
 
-An example application that connects to a **single** `homestar-runtime` node
+An example application that connects to a `homestar-runtime` node
 over a websocket connection in order to run static Wasm-based, image
 processing workflows that chain inputs and outputs using
-[inlined promises][pipelines]. This application demonstrates:
+[inlined promises][pipelines].
+
+This application demonstrates:
 
   * websocket notifications of [Ucan Invocation receipts][spec-receipts] sent
     between a web client and a `homestar` runner
@@ -26,9 +28,6 @@ To get started, please install:
 If you're using our [nix file](../../flake.nix)], you get these installs for
 free.
 
-*Note*: you **do not** have to start-up `kubo`/`ipfs` on your own. The example
-will do this for you.
-
 ## Usage
 
 1. Run `cargo run -- start -c config/settings.toml` to start the runtime and
@@ -44,7 +43,19 @@ will do this for you.
 
    https://www.loom.com/share/b0f882adc2ea45709d1f3031b5e61e92?sid=29cb403e-c666-4753-82f5-e35bbb710151
 
-Note that IPFS may attempt to upgrade to a new version and produce an error after the update. Delete the `tmp/.ipfs/` directory and restart to reset the IPFS repo state.
+Once you're up and running on localhost, you'll see two workflows with several tasks. You can click on the stack icon on the top right hand corner to inspect the source of the Workflows.
+
+Running the first workflow completes a number of tasks and then submits the output to the next task.
+
+The second workflow uses some of the same tasks, and demonstrates how tasks can be skipped if they've been previously run.
+
+## Tips & Common Issues
+
+On MacOS, verything you need can be installed with brew: `brew install rust npm ipfs`.
+
+If you've got an older install of rust, update it with `rustup update`.
+
+You do not have to start-up `kubo`/`ipfs` on your own. The example will do this for you, and use `examples/websocket-relay/tmp/.ipfs` for a local blockstore. If you're already running an IPFS instance, e.g. IPFS Desktop, please quit it while running this example.
 
 [install-ipfs]: https://docs.ipfs.tech/install/
 [install-npm]: https://docs.npmjs.com/downloading-and-installing-node-js-and-npm
