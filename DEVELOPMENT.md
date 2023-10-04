@@ -80,8 +80,8 @@ uses specific nightly features we recommend by default.
 This project recommends using [pre-commit][pre-commit] for running pre-commit
 hooks. Please run this before every commit and/or push.
 
-- If you are doing interim commits locally, and for some reason if you _don't_
-  want pre-commit hooks to fire, you can run
+- If you are doing interim commits locally, and you want to skip the pre-commit checks
+  you can run
   `git commit -a -m "Your message here" --no-verify`.
 
 ## Recommended Development Flow
