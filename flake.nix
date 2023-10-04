@@ -60,7 +60,7 @@
         ci = pkgs.writeScriptBin "ci" ''
           #!${pkgs.stdenv.shell}
           cargo fmt --check
-          cargo --workspace clippy
+          cargo clippy
           cargo build --release
           nx-test
           nx-test-0
