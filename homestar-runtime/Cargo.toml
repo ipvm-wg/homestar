@@ -115,7 +115,7 @@ metrics-exporter-prometheus = { version = "0.12.1", default-features = false, fe
 miette = { version = "5.10", default-features = false, features = ["fancy"] }
 names = { version = "0.14", default-features = false, optional = true }
 proptest = { version = "1.2", optional = true }
-puffin = { version = "0.16", default-features = false, optional = true }
+puffin = { version = "0.17", default-features = false, optional = true }
 puffin_egui = { version = "0.22.0", default-features = false, optional = true }
 rand = { workspace = true }
 reqwest = { version = "0.11", default-features = false, features = [

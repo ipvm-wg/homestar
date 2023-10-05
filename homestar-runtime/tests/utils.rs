@@ -28,13 +28,7 @@ pub(crate) fn startup_ipfs() -> Result<()> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
     println!("starting ipfs daemon...{}", path.to_str().unwrap());
     let mut ipfs_daemon = Command::new(IPFS)
-        .args([
-            "--repo-dir",
-            path.to_str().unwrap(),
-            "--offline",
-            "daemon",
-            "--init",
-        ])
+        .args(["--offline", "daemon", "--init"])
         .stdout(Stdio::piped())
         .spawn()?;
 

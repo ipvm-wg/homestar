@@ -7,7 +7,6 @@ use serial_test::file_serial;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
-    thread,
     time::Duration,
 };
 use wait_timeout::ChildExt;
@@ -58,8 +57,16 @@ fn test_metrics_serial() -> Result<()> {
         .unwrap();
 
     let sample1 = sample_metrics();
-    thread::sleep(Duration::from_millis(600));
-    let sample2 = sample_metrics();
+
+    let sample2 = retry(Fixed::from_millis(500).take(5), || {
+        let sample2 = sample_metrics();
+        if sample1 != sample2 {
+            OperationResult::Ok(sample2)
+        } else {
+            OperationResult::Retry("Samples are the same")
+        }
+    })
+    .unwrap();
 
     assert_ne!(sample1, sample2);
 
