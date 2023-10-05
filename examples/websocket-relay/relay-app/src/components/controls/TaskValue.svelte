@@ -1,5 +1,5 @@
 <script lang="ts">
-  // import clipboardCopy from "clipboard-copy";
+  import clipboardCopy from "clipboard-copy";
   import { quintIn } from "svelte/easing";
   import { fade } from "svelte/transition";
 
@@ -14,7 +14,7 @@
   async function copy(val: string | null) {
     if (!val) return;
 
-    // await clipboardCopy(val);
+    await clipboardCopy(val);
     state = "check";
 
     setTimeout(() => {
