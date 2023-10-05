@@ -15,8 +15,6 @@
   </p>
 </div>
 
-<div align="center"><sub>:warning: Work in progress :warning:</sub></div>
-
 ##
 
 This is a template-like, example-driven set of non-published crates used for
