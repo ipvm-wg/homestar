@@ -1,48 +1,48 @@
 <script lang="ts">
-    import { onDestroy } from "svelte";
-    import { Svelvet } from "svelvet";
+  import { onDestroy } from "svelte";
+  import { Svelvet } from "svelvet";
 
-    import { connect } from "$lib/channel";
-    import { base64CatStore, nodeStore } from "../stores";
-    import Controls from "$components/Controls.svelte";
-    import Header from "$components/Header.svelte";
-    import WorkflowDetail from "$components/WorkflowDetail.svelte";
-    import Node from "$components/node/Node.svelte";
+  import { connect } from "$lib/channel";
+  import { base64CatStore, nodeStore } from "../stores";
+  import Controls from "$components/Controls.svelte";
+  import Header from "$components/Header.svelte";
+  import WorkflowDetail from "$components/WorkflowDetail.svelte";
+  import Node from "$components/node/Node.svelte";
 
-    let nodes: any[] = [];
-    let showWorkflowModal = false;
-    let windowHeight = window.innerHeight;
-    let windowWidth = window.innerWidth;
+  let nodes: any[] = [];
+  let showWorkflowModal = false;
+  let windowHeight = window.innerHeight;
+  let windowWidth = window.innerWidth;
 
-    const unsubscribeNodeStore = nodeStore.subscribe((store) => {
-      nodes = store;
-    });
+  const unsubscribeNodeStore = nodeStore.subscribe((store) => {
+    nodes = store;
+  });
 
-    function handleWindowResize() {
-      windowHeight = window.innerHeight;
-      windowWidth = window.innerWidth;
-    }
+  function handleWindowResize() {
+    windowHeight = window.innerHeight;
+    windowWidth = window.innerWidth;
+  }
 
-    function toggleWorflowModal() {
-      showWorkflowModal = !showWorkflowModal;
-    }
+  function toggleWorflowModal() {
+    showWorkflowModal = !showWorkflowModal;
+  }
 
-    async function initializeSpaceCat() {
-      const catResponse = await fetch("./spacecat");
-      const cat = await catResponse.text();
+  async function initializeSpaceCat() {
+    const catResponse = await fetch("./spacecat");
+    const cat = await catResponse.text();
 
-      base64CatStore.set(cat);
-    }
+    base64CatStore.set(cat);
+  }
 
-    // Set spacecat unmodified image
-    const fetchCat = initializeSpaceCat();
+  // Set spacecat unmodified image
+  const fetchCat = initializeSpaceCat();
 
-    // Connect to websocket server
-    connect();
+  // Connect to websocket server
+  connect();
 
-    onDestroy(() => {
-      unsubscribeNodeStore();
-    });
+  onDestroy(() => {
+    unsubscribeNodeStore();
+  });
 </script>
 
 <svelte:window on:resize={handleWindowResize} />
