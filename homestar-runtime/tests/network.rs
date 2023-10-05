@@ -36,7 +36,7 @@ fn test_libp2p_generates_peer_id_serial() -> Result<()> {
     );
     assert_eq!(
         true,
-        predicate::str::contains("peer_id=12D3KooWBYAug7e9eE7z1z1jaYjfVQCfRy8r3keVYD8jdsEGZHr")
+        predicate::str::contains("peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
             .eval(stdout.as_str())
     );
 
@@ -63,7 +63,7 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
 
     assert_eq!(
         true,
-        predicate::str::contains("local node is listening on /ip4/127.0.0.1/tcp/7000/p2p/12D3KooWBYAug7e9eE7z1z1jaYjfVQCfRy8r3keVYD8jdsEGZHrT")
+        predicate::str::contains("local node is listening on /ip4/127.0.0.1/tcp/7000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
             .eval(stdout.as_str())
     );
 
@@ -130,6 +130,10 @@ fn test_libp2p_connection_serial() -> Result<()> {
     let _ = stop_homestar();
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
         .arg("start")
         .arg("-c")
         .arg("tests/fixtures/network_node1/config/settings.toml")
@@ -140,6 +144,10 @@ fn test_libp2p_connection_serial() -> Result<()> {
         .unwrap();
 
     let homestar_proc2 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
         .arg("start")
         .arg("-c")
         .arg("tests/fixtures/network_node2/config/settings.toml")
@@ -149,34 +157,41 @@ fn test_libp2p_connection_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    // Delays one second before kill
+    // Delays five seconds before kill
     let dead_proc1 = kill_homestar(homestar_proc1, Some(Duration::from_secs(5)));
     let dead_proc2 = kill_homestar(homestar_proc2, Some(Duration::from_secs(5)));
 
     let stdout1 = retrieve_output(dead_proc1);
     let stdout2 = retrieve_output(dead_proc2);
 
-    // Homestar node 1 connects to node 2
+    println!("STDOUT FOR NODE1");
+    println!("{}", stdout1);
+    println!("STDOUT FOR NODE2");
+    println!("{}", stdout2);
+
+    // Node one connects to node two
     assert_eq!(
         true,
         predicate::str::contains("peer connection established").eval(stdout1.as_str())
     );
     assert_eq!(
         true,
-        predicate::str::contains("peer_id=16Uiu2HAm4nuRTJXGe1VtYWrtoxTnJdjfM2ohWvXsFxyNXG2F395P")
+        predicate::str::contains("peer_id=16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc")
             .eval(stdout1.as_str())
     );
 
-    // Homestar node 2 connects to node 1
+    // Node two connects to node one
     assert_eq!(
         true,
         predicate::str::contains("peer connection established").eval(stdout2.as_str())
     );
     assert_eq!(
         true,
-        predicate::str::contains("peer_id=12D3KooWBYAug7e9eE7z1z1jaYjfVQCfRy8r3keVYD8jdsEGZHrT")
+        predicate::str::contains("peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
             .eval(stdout2.as_str())
     );
+
+    // assert!(false);
 
     Ok(())
 }

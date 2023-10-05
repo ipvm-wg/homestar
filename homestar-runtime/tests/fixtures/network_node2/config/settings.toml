@@ -10,9 +10,8 @@ rpc_port = 3033
 websocket_port = 9093
 listen_address = "/ip4/127.0.0.1/tcp/7001"
 node_addresses = [
-  "/ip4/127.0.0.1/tcp/7000",
-  "/ip4/127.0.0.1/tcp/9091/ws/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+  "/ip4/127.0.0.1/tcp/7000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
 ]
 
 [node.network.keypair_config]
-random_seed = { key_type = "secp256k1", seed = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" }
+existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }
