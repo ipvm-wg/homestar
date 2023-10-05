@@ -75,7 +75,7 @@ fn test_metrics_serial() -> Result<()> {
 
     assert_ne!(sample1, sample2);
 
-    let _ = kill_homestar(homestar_proc);
+    let _ = kill_homestar(homestar_proc, None);
     let _ = stop_homestar();
 
     Ok(())

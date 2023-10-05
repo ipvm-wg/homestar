@@ -169,7 +169,7 @@ fn test_server_serial() -> Result<()> {
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
 
-    let _ = kill_homestar(homestar_proc);
+    let _ = kill_homestar(homestar_proc, None);
     let _ = stop_all_bins();
 
     Ok(())
@@ -235,7 +235,7 @@ fn test_workflow_run_serial() -> Result<()> {
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
 
-    let _ = kill_homestar(homestar_proc);
+    let _ = kill_homestar(homestar_proc, None);
     let _ = stop_all_bins();
 
     Ok(())
@@ -314,7 +314,7 @@ fn test_signal_kill_serial() -> Result<()> {
         .stdout(predicate::str::contains("pong"));
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
-    let _ = kill_homestar(homestar_proc);
+    let _ = kill_homestar(homestar_proc, None);
 
     Command::new(BIN.as_os_str()).arg("ping").assert().failure();
 
@@ -365,7 +365,7 @@ fn test_server_v4_serial() -> Result<()> {
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
 
-    let _ = kill_homestar(homestar_proc);
+    let _ = kill_homestar(homestar_proc, None);
     let _ = stop_all_bins();
 
     Ok(())

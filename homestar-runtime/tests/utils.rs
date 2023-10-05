@@ -89,10 +89,13 @@ pub(crate) fn retrieve_output(proc: Child) -> String {
     String::from_utf8(plain_stdout_bytes).unwrap()
 }
 
-/// Kill the Homestar server/binary
-pub(crate) fn kill_homestar(mut homestar_proc: Child) -> Child {
+/// Wait for process to exit or kill after timeout.
+pub(crate) fn kill_homestar(mut homestar_proc: Child, timeout: Option<Duration>) -> Child {
     if let Ok(None) = homestar_proc.try_wait() {
-        let _status_code = match homestar_proc.wait_timeout(Duration::from_secs(1)).unwrap() {
+        let _status_code = match homestar_proc
+            .wait_timeout(timeout.unwrap_or(Duration::from_secs(1)))
+            .unwrap()
+        {
             Some(status) => status.code(),
             None => {
                 homestar_proc.kill().unwrap();
