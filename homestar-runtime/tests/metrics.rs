@@ -45,7 +45,7 @@ fn test_metrics_serial() -> Result<()> {
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/test_node1/config/settings.toml")
+        .arg("tests/fixtures/metrics_node/config/settings.toml")
         .arg("--db")
         .arg("homestar.db")
         .stdout(Stdio::piped())

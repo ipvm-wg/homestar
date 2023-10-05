@@ -1,0 +1,15 @@
+[monitoring]
+process_collector_interval = 500
+metrics_port = 4000
+console_subscriber_port = 5555
+
+[node]
+
+[node.network]
+rpc_port = 3030
+websocket_port = 9090
+listen_address = "/ip4/127.0.0.1/tcp/7000"
+node_addresses = ["/ip4/127.0.0.1/tcp/7001", "/ip4/127.0.0.1/tcp/9092/ws"]
+
+[node.network.keypair_config]
+random_seed = { key_type = "ed25519", seed = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" }

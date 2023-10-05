@@ -6,7 +6,6 @@ use serial_test::file_serial;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
-    thread,
     time::Duration,
 };
 
@@ -21,7 +20,7 @@ fn test_libp2p_generates_peer_id_serial() -> Result<()> {
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/test_node1/config/settings.toml")
+        .arg("tests/fixtures/network_node1/config/settings.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
@@ -52,7 +51,7 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/test_node1/config/settings.toml")
+        .arg("tests/fixtures/network_node1/config/settings.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
@@ -79,7 +78,7 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/test_node1/config/settings.toml")
+        .arg("tests/fixtures/network_node1/config/settings.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
@@ -91,7 +90,7 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
 
     assert_eq!(
         true,
-        predicate::str::contains("RPC server listening on [::1]:3031").eval(stdout.as_str())
+        predicate::str::contains("RPC server listening on [::1]:3032").eval(stdout.as_str())
     );
 
     Ok(())
@@ -106,7 +105,7 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/test_node1/config/settings.toml")
+        .arg("tests/fixtures/network_node1/config/settings.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
@@ -118,7 +117,7 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
 
     assert_eq!(
         true,
-        predicate::str::contains("websocket server listening on 127.0.0.1:9091")
+        predicate::str::contains("websocket server listening on 127.0.0.1:9092")
             .eval(stdout.as_str())
     );
 
@@ -133,7 +132,7 @@ fn test_libp2p_connection_serial() -> Result<()> {
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/test_node1/config/settings.toml")
+        .arg("tests/fixtures/network_node1/config/settings.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
@@ -143,7 +142,7 @@ fn test_libp2p_connection_serial() -> Result<()> {
     let homestar_proc2 = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/test_node2/config/settings.toml")
+        .arg("tests/fixtures/network_node2/config/settings.toml")
         .arg("--db")
         .arg("homestar2.db")
         .stdout(Stdio::piped())

@@ -1,13 +1,13 @@
 [monitoring]
 process_collector_interval = 500
-metrics_port = 4001
-console_subscriber_port = 5556
+metrics_port = 4002
+console_subscriber_port = 5557
 
 [node]
 
 [node.network]
-rpc_port = 3032
-websocket_port = 9092
+rpc_port = 3033
+websocket_port = 9093
 listen_address = "/ip4/127.0.0.1/tcp/7001"
 node_addresses = [
   "/ip4/127.0.0.1/tcp/7000",
