@@ -6,27 +6,30 @@ An example application that connects to a `homestar-runtime` node
 over a websocket connection in order to run static Wasm-based, image
 processing workflows that chain inputs and outputs using
 [inlined promises][pipelines].
-
+ 
 This application demonstrates:
 
-  * websocket notifications of [Ucan Invocation receipts][spec-receipts] sent
+  * websocket notifications of [UCAN Invocation Receipts][spec-receipts] sent
     between a web client and a `homestar` runner
   * instantaneous replay of previously run, cached executions
   * fetching content (the original static image) over [IPFS][ipfs]
     through a local blockstore
-  * the [WIT][wit] + [Ipld][ipld] interpreter for
+  * the [WIT][wit] + [IPLD][ipld] interpreter for
     [Wasm(time)][wasmtime] embedded execution within a `homestar` runner.
 
 ## Install
 
+### Nix
+
+If you're using our [Nix file](../../flake.nix), you get these installs for free.
+
+### Manual
+
 To get started, please install:
 
-* [rust][install-rust], unless you're running `homestar` [as a binary][rust-binary]
-* [node & npm][install-npm]
-* [kubo/ipfs installed][install-ipfs]
-
-If you're using our [nix file](../../flake.nix)], you get these installs for
-free.
+* [Rust][install-rust], unless you're running `homestar` [as a binary][rust-binary]
+* [Node & NPM][install-npm]
+* [Kubo IPFS][install-ipfs]
 
 ## Usage
 
@@ -64,7 +67,7 @@ need: `brew install rust npm ipfs`
 `1.70.0`. If you've got an older install of rust, update it with
 `rustup update`.
 
-You do not have to start-up `kubo`/`ipfs` on your own. The example will do this
+You do not have to start-up Kubo (IPFS) on your own. The example will do this
 for you, and use `examples/websocket-relay/tmp/.ipfs` as a local blockstore.
 Feel free to discard it when you don't need it.
 
