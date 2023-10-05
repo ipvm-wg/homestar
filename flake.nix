@@ -239,6 +239,7 @@
               pre-commit
               diesel-cli
               direnv
+              nodejs_18
               kubo
               self.packages.${system}.irust
             ]
