@@ -12,3 +12,9 @@
   font-weight: 400;
   src: url("/IBMPlexMono-Regular.ttf") format("truetype");
 }
+
+
+/* Svelvet */
+.label-wrapper .default-label {
+  @apply font-sans text-xs !important;
+}

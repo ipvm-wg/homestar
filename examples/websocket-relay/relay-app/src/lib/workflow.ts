@@ -1,6 +1,6 @@
 import { get as getStore } from "svelte/store";
 
-import { base64CatStore } from "../stores";
+import { base64CatStore, firstWorkflowToRunStore } from "../stores";
 import type { Receipt, TaskOperation, TaskStatus, Meta } from "$lib/task";
 
 import {
@@ -29,6 +29,7 @@ export type WorkflowId = "one" | "two";
 // RUN
 export async function run(workflowId: WorkflowId) {
   let channel = getStore(channelStore);
+  const firstWorkflowToRun = getStore(firstWorkflowToRunStore);
   const tasks = getStore(taskStore);
 
   if (!channel) {
@@ -46,6 +47,11 @@ export async function run(workflowId: WorkflowId) {
     step: 0,
     failedPingCount: 0,
   });
+
+  // Record the first workflow that ran
+  if (!firstWorkflowToRun) {
+    firstWorkflowToRunStore.set(workflowId)
+  }
 
   // Set workflow status to working
   workflowStore.update((workflows) => ({

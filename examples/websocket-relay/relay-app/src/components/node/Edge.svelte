@@ -1,30 +1,33 @@
-<script>
+<script lang="ts">
   import { Edge } from "svelvet";
 
-  const edgeColor = "#777777";
+  export let arrowDirection: string = 'left'
 </script>
 
-<defs>
-  <marker
-    id="arrow"
-    markerWidth="9"
-    markerHeight="9"
-    refX="6.5"
-    refY="3.5"
-    orient="auto"
-  >
-    <polygon points="0 0, 7 3.5, 0 7" fill={edgeColor} />
-  </marker>
-</defs>
-
-<Edge let:path>
-  <path d={path} />
+<Edge let:path labelColor="white">
+	<defs>
+		<marker
+			id="arrow"
+			viewBox="0 0 10 10"
+			refX="11"
+			refY="5"
+			markerWidth="6"
+			markerHeight="6"
+			orient="auto-start-reverse"
+      fill="#000000"
+		>
+			<path d="M 0 0 L 10 5 L 0 10 z" />
+		</marker>
+	</defs>
+	<path
+		d={path}
+    {...(arrowDirection === 'right' ? { 'marker-end': "url(#arrow)" } : { 'marker-start': "url(#arrow)" })}
+	/>
 </Edge>
 
 <style>
   path {
-    stroke: #999;
+    stroke: #000000;
     stroke-width: 2px;
-    marker-end: "url(#arrow)";
   }
 </style>
