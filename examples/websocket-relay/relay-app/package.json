@@ -37,6 +37,7 @@
   },
   "type": "module",
   "dependencies": {
+    "@zerodevx/svelte-json-view": "^1.0.3",
     "clipboard-copy": "^4.0.1",
     "svelvet": "8.1.0"
   }

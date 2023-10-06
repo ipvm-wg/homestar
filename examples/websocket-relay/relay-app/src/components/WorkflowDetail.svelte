@@ -1,10 +1,9 @@
 <script lang="ts">
-  // import { JsonView } from "@zerodevx/svelte-json-view";
+  import { JsonView } from "@zerodevx/svelte-json-view";
   import { slide } from "svelte/transition";
   import { quartOut } from "svelte/easing";
 
-  // import { workflowOneJson, workflowTwoJson } from "../lib/workflow";
-  // import * as workflows from "$lib/workflow";
+  import { workflowOneJson, workflowTwoJson } from "../lib/workflow";
 </script>
 
 <div
@@ -15,13 +14,13 @@
     <div class="p-4 overflow-y-auto scrollbar-hide">
       <div class="text-lg uppercase font-medium">Workflow One</div>
       <div class="jsonview">
-        <!-- <JsonView json={workflowOneJson} /> -->
+        <JsonView json={workflowOneJson} />
       </div>
     </div>
     <div class="p-4 overflow-y-auto scrollbar-hide">
       <div class="text-lg uppercase font-medium">Workflow Two</div>
       <div class="jsonview">
-        <!--  <JsonView json={workflowTwoJson} /> -->
+         <JsonView json={workflowTwoJson} />
       </div>
     </div>
   </div>
