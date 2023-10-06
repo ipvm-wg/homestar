@@ -1,12 +1,12 @@
 [monitoring]
 process_collector_interval = 500
-metrics_port = 4000
+metrics_port = 4004
 console_subscriber_port = 5555
 
 [node]
 
 [node.network]
-rpc_port = 3030
+rpc_port = 3031
 websocket_port = 9090
 
 [node.network.keypair_config]

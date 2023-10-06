@@ -179,6 +179,7 @@ predicates = { version = "3.0", default-features = false }
 prometheus-parse = "0.2.4"
 rand = { workspace = true }
 retry = { version = "2.0", default-features = false }
+rm_rf = "0.6"
 serial_test = { version = "2.0", default-features = false, features = [
   "file_locks",
 ] }

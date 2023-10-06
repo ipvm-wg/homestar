@@ -60,7 +60,7 @@
         ci = pkgs.writeScriptBin "ci" ''
           #!${pkgs.stdenv.shell}
           cargo fmt --check
-          cargo --workspace clippy
+          cargo clippy
           cargo build --release
           nx-test
           nx-test-0
@@ -239,6 +239,7 @@
               pre-commit
               diesel-cli
               direnv
+              nodejs_18
               kubo
               self.packages.${system}.irust
             ]

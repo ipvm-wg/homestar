@@ -136,6 +136,7 @@ impl Fetch {
                     // TODO: reqwest call
                     (_, _, _) => todo!(),
                 };
+
                 Ok((Resource::Url(url), bytes))
             }
 

@@ -2383,6 +2383,7 @@ dependencies = [
  "rand",
  "reqwest",
  "retry",
+ "rm_rf",
  "sec1",
  "semver",
  "serde",
@@ -5045,6 +5046,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rm_rf"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3443b7a35aa12ed2e99edfc0ecbefe6a53b4848305cc83e29981dfa1aea1f71e"
+dependencies = [
+ "stacker",
+]
+
+[[package]]
 name = "rmp"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7421,6 +7431,7 @@ dependencies = [
  "homestar-runtime",
  "miette",
  "retry",
+ "sysinfo",
  "tracing",
 ]
 
