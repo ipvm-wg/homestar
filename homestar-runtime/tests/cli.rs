@@ -135,13 +135,15 @@ fn test_server_serial() -> Result<()> {
 
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_v6.toml")
         .arg("--db")
         .arg("homestar.db")
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
-    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 3030);
+    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 9998);
     let result = retry(Fixed::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
@@ -153,6 +155,10 @@ fn test_server_serial() -> Result<()> {
 
     Command::new(BIN.as_os_str())
         .arg("ping")
+        .arg("--host")
+        .arg("::1")
+        .arg("-p")
+        .arg("9998")
         .assert()
         .success()
         .stdout(predicate::str::contains("::1"))
@@ -160,6 +166,8 @@ fn test_server_serial() -> Result<()> {
 
     Command::new(BIN.as_os_str())
         .arg("ping")
+        .arg("--host")
+        .arg("::1")
         .arg("-p")
         .arg("9999")
         .assert()
@@ -216,7 +224,7 @@ fn test_workflow_run_serial() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("run")
         .arg("-w")
-        .arg("./fixtures/test-workflow-add-one.json")
+        .arg("tests/fixtures/test-workflow-add-one.json")
         .assert()
         .success()
         .stdout(predicate::str::contains(
@@ -364,7 +372,7 @@ fn test_server_v4_serial() -> Result<()> {
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("fixtures/test_v4.toml")
+        .arg("tests/fixtures/test_v4.toml")
         .arg("--db")
         .arg("homestar.db")
         .stdout(Stdio::piped())
@@ -421,7 +429,7 @@ fn test_daemon_v4_serial() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("fixtures/test_v4.toml")
+        .arg("tests/fixtures/test_v4.toml")
         .arg("-d")
         .env("DATABASE_URL", "homestar.db")
         .stdout(Stdio::piped())
