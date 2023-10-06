@@ -37,6 +37,7 @@
   },
   "type": "module",
   "dependencies": {
+    "clipboard-copy": "^4.0.1",
     "svelvet": "8.1.0"
   }
 }
