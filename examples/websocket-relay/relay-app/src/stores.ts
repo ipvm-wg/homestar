@@ -83,6 +83,14 @@ export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
   ],
 });
 
+const NODE_TASK_MAP = {
+  '2': 'crop',
+  '3': 'rotate90',
+  '4': 'blur',
+  '5': 'crop',
+  '6': 'rotate90',
+  '7': 'grayscale',
+}
 export const nodeStore: Readable<NodeProps[]> = derived(
   [firstWorkflowToRunStore, taskStore],
   ($stores) => {
@@ -98,7 +106,7 @@ export const nodeStore: Readable<NodeProps[]> = derived(
           : true)
       ) {
         const idOffset = 2;
-        const id = String(index + idOffset)
+        const id = String(index + idOffset);
 
         // @ts-ignore
         nodes = [
@@ -108,7 +116,7 @@ export const nodeStore: Readable<NodeProps[]> = derived(
             position: {
               x: 208 + (index + 1) * 275,
               y:
-                firstWorkflowToRunStore === 'two' && (id === "2" || id === "3")
+                firstWorkflowToRunStore === "two" && (id === "2" || id === "3")
                   ? 570
                   : 270,
             },
@@ -169,13 +177,34 @@ export const nodeStore: Readable<NodeProps[]> = derived(
       return nodes;
     }, []);
 
+    // Nodes don't always have the correct task receipts because activeWorkflow.step can get out of sync
+    // when the BE returns two messages at the same time, which causes the wrong receipt to be associated
+    // with a task. So here we ensure the correct receipt is assigned to the correct node and task by
+    // checking the NODE_TASK_MAP, which states the correct sequence of ops based on a node.id
+    const workflowNodes = [...workflowOneNodes, ...workflowTwoNodes].map(
+      (node) =>
+        NODE_TASK_MAP[node.id] !== node?.task?.receipt?.meta?.op
+          ? {
+              ...node,
+              task: {
+                ...(taskStore["one"].find(
+                  (task) => NODE_TASK_MAP[node.id] === task?.receipt?.meta?.op
+                ) ??
+                  taskStore["two"].find(
+                    (task) => NODE_TASK_MAP[node.id] === task?.receipt?.meta?.op
+                  )),
+                operation: NODE_TASK_MAP[node.id],
+              },
+            }
+          : node
+    );
+
     return [
       {
         id: "1",
         position: { x: 208, y: 420 },
       },
-      ...workflowOneNodes,
-      ...workflowTwoNodes,
+      ...workflowNodes,
     ];
   }
 );

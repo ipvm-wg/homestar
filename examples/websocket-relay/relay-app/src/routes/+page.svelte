@@ -16,7 +16,6 @@
 
   const unsubscribeNodeStore = nodeStore.subscribe((store) => {
     nodes = store;
-    console.log('nodes', nodes)
   });
 
   function handleWindowResize() {
@@ -60,9 +59,7 @@
   <Svelvet width={windowWidth} height={windowHeight} zoom={1.25}>
     {#key nodes}
       {#each nodes as node}
-        {#key $taskStore}
-          <Node {...node} />
-        {/key}
+        <Node {...node} />
       {/each}
     {/key}
   </Svelvet>
