@@ -1,0 +1,14 @@
+[monitoring]
+process_collector_interval = 500
+metrics_port = 4009
+console_subscriber_port = 5561
+
+[node]
+
+[node.network]
+rpc_port = 3035
+websocket_port = 9095
+listen_address = "/ip4/0.0.0.0/tcp/0"
+
+[node.network.keypair_config]
+existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }

@@ -188,3 +188,68 @@ fn test_libp2p_connection_serial() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+#[file_serial]
+fn test_connect_on_mdns_serial() -> Result<()> {
+    let _ = stop_homestar();
+
+    let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/mdns_connect1.toml")
+        .arg("--db")
+        .arg("homestar1.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let homestar_proc2 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/mdns_connect2.toml")
+        .arg("--db")
+        .arg("homestar2.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Delays five seconds before kill
+    let dead_proc1 = kill_homestar(homestar_proc1, Some(Duration::from_secs(7)));
+    let dead_proc2 = kill_homestar(homestar_proc2, Some(Duration::from_secs(7)));
+
+    let stdout1 = retrieve_output(dead_proc1);
+    let stdout2 = retrieve_output(dead_proc2);
+
+    // Node one connects to node two
+    assert_eq!(
+        true,
+        predicate::str::contains("peer connection established").eval(stdout1.as_str())
+    );
+    assert_eq!(
+        true,
+        predicate::str::contains("peer_id=16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc")
+            .eval(stdout1.as_str())
+    );
+
+    // Node two connects to node one
+    assert_eq!(
+        true,
+        predicate::str::contains("peer connection established").eval(stdout2.as_str())
+    );
+    assert_eq!(
+        true,
+        predicate::str::contains("peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+            .eval(stdout2.as_str())
+    );
+
+    Ok(())
+}
