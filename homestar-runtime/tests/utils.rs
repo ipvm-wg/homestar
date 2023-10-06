@@ -67,6 +67,7 @@ pub(crate) fn stop_ipfs() -> Result<()> {
         .stderr(Stdio::null())
         .status()
         .context("failed to stop IPFS daemon")?;
+    rm_rf::ensure_removed(path).unwrap();
 
     Ok(())
 }
@@ -97,7 +98,7 @@ pub(crate) fn kill_homestar_process() -> Result<()> {
         );
 
     let _result = signal::kill(Pid::from_raw(pid.try_into().unwrap()), Signal::SIGTERM);
-    let _result = retry(Fixed::from_millis(500), || {
+    let _result = retry(Fixed::from_millis(1000).take(5), || {
         Command::new(BIN.as_os_str())
             .arg("ping")
             .assert()
