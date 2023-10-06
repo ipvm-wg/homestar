@@ -164,11 +164,6 @@ fn test_libp2p_connection_serial() -> Result<()> {
     let stdout1 = retrieve_output(dead_proc1);
     let stdout2 = retrieve_output(dead_proc2);
 
-    println!("STDOUT FOR NODE1");
-    println!("{}", stdout1);
-    println!("STDOUT FOR NODE2");
-    println!("{}", stdout2);
-
     // Node one connects to node two
     assert_eq!(
         true,
@@ -190,8 +185,6 @@ fn test_libp2p_connection_serial() -> Result<()> {
         predicate::str::contains("peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
             .eval(stdout2.as_str())
     );
-
-    // assert!(false);
 
     Ok(())
 }
