@@ -106,11 +106,11 @@ export const nodeStore: Readable<NodeProps[]> = derived(
           {
             id,
             position: {
-              x: 500 + (index + 1) * 275,
+              x: 188 + (index + 1) * 275,
               y:
                 firstWorkflowToRunStore === 'two' && (id === "2" || id === "3")
-                  ? 450
-                  : 150,
+                  ? 560
+                  : 260,
             },
             task,
           },
@@ -160,7 +160,7 @@ export const nodeStore: Readable<NodeProps[]> = derived(
           ...nodes,
           {
             id,
-            position: { x: 500 + (index + 1) * 275, y: 450 },
+            position: { x: 188 + (index + 1) * 275, y: 560 },
             task,
           },
         ];
@@ -172,7 +172,7 @@ export const nodeStore: Readable<NodeProps[]> = derived(
     return [
       {
         id: "1",
-        position: { x: 500, y: 300 },
+        position: { x: 188, y: 410 },
       },
       ...workflowOneNodes,
       ...workflowTwoNodes,
