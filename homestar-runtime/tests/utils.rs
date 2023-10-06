@@ -67,6 +67,7 @@ pub(crate) fn stop_ipfs() -> Result<()> {
         .stderr(Stdio::null())
         .status()
         .context("failed to stop IPFS daemon")?;
+    rm_rf::ensure_removed(path).unwrap();
 
     Ok(())
 }

@@ -5,6 +5,7 @@ use reqwest::StatusCode;
 use retry::{delay::Fixed, retry, OperationResult};
 use serial_test::file_serial;
 use std::{
+    net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Command, Stdio},
     time::Duration,
@@ -55,6 +56,16 @@ fn test_metrics_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 4000);
+    let result = retry(Fixed::from_millis(500), || {
+        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
+    });
+
+    if result.is_err() {
+        homestar_proc.kill().unwrap();
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     let sample1 = sample_metrics();
 
