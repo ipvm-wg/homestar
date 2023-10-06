@@ -240,7 +240,7 @@ fn test_workflow_run_serial() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("run")
         .arg("-w")
-        .arg("./fixtures/test-workflow-add-one.json")
+        .arg("tests/fixtures/test-workflow-add-one.json")
         .assert()
         .success()
         .stdout(predicate::str::contains(
