@@ -6,7 +6,7 @@ use assert_cmd::prelude::*;
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
 use retry::{delay::Fixed, retry};
-use serial_test::serial;
+use serial_test::file_serial;
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
@@ -18,7 +18,7 @@ use wait_timeout::ChildExt;
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
 #[test]
-#[serial]
+#[file_serial]
 fn test_help_serial() -> Result<()> {
     let _ = stop_all_bins();
 
@@ -53,7 +53,7 @@ fn test_help_serial() -> Result<()> {
 }
 
 #[test]
-#[serial]
+#[file_serial]
 fn test_version_serial() -> Result<()> {
     let _ = stop_all_bins();
 
@@ -76,7 +76,7 @@ fn test_version_serial() -> Result<()> {
 }
 
 #[test]
-#[serial]
+#[file_serial]
 fn test_server_not_running_serial() -> Result<()> {
     let _ = stop_all_bins();
 
@@ -119,7 +119,7 @@ fn test_server_not_running_serial() -> Result<()> {
 }
 
 #[test]
-#[serial]
+#[file_serial]
 fn test_server_serial() -> Result<()> {
     let _ = stop_all_bins();
 
@@ -196,7 +196,7 @@ fn test_server_serial() -> Result<()> {
 
 #[cfg(feature = "test-utils")]
 #[test]
-#[serial]
+#[file_serial]
 fn test_workflow_run_serial() -> Result<()> {
     let _ = stop_all_bins();
 
@@ -270,7 +270,7 @@ fn test_workflow_run_serial() -> Result<()> {
 }
 
 #[test]
-#[serial]
+#[file_serial]
 #[cfg(not(windows))]
 fn test_daemon_serial() -> Result<()> {
     let _ = stop_all_bins();
@@ -280,13 +280,15 @@ fn test_daemon_serial() -> Result<()> {
 
     Command::new(BIN.as_os_str())
         .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_v4_alt.toml")
         .arg("-d")
         .env("DATABASE_URL", "homestar.db")
         .stdout(Stdio::piped())
         .assert()
         .success();
 
-    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 3030);
+    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 9997);
     let result = retry(Fixed::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
@@ -297,9 +299,13 @@ fn test_daemon_serial() -> Result<()> {
 
     Command::new(BIN.as_os_str())
         .arg("ping")
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("-p")
+        .arg("9997")
         .assert()
         .success()
-        .stdout(predicate::str::contains("::1"))
+        .stdout(predicate::str::contains("127.0.0.1"))
         .stdout(predicate::str::contains("pong"));
 
     let _ = stop_all_bins();
@@ -309,7 +315,7 @@ fn test_daemon_serial() -> Result<()> {
 }
 
 #[test]
-#[serial]
+#[file_serial]
 #[cfg(windows)]
 fn test_signal_kill_serial() -> Result<()> {
     let _ = stop_all_bins();
@@ -361,7 +367,7 @@ fn test_signal_kill_serial() -> Result<()> {
 }
 
 #[test]
-#[serial]
+#[file_serial]
 #[cfg(windows)]
 fn test_server_v4_serial() -> Result<()> {
     let _ = stop_all_bins();
@@ -418,7 +424,7 @@ fn test_server_v4_serial() -> Result<()> {
 }
 
 #[test]
-#[serial]
+#[file_serial]
 #[cfg(not(windows))]
 fn test_daemon_v4_serial() -> Result<()> {
     let _ = stop_all_bins();

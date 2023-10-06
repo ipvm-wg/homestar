@@ -3,7 +3,7 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use reqwest::StatusCode;
 use retry::{delay::Fixed, retry, OperationResult};
-use serial_test::{file_serial, serial};
+use serial_test::file_serial;
 use std::{
     net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
@@ -16,7 +16,7 @@ static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME))
 const METRICS_URL: &str = "http://localhost:4004";
 
 #[test]
-#[serial]
+#[file_serial]
 fn test_metrics_serial() -> Result<()> {
     fn sample_metrics() -> prometheus_parse::Value {
         let body = retry(
