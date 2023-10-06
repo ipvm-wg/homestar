@@ -106,7 +106,7 @@ export const nodeStore: Readable<NodeProps[]> = derived(
           {
             id,
             position: {
-              x: 500 + (index + 1) * 280,
+              x: 500 + (index + 1) * 275,
               y:
                 firstWorkflowToRunStore === 'two' && (id === "2" || id === "3")
                   ? 450
@@ -160,7 +160,7 @@ export const nodeStore: Readable<NodeProps[]> = derived(
           ...nodes,
           {
             id,
-            position: { x: 500 + (index + 1) * 280, y: 450 },
+            position: { x: 500 + (index + 1) * 275, y: 450 },
             task,
           },
         ];
