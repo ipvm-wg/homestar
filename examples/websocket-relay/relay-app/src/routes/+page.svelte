@@ -57,10 +57,10 @@
 
 {#await fetchCat then _}
   <Svelvet width={windowWidth} height={windowHeight} zoom={1.25}>
-    {#key nodes}
-      {#each nodes as node}
+    {#each nodes as node}
+      {#key node}
         <Node {...node} />
-      {/each}
-    {/key}
+      {/key}
+    {/each}
   </Svelvet>
 {/await}
