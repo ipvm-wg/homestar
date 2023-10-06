@@ -288,7 +288,7 @@ fn test_daemon_serial() -> Result<()> {
         .assert()
         .success();
 
-    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 9997);
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9997);
     let result = retry(Fixed::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
