@@ -3,7 +3,7 @@
   import { Svelvet } from "svelvet";
 
   import { connect } from "$lib/channel";
-  import { base64CatStore, nodeStore } from "../stores";
+  import { base64CatStore, edgeStore, nodeStore } from "../stores";
   import Controls from "$components/Controls.svelte";
   import Header from "$components/Header.svelte";
   import WorkflowDetail from "$components/WorkflowDetail.svelte";
@@ -16,6 +16,7 @@
 
   const unsubscribeNodeStore = nodeStore.subscribe((store) => {
     nodes = store;
+    console.log('nodes',)
   });
 
   function handleWindowResize() {
@@ -57,10 +58,12 @@
 
 {#await fetchCat then _}
   <Svelvet width={windowWidth} height={windowHeight} zoom={1.25}>
-    {#each nodes as node}
-      {#key node}
-        <Node {...node} />
-      {/key}
-    {/each}
+    {#key $edgeStore}
+      {#each nodes as node}
+        {#key node}
+          <Node {...node} />
+        {/key}
+      {/each}
+    {/key}
   </Svelvet>
 {/await}
