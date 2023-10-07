@@ -6,5 +6,5 @@ metrics_port = 4007
 
 [node.network]
 events_buffer_len = 1000
-rpc_port = 9997
+rpc_port = 9987
 rpc_host = "127.0.0.1"
