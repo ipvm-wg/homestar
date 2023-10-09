@@ -120,7 +120,7 @@ pub(crate) fn init(
     swarm.listen_on(settings.listen_address.to_string().parse()?)?;
 
     // add external addresses from settings
-    if settings.announce_addresses.is_empty() {
+    if !settings.announce_addresses.is_empty() {
         for addr in settings.announce_addresses.iter() {
             swarm.add_external_address(addr.clone());
         }
