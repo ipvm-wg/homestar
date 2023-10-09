@@ -561,7 +561,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             event_handler.connected_peers.insert(peer_id, endpoint);
         }
         SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
-            info!("peer connection closed {peer_id}, cause: {cause:?}");
+            debug!(
+                peer_id = peer_id.to_string(),
+                "peer connection closed, cause: {cause:?}"
+            );
             event_handler.connected_peers.remove_entry(&peer_id);
         }
         SwarmEvent::OutgoingConnectionError {
