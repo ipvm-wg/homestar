@@ -32,7 +32,14 @@
 
         rust-toolchain = (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml).override {
           extensions = ["cargo" "clippy" "rustfmt" "rust-src" "rust-std"];
-          targets = ["wasm32-unknown-unknown" "wasm32-wasi"];
+          targets = [
+            "wasm32-unknown-unknown"
+            "wasm32-wasi"
+            "x86_64-apple-darwin"
+            "aarch64-apple-darwin"
+            "x86_64-unknown-linux-musl"
+            "aarch64-unknown-linux-musl"
+          ];
         };
 
         nightly-rustfmt = pkgs.rust-bin.nightly.latest.rustfmt;
@@ -45,6 +52,8 @@
 
         cargo-installs = with pkgs; [
           cargo-deny
+          cargo-deb
+          cargo-cross
           cargo-expand
           cargo-nextest
           cargo-outdated
@@ -53,6 +62,7 @@
           cargo-unused-features
           cargo-udeps
           cargo-watch
+          rustup
           twiggy
           wasm-tools
         ];

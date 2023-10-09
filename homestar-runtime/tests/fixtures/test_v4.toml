@@ -1,3 +1,7 @@
+[monitoring]
+process_collector_interval = 500
+metrics_port = 4010
+
 [node]
 
 [node.network]
