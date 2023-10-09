@@ -126,9 +126,11 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
 
 #[test]
 #[file_serial]
-fn test_libp2p_connection_serial() -> Result<()> {
+fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     let _ = stop_homestar();
 
+    // Start two nodes configured to listen at 127.0.0.1 each with their own port.
+    // The nodes are configured to dial each other through the node_addresses config.
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
@@ -157,14 +159,15 @@ fn test_libp2p_connection_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    // Delays five seconds before kill
+    // Collect logs for five seconds then kill proceses.
     let dead_proc1 = kill_homestar(homestar_proc1, Some(Duration::from_secs(5)));
     let dead_proc2 = kill_homestar(homestar_proc2, Some(Duration::from_secs(5)));
 
+    // Retrieve logs.
     let stdout1 = retrieve_output(dead_proc1);
     let stdout2 = retrieve_output(dead_proc2);
 
-    // Node one connects to node two
+    // Check that node one connected to node two.
     assert_eq!(
         true,
         predicate::str::contains("peer connection established").eval(stdout1.as_str())
@@ -175,7 +178,7 @@ fn test_libp2p_connection_serial() -> Result<()> {
             .eval(stdout1.as_str())
     );
 
-    // Node two connects to node one
+    // Check that node two connected to node one.
     assert_eq!(
         true,
         predicate::str::contains("peer connection established").eval(stdout2.as_str())
@@ -191,9 +194,11 @@ fn test_libp2p_connection_serial() -> Result<()> {
 
 #[test]
 #[file_serial]
-fn test_connect_on_mdns_serial() -> Result<()> {
+fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     let _ = stop_homestar();
 
+    // Start two nodes each configured to listen at 0.0.0.0 with no known peers.
+    // The nodes are configured with port 0 to allow the OS to selectn a port.
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
@@ -222,14 +227,15 @@ fn test_connect_on_mdns_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    // Delays five seconds before kill
+    // Collect logs for seven seconds then kill processes.
     let dead_proc1 = kill_homestar(homestar_proc1, Some(Duration::from_secs(7)));
     let dead_proc2 = kill_homestar(homestar_proc2, Some(Duration::from_secs(7)));
 
+    // Retrieve logs.
     let stdout1 = retrieve_output(dead_proc1);
     let stdout2 = retrieve_output(dead_proc2);
 
-    // Node one connects to node two
+    // Check that node one connected to node two.
     assert_eq!(
         true,
         predicate::str::contains("peer connection established").eval(stdout1.as_str())
@@ -240,7 +246,7 @@ fn test_connect_on_mdns_serial() -> Result<()> {
             .eval(stdout1.as_str())
     );
 
-    // Node two connects to node one
+    // Check that node two connected to node one.
     assert_eq!(
         true,
         predicate::str::contains("peer connection established").eval(stdout2.as_str())
