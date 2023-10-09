@@ -168,26 +168,12 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     let stdout2 = retrieve_output(dead_proc2);
 
     // Check that node one connected to node two.
-    assert_eq!(
-        true,
-        predicate::str::contains("peer connection established").eval(stdout1.as_str())
-    );
-    assert_eq!(
-        true,
-        predicate::str::contains("peer_id=16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc")
-            .eval(stdout1.as_str())
-    );
+    assert!(predicate::str::contains("message=\"peer connection established\" peer_id=16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc")
+        .eval(stdout1.as_str()));
 
     // Check that node two connected to node one.
-    assert_eq!(
-        true,
-        predicate::str::contains("peer connection established").eval(stdout2.as_str())
-    );
-    assert_eq!(
-        true,
-        predicate::str::contains("peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
-            .eval(stdout2.as_str())
-    );
+    assert!(predicate::str::contains("message=\"peer connection established\" peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+        .eval(stdout2.as_str()));
 
     Ok(())
 }
@@ -236,26 +222,12 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     let stdout2 = retrieve_output(dead_proc2);
 
     // Check that node one connected to node two.
-    assert_eq!(
-        true,
-        predicate::str::contains("peer connection established").eval(stdout1.as_str())
-    );
-    assert_eq!(
-        true,
-        predicate::str::contains("peer_id=16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc")
-            .eval(stdout1.as_str())
-    );
+    assert!(predicate::str::contains("message=\"peer connection established\" peer_id=16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc")
+        .eval(stdout1.as_str()));
 
     // Check that node two connected to node one.
-    assert_eq!(
-        true,
-        predicate::str::contains("peer connection established").eval(stdout2.as_str())
-    );
-    assert_eq!(
-        true,
-        predicate::str::contains("peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
-            .eval(stdout2.as_str())
-    );
+    assert!(predicate::str::contains("message=\"peer connection established\" peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+        .eval(stdout2.as_str()));
 
     Ok(())
 }
