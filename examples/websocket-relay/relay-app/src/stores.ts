@@ -1,6 +1,6 @@
 import { derived, writable } from "svelte/store";
 import type { Readable, Writable } from "svelte/store";
-import type { NodeType } from "svelvet";
+import type { NodeProps } from "svelvet";
 
 import type { Channel } from "$lib/channel";
 import type { Workflow, WorkflowId, WorkflowState } from "$lib/workflow";
@@ -25,6 +25,8 @@ export const workflowStore: Writable<Record<string, Workflow>> = writable({
 
 export const activeWorkflowStore: Writable<Maybe<WorkflowState>> =
   writable(null);
+
+export const firstWorkflowToRunStore: Writable<'one' | 'two'| null> = writable(null)
 
 export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
   one: [
@@ -81,49 +83,59 @@ export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
   ],
 });
 
-export const nodeStore: Readable<NodeType[]> = derived(
-  [base64CatStore, taskStore],
+const NODE_TASK_MAP = {
+  '2': 'crop',
+  '3': 'rotate90',
+  '4': 'blur',
+  '5': 'crop',
+  '6': 'rotate90',
+  '7': 'grayscale',
+}
+export const nodeStore: Readable<NodeProps[]> = derived(
+  [firstWorkflowToRunStore, taskStore],
   ($stores) => {
-    const [ base64Cat, taskStore ] = $stores
-    const workflowOneTasks = taskStore["one"]
+    const [firstWorkflowToRunStore, taskStore] = $stores;
+    const workflowOneTasks = taskStore["one"];
     const workflowOneNodes = workflowOneTasks.reduce((nodes, task, index) => {
-      const previous = index !== 0 ? workflowOneTasks[index - 1] : null
+      const previous = index !== 0 ? workflowOneTasks[index - 1] : null;
 
       if (
         (task.status === "executed" || task.status === "replayed") &&
-        (previous ? previous.status !== 'waiting' && previous.status !== "failure" : true)
+        (previous
+          ? previous.status !== "waiting" && previous.status !== "failure"
+          : true)
       ) {
         const idOffset = 2;
+        const id = String(index + idOffset);
 
         // @ts-ignore
         nodes = [
           ...nodes,
           {
-            id: String(index + idOffset),
-            position: { x: 500 + (index + 1) * 250, y: 150 },
-            data: {
-              html:
-                task.status === "replayed"
-                  ? `<img src="data:image/png;base64,${task.receipt?.out[1]}" draggable="false" style="filter: opacity(75%)" />`
-                  : `<img src="data:image/png;base64,${task.receipt?.out[1]}" draggable="false" />`,
+            id,
+            position: {
+              x: 208 + (index + 1) * 275,
+              y:
+                firstWorkflowToRunStore === "two" && (id === "2" || id === "3")
+                  ? 570
+                  : 270,
             },
-            width: 150,
-            height: 150,
-            bgColor: "white",
-            borderColor: "transparent",
+            task,
           },
         ];
       }
       return nodes;
     }, []);
 
-    const workflowTwoTasks = taskStore["two"]
+    const workflowTwoTasks = taskStore["two"];
     const workflowTwoNodes = workflowTwoTasks.reduce((nodes, task, index) => {
-      const previous = index !== 0 ? workflowTwoTasks[index - 1] : null
+      const previous = index !== 0 ? workflowTwoTasks[index - 1] : null;
 
       if (
         (task.status === "executed" || task.status === "replayed") &&
-        (previous ? previous.status !== 'waiting' && previous.status !== "failure" : true)
+        (previous
+          ? previous.status !== "waiting" && previous.status !== "failure"
+          : true)
       ) {
         const idOffset = 5;
 
@@ -138,58 +150,61 @@ export const nodeStore: Readable<NodeType[]> = derived(
             matchingOneTask.status === "replayed")
         ) {
           const nodeIndex = matchingOneTask.id - 1;
-          const updatedHtml = `${workflowOneNodes[nodeIndex].data.html.slice(
-            0,
-            -2
-          )} style="filter: opacity(75%)" />`;
 
           // Update node in workflow one with opacity to indicate the replayed
           // task
           workflowOneNodes[nodeIndex] = {
             ...workflowOneNodes[nodeIndex],
-            data: { html: updatedHtml },
           };
 
           // Skip adding new nodes to workflow two
           return nodes;
         }
 
+        const id = String(index + idOffset);
+
         // @ts-ignore
         nodes = [
           ...nodes,
           {
-            id: String(index + idOffset),
-            position: { x: 500 + (index + 1) * 250, y: 450 },
-            data: {
-              html:
-                task.status === "replayed"
-                  ? `<img src="data:image/png;base64,${task.receipt?.out[1]}" draggable="false" style="filter: opacity(75%)" />`
-                  : `<img src="data:image/png;base64,${task.receipt?.out[1]}" draggable="false" />`,
-            },
-            width: 150,
-            height: 150,
-            bgColor: "white",
-            borderColor: "transparent",
+            id,
+            position: { x: 208 + (index + 1) * 275, y: 570 },
+            task,
           },
         ];
       }
+
       return nodes;
     }, []);
+
+    // Nodes don't always have the correct task receipts because activeWorkflow.step can get out of sync
+    // when the BE returns two messages at the same time, which causes the wrong receipt to be associated
+    // with a task. So here we ensure the correct receipt is assigned to the correct node and task by
+    // checking the NODE_TASK_MAP, which states the correct sequence of ops based on a node.id
+    const workflowNodes = [...workflowOneNodes, ...workflowTwoNodes].map(
+      (node) =>
+        NODE_TASK_MAP[node.id] !== node?.task?.receipt?.meta?.op
+          ? {
+              ...node,
+              task: {
+                ...(taskStore["one"].find(
+                  (task) => NODE_TASK_MAP[node.id] === task?.receipt?.meta?.op
+                ) ??
+                  taskStore["two"].find(
+                    (task) => NODE_TASK_MAP[node.id] === task?.receipt?.meta?.op
+                  )),
+                operation: NODE_TASK_MAP[node.id],
+              },
+            }
+          : node
+    );
 
     return [
       {
         id: "1",
-        position: { x: 500, y: 300 },
-        data: {
-          html: `<img src="data:image/png;base64,${base64Cat}" draggable="false" />`,
-        },
-        width: 150,
-        height: 150,
-        bgColor: "white",
-        borderColor: "transparent",
+        position: { x: 208, y: 420 },
       },
-      ...workflowOneNodes,
-      ...workflowTwoNodes,
+      ...workflowNodes,
     ];
   }
 );

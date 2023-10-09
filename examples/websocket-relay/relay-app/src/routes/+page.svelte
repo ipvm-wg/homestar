@@ -1,16 +1,15 @@
 <script lang="ts">
-  import type { NodeType } from "svelvet";
   import { onDestroy } from "svelte";
-  import Svelvet from "svelvet";
+  import { Svelvet } from "svelvet";
 
   import { connect } from "$lib/channel";
-  import { base64CatStore, edgeStore, nodeStore } from "../stores";
+  import { base64CatStore, nodeStore, taskStore } from "../stores";
   import Controls from "$components/Controls.svelte";
   import Header from "$components/Header.svelte";
   import WorkflowDetail from "$components/WorkflowDetail.svelte";
+  import Node from "$components/node/Node.svelte";
 
   let nodes: any[] = [];
-  let edges: any[] = [];
   let showWorkflowModal = false;
   let windowHeight = window.innerHeight;
   let windowWidth = window.innerWidth;
@@ -19,11 +18,7 @@
     nodes = store;
   });
 
-  const unsubscribeEdgeStore = edgeStore.subscribe((store) => {
-    edges = store;
-  });
-
-  function handleWindowResize(event: Event) {
+  function handleWindowResize() {
     windowHeight = window.innerHeight;
     windowWidth = window.innerWidth;
   }
@@ -40,30 +35,32 @@
   }
 
   // Set spacecat unmodified image
-  initializeSpaceCat();
+  const fetchCat = initializeSpaceCat();
 
   // Connect to websocket server
   connect();
 
   onDestroy(() => {
     unsubscribeNodeStore();
-    unsubscribeEdgeStore();
   });
 </script>
 
 <svelte:window on:resize={handleWindowResize} />
 
 <Header on:workflow={toggleWorflowModal} />
+
 {#if showWorkflowModal}
   <WorkflowDetail />
 {/if}
+
 <Controls />
-<Svelvet
-  {nodes}
-  {edges}
-  width={windowWidth}
-  height={windowHeight}
-  initialZoom={1.25}
-  initialLocation={{ x: 0, y: 0 }}
-  boundary={{ x: windowWidth + 200, y: windowHeight + 200 }}
-/>
+
+{#await fetchCat then _}
+  <Svelvet width={windowWidth} height={windowHeight} zoom={1.25}>
+    {#key nodes}
+      {#each nodes as node}
+        <Node {...node} />
+      {/each}
+    {/key}
+  </Svelvet>
+{/await}
