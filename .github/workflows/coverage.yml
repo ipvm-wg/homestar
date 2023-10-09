@@ -75,8 +75,11 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Generate Code Coverage
-        run: cargo llvm-cov --all-features --workspace --doctests --lcov --output-path lcov.info
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Generate code coverage (nextest)
+        run: cargo llvm-cov nextest --all-features --workspace --profile=ci --lcov --output-path lcov.info
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
