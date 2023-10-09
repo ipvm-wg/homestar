@@ -20,7 +20,7 @@ fn test_libp2p_generates_peer_id_serial() -> Result<()> {
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/network_node1/config/settings.toml")
+        .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
@@ -44,7 +44,7 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/network_node1/config/settings.toml")
+        .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
@@ -70,7 +70,7 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/network_node1/config/settings.toml")
+        .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
@@ -80,7 +80,7 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
 
-    assert!(predicate::str::contains("RPC server listening on [::1]:3032").eval(stdout.as_str()));
+    assert!(predicate::str::contains("RPC server listening on [::1]:9820").eval(stdout.as_str()));
 
     Ok(())
 }
@@ -94,7 +94,7 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/network_node1/config/settings.toml")
+        .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
@@ -105,7 +105,7 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
     let stdout = retrieve_output(dead_proc);
 
     assert!(
-        predicate::str::contains("websocket server listening on 127.0.0.1:9092")
+        predicate::str::contains("websocket server listening on 127.0.0.1:8020")
             .eval(stdout.as_str())
     );
 
@@ -126,7 +126,7 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/network_node1/config/settings.toml")
+        .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
@@ -140,7 +140,7 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/network_node2/config/settings.toml")
+        .arg("tests/fixtures/test_network2.toml")
         .arg("--db")
         .arg("homestar2.db")
         .stdout(Stdio::piped())
@@ -180,7 +180,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/mdns_connect1.toml")
+        .arg("tests/fixtures/test_mdns_connect1.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
@@ -194,7 +194,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/mdns_connect2.toml")
+        .arg("tests/fixtures/test_mdns_connect2.toml")
         .arg("--db")
         .arg("homestar2.db")
         .stdout(Stdio::piped())

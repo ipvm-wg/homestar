@@ -22,7 +22,8 @@ private
 .DS_Store
 homestar-guest-wasm/out
 homestar-wasm/out
-**/fixtures/test_*
+homestar-core/fixtures/test_*
+homestar-runtime/fixtures/test_*
 .zed
 result-alejandra
 report.json

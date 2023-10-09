@@ -1,11 +1,11 @@
 [monitoring]
 process_collector_interval = 500
-metrics_port = 4007
-console_subscriber_port = 5559
+metrics_port = 4041
+console_subscriber_port = 5591
 
 [node]
 
 [node.network]
 events_buffer_len = 1000
-rpc_port = 9987
+rpc_port = 9831
 rpc_host = "127.0.0.1"

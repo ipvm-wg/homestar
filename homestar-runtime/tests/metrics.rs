@@ -11,7 +11,7 @@ use std::{
 };
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
-const METRICS_URL: &str = "http://localhost:4004";
+const METRICS_URL: &str = "http://localhost:4020";
 
 #[test]
 #[file_serial]
@@ -46,14 +46,14 @@ fn test_metrics_serial() -> Result<()> {
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/metrics_node/config/settings.toml")
+        .arg("tests/fixtures/test_metrics.toml")
         .arg("--db")
         .arg("homestar.db")
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 4004);
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 4020);
     let result = retry(Exponential::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
