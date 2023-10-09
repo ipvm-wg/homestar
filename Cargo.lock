@@ -1592,9 +1592,9 @@ checksum = "dcbb2bf8e87535c23f7a8a321e364ce21462d0ff10cb6407820e8e96dfff6653"
 
 [[package]]
 name = "ecolor"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e479a7fa3f23d4e794f8b2f8b3568dd4e47886ad1b12c9c095e141cb591eb63"
+checksum = "cfdf4e52dbbb615cfd30cf5a5265335c217b5fd8d669593cea74a517d9c605af"
 
 [[package]]
 name = "ed25519"
@@ -1634,9 +1634,9 @@ dependencies = [
 
 [[package]]
 name = "egui"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3aef8ec3ae1b772f340170c65bf27d5b8c28f543a0116c844d2ac08d01123e7"
+checksum = "8bd69fed5fcf4fbb8225b24e80ea6193b61e17a625db105ef0c4d71dde6eb8b7"
 dependencies = [
  "ahash",
  "epaint",
@@ -1651,9 +1651,9 @@ checksum = "a26ae43d7bcc3b814de94796a5e736d4029efb0ee900c12e2d54c993ad1a1e07"
 
 [[package]]
 name = "emath"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3857d743a6e0741cdd60b622a74c7a36ea75f5f8f11b793b41d905d2c9721a4b"
+checksum = "1ef2b29de53074e575c18b694167ccbe6e5191f7b25fe65175a0d905a32eeec0"
 
 [[package]]
 name = "encoding_rs"
@@ -1714,13 +1714,12 @@ dependencies = [
 
 [[package]]
 name = "epaint"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09333964d4d57f40a85338ba3ca5ed4716070ab184dcfed966b35491c5c64f3b"
+checksum = "58067b840d009143934d91d8dcb8ded054d8301d7c11a517ace0a99bb1e1595e"
 dependencies = [
  "ab_glyph",
  "ahash",
- "atomic_refcell",
  "ecolor",
  "emath",
  "nohash-hasher",
@@ -2378,7 +2377,7 @@ dependencies = [
  "predicates",
  "prometheus-parse",
  "proptest",
- "puffin 0.17.0",
+ "puffin",
  "puffin_egui",
  "rand",
  "reqwest",
@@ -3539,9 +3538,9 @@ dependencies = [
 
 [[package]]
 name = "lz4_flex"
-version = "0.10.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b8c72594ac26bfd34f2d99dfced2edfaddfe8a476e3ff2ca0eb293d925c4f83"
+checksum = "3ea9b256699eda7b0387ffbc776dd625e28bde3918446381781245b7a50349d8"
 
 [[package]]
 name = "mach"
@@ -4622,15 +4621,14 @@ dependencies = [
 
 [[package]]
 name = "puffin"
-version = "0.16.0"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76425abd4e1a0ad4bd6995dd974b52f414fca9974171df8e3708b3e660d05a21"
+checksum = "39009d69b9d547c3ffa974a20648fa02f447c05bd0a664012b1ba5a5b06fb14e"
 dependencies = [
  "anyhow",
  "bincode",
  "byteorder",
  "cfg-if",
- "instant",
  "lz4_flex",
  "once_cell",
  "parking_lot",
@@ -4638,31 +4636,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "puffin"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39009d69b9d547c3ffa974a20648fa02f447c05bd0a664012b1ba5a5b06fb14e"
-dependencies = [
- "anyhow",
- "byteorder",
- "cfg-if",
- "once_cell",
-]
-
-[[package]]
 name = "puffin_egui"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00f0ef87ac588ec9a979ea4952042134ff047407436aa6859ba9e061f55ca55d"
+checksum = "c5af236782d21bdd5a6eb2f8cc9a91f8d601c073b7f7d568c95c26604cc12b87"
 dependencies = [
  "egui",
  "indexmap 1.9.3",
- "instant",
  "natord",
  "once_cell",
- "puffin 0.16.0",
+ "puffin",
  "time",
  "vec1",
+ "web-time",
 ]
 
 [[package]]
@@ -7388,6 +7374,16 @@ name = "web-sys"
 version = "0.3.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b85cbef8c220a6abc02aefd892dfc0fc23afb1c6a426316ec33253a3877249b"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "web-time"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8208e3fdbc243c8fd30805721869242a7f6de3e2e9f3b057652ab36e52ae1e87"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
