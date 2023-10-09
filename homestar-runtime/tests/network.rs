@@ -30,15 +30,11 @@ fn test_libp2p_generates_peer_id_serial() -> Result<()> {
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
 
-    assert_eq!(
-        true,
-        predicate::str::contains("local peer ID generated").eval(stdout.as_str())
-    );
-    assert_eq!(
-        true,
-        predicate::str::contains("peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
-            .eval(stdout.as_str())
-    );
+    assert!(predicate::str::contains("local peer ID generated").eval(stdout.as_str()));
+    assert!(predicate::str::contains(
+        "peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN"
+    )
+    .eval(stdout.as_str()));
 
     Ok(())
 }
@@ -61,8 +57,7 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
 
-    assert_eq!(
-        true,
+    assert!(
         predicate::str::contains("local node is listening on /ip4/127.0.0.1/tcp/7000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
             .eval(stdout.as_str())
     );
@@ -88,10 +83,7 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
 
-    assert_eq!(
-        true,
-        predicate::str::contains("RPC server listening on [::1]:3032").eval(stdout.as_str())
-    );
+    assert!(predicate::str::contains("RPC server listening on [::1]:3032").eval(stdout.as_str()));
 
     Ok(())
 }
@@ -115,8 +107,7 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
 
-    assert_eq!(
-        true,
+    assert!(
         predicate::str::contains("websocket server listening on 127.0.0.1:9092")
             .eval(stdout.as_str())
     );
