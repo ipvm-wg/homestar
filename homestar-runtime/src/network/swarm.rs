@@ -132,10 +132,7 @@ pub(crate) fn init(
     }
 
     // Dial nodes specified in settings. Failure here shouldn't halt node startup.
-    info!("ADDRESSES {:?}", &settings.node_addresses);
     for addr in &settings.node_addresses {
-        info!("DIALING {}", addr.clone());
-
         let _ = swarm
             .dial(addr.clone())
             // log dial failure and continue
