@@ -32,7 +32,7 @@ jobs:
           cache-to: type=gha,mode=max
           file: docker/Dockerfile
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: false
           tags: |
             ${{ github.repository_owner }}/homestar:latest
