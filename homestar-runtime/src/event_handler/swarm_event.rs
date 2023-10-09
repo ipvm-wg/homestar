@@ -93,10 +93,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
     event_handler: &mut EventHandler<DB>,
 ) {
     match event {
+        // N.B. Labels should be ordered with peer_id first for log testing
         SwarmEvent::Behaviour(ComposedEvent::Identify(identify_event)) => {
             match identify_event {
                 identify::Event::Error { peer_id, error } => {
-                    warn!(err=?error, peer_id=peer_id.to_string(), "error while attempting to identify the remote")
+                    warn!(peer_id=peer_id.to_string(), err=?error, "error while attempting to identify the remote")
                 }
                 identify::Event::Sent { peer_id } => {
                     debug!(peer_id = peer_id.to_string(), "sent identify info to peer")
@@ -148,8 +149,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             None,
                         ) {
                             warn!(
-                                err = format!("{err}"),
                                 peer_id = peer_id.to_string(),
+                                err = format!("{err}"),
                                 "failed to register with rendezvous peer"
                             )
                         }
@@ -190,7 +191,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 .build();
                             // TODO: we might be dialing too many peers here. Add settings to configure when we stop dialing new peers
                             if let Err(err) = event_handler.swarm.dial(opts) {
-                                warn!(err=?err, peer_id=registration.record.peer_id().to_string(), "failed to dial peer discovered through rendezvous")
+                                warn!(peer_id=registration.record.peer_id().to_string(), err=?err, "failed to dial peer discovered through rendezvous")
                             }
                         }
                     } else {
@@ -203,7 +204,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     error,
                     ..
                 } => {
-                    error!(err=?error, peer_id=rendezvous_node.to_string(), "failed to discover peers from rendezvous peer")
+                    error!(peer_id=rendezvous_node.to_string(), err=?error, "failed to discover peers from rendezvous peer")
                 }
                 rendezvous::client::Event::Registered {
                     rendezvous_node,
@@ -219,7 +220,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     error,
                     ..
                 } => {
-                    error!(err=?error, peer_id=rendezvous_node.to_string(), "failed to register self with rendezvous peer")
+                    error!(peer_id=rendezvous_node.to_string(), err=?error, "failed to register self with rendezvous peer")
                 }
                 rendezvous::client::Event::Expired { peer } => {
                     // re-discover records from peer
@@ -244,14 +245,14 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     "served rendezvous discover request to peer"
                 ),
                 rendezvous::server::Event::DiscoverNotServed { enquirer, error } => {
-                    warn!(err=?error, peer_id=enquirer.to_string(), "did not serve rendezvous discover request")
+                    warn!(peer_id=enquirer.to_string(), err=?error, "did not serve rendezvous discover request")
                 }
                 rendezvous::server::Event::PeerNotRegistered {
                     peer,
                     namespace,
                     error,
                 } => {
-                    warn!(err=?error, namespace=?namespace, peer_id=peer.to_string(), "did not register peer with rendezvous")
+                    warn!(peer_id=peer.to_string(), err=?error, namespace=?namespace, "did not register peer with rendezvous")
                 }
                 _ => (),
             }
@@ -556,7 +557,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         SwarmEvent::ConnectionEstablished {
             peer_id, endpoint, ..
         } => {
-            debug!(endpoint=?endpoint, peer_id=peer_id.to_string(), "peer connection established");
+            debug!(peer_id=peer_id.to_string(), endpoint=?endpoint, "peer connection established");
             // add peer to connected peers list
             event_handler.connected_peers.insert(peer_id, endpoint);
         }
@@ -573,8 +574,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             error,
         } => {
             error!(
-                err=?error,
                 peer_id=peer_id.map(|p| p.to_string()).unwrap_or_default(),
+                err=?error,
                 connection_id=?connection_id,
                 "outgoing connection error"
             )
