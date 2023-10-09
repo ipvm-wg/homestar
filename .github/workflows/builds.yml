@@ -1,0 +1,188 @@
+name: ⚃ Builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      force-builds:
+        required: true
+        type: boolean
+        description: Publish Builds at Anytime
+
+  release:
+    types: [published]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  binary-builds:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-unknown-linux-gnu
+          - target: aarch64-unknown-linux-musl
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-unknown-linux-gnu
+          - target: x86_64-unknown-linux-musl
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - target: x86_64-unknown-freebsd
+
+    permissions:
+      contents: write
+
+    timeout-minutes: 60
+    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install musl-tools
+        run: sudo apt update && sudo apt install -y musl-dev musl-tools
+        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: check-${{ matrix.target }}-${{ matrix.os }}
+
+      - name: Install Rust Toolchain
+        id: toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Override rust-toolchain.toml
+        run: rustup override set ${{steps.toolchain.outputs.name}}
+
+      - name: cross-build
+        uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: ${{ matrix.target }}
+
+      - name: crt-static
+        run: echo "RUSTFLAGS=${RUSTFLAGS} -C target-feature=+crt-static" >>"${GITHUB_ENV}"
+        if: endsWith(matrix.target, 'windows-msvc')
+
+      - name: Publish Binary in Release
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: homestar
+          target: ${{ matrix.target }}
+          tar: all
+          zip: windows
+          include: LICENSE,README.md
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-packages:
+    runs-on: ubuntu-latest
+
+    env:
+      LINUX_TARGET: x86_64-unknown-linux-musl
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: check-${{ env.LINUX_TARGET }}-ubuntu-latest
+
+      - name: Install musl-tools
+        run: sudo apt update && sudo apt install -y musl-dev musl-tools
+
+      - name: Install cargo-deb
+        uses: taiki-e/cache-cargo-install-action@v1
+        with:
+          tool: cargo-deb
+
+      - name: Install cargo-generate-rpm
+        uses: taiki-e/cache-cargo-install-action@v1
+        with:
+          tool: cargo-generate-rpm
+
+      - name: Create .deb
+        run: cargo deb -p homestar-runtime --target ${{env.LINUX_TARGET}}
+
+      - name: Create .rpm
+        run: cargo generate-rpm
+
+      - name: Publish Release Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            target/generate-rpm/
+            target/${{env.LINUX_TARGET}}/debian/
+          if-no-files-found: error
+
+      - name: Publish Package in Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            target/${{env.LINUX_TARGET}}/debian/*.deb
+            target/generate-rpm/*.rpm
+
+      # TODO: brew formula (Macs), cargo-wix (Windows Installs), cargo-aur (Arch)
+
+  docker-build:
+    runs-on: ubuntu-latest
+
+    env:
+      DOCKER_BUILDKIT: '1'
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-flags: "--debug"
+
+      - name: Metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern=v{{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+            type=sha
+
+      - name: Docker Build & Push
+        uses: docker/build-push-action@v5
+        with:
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-to: type=inline
+          file: docker/Dockerfile
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

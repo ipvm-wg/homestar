@@ -5,7 +5,7 @@ use anyhow::Result;
 use assert_cmd::prelude::*;
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
-use retry::{delay::Fixed, retry};
+use retry::{delay::Exponential, retry};
 use serial_test::file_serial;
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
@@ -141,8 +141,8 @@ fn test_server_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 9998);
-    let result = retry(Fixed::from_millis(1000).take(10), || {
+    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 9991);
+    let result = retry(Exponential::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
 
@@ -156,7 +156,7 @@ fn test_server_serial() -> Result<()> {
         .arg("--host")
         .arg("::1")
         .arg("-p")
-        .arg("9998")
+        .arg("9991")
         .assert()
         .success()
         .stdout(predicate::str::contains("::1"))
@@ -194,14 +194,16 @@ fn test_workflow_run_serial() -> Result<()> {
 
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_workflow.toml")
         .arg("--db")
         .arg("homestar.db")
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
-    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 3030);
-    let result = retry(Fixed::from_millis(1000).take(30), || {
+    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 9888);
+    let result = retry(Exponential::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
 
@@ -212,6 +214,8 @@ fn test_workflow_run_serial() -> Result<()> {
 
     Command::new(BIN.as_os_str())
         .arg("run")
+        .arg("-p")
+        .arg("9888")
         .arg("-w")
         .arg("tests/fixtures/test-workflow-add-one.json")
         .assert()
@@ -228,6 +232,8 @@ fn test_workflow_run_serial() -> Result<()> {
     // run another one of the same!
     Command::new(BIN.as_os_str())
         .arg("run")
+        .arg("-p")
+        .arg("9888")
         .arg("-w")
         .arg("tests/fixtures/test-workflow-add-one.json")
         .assert()
@@ -268,8 +274,8 @@ fn test_daemon_serial() -> Result<()> {
         .assert()
         .success();
 
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9997);
-    let result = retry(Fixed::from_millis(1000).take(10), || {
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9987);
+    let result = retry(Exponential::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
 
@@ -282,7 +288,7 @@ fn test_daemon_serial() -> Result<()> {
         .arg("--host")
         .arg("127.0.0.1")
         .arg("-p")
-        .arg("9997")
+        .arg("9987")
         .assert()
         .success()
         .stdout(predicate::str::contains("127.0.0.1"))
@@ -312,7 +318,7 @@ fn test_signal_kill_serial() -> Result<()> {
         .unwrap();
 
     let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 3030);
-    let result = retry(Fixed::from_millis(1000).take(10), || {
+    let result = retry(Exponential::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
 
@@ -357,7 +363,7 @@ fn test_server_v4_serial() -> Result<()> {
         .unwrap();
 
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9999);
-    let result = retry(Fixed::from_millis(1000).take(30), || {
+    let result = retry(Exponential::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
 
@@ -405,7 +411,7 @@ fn test_daemon_v4_serial() -> Result<()> {
         .success();
 
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9999);
-    let result = retry(Fixed::from_millis(1000).take(30), || {
+    let result = retry(Exponential::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
 

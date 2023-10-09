@@ -23,7 +23,6 @@ autotests = false
 path = "src/lib.rs"
 bench = false
 doctest = true
-crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "homestar"
@@ -205,3 +204,40 @@ websocket-server = ["dep:axum"]
 all-features = true
 # defines the configuration attribute `docsrs`
 rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.deb]
+maintainer = "James Walker <james@fission.codes>"
+license-file = ["LICENSE", "0"]
+extended-description-file = "README.md"
+section = "network"
+priority = "optional"
+assets = [
+  [
+    "../target/x86_64-unknown-linux-musl/release/homestar",
+    "usr/bin/",
+    "755",
+  ],
+  [
+    "../CHANGELOG.md",
+    "usr/share/doc/homestar/",
+    "644",
+  ],
+  [
+    "../LICENSE",
+    "usr/share/doc/homestar/",
+    "644",
+  ],
+  [
+    "../README.md",
+    "usr/share/doc/homestar/",
+    "644",
+  ],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+  { source = "../target/x86_64-unknown-linux-musl/release/homestar", dest = "/usr/bin/homestar", mode = "755" },
+  { source = "../CHANGELOG.md", dest = "/usr/share/doc/homestar/CHANGELOG.md", mode = "644", doc = true },
+  { source = "../LICENSE", dest = "/usr/share/doc/homestar/LICENSE.md", mode = "644", doc = true },
+  { source = "../README.md", dest = "/usr/share/doc/homestar/README.md", mode = "644", doc = true },
+]

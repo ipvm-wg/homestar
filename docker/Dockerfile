@@ -40,8 +40,7 @@ ENTRYPOINT ["/bin/bash"]
 # cache depencies
 RUN mkdir .cargo
 RUN cargo vendor > .cargo/config
-RUN --mount=type=cache,target=$CARGO_HOME/registry \
-    cargo install diesel_cli --no-default-features --features "sqlite-bundled"
+RUN cargo install diesel_cli --no-default-features --features "sqlite-bundled"
 RUN diesel setup --database-url $DATABASE_URL
 RUN diesel migration run --migration-dir ./homestar-runtime/migrations
 RUN --mount=type=cache,id=cargo,target=$CARGO_HOME/registry \
