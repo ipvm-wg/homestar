@@ -1,5 +1,0 @@
-[node]
-
-[node.network.keypair_config]
-# `openssl ecparam -genkey -name secp256k1 -outform DER -o secp256k1_key.der`
-existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }
