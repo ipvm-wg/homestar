@@ -30,11 +30,8 @@ fn test_libp2p_generates_peer_id_serial() -> Result<()> {
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
 
-    assert!(predicate::str::contains("local peer ID generated").eval(stdout.as_str()));
-    assert!(predicate::str::contains(
-        "peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN"
-    )
-    .eval(stdout.as_str()));
+    assert!(predicate::str::contains("message=\"local peer ID generated\" peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+        .eval(stdout.as_str()));
 
     Ok(())
 }
