@@ -16,7 +16,9 @@ authors = [
 ]
 edition = "2021"
 license = "Apache"
+repository = "https://github.com/ipvm-wg/homestar"
 rust-version = "1.70.0"
+version = "0.1.0"
 
 [workspace.dependencies]
 anyhow = { version = "1.0", features = ["backtrace"] }

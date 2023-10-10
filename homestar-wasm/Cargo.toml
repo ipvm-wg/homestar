@@ -1,16 +1,15 @@
 [package]
 name = "homestar-wasm"
-version = "0.1.0"
+version = { workspace = true }
 description = "Homestar Wasm / Wasmtime implementation and IPLD <=> WIT interpreter"
 keywords = ["wasm", "wasmtime", "wit", "ipld", "ipvm"]
 categories = ["wasm", "execution-engines"]
-include = ["/src", "README.md", "LICENSE"]
 license = { workspace = true }
 readme = "README.md"
 edition = { workspace = true }
 rust-version = { workspace = true }
 documentation = "https://docs.rs/homestar-wasm"
-repository = "https://github.com/ipvm-wg/homestar"
+repository = { workspace = true }
 authors = { workspace = true }
 
 [lib]

@@ -1,2 +1,34 @@
 [workspace]
-allow_dirty = true
+publish = false
+changelog_update = false
+pr_labels = ["release"]
+
+[[package]]
+name = "homestar-core"
+publish = true
+changelog_update = true
+git_release_enable = true
+
+[[package]]
+name = "homestar-runtime"
+publish = true
+changelog_update = true
+git_release_enable = true
+
+[[package]]
+name = "homestar-wasm"
+publish = true
+changelog_update = true
+git_release_enable = true
+
+[[package]]
+name = "homestar-functions-add"
+publish = false
+
+[[package]]
+name = "homestar-functions-test"
+publish = false
+
+[[package]]
+name = "example-websocket-relay"
+publish = false
