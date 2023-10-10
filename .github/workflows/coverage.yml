@@ -53,15 +53,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Cache Project
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          save-if: ${{ github.event_name == 'push' }}
-
-      - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.3
-
       - name: Use mold-linker
         uses: rui314/setup-mold@v1
 
@@ -71,6 +62,15 @@ jobs:
 
       - name: Override rust-toolchain.toml
         run: rustup override set ${{steps.toolchain.outputs.name}}
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov

@@ -46,18 +46,18 @@ jobs:
         run: sudo apt update && sudo apt install -y musl-dev musl-tools
         if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
 
-      - name: Cache Project
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          shared-key: check-${{ matrix.target }}-${{ matrix.os }}
-
       - name: Install Rust Toolchain
         id: toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Override rust-toolchain.toml
         run: rustup override set ${{steps.toolchain.outputs.name}}
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: check-${{ matrix.target }}-${{ matrix.os }}
 
       - name: cross-build
         uses: taiki-e/setup-cross-toolchain-action@v1
@@ -88,12 +88,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Cache Project
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          shared-key: check-${{ env.LINUX_TARGET }}-ubuntu-latest
-
       - name: Install musl-tools
         run: sudo apt update && sudo apt install -y musl-dev musl-tools
 
@@ -106,6 +100,12 @@ jobs:
         uses: taiki-e/cache-cargo-install-action@v1
         with:
           tool: cargo-generate-rpm
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: check-${{ env.LINUX_TARGET }}-ubuntu-latest
 
       - name: Create .deb
         run: cargo deb -p homestar-runtime --target ${{env.LINUX_TARGET}}
