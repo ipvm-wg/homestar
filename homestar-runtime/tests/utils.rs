@@ -11,11 +11,14 @@ use retry::{delay::Fixed, retry};
 use std::{
     net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
+    time::Duration,
 };
+use strip_ansi_escapes;
 #[cfg(not(windows))]
 use sysinfo::PidExt;
 use sysinfo::{ProcessExt, SystemExt};
+use wait_timeout::ChildExt;
 
 /// Binary name, which is different than the crate name.
 pub(crate) const BIN_NAME: &str = "homestar";
@@ -58,7 +61,7 @@ pub(crate) fn stop_homestar() -> Result<()> {
     Ok(())
 }
 
-/// Stop the IPFS daemon.
+/// Stop the IPFS binary.
 pub(crate) fn stop_ipfs() -> Result<()> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
     Command::new(IPFS)
@@ -80,9 +83,34 @@ pub(crate) fn stop_all_bins() -> Result<()> {
     Ok(())
 }
 
+/// Retrieve process output.
+pub(crate) fn retrieve_output(proc: Child) -> String {
+    let output = proc.wait_with_output().expect("failed to wait on child");
+    let plain_stdout_bytes = strip_ansi_escapes::strip(output.stdout);
+    String::from_utf8(plain_stdout_bytes).unwrap()
+}
+
+/// Wait for process to exit or kill after timeout.
+pub(crate) fn kill_homestar(mut homestar_proc: Child, timeout: Option<Duration>) -> Child {
+    if let Ok(None) = homestar_proc.try_wait() {
+        let _status_code = match homestar_proc
+            .wait_timeout(timeout.unwrap_or(Duration::from_secs(1)))
+            .unwrap()
+        {
+            Some(status) => status.code(),
+            None => {
+                homestar_proc.kill().unwrap();
+                homestar_proc.wait().unwrap().code()
+            }
+        };
+    }
+
+    homestar_proc
+}
+
 /// Kill the Homestar proc running as a daemon.
 #[cfg(not(windows))]
-pub(crate) fn kill_homestar_process() -> Result<()> {
+pub(crate) fn kill_homestar_daemon() -> Result<()> {
     let system = sysinfo::System::new_all();
     let pid = system
         .processes_by_exact_name(BIN_NAME)
@@ -111,7 +139,7 @@ pub(crate) fn kill_homestar_process() -> Result<()> {
 /// Kill the Homestar proc running as a daemon.
 #[allow(dead_code)]
 #[cfg(windows)]
-pub(crate) fn kill_homestar_process() -> Result<()> {
+pub(crate) fn kill_homestar_daemon() -> Result<()> {
     let system = sysinfo::System::new_all();
     let pid = system
         .processes_by_exact_name(format!("{}.exe", BIN_NAME).as_str())

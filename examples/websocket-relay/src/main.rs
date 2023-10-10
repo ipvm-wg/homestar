@@ -10,7 +10,7 @@ use tracing::info;
 
 fn main() -> Result<()> {
     let settings = Settings::load().expect("runtime settings to be loaded");
-    let _guard = Logger::init();
+    let _guard = Logger::init(settings.monitoring());
 
     // Just for example purposes, we're going to start the ipfs
     // daemon. Typically, these would be started separately.

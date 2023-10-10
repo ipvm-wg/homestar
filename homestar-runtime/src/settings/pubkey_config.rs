@@ -64,14 +64,14 @@ impl PubkeyConfig {
 
                 match key_type {
                     KeyType::Ed25519 => {
-                        info!("generating radom ed25519 key from seed");
+                        info!("generating random ed25519 key from seed");
 
                         identity::Keypair::ed25519_from_bytes(new_key).map_err(|e| {
                             anyhow!("failed to generate ed25519 key from random: {:?}", e)
                         })
                     }
                     KeyType::Secp256k1 => {
-                        info!("generating radom secp256k1 key from seed");
+                        info!("generating random secp256k1 key from seed");
 
                         let sk =
                             secp256k1::SecretKey::try_from_bytes(&mut new_key).map_err(|e| {
