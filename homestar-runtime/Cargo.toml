@@ -1,6 +1,6 @@
 [package]
 name = "homestar-runtime"
-version = "0.1.0"
+version = { workspace = true }
 description = "Homestar CLI"
 keywords = ["ipfs", "workflows", "ipld", "ipvm"]
 categories = [
@@ -9,13 +9,12 @@ categories = [
   "runtimes",
   "networking",
 ]
-include = ["/src", "README.md", "LICENSE"]
 license = { workspace = true }
 readme = "README.md"
 edition = { workspace = true }
 rust-version = { workspace = true }
 documentation = "https://docs.rs/homestar"
-repository = "https://github.com/ipvm-wg/homestar"
+repository = { workspace = true }
 authors = { workspace = true }
 autotests = false
 

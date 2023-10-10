@@ -1,16 +1,15 @@
 [package]
 name = "homestar-core"
-version = "0.1.0"
+version = { workspace = true }
 description = "Homestar core library for working with tasks, instructions, etc"
 keywords = ["ipld", "tasks", "receipts", "ipvm"]
 categories = ["workflow-engines", "core", "libraries"]
-include = ["/src", "README.md", "LICENSE"]
 license = { workspace = true }
 readme = "README.md"
 edition = { workspace = true }
 rust-version = { workspace = true }
 documentation = "https://docs.rs/homestar-core"
-repository = "https://github.com/ipvm-wg/homestar"
+repository = { workspace = true }
 authors = { workspace = true }
 
 [lib]
