@@ -208,6 +208,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 maintainer = "James Walker <james@fission.codes>"
 license-file = ["LICENSE", "0"]
 extended-description-file = "README.md"
+depends = "$auto"
 section = "network"
 priority = "optional"
 assets = [
