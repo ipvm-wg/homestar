@@ -134,18 +134,18 @@ jobs:
           shared-key: check-${{ env.LINUX_TARGET }}-ubuntu-latest
 
       - name: Create .deb
-        run: cargo deb -p homestar-runtime --target ${{ env.LINUX_TARGET }}
+        run: cargo deb -p homestar-runtime --target ${{ env.LINUX_TARGET }} --output homestar.deb
 
       - name: Create .rpm
-        run: cargo generate-rpm -p homestar-runtime --target ${{ env.LINUX_TARGET }}
+        run: cargo generate-rpm -p homestar-runtime --target ${{ env.LINUX_TARGET }} --output homestar.rpm
 
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.target }}
           path: |
-            target/${{ env.LINUX_TARGET }}/generate-rpm/*.deb
-            target/${{ env.LINUX_TARGET }}/debian/*.rpm
+            *.deb
+            *.rpm
           if-no-files-found: error
 
       - name: Publish Package in Release
@@ -153,8 +153,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/') && github.event_name == 'release' && github.event.action == 'published'
         with:
           files: |
-            target/${{ env.LINUX_TARGET }}/debian/*.deb
-            target/${{ env.LINUX_TARGET }}/generate-rpm/*.rpm
+            *.deb
+            *.rpm
 
   docker-build:
     runs-on: ubuntu-latest
