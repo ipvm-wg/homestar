@@ -144,8 +144,8 @@ jobs:
         with:
           name: ${{ matrix.target }}
           path: |
-            target/${{ env.LINUX_TARGET }}/generate-rpm/
-            target/${{ env.LINUX_TARGET }}/debian/
+            target/${{ env.LINUX_TARGET }}/generate-rpm/*.deb
+            target/${{ env.LINUX_TARGET }}/debian/*.rpm
           if-no-files-found: error
 
       - name: Publish Package in Release
