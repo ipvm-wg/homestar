@@ -56,9 +56,6 @@ jobs:
         id: toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Override rust-toolchain.toml
-        run: rustup override set ${{steps.toolchain.outputs.name}}
-
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
         with:
@@ -109,6 +106,16 @@ jobs:
 
       - name: Install musl-tools
         run: sudo apt update && sudo apt install -y musl-dev musl-tools
+
+      - name: Install Rust toolchain
+        id: toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: ${{ env.LINUX_TARGET }}
+
+      - name: Override rust-toolchain.toml
+        run: rustup override set ${{steps.toolchain.outputs.name}}
 
       - name: Install cargo-deb
         uses: taiki-e/cache-cargo-install-action@v1
