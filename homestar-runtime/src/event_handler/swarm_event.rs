@@ -93,7 +93,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
     event_handler: &mut EventHandler<DB>,
 ) {
     match event {
-        // N.B. Labels should be ordered with peer_id first for log testing
         SwarmEvent::Behaviour(ComposedEvent::Identify(identify_event)) => {
             match identify_event {
                 identify::Event::Error { peer_id, error } => {

@@ -1,7 +1,6 @@
-use crate::utils::{kill_homestar, retrieve_output, stop_homestar, BIN_NAME};
+use crate::utils::{check_lines_for, kill_homestar, retrieve_output, stop_homestar, BIN_NAME};
 use anyhow::Result;
 use once_cell::sync::Lazy;
-use predicates::prelude::*;
 use serial_test::file_serial;
 use std::{
     path::PathBuf,
@@ -29,9 +28,15 @@ fn test_libp2p_generates_peer_id_serial() -> Result<()> {
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
+    let logs_expected = check_lines_for(
+        stdout,
+        vec![
+            "local peer ID generated",
+            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+        ],
+    );
 
-    assert!(predicate::str::contains("message=\"local peer ID generated\" peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
-        .eval(stdout.as_str()));
+    assert!(logs_expected);
 
     Ok(())
 }
@@ -53,11 +58,15 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
-
-    assert!(
-        predicate::str::contains("local node is listening on /ip4/127.0.0.1/tcp/7000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
-            .eval(stdout.as_str())
+    let logs_expected = check_lines_for(
+        stdout,
+        vec![
+            "local node is listening",
+            "/ip4/127.0.0.1/tcp/7000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+        ],
     );
+
+    assert!(logs_expected);
 
     Ok(())
 }
@@ -79,8 +88,9 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
+    let logs_expected = check_lines_for(stdout, vec!["RPC server listening", "[::1]:9820"]);
 
-    assert!(predicate::str::contains("RPC server listening on [::1]:9820").eval(stdout.as_str()));
+    assert!(logs_expected);
 
     Ok(())
 }
@@ -103,11 +113,10 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
+    let logs_expected =
+        check_lines_for(stdout, vec!["websocket server listening", "127.0.0.1:8020"]);
 
-    assert!(
-        predicate::str::contains("websocket server listening on 127.0.0.1:8020")
-            .eval(stdout.as_str())
-    );
+    assert!(logs_expected);
 
     Ok(())
 }
@@ -156,12 +165,25 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     let stdout2 = retrieve_output(dead_proc2);
 
     // Check that node one connected to node two.
-    assert!(predicate::str::contains("message=\"peer connection established\" peer_id=16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc")
-        .eval(stdout1.as_str()));
+    let logs_expected1 = check_lines_for(
+        stdout1,
+        vec![
+            "peer connection established",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
 
     // Check that node two connected to node one.
-    assert!(predicate::str::contains("message=\"peer connection established\" peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
-        .eval(stdout2.as_str()));
+    let logs_expected2 = check_lines_for(
+        stdout2,
+        vec![
+            "peer connection established",
+            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+        ],
+    );
+
+    assert!(logs_expected1);
+    assert!(logs_expected2);
 
     Ok(())
 }
@@ -172,7 +194,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     let _ = stop_homestar();
 
     // Start two nodes each configured to listen at 0.0.0.0 with no known peers.
-    // The nodes are configured with port 0 to allow the OS to selectn a port.
+    // The nodes are configured with port 0 to allow the OS to select a port.
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
@@ -180,7 +202,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_mdns_connect1.toml")
+        .arg("tests/fixtures/test_mdns1.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
@@ -194,7 +216,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_mdns_connect2.toml")
+        .arg("tests/fixtures/test_mdns2.toml")
         .arg("--db")
         .arg("homestar2.db")
         .stdout(Stdio::piped())
@@ -210,12 +232,25 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     let stdout2 = retrieve_output(dead_proc2);
 
     // Check that node one connected to node two.
-    assert!(predicate::str::contains("message=\"peer connection established\" peer_id=16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc")
-        .eval(stdout1.as_str()));
+    let logs_expected1 = check_lines_for(
+        stdout1,
+        vec![
+            "peer connection established",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
 
     // Check that node two connected to node one.
-    assert!(predicate::str::contains("message=\"peer connection established\" peer_id=12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
-        .eval(stdout2.as_str()));
+    let logs_expected2 = check_lines_for(
+        stdout2,
+        vec![
+            "peer connection established",
+            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+        ],
+    );
+
+    assert!(logs_expected1);
+    assert!(logs_expected2);
 
     Ok(())
 }
