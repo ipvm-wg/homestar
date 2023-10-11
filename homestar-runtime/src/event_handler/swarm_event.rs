@@ -142,25 +142,32 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     // rendezvous
                     // we are good to register self & discover with any node we contact. more peers = more better!
                     if info.protocols.contains(&RENDEZVOUS_PROTOCOL_NAME) {
-                        // register self with remote
-                        if let Err(err) = behavior.rendezvous_client.register(
-                            Namespace::from_static(RENDEZVOUS_NAMESPACE),
-                            peer_id,
-                            None,
-                        ) {
-                            warn!(
-                                peer_id = peer_id.to_string(),
-                                err = format!("{err}"),
-                                "failed to register with rendezvous peer"
-                            )
+                        if let Some(rendezvous_client) = event_handler
+                            .swarm
+                            .behaviour_mut()
+                            .rendezvous_client
+                            .as_mut()
+                        {
+                            // register self with remote
+                            if let Err(err) = rendezvous_client.register(
+                                Namespace::from_static(RENDEZVOUS_NAMESPACE),
+                                peer_id,
+                                None,
+                            ) {
+                                warn!(
+                                    peer_id = peer_id.to_string(),
+                                    err = format!("{err}"),
+                                    "failed to register with rendezvous peer"
+                                )
+                            }
+                            // discover other nodes
+                            rendezvous_client.discover(
+                                Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
+                                None,
+                                None,
+                                peer_id,
+                            );
                         }
-                        // discover other nodes
-                        behavior.rendezvous_client.discover(
-                            Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
-                            None,
-                            None,
-                            peer_id,
-                        );
                     }
                 }
                 identify::Event::Pushed { peer_id } => debug!(
@@ -224,17 +231,20 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 }
                 rendezvous::client::Event::Expired { peer } => {
                     // re-discover records from peer
-                    let cookie = event_handler.rendezvous_cookies.get(&peer).cloned();
-                    event_handler
+                    if let Some(rendezvous_client) = event_handler
                         .swarm
                         .behaviour_mut()
                         .rendezvous_client
-                        .discover(
+                        .as_mut()
+                    {
+                        let cookie = event_handler.rendezvous_cookies.get(&peer).cloned();
+                        rendezvous_client.discover(
                             Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
                             cookie,
                             None,
                             peer,
                         );
+                    }
                 }
             }
         }
@@ -535,14 +545,14 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             }
         }
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Expired(list))) => {
-            for (peer_id, multiaddr) in list {
-                info!("mDNS discover peer has expired: {peer_id}");
-                if event_handler.swarm.behaviour_mut().mdns.has_node(&peer_id) {
-                    event_handler
-                        .swarm
-                        .behaviour_mut()
-                        .kademlia
-                        .remove_address(&peer_id, &multiaddr);
+            let behaviour = event_handler.swarm.behaviour_mut();
+
+            if let Some(mdns) = behaviour.mdns.as_ref() {
+                for (peer_id, multiaddr) in list {
+                    info!("mDNS discover peer has expired: {peer_id}");
+                    if mdns.has_node(&peer_id) {
+                        behaviour.kademlia.remove_address(&peer_id, &multiaddr);
+                    }
                 }
             }
         }
