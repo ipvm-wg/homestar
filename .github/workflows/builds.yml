@@ -137,7 +137,7 @@ jobs:
         run: cargo deb -p homestar-runtime --target ${{ env.LINUX_TARGET }}
 
       - name: Create .rpm
-        run: cargo generate-rpm --target ${{ env.LINUX_TARGET }}
+        run: cargo generate-rpm -p homestar-runtime --target ${{ env.LINUX_TARGET }}
 
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v3
