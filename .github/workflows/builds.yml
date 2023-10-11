@@ -1,5 +1,7 @@
 name: ⚃ Builds
 
+# TODO: brew formula (Macs), cargo-wix (Windows Installs), cargo-aur (Arch)
+
 on:
   workflow_dispatch:
     inputs:
@@ -8,8 +10,12 @@ on:
         type: boolean
         description: Publish Builds at Anytime
 
-  release:
-    types: [published]
+  # release:
+  #   types: [published]
+
+  # for debugging
+  pull_request:
+    branches: [ '**' ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -68,7 +74,20 @@ jobs:
         run: echo "RUSTFLAGS=${RUSTFLAGS} -C target-feature=+crt-static" >>"${GITHUB_ENV}"
         if: endsWith(matrix.target, 'windows-msvc')
 
+      - name: Compile
+        if: github.event_name != 'release'
+        run: cargo build -p homestar-runtime --locked --release --target ${{ matrix.target }}
+
+      - name: Upload Release Artifacts
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/homestar*
+          if-no-files-found: error
+
       - name: Publish Binary in Release
+        if: github.event_name == 'release' && github.event.action == 'published'
         uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: homestar
@@ -113,7 +132,7 @@ jobs:
       - name: Create .rpm
         run: cargo generate-rpm
 
-      - name: Publish Release Artifacts
+      - name: Upload Release Artifacts
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.target }}
@@ -124,13 +143,11 @@ jobs:
 
       - name: Publish Package in Release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && github.event_name == 'release' && github.event.action == 'published'
         with:
           files: |
             target/${{env.LINUX_TARGET}}/debian/*.deb
             target/generate-rpm/*.rpm
-
-      # TODO: brew formula (Macs), cargo-wix (Windows Installs), cargo-aur (Arch)
 
   docker-build:
     runs-on: ubuntu-latest
