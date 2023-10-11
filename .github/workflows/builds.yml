@@ -134,10 +134,15 @@ jobs:
           shared-key: check-${{ env.LINUX_TARGET }}-ubuntu-latest
 
       - name: Create .deb
-        run: cargo deb -p homestar-runtime --target ${{env.LINUX_TARGET}}
+        run: cargo deb -p homestar-runtime --target ${{ env.LINUX_TARGET }}
+
+      - name: Compile
+        run: |
+          cargo build -p homestar-runtime --locked --release --target ${{ env.LINUX_TARGET }}
+          strip -s target/release/homestar
 
       - name: Create .rpm
-        run: cargo generate-rpm
+        run: cargo generate-rpm -p homestar
 
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v3
