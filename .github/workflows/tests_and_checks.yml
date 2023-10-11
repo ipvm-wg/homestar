@@ -60,18 +60,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Smarter caching action, speeds up build times compared to regular cache:
-      # https://github.com/Swatinem/rust-cache
-      - name: Cache Project
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          shared-key: check-${{ matrix.rust-toolchain }}-${{ matrix.os }}
-          save-if: ${{ github.event_name == 'push' }}
-
-      - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.3
-
       - name: Use mold-linker
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: rui314/setup-mold@v1
@@ -86,11 +74,27 @@ jobs:
       - name: Override rust-toolchain.toml
         run: rustup override set ${{steps.toolchain.outputs.name}}
 
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: check-${{ matrix.rust-toolchain }}-${{ matrix.os }}
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
+
       - name: Check Format
         run: cargo fmt --all -- --check
 
       - name: Run Linter
         run: cargo clippy --all -- -D warnings
+
+      - name: Verify Publishing of crates
+        uses: katyo/publish-crates@v2
+        if: ${{ matrix.rust-toolchain == 'stable' && github.event_name == 'push' }}
+        with:
+          dry-run: true
 
       # Only "test" release build on push event.
       - name: Test Release
@@ -105,18 +109,18 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Use mold-linker
+        uses: rui314/setup-mold@v1
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
           shared-key: deny-stable-ubuntu-latest
           save-if: ${{ github.event_name == 'push' }}
-
-      - name: Use mold-linker
-        uses: rui314/setup-mold@v1
-
-      - name: Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
 
       # Check for security advisories
       - name: Check Advisories
@@ -153,16 +157,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Cache Project
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          shared-key: test-all-${{ matrix.rust-toolchain }}-${{ matrix.os }}
-          save-if: ${{ github.event_name == 'push' }}
-
-      - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.3
-
       - name: Use mold-linker
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: rui314/setup-mold@v1
@@ -175,6 +169,16 @@ jobs:
 
       - name: Override rust-toolchain.toml
         run: rustup override set ${{steps.toolchain.outputs.name}}
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: test-all-${{ matrix.rust-toolchain }}-${{ matrix.os }}
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
 
       - name: Install nextest
         uses: taiki-e/install-action@nextest
@@ -211,13 +215,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Cache Project
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          shared-key: test-all-${{ matrix.rust-toolchain }}-windows-latest
-          save-if: ${{ github.event_name == 'push' }}
-
       - name: Install Rust Toolchain
         id: toolchain
         uses: dtolnay/rust-toolchain@master
@@ -226,6 +223,13 @@ jobs:
 
       - name: Override rust-toolchain.toml
         run: rustup override set ${{steps.toolchain.outputs.name}}
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: test-all-${{ matrix.rust-toolchain }}-windows-latest
+          save-if: ${{ github.event_name == 'push' }}
 
       - name: Install nextest
         uses: taiki-e/install-action@nextest
@@ -255,6 +259,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Use mold-linker
+        uses: rui314/setup-mold@v1
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
         with:
@@ -263,12 +273,6 @@ jobs:
 
       - name: Sccache
         uses: mozilla-actions/sccache-action@v0.0.3
-
-      - name: Use mold-linker
-        uses: rui314/setup-mold@v1
-
-      - name: Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
 
       - name: Run Doc(s) compilation
         env:
