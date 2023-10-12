@@ -549,7 +549,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
             if let Some(mdns) = behaviour.mdns.as_ref() {
                 for (peer_id, multiaddr) in list {
-                    info!("mDNS discover peer has expired: {peer_id}");
+                    info!(
+                        peer_id = peer_id.to_string(),
+                        "mDNS discover peer has expired"
+                    );
                     if mdns.has_node(&peer_id) {
                         behaviour.kademlia.remove_address(&peer_id, &multiaddr);
                     }
