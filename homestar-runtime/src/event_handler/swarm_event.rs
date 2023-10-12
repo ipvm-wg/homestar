@@ -135,6 +135,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         // add listen addresses to kademlia routing table
                         for addr in info.listen_addrs {
                             behavior.kademlia.add_address(&peer_id, addr);
+                            debug!(
+                                peer_id = peer_id.to_string(),
+                                "added peer to kademlia table"
+                            );
                         }
                     }
 
@@ -171,7 +175,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 }
                 identify::Event::Pushed { peer_id } => debug!(
                     peer_id = peer_id.to_string(),
-                    "pushed identify info too peer"
+                    "pushed identify info to peer"
                 ),
             }
         }
@@ -554,6 +558,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     );
                     if mdns.has_node(&peer_id) {
                         behaviour.kademlia.remove_address(&peer_id, &multiaddr);
+                        debug!(
+                            peer_id = peer_id.to_string(),
+                            "removed peer from kademlia table"
+                        );
                     }
                 }
             }
