@@ -124,8 +124,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
                     let behavior = event_handler.swarm.behaviour_mut();
 
-                    // don't bother talking with nodes that aren't running our protocol
-                    if info.protocol_version == HOMESTAR_PROTOCOL_VER {
+                    // Ignore nodes that do not use the Homestar protocol
+                    if info.protocol_version != HOMESTAR_PROTOCOL_VER {
                         debug!(protocol_version=info.protocol_version, "peer was not using our homestar protocol version: {HOMESTAR_PROTOCOL_VER}");
                         return;
                     }
