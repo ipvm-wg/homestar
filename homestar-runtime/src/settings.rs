@@ -80,12 +80,12 @@ pub struct Network {
     pub(crate) enable_rendezvous: bool,
     /// Enable mDNS.
     pub(crate) enable_mdns: bool,
-    /// MDNS IPv6 enable flag
+    /// mDNS IPv6 enable flag
     pub(crate) mdns_enable_ipv6: bool,
-    /// MDNS query interval.
+    /// mDNS query interval.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) mdns_query_interval: Duration,
-    /// MDNS TTL.
+    /// mDNS TTL.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) mdns_ttl: Duration,
     /// Timeout for p2p requests for a provided record.
