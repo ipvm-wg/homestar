@@ -76,12 +76,16 @@ pub struct Network {
     /// [Swarm]: libp2p::swarm::Swarm
     #[serde(with = "http_serde::uri")]
     pub(crate) listen_address: Uri,
-    /// Mdns IPv6 enable flag.
+    /// Enable Rendezvous protocol.
+    pub(crate) enable_rendezvous: bool,
+    /// Enable mDNS.
+    pub(crate) enable_mdns: bool,
+    /// mDNS IPv6 enable flag
     pub(crate) mdns_enable_ipv6: bool,
-    /// Mdns query interval.
+    /// mDNS query interval.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) mdns_query_interval: Duration,
-    /// Mdns TTL.
+    /// mDNS TTL.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) mdns_ttl: Duration,
     /// Timeout for p2p requests for a provided record.
@@ -181,6 +185,8 @@ impl Default for Network {
             events_buffer_len: 1024,
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             // TODO: we would like to enable this by default, however this breaks mdns on at least some linux distros. Requires further investigation.
+            enable_rendezvous: true,
+            enable_mdns: true,
             mdns_enable_ipv6: false,
             mdns_query_interval: Duration::from_secs(5 * 60),
             mdns_ttl: Duration::from_secs(60 * 9),

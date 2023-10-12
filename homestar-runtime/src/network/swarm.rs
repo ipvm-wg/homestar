@@ -22,7 +22,7 @@ use libp2p::{
     multiaddr::Protocol,
     noise, rendezvous,
     request_response::{self, ProtocolSupport},
-    swarm::{NetworkBehaviour, Swarm, SwarmBuilder},
+    swarm::{behaviour::toggle::Toggle, NetworkBehaviour, Swarm, SwarmBuilder},
     tcp, yamux, StreamProtocol, Transport,
 };
 use serde::{Deserialize, Serialize};
@@ -78,18 +78,30 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
                 )],
                 request_response::Config::default(),
             ),
-            mdns: mdns::Behaviour::new(
-                mdns::Config {
-                    ttl: settings.network.mdns_ttl,
-                    query_interval: settings.network.mdns_query_interval,
-                    enable_ipv6: settings.network.mdns_enable_ipv6,
-                },
-                peer_id,
-            )?,
-            rendezvous_client: rendezvous::client::Behaviour::new(keypair.clone()),
-            rendezvous_server: rendezvous::server::Behaviour::new(
-                rendezvous::server::Config::default(),
-            ),
+            mdns: Toggle::from(if settings.network.enable_mdns {
+                Some(mdns::Behaviour::new(
+                    mdns::Config {
+                        ttl: settings.network.mdns_ttl,
+                        query_interval: settings.network.mdns_query_interval,
+                        enable_ipv6: settings.network.mdns_enable_ipv6,
+                    },
+                    peer_id,
+                )?)
+            } else {
+                None
+            }),
+            rendezvous_client: Toggle::from(if settings.network.enable_rendezvous {
+                Some(rendezvous::client::Behaviour::new(keypair.clone()))
+            } else {
+                None
+            }),
+            rendezvous_server: Toggle::from(if settings.network.enable_rendezvous {
+                Some(rendezvous::server::Behaviour::new(
+                    rendezvous::server::Config::default(),
+                ))
+            } else {
+                None
+            }),
             identify: identify::Behaviour::new(
                 identify::Config::new(HOMESTAR_PROTOCOL_VER.to_string(), keypair.public())
                     .with_agent_version(format!("homestar-runtime/{}", env!("CARGO_PKG_VERSION"))),
@@ -235,11 +247,11 @@ pub(crate) struct ComposedBehaviour {
     /// [request_response::Behaviour] CBOR-flavored behaviour.
     pub(crate) request_response: request_response::cbor::Behaviour<RequestResponseKey, Vec<u8>>,
     /// [mdns::tokio::Behaviour] behaviour.
-    pub(crate) mdns: mdns::tokio::Behaviour,
+    pub(crate) mdns: Toggle<mdns::tokio::Behaviour>,
     /// [rendezvous::client::Behaviour] behaviour.
-    pub(crate) rendezvous_client: rendezvous::client::Behaviour,
+    pub(crate) rendezvous_client: Toggle<rendezvous::client::Behaviour>,
     /// [rendezvous::server::Behaviour] behaviour.
-    pub(crate) rendezvous_server: rendezvous::server::Behaviour,
+    pub(crate) rendezvous_server: Toggle<rendezvous::server::Behaviour>,
     /// [identify::Behaviour] behaviour.
     pub(crate) identify: identify::Behaviour,
 }
