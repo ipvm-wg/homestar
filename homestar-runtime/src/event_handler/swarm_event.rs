@@ -104,6 +104,12 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 identify::Event::Received { peer_id, info } => {
                     debug!(peer_id=peer_id.to_string(), info=?info, "identify info received from peer");
 
+                    // Ignore nodes that do not use the Homestar protocol
+                    if info.protocol_version != HOMESTAR_PROTOCOL_VER {
+                        info!(protocol_version=info.protocol_version, "peer was not using our homestar protocol version: {HOMESTAR_PROTOCOL_VER}");
+                        return;
+                    }
+
                     let num_addresses = event_handler.swarm.external_addresses().count();
 
                     // underlying structure is a hashset, so no worry on dupes
