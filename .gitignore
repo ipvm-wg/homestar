@@ -16,7 +16,6 @@ private
 *.db-shm
 *.db-wal
 *.tmp
-*.png
 *.dot
 .history
 .DS_Store
