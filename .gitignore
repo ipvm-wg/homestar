@@ -19,7 +19,8 @@ private
 *.dot
 .history
 .DS_Store
-homestar-guest-wasm/out
+homestar-functions/**/out
+homestar-functions/out
 homestar-wasm/out
 homestar-core/fixtures/test_*
 homestar-runtime/fixtures/test_*
