@@ -336,3 +336,139 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+#[file_serial]
+fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
+    let _ = stop_homestar();
+
+    // Start two nodes each configured to listen at 0.0.0.0 with no known peers.
+    // The nodes are configured with port 0 to allow the OS to select a port.
+    let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_mdns1.toml")
+        .arg("--db")
+        .arg("homestar1.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let homestar_proc2 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_mdns2.toml")
+        .arg("--db")
+        .arg("homestar2.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Kill node two after seven seconds.
+    let _ = kill_homestar(homestar_proc2, Some(Duration::from_secs(7)));
+
+    // Collect logs for eight seconds then kill node one.
+    let dead_proc1 = kill_homestar(homestar_proc1, Some(Duration::from_secs(8)));
+
+    // Retrieve logs.
+    let stdout = retrieve_output(dead_proc1);
+
+    // Check that node two disconnected from node one.
+    let two_disconnected_from_one = check_lines_for(
+        stdout.clone(),
+        vec![
+            "peer connection closed",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
+    // Check that node two was removed from the Kademlia table
+    let two_removed_from_dht_table = check_lines_for(
+        stdout.clone(),
+        vec![
+            "removed peer from kademlia table",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
+    assert!(two_disconnected_from_one);
+    assert!(two_removed_from_dht_table);
+
+    Ok(())
+}
+
+#[test]
+#[file_serial]
+fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
+    let _ = stop_homestar();
+
+    // Start two nodes configured to listen at 127.0.0.1 each with their own port.
+    // The nodes are configured to dial each other through the node_addresses config.
+    let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_network1.toml")
+        .arg("--db")
+        .arg("homestar1.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let homestar_proc2 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_network2.toml")
+        .arg("--db")
+        .arg("homestar2.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Kill node two after seven seconds.
+    let _ = kill_homestar(homestar_proc2, Some(Duration::from_secs(7)));
+
+    // Collect logs for eight seconds then kill node one.
+    let dead_proc1 = kill_homestar(homestar_proc1, Some(Duration::from_secs(8)));
+
+    // Retrieve logs.
+    let stdout = retrieve_output(dead_proc1);
+
+    // Check that node two disconnected from node one.
+    let two_disconnected_from_one = check_lines_for(
+        stdout.clone(),
+        vec![
+            "peer connection closed",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
+    // Check that node two was not removed from the Kademlia table.
+    let two_removed_from_dht_table = check_lines_for(
+        stdout.clone(),
+        vec![
+            "removed peer from kademlia table",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
+    assert!(two_disconnected_from_one);
+    assert_eq!(false, two_removed_from_dht_table);
+
+    Ok(())
+}
