@@ -603,6 +603,25 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 "peer connection closed, cause: {cause:?}"
             );
             event_handler.connected_peers.remove_entry(&peer_id);
+
+            // Remove peer from DHT if not in configured peers
+            if event_handler.node_addresses.iter().all(|multiaddr| {
+                !multiaddr
+                    .to_string()
+                    .split('/')
+                    .any(|el| el == peer_id.to_base58().as_str())
+            }) {
+                event_handler
+                    .swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .remove_peer(&peer_id);
+
+                debug!(
+                    peer_id = peer_id.to_string(),
+                    "removed peer from kademlia table"
+                );
+            }
         }
         SwarmEvent::OutgoingConnectionError {
             connection_id,
