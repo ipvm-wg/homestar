@@ -61,6 +61,8 @@ pub(crate) struct EventHandler<DB: Database> {
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
     ws_msg_sender: ws::Notifier,
+    node_addresses: Vec<libp2p::Multiaddr>,
+    announce_addresses: Vec<libp2p::Multiaddr>,
     external_address_limit: u32,
 }
 
@@ -77,8 +79,10 @@ pub(crate) struct EventHandler<DB: Database> {
     receiver: channel::AsyncBoundedChannelReceiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
     connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
-    rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
+    rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
+    node_addresses: Vec<libp2p::Multiaddr>,
+    announce_addresses: Vec<libp2p::Multiaddr>,
     external_address_limit: u32,
 }
 
@@ -117,6 +121,8 @@ where
             connected_peers: FnvHashMap::default(),
             rendezvous_cookies: FnvHashMap::default(),
             ws_msg_sender,
+            node_addresses: settings.network.node_addresses.clone(),
+            announce_addresses: settings.network.announce_addresses.clone(),
             external_address_limit: settings.network.max_announce_addresses,
         }
     }
@@ -135,8 +141,10 @@ where
             receiver,
             query_senders: FnvHashMap::default(),
             connected_peers: FnvHashMap::default(),
-            rendezvous_cookies: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
+            rendezvous_cookies: FnvHashMap::default(),
+            node_addresses: settings.network.node_addresses.clone(),
+            announce_addresses: settings.network.announce_addresses.clone(),
             external_address_limit: settings.network.max_announce_addresses,
         }
     }
