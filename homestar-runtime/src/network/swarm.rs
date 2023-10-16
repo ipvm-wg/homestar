@@ -16,7 +16,7 @@ use libp2p::{
     identify,
     kad::{
         record::store::{MemoryStore, MemoryStoreConfig},
-        Kademlia, KademliaConfig, KademliaEvent,
+        Kademlia, KademliaConfig, KademliaEvent, Mode,
     },
     mdns,
     multiaddr::Protocol,
@@ -130,6 +130,9 @@ pub(crate) fn init(
 ) -> Result<()> {
     // Listen-on given address
     swarm.listen_on(settings.listen_address.to_string().parse()?)?;
+
+    // Set Kademlia server mode
+    swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
 
     // add external addresses from settings
     if !settings.announce_addresses.is_empty() {
