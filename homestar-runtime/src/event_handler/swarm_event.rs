@@ -143,7 +143,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             behavior.kademlia.add_address(&peer_id, addr);
                             debug!(
                                 peer_id = peer_id.to_string(),
-                                "added peer to kademlia table"
+                                "added identified node to kademlia routing table"
                             );
                         }
                     }

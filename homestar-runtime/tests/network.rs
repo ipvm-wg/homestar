@@ -252,6 +252,11 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     let stdout1 = retrieve_output(dead_proc1);
     let stdout2 = retrieve_output(dead_proc2);
 
+    println!("STDOUT1");
+    println!("{}", stdout1.clone());
+    println!("STDOUT2");
+    println!("{}", stdout2.clone());
+
     // Check that node one connected to node two.
     let one_connected_to_two = check_lines_for(
         stdout1.clone(),
