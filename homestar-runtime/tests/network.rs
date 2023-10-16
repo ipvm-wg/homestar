@@ -164,8 +164,17 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     let stdout1 = retrieve_output(dead_proc1);
     let stdout2 = retrieve_output(dead_proc2);
 
+    // Check node two was added to the Kademlia table
+    let two_addded_to_dht = check_lines_for(
+        stdout1.clone(),
+        vec![
+            "added configured node to kademlia routing table",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
     // Check that node one connected to node two.
-    let logs_expected1 = check_lines_for(
+    let one_connected_to_two = check_lines_for(
         stdout1,
         vec![
             "peer connection established",
@@ -173,8 +182,20 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         ],
     );
 
+    assert!(one_connected_to_two);
+    assert!(two_addded_to_dht);
+
+    // Check node one was added to the Kademlia table
+    let one_addded_to_dht = check_lines_for(
+        stdout2.clone(),
+        vec![
+            "added configured node to kademlia routing table",
+            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+        ],
+    );
+
     // Check that node two connected to node one.
-    let logs_expected2 = check_lines_for(
+    let two_connected_to_one = check_lines_for(
         stdout2,
         vec![
             "peer connection established",
@@ -182,8 +203,8 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         ],
     );
 
-    assert!(logs_expected1);
-    assert!(logs_expected2);
+    assert!(two_connected_to_one);
+    assert!(one_addded_to_dht);
 
     Ok(())
 }
