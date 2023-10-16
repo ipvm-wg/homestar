@@ -173,6 +173,15 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         ],
     );
 
+    // Check that DHT routing table was updated with node two
+    let two_in_dht_routing_table = check_lines_for(
+        stdout1.clone(),
+        vec![
+            "kademlia routing table updated with peer",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
     // Check that node one connected to node two.
     let one_connected_to_two = check_lines_for(
         stdout1,
@@ -183,6 +192,7 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     );
 
     assert!(one_connected_to_two);
+    assert!(two_in_dht_routing_table);
     assert!(two_addded_to_dht);
 
     // Check node one was added to the Kademlia table
@@ -190,6 +200,15 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         stdout2.clone(),
         vec![
             "added configured node to kademlia routing table",
+            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+        ],
+    );
+
+    // Check that DHT routing table was updated with node one
+    let one_in_dht_routing_table = check_lines_for(
+        stdout2.clone(),
+        vec![
+            "kademlia routing table updated with peer",
             "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
         ],
     );
@@ -203,8 +222,9 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         ],
     );
 
-    assert!(two_connected_to_one);
     assert!(one_addded_to_dht);
+    assert!(one_in_dht_routing_table);
+    assert!(two_connected_to_one);
 
     Ok(())
 }
@@ -252,11 +272,6 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     let stdout1 = retrieve_output(dead_proc1);
     let stdout2 = retrieve_output(dead_proc2);
 
-    println!("STDOUT1");
-    println!("{}", stdout1.clone());
-    println!("STDOUT2");
-    println!("{}", stdout2.clone());
-
     // Check that node one connected to node two.
     let one_connected_to_two = check_lines_for(
         stdout1.clone(),
@@ -268,15 +283,25 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
 
     // Check node two was added to the Kademlia table
     let two_addded_to_dht = check_lines_for(
-        stdout1,
+        stdout1.clone(),
         vec![
             "added identified node to kademlia routing table",
             "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
         ],
     );
 
+    // Check that DHT routing table was updated with node two
+    let two_in_dht_routing_table = check_lines_for(
+        stdout1,
+        vec![
+            "kademlia routing table updated with peer",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
     assert!(one_connected_to_two);
     assert!(two_addded_to_dht);
+    assert!(two_in_dht_routing_table);
 
     // Check that node two connected to node one.
     let two_connected_to_one = check_lines_for(
@@ -289,15 +314,25 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
 
     // Check node one was added to the Kademlia table
     let one_addded_to_dht = check_lines_for(
-        stdout2,
+        stdout2.clone(),
         vec![
             "added identified node to kademlia routing table",
             "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
         ],
     );
 
+    // Check that DHT routing table was updated with node one
+    let one_in_dht_routing_table = check_lines_for(
+        stdout2,
+        vec![
+            "kademlia routing table updated with peer",
+            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+        ],
+    );
+
     assert!(two_connected_to_one);
     assert!(one_addded_to_dht);
+    assert!(one_in_dht_routing_table);
 
     Ok(())
 }

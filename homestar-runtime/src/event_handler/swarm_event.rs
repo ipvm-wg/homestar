@@ -104,7 +104,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 identify::Event::Received { peer_id, info } => {
                     debug!(peer_id=peer_id.to_string(), info=?info, "identify info received from peer");
 
-                    // Ignore nodes that do not use the Homestar protocol
+                    // Ignore peers that do not use the Homestar protocol
                     if info.protocol_version != HOMESTAR_PROTOCOL_VER {
                         info!(protocol_version=info.protocol_version, "peer was not using our homestar protocol version: {HOMESTAR_PROTOCOL_VER}");
                         return;
@@ -304,6 +304,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             }
             _ => {}
         },
+
         SwarmEvent::Behaviour(ComposedEvent::Kademlia(
             KademliaEvent::OutboundQueryProgressed { id, result, .. },
         )) => {
@@ -440,6 +441,15 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 }
                 _ => {}
             }
+        }
+        SwarmEvent::Behaviour(ComposedEvent::Kademlia(KademliaEvent::RoutingUpdated {
+            peer,
+            ..
+        })) => {
+            debug!(
+                peer = peer.to_string(),
+                "kademlia routing table updated with peer"
+            )
         }
 
         SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
