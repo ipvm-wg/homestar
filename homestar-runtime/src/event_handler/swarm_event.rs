@@ -571,7 +571,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         behaviour.kademlia.remove_address(&peer_id, &multiaddr);
                         debug!(
                             peer_id = peer_id.to_string(),
-                            "removed peer from kademlia table"
+                            "removed peer address from kademlia table"
                         );
                     }
                 }
