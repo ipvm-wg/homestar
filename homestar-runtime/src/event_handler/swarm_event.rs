@@ -6,6 +6,7 @@ use crate::network::IpfsCli;
 use crate::{
     db::{Connection, Database},
     event_handler::{event::QueryRecord, Event, Handler, RequestResponseError},
+    libp2p::multiaddr::MultiaddrExt,
     network::swarm::{CapsuleTag, ComposedEvent, RequestResponseKey, HOMESTAR_PROTOCOL_VER},
     receipt::{RECEIPT_TAG, VERSION_KEY},
     workflow,
@@ -129,12 +130,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     }
 
                     let behavior = event_handler.swarm.behaviour_mut();
-
-                    // Ignore nodes that do not use the Homestar protocol
-                    if info.protocol_version != HOMESTAR_PROTOCOL_VER {
-                        debug!(protocol_version=info.protocol_version, "peer was not using our homestar protocol version: {HOMESTAR_PROTOCOL_VER}");
-                        return;
-                    }
 
                     // kademlia
                     if info.protocols.contains(&kad::PROTOCOL_NAME) {
@@ -606,10 +601,12 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
             // Remove peer from DHT if not in configured peers
             if event_handler.node_addresses.iter().all(|multiaddr| {
-                !multiaddr
-                    .to_string()
-                    .split('/')
-                    .any(|el| el == peer_id.to_base58().as_str())
+                if let Some(id) = multiaddr.peer_id() {
+                    id != peer_id
+                } else {
+                    warn!("Configured peer must include a peer ID: {multiaddr}");
+                    true
+                }
             }) {
                 event_handler
                     .swarm
