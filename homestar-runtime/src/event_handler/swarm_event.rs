@@ -6,6 +6,7 @@ use crate::network::IpfsCli;
 use crate::{
     db::{Connection, Database},
     event_handler::{event::QueryRecord, Event, Handler, RequestResponseError},
+    libp2p::multiaddr::MultiaddrExt,
     network::swarm::{CapsuleTag, ComposedEvent, RequestResponseKey, HOMESTAR_PROTOCOL_VER},
     receipt::{RECEIPT_TAG, VERSION_KEY},
     workflow,
@@ -93,7 +94,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
     event_handler: &mut EventHandler<DB>,
 ) {
     match event {
-        // N.B. Labels should be ordered with peer_id first for log testing
         SwarmEvent::Behaviour(ComposedEvent::Identify(identify_event)) => {
             match identify_event {
                 identify::Event::Error { peer_id, error } => {
@@ -104,6 +104,12 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 }
                 identify::Event::Received { peer_id, info } => {
                     debug!(peer_id=peer_id.to_string(), info=?info, "identify info received from peer");
+
+                    // Ignore peers that do not use the Homestar protocol
+                    if info.protocol_version != HOMESTAR_PROTOCOL_VER {
+                        info!(protocol_version=info.protocol_version, "peer was not using our homestar protocol version: {HOMESTAR_PROTOCOL_VER}");
+                        return;
+                    }
 
                     let num_addresses = event_handler.swarm.external_addresses().count();
 
@@ -125,17 +131,15 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
                     let behavior = event_handler.swarm.behaviour_mut();
 
-                    // don't bother talking with nodes that aren't running our protocol
-                    if info.protocol_version == HOMESTAR_PROTOCOL_VER {
-                        debug!(protocol_version=info.protocol_version, "peer was not using our homestar protocol version: {HOMESTAR_PROTOCOL_VER}");
-                        return;
-                    }
-
                     // kademlia
                     if info.protocols.contains(&kad::PROTOCOL_NAME) {
                         // add listen addresses to kademlia routing table
                         for addr in info.listen_addrs {
                             behavior.kademlia.add_address(&peer_id, addr);
+                            debug!(
+                                peer_id = peer_id.to_string(),
+                                "added identified node to kademlia routing table"
+                            );
                         }
                     }
 
@@ -172,7 +176,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 }
                 identify::Event::Pushed { peer_id } => debug!(
                     peer_id = peer_id.to_string(),
-                    "pushed identify info too peer"
+                    "pushed identify info to peer"
                 ),
             }
         }
@@ -295,6 +299,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             }
             _ => {}
         },
+
         SwarmEvent::Behaviour(ComposedEvent::Kademlia(
             KademliaEvent::OutboundQueryProgressed { id, result, .. },
         )) => {
@@ -432,6 +437,15 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 _ => {}
             }
         }
+        SwarmEvent::Behaviour(ComposedEvent::Kademlia(KademliaEvent::RoutingUpdated {
+            peer,
+            ..
+        })) => {
+            debug!(
+                peer = peer.to_string(),
+                "kademlia routing table updated with peer"
+            )
+        }
 
         SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
             request_response::Event::Message {
@@ -555,6 +569,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     );
                     if mdns.has_node(&peer_id) {
                         behaviour.kademlia.remove_address(&peer_id, &multiaddr);
+                        debug!(
+                            peer_id = peer_id.to_string(),
+                            "removed peer address from kademlia table"
+                        );
                     }
                 }
             }
@@ -580,6 +598,29 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 "peer connection closed, cause: {cause:?}"
             );
             event_handler.connected_peers.remove_entry(&peer_id);
+
+            // Remove peer from DHT if not in configured peers
+            if event_handler.node_addresses.iter().all(|multiaddr| {
+                if let Some(id) = multiaddr.peer_id() {
+                    id != peer_id
+                } else {
+                    // TODO: We may want to check the multiadress without relying on
+                    // the peer ID. This would give more flexibility when configuring nodes.
+                    warn!("Configured peer must include a peer ID: {multiaddr}");
+                    true
+                }
+            }) {
+                event_handler
+                    .swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .remove_peer(&peer_id);
+
+                debug!(
+                    peer_id = peer_id.to_string(),
+                    "removed peer from kademlia table"
+                );
+            }
         }
         SwarmEvent::OutgoingConnectionError {
             connection_id,

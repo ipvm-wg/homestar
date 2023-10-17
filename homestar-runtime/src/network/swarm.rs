@@ -15,6 +15,7 @@ use libp2p::{
     gossipsub::{self, MessageId, SubscriptionError, TopicHash},
     identify,
     kad::{
+        self,
         record::store::{MemoryStore, MemoryStoreConfig},
         Kademlia, KademliaConfig, KademliaEvent,
     },
@@ -130,6 +131,12 @@ pub(crate) fn init(
 ) -> Result<()> {
     // Listen-on given address
     swarm.listen_on(settings.listen_address.to_string().parse()?)?;
+
+    // Set Kademlia server mode
+    swarm
+        .behaviour_mut()
+        .kademlia
+        .set_mode(Some(kad::Mode::Server));
 
     // add external addresses from settings
     if !settings.announce_addresses.is_empty() {

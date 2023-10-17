@@ -38,6 +38,7 @@ pub mod test_utils;
 
 pub use db::Db;
 pub use event_handler::channel;
+pub(crate) mod libp2p;
 pub use logger::*;
 pub(crate) mod metrics;
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};

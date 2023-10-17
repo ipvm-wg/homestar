@@ -7,6 +7,7 @@ use nix::{
     unistd::Pid,
 };
 use once_cell::sync::Lazy;
+use predicates::prelude::*;
 use retry::{delay::Fixed, retry};
 use std::{
     net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
@@ -88,6 +89,20 @@ pub(crate) fn retrieve_output(proc: Child) -> String {
     let output = proc.wait_with_output().expect("failed to wait on child");
     let plain_stdout_bytes = strip_ansi_escapes::strip(output.stdout);
     String::from_utf8(plain_stdout_bytes).unwrap()
+}
+
+/// Check process output for all predicates in any line
+pub(crate) fn check_lines_for(output: String, predicates: Vec<&str>) -> bool {
+    output
+        .split("\n")
+        .map(|line| {
+            // Line contains all predicates
+            predicates
+                .iter()
+                .map(|pred| predicate::str::contains(*pred).eval(line))
+                .fold(true, |acc, curr| acc && curr)
+        })
+        .fold(false, |acc, curr| acc || curr)
 }
 
 /// Wait for process to exit or kill after timeout.
