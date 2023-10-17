@@ -604,6 +604,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 if let Some(id) = multiaddr.peer_id() {
                     id != peer_id
                 } else {
+                    // TODO: We may want to check the multiadress without relying on
+                    // the peer ID. This would give more flexibility when configuring nodes.
                     warn!("Configured peer must include a peer ID: {multiaddr}");
                     true
                 }
