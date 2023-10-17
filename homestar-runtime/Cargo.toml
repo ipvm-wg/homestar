@@ -53,7 +53,7 @@ clap = { version = "4.4", default-features = false, features = [
   "std",
 ] }
 config = { version = "0.13", default-features = false, features = ["toml"] }
-console-subscriber = { version = "0.1", default-features = false, features = [
+console-subscriber = { version = "0.2", default-features = false, features = [
   "parking_lot",
 ], optional = true }
 crossbeam = "0.8"
