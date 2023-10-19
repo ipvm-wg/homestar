@@ -6,6 +6,8 @@ pub(crate) enum Error {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum PubSubError {
+    #[error("insufficient peers subscribed to topic {0} for publishing")]
+    InsufficientPeers(String),
     #[error("not enabled")]
     NotEnabled,
     #[error(transparent)]

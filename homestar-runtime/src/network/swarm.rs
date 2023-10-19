@@ -304,9 +304,9 @@ impl ComposedBehaviour {
                 let msg_id = gossipsub.publish(id_topic, msg_bytes)?;
                 Ok(msg_id)
             } else {
-                Err(anyhow!(
-                    "insufficient peers subscribed to topic {topic} for publishing"
-                ))
+                Err(anyhow!(NetworkError::PubSubError(
+                    PubSubError::InsufficientPeers(topic.to_owned())
+                )))
             }
         } else {
             Err(anyhow!(NetworkError::PubSubError(PubSubError::NotEnabled)))
