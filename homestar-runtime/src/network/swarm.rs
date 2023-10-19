@@ -7,13 +7,10 @@
 //! [Swarm]: libp2p::Swarm
 
 use crate::{
-    network::{
-        error::{Error as NetworkError, PubSubError},
-        pubsub,
-    },
+    network::{error::PubSubError, pubsub},
     settings, Receipt, RECEIPT_TAG, WORKFLOW_TAG,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use enum_assoc::Assoc;
 use faststr::FastStr;
 use libp2p::{
@@ -277,19 +274,23 @@ pub(crate) struct ComposedBehaviour {
 
 impl ComposedBehaviour {
     /// Subscribe to [gossipsub] topic.
-    pub(crate) fn gossip_subscribe(&mut self, topic: &str) -> Result<bool> {
+    pub(crate) fn gossip_subscribe(&mut self, topic: &str) -> Result<bool, PubSubError> {
         if let Some(gossipsub) = self.gossipsub.as_mut() {
             let topic = gossipsub::IdentTopic::new(topic);
             let subscribed = gossipsub.subscribe(&topic)?;
 
             Ok(subscribed)
         } else {
-            Err(anyhow!(NetworkError::PubSubError(PubSubError::NotEnabled)))
+            Err(PubSubError::NotEnabled)
         }
     }
 
     /// Serialize [TopicMessage] and publish to [gossipsub] topic.
-    pub(crate) fn gossip_publish(&mut self, topic: &str, msg: TopicMessage) -> Result<MessageId> {
+    pub(crate) fn gossip_publish(
+        &mut self,
+        topic: &str,
+        msg: TopicMessage,
+    ) -> Result<MessageId, PubSubError> {
         if let Some(gossipsub) = self.gossipsub.as_mut() {
             let id_topic = gossipsub::IdentTopic::new(topic);
             // Make this a match once we have other topics.
@@ -304,12 +305,10 @@ impl ComposedBehaviour {
                 let msg_id = gossipsub.publish(id_topic, msg_bytes)?;
                 Ok(msg_id)
             } else {
-                Err(anyhow!(NetworkError::PubSubError(
-                    PubSubError::InsufficientPeers(topic.to_owned())
-                )))
+                Err(PubSubError::InsufficientPeers(topic.to_owned()))
             }
         } else {
-            Err(anyhow!(NetworkError::PubSubError(PubSubError::NotEnabled)))
+            Err(PubSubError::NotEnabled)
         }
     }
 }

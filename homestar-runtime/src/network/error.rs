@@ -11,5 +11,11 @@ pub(crate) enum PubSubError {
     #[error("not enabled")]
     NotEnabled,
     #[error(transparent)]
-    SubscriptionError(#[from] libp2p::gossipsub::SubscriptionError),
+    Publish(#[from] libp2p::gossipsub::PublishError),
+    #[error(transparent)]
+    Subscription(#[from] libp2p::gossipsub::SubscriptionError),
+    // TODO: We may be able to remove this error type once we clean-up erroring
+    // through the runtime.
+    #[error("error on conversion: {0}")]
+    Conversion(#[from] anyhow::Error),
 }
