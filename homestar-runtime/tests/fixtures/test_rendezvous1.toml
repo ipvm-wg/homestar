@@ -1,0 +1,15 @@
+[monitoring]
+process_collector_interval = 500
+metrics_port = 4035
+console_subscriber_port = 5585
+
+[node]
+
+[node.network]
+rpc_port = 9825
+websocket_port = 8025
+listen_address = "/ip4/127.0.0.1/tcp/7000"
+enable_mdns = false
+
+[node.network.keypair_config]
+existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }
