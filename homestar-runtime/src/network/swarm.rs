@@ -6,13 +6,16 @@
 //! [libp2p]: libp2p
 //! [Swarm]: libp2p::Swarm
 
-use crate::{network::pubsub, settings, Receipt, RECEIPT_TAG, WORKFLOW_TAG};
-use anyhow::{anyhow, Context, Result};
+use crate::{
+    network::{error::PubSubError, pubsub},
+    settings, Receipt, RECEIPT_TAG, WORKFLOW_TAG,
+};
+use anyhow::{Context, Result};
 use enum_assoc::Assoc;
 use faststr::FastStr;
 use libp2p::{
     core::upgrade,
-    gossipsub::{self, MessageId, SubscriptionError, TopicHash},
+    gossipsub::{self, MessageId, TopicHash},
     identify,
     kad::{
         self,
@@ -53,7 +56,11 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
     let mut swarm = SwarmBuilder::with_tokio_executor(
         transport,
         ComposedBehaviour {
-            gossipsub: pubsub::new(keypair.clone(), settings)?,
+            gossipsub: Toggle::from(if settings.network.enable_pubsub {
+                Some(pubsub::new(keypair.clone(), settings)?)
+            } else {
+                None
+            }),
             kademlia: Kademlia::with_config(
                 peer_id,
                 MemoryStore::with_config(
@@ -171,10 +178,12 @@ pub(crate) fn init(
         }
     }
 
-    // join `receipts` topic
-    swarm
-        .behaviour_mut()
-        .gossip_subscribe(pubsub::RECEIPTS_TOPIC)?;
+    if settings.enable_pubsub {
+        // join `receipts` topic
+        swarm
+            .behaviour_mut()
+            .gossip_subscribe(pubsub::RECEIPTS_TOPIC)?;
+    }
 
     Ok(())
 }
@@ -248,7 +257,7 @@ pub(crate) enum TopicMessage {
 #[behaviour(to_swarm = "ComposedEvent")]
 pub(crate) struct ComposedBehaviour {
     /// [gossipsub::Behaviour] behaviour.
-    pub(crate) gossipsub: gossipsub::Behaviour,
+    pub(crate) gossipsub: Toggle<gossipsub::Behaviour>,
     /// In-memory [kademlia: Kademlia] behaviour.
     pub(crate) kademlia: Kademlia<MemoryStore>,
     /// [request_response::Behaviour] CBOR-flavored behaviour.
@@ -265,30 +274,41 @@ pub(crate) struct ComposedBehaviour {
 
 impl ComposedBehaviour {
     /// Subscribe to [gossipsub] topic.
-    pub(crate) fn gossip_subscribe(&mut self, topic: &str) -> Result<bool, SubscriptionError> {
-        let topic = gossipsub::IdentTopic::new(topic);
-        self.gossipsub.subscribe(&topic)
+    pub(crate) fn gossip_subscribe(&mut self, topic: &str) -> Result<bool, PubSubError> {
+        if let Some(gossipsub) = self.gossipsub.as_mut() {
+            let topic = gossipsub::IdentTopic::new(topic);
+            let subscribed = gossipsub.subscribe(&topic)?;
+
+            Ok(subscribed)
+        } else {
+            Err(PubSubError::NotEnabled)
+        }
     }
 
     /// Serialize [TopicMessage] and publish to [gossipsub] topic.
-    pub(crate) fn gossip_publish(&mut self, topic: &str, msg: TopicMessage) -> Result<MessageId> {
-        let id_topic = gossipsub::IdentTopic::new(topic);
-        // Make this a match once we have other topics.
-        let TopicMessage::CapturedReceipt(receipt) = msg;
-        let msg_bytes: Vec<u8> = receipt.try_into()?;
-        if self
-            .gossipsub
-            .mesh_peers(&TopicHash::from_raw(topic))
-            .peekable()
-            .peek()
-            .is_some()
-        {
-            let msg_id = self.gossipsub.publish(id_topic, msg_bytes)?;
-            Ok(msg_id)
+    pub(crate) fn gossip_publish(
+        &mut self,
+        topic: &str,
+        msg: TopicMessage,
+    ) -> Result<MessageId, PubSubError> {
+        if let Some(gossipsub) = self.gossipsub.as_mut() {
+            let id_topic = gossipsub::IdentTopic::new(topic);
+            // Make this a match once we have other topics.
+            let TopicMessage::CapturedReceipt(receipt) = msg;
+            let msg_bytes: Vec<u8> = receipt.try_into()?;
+            if gossipsub
+                .mesh_peers(&TopicHash::from_raw(topic))
+                .peekable()
+                .peek()
+                .is_some()
+            {
+                let msg_id = gossipsub.publish(id_topic, msg_bytes)?;
+                Ok(msg_id)
+            } else {
+                Err(PubSubError::InsufficientPeers(topic.to_owned()))
+            }
         } else {
-            Err(anyhow!(
-                "insufficient peers subscribed to topic {topic} for publishing"
-            ))
+            Err(PubSubError::NotEnabled)
         }
     }
 }

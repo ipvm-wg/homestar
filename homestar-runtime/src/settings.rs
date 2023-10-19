@@ -91,6 +91,8 @@ pub struct Network {
     /// Timeout for p2p requests for a provided record.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) p2p_provider_timeout: Duration,
+    /// Enable pub/sub.
+    pub(crate) enable_pubsub: bool,
     /// Pub/sub duplicate cache time.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) pubsub_duplication_cache_time: Duration,
@@ -191,6 +193,7 @@ impl Default for Network {
             mdns_query_interval: Duration::from_secs(5 * 60),
             mdns_ttl: Duration::from_secs(60 * 9),
             p2p_provider_timeout: Duration::new(30, 0),
+            enable_pubsub: true,
             pubsub_duplication_cache_time: Duration::new(1, 0),
             pubsub_heartbeat: Duration::new(60, 0),
             pubsub_idle_timeout: Duration::new(60 * 60 * 24, 0),
