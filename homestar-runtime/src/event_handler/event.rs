@@ -211,19 +211,21 @@ impl Captured {
             }
         }
 
-        match event_handler.swarm.behaviour_mut().gossip_publish(
-            pubsub::RECEIPTS_TOPIC,
-            TopicMessage::CapturedReceipt(receipt),
-        ) {
-            Ok(msg_id) => info!(
-                "message {msg_id} published on {} topic for receipt with cid: {receipt_cid}",
-                pubsub::RECEIPTS_TOPIC
-            ),
-            Err(_err) => {
-                error!(
-                    "message not published on {} topic for receipt with cid: {receipt_cid}",
+        if event_handler.pubsub_enabled {
+            match event_handler.swarm.behaviour_mut().gossip_publish(
+                pubsub::RECEIPTS_TOPIC,
+                TopicMessage::CapturedReceipt(receipt),
+            ) {
+                Ok(msg_id) => info!(
+                    "message {msg_id} published on {} topic for receipt with cid: {receipt_cid}",
                     pubsub::RECEIPTS_TOPIC
-                )
+                ),
+                Err(_err) => {
+                    error!(
+                        "message not published on {} topic for receipt with cid: {receipt_cid}",
+                        pubsub::RECEIPTS_TOPIC
+                    )
+                }
             }
         }
 
