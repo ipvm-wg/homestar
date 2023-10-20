@@ -6,7 +6,7 @@ An example application that connects to a `homestar-runtime` node
 over a websocket connection in order to run static Wasm-based, image
 processing workflows that chain inputs and outputs using
 [inlined promises][pipelines].
- 
+
 This application demonstrates:
 
   * websocket notifications of [UCAN Invocation Receipts][spec-receipts] sent

@@ -234,8 +234,7 @@
           wasmTest
           wasmAdd
         ];
-      in rec
-      {
+      in {
         devShells.default = pkgs.mkShell {
           name = "homestar";
           nativeBuildInputs = with pkgs;
@@ -296,6 +295,25 @@
           doCheck = false;
           cargoSha256 = "sha256-FmsD3ajMqpPrTkXCX2anC+cmm0a2xuP+3FHqzj56Ma4=";
         };
+
+        packages.default =
+          pkgs.rustPlatform.buildRustPackage
+          {
+            name = "homestar";
+            src = ./.;
+            cargoLock = {
+              lockFile = ./Cargo.lock;
+            };
+            buildInputs = with pkgs;
+              [rust-toolchain]
+              ++ lib.optionals stdenv.isDarwin [
+                darwin.apple_sdk.frameworks.Security
+                darwin.apple_sdk.frameworks.CoreFoundation
+                darwin.apple_sdk.frameworks.Foundation
+              ];
+
+            doCheck = false;
+          };
 
         formatter = pkgs.alejandra;
       }
