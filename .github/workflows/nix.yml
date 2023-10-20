@@ -2,10 +2,10 @@ name: 📦 Nix Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
   pull_request:
-    branches: [ '**' ]
+    branches: ["**"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -55,3 +55,4 @@ jobs:
         run: |
           nix develop --show-trace -c irust --version
           nix develop --show-trace -c rustc --version
+          nix build . && ./result/bin/homestar --version

@@ -51,3 +51,6 @@ examples/**/tmp/*
 
 !examples/**/**/.env.example
 !examples/**/tmp/.gitkeep
+
+# nix build results
+/result
