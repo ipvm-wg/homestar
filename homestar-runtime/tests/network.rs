@@ -340,7 +340,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
 
 #[test]
 #[file_serial]
-fn test_libp2p_connect_rendezvous_point_serial() -> Result<()> {
+fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
     let _ = stop_homestar();
 
     // Start a rendezvous server
@@ -588,6 +588,94 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
 
     assert!(two_disconnected_from_one);
     assert_eq!(false, two_removed_from_dht_table);
+
+    Ok(())
+}
+
+#[test]
+#[file_serial]
+fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
+    let _ = stop_homestar();
+
+    // Start a rendezvous server
+    let rendezvous_server = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous1.toml")
+        .arg("--db")
+        .arg("homestar1.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Start a peer that will register with the rendezvous server
+    let rendezvous_client1 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous2.toml")
+        .arg("--db")
+        .arg("homestar2.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Wait for registration to complete.
+    // TODO When we have websocket push events, listen on a registration event instead of using an arbitrary sleep.
+    thread::sleep(Duration::from_secs(2));
+
+    // Start a peer that will discover the registrant through the rendezvous server
+    let rendezvous_client2 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous3.toml")
+        .arg("--db")
+        .arg("homestar3.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Kill server and client one after five seconds
+    let _ = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
+    let _ = kill_homestar(rendezvous_client1, Some(Duration::from_secs(5)));
+
+    // Collect logs for seven seconds then kill process.
+    let dead_client2 = kill_homestar(rendezvous_client2, Some(Duration::from_secs(7)));
+
+    // Retrieve logs.
+    let stdout = retrieve_output(dead_client2);
+
+    // Check that client two disconnected from client one.
+    let two_disconnected_from_one = check_lines_for(
+        stdout.clone(),
+        vec![
+            "peer connection closed",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
+    // Check that client two was removed from the Kademlia table
+    let two_removed_from_dht_table = check_lines_for(
+        stdout.clone(),
+        vec![
+            "removed peer from kademlia table",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
+    assert!(two_disconnected_from_one);
+    assert!(two_removed_from_dht_table);
 
     Ok(())
 }
