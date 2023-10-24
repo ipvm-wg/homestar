@@ -13,7 +13,7 @@ node_addresses = [
   "/ip4/127.0.0.1/tcp/7001/p2p/16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
 ]
 enable_mdns = false
-enable_rendezvous = false
+enable_rendezvous_client = false
 
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }

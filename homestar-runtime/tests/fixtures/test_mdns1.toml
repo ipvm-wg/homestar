@@ -9,7 +9,7 @@ console_subscriber_port = 5560
 rpc_port = 9800
 websocket_port = 8000
 listen_address = "/ip4/0.0.0.0/tcp/0"
-enable_rendezvous = false
+enable_rendezvous_client = false
 
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }

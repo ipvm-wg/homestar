@@ -76,8 +76,10 @@ pub struct Network {
     /// [Swarm]: libp2p::swarm::Swarm
     #[serde(with = "http_serde::uri")]
     pub(crate) listen_address: Uri,
-    /// Enable Rendezvous protocol.
-    pub(crate) enable_rendezvous: bool,
+    /// Enable Rendezvous protocol client.
+    pub(crate) enable_rendezvous_client: bool,
+    /// Enable Rendezvous protocol server.
+    pub(crate) enable_rendezvous_server: bool,
     /// Enable mDNS.
     pub(crate) enable_mdns: bool,
     /// mDNS IPv6 enable flag
@@ -141,7 +143,7 @@ pub struct Network {
     /// network.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
     pub(crate) announce_addresses: Vec<libp2p::Multiaddr>,
-    /// Limit on the number of external addresses we annoucne to other peers.
+    /// Limit on the number of external addresses we announce to other peers.
     pub(crate) max_announce_addresses: u32,
 }
 
@@ -186,8 +188,9 @@ impl Default for Network {
         Self {
             events_buffer_len: 1024,
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
+            enable_rendezvous_client: true,
+            enable_rendezvous_server: false,
             // TODO: we would like to enable this by default, however this breaks mdns on at least some linux distros. Requires further investigation.
-            enable_rendezvous: true,
             enable_mdns: true,
             mdns_enable_ipv6: false,
             mdns_query_interval: Duration::from_secs(5 * 60),
