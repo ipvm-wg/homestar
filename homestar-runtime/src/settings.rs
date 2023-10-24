@@ -143,6 +143,8 @@ pub struct Network {
     /// network.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
     pub(crate) announce_addresses: Vec<libp2p::Multiaddr>,
+    /// Maximum number of peers we will dial.
+    pub(crate) max_connected_peers: u32,
     /// Limit on the number of external addresses we announce to other peers.
     pub(crate) max_announce_addresses: u32,
 }
@@ -215,6 +217,7 @@ impl Default for Network {
             node_addresses: Vec::new(),
             announce_addresses: Vec::new(),
             max_announce_addresses: 10,
+            max_connected_peers: 32,
         }
     }
 }

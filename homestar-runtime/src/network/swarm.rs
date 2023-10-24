@@ -158,23 +158,27 @@ pub(crate) fn init(
     }
 
     // Dial nodes specified in settings. Failure here shouldn't halt node startup.
-    for addr in &settings.node_addresses {
-        let _ = swarm
-            .dial(addr.clone())
-            // log dial failure and continue
-            .map_err(|e| warn!(err=?e, "failed to dial configured node"));
+    for (index, addr) in settings.node_addresses.iter().enumerate() {
+        if index < settings.max_connected_peers as usize {
+            let _ = swarm
+                .dial(addr.clone())
+                // log dial failure and continue
+                .map_err(|e| warn!(err=?e, "failed to dial configured node"));
 
-        // add node to kademlia routing table
-        if let Some(Protocol::P2p(peer_id)) =
-            addr.iter().find(|proto| matches!(proto, Protocol::P2p(_)))
-        {
-            info!(addr=?addr, "added configured node to kademlia routing table");
-            swarm
-                .behaviour_mut()
-                .kademlia
-                .add_address(&peer_id, addr.clone());
+            // add node to kademlia routing table
+            if let Some(Protocol::P2p(peer_id)) =
+                addr.iter().find(|proto| matches!(proto, Protocol::P2p(_)))
+            {
+                info!(addr=?addr, "added configured node to kademlia routing table");
+                swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .add_address(&peer_id, addr.clone());
+            } else {
+                warn!(addr=?addr, err="configured node address did not include a peer ID", "node not added to kademlia routing table")
+            }
         } else {
-            warn!(addr=?addr, err="configured node address did not include a peer ID", "node not added to kademlia routing table")
+            warn!(addr=?addr, "address not dialed because node addresses count exceeds max connected peers configuration")
         }
     }
 
