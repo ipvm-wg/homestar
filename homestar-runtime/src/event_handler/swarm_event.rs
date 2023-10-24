@@ -261,6 +261,12 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 rendezvous::server::Event::DiscoverNotServed { enquirer, error } => {
                     warn!(peer_id=enquirer.to_string(), err=?error, "did not serve rendezvous discover request")
                 }
+                rendezvous::server::Event::PeerRegistered { peer, .. } => {
+                    debug!(
+                        peer_id = peer.to_string(),
+                        "registered peer through rendezvous"
+                    )
+                }
                 rendezvous::server::Event::PeerNotRegistered {
                     peer,
                     namespace,
