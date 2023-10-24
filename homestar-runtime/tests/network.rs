@@ -5,6 +5,7 @@ use serial_test::file_serial;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
+    thread,
     time::Duration,
 };
 
@@ -333,6 +334,124 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     assert!(two_connected_to_one);
     assert!(one_addded_to_dht);
     assert!(one_in_dht_routing_table);
+
+    Ok(())
+}
+
+#[test]
+#[file_serial]
+fn test_libp2p_connect_rendezvous_point_serial() -> Result<()> {
+    let _ = stop_homestar();
+
+    // Start a rendezvous server
+    let rendezvous_server = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous1.toml")
+        .arg("--db")
+        .arg("homestar1.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Start a peer that will register with the rendezvous server
+    let rendezvous_client1 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous2.toml")
+        .arg("--db")
+        .arg("homestar2.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Wait for registration to complete
+    // TODO When we have websocket push events, listen on a registration event instead of using an arbitrary sleep
+    thread::sleep(Duration::from_secs(2));
+
+    // Start a peer that will discover the registrant through the rendezvous server
+    let rendezvous_client2 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous3.toml")
+        .arg("--db")
+        .arg("homestar3.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Collect logs for five seconds then kill proceses.
+    let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
+    let _ = kill_homestar(rendezvous_client1, Some(Duration::from_secs(5)));
+    let dead_client2 = kill_homestar(rendezvous_client2, Some(Duration::from_secs(5)));
+
+    // Retrieve logs.
+    let stdout_server = retrieve_output(dead_server);
+    let stdout_client2 = retrieve_output(dead_client2);
+
+    // Check rendezvous server registered the client one
+    let registered_client_one = check_lines_for(
+        stdout_server.clone(),
+        vec![
+            "registered peer through rendezvous",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
+    // Check rendezvous served a discover request to client two
+    let served_discovery_to_client_two = check_lines_for(
+        stdout_server.clone(),
+        vec![
+            "served rendezvous discover request to peer",
+            "12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5",
+        ],
+    );
+
+    assert!(registered_client_one);
+    assert!(served_discovery_to_client_two);
+
+    // Check that client two connected to client one.
+    let two_connected_to_one = check_lines_for(
+        stdout_client2.clone(),
+        vec![
+            "peer connection established",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
+    // Check client one was added to the Kademlia table
+    let one_addded_to_dht = check_lines_for(
+        stdout_client2.clone(),
+        vec![
+            "added identified node to kademlia routing table",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
+    // Check that DHT routing table was updated with client one
+    let one_in_dht_routing_table = check_lines_for(
+        stdout_client2.clone(),
+        vec![
+            "kademlia routing table updated with peer",
+            "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ],
+    );
+
+    assert!(one_addded_to_dht);
+    assert!(one_in_dht_routing_table);
+    assert!(two_connected_to_one);
 
     Ok(())
 }
