@@ -117,7 +117,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     if num_addresses < event_handler.external_address_limit as usize {
                         info.observed_addr
                             .iter()
-                            // if _any_ part of the multiaddr includes a private IP, dont add it to our external address list
+                            // if _any_ part of the multiaddr includes a private IP, don't add it to our external address list
                             .filter_map(|proto| match proto {
                                 Protocol::Ip4(ip) => Some(ip),
                                 _ => None,
@@ -164,6 +164,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                     "failed to register with rendezvous peer"
                                 )
                             }
+
                             // discover other nodes
                             rendezvous_client.discover(
                                 Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
@@ -283,6 +284,12 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     error,
                 } => {
                     warn!(peer_id=peer.to_string(), err=?error, namespace=?namespace, "did not register peer with rendezvous")
+                }
+                rendezvous::server::Event::RegistrationExpired(registration) => {
+                    debug!(
+                        peer_id = registration.record.peer_id().to_string(),
+                        "rendezvous peer registration expired on server"
+                    )
                 }
                 _ => (),
             }
