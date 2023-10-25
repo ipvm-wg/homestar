@@ -80,6 +80,9 @@ pub struct Network {
     pub(crate) enable_rendezvous_client: bool,
     /// Enable Rendezvous protocol server.
     pub(crate) enable_rendezvous_server: bool,
+    /// Rendezvous registration TTL.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) rendezvous_ttl: Duration,
     /// Enable mDNS.
     pub(crate) enable_mdns: bool,
     /// mDNS IPv6 enable flag
@@ -192,6 +195,7 @@ impl Default for Network {
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             enable_rendezvous_client: true,
             enable_rendezvous_server: false,
+            rendezvous_ttl: Duration::from_secs(2 * 60 * 60),
             // TODO: we would like to enable this by default, however this breaks mdns on at least some linux distros. Requires further investigation.
             enable_mdns: true,
             mdns_enable_ipv6: false,

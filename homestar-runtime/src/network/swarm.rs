@@ -105,7 +105,10 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
             }),
             rendezvous_server: Toggle::from(if settings.network.enable_rendezvous_server {
                 Some(rendezvous::server::Behaviour::new(
-                    rendezvous::server::Config::default(),
+                    rendezvous::server::Config::with_min_ttl(
+                        rendezvous::server::Config::default(),
+                        1,
+                    ),
                 ))
             } else {
                 None
