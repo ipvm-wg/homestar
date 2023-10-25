@@ -28,7 +28,7 @@ use libp2p::{
     },
     mdns,
     multiaddr::Protocol,
-    rendezvous::{self, Namespace},
+    rendezvous::{self, Namespace, Registration},
     request_response,
     swarm::{dial_opts::DialOpts, SwarmEvent},
     PeerId, StreamProtocol,
@@ -190,17 +190,34 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     registrations,
                     cookie,
                 } => {
-                    // save cookie for later (when we are hungry for snacks again. yummy.)
                     if cookie.namespace() == Some(&Namespace::from_static(RENDEZVOUS_NAMESPACE)) {
+                        // Store cookie
                         event_handler
                             .rendezvous_cookies
                             .insert(rendezvous_node, cookie);
 
-                        // Dial discovered peers
-                        for (index, registration) in registrations.iter().enumerate() {
+                        let connected_peers_count = event_handler.connected_peers.len();
+
+                        // Skip dialing peers if at connected peers limit
+                        if connected_peers_count >= event_handler.connected_peers_limit as usize {
+                            return;
+                        }
+
+                        // Filter out already connected peers
+                        let new_registrations: Vec<&Registration> = registrations
+                            .iter()
+                            .filter(|registration| {
+                                !event_handler
+                                    .connected_peers
+                                    .contains_key(&registration.record.peer_id())
+                            })
+                            .collect();
+
+                        // Dial newly discovered peers
+                        for (index, registration) in new_registrations.iter().enumerate() {
                             // Dial discovered peer if not us and not at connected peers limit
                             if &registration.record.peer_id() != event_handler.swarm.local_peer_id()
-                                && event_handler.connected_peers.len() + index
+                                && connected_peers_count + index
                                     < event_handler.connected_peers_limit as usize
                             {
                                 // TODO: do anything with ttl here?
@@ -221,7 +238,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             }
                         }
                     } else {
-                        // don't add peers that aren't from our namespace
+                        // Do not dial peers that are not using our namespace
                         warn!(peer_id=rendezvous_node.to_string(), namespace=?cookie.namespace(), "rendezvous peer gave records from an unexpected namespace");
                     }
                 }
