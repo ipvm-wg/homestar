@@ -196,18 +196,20 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             .rendezvous_cookies
                             .insert(rendezvous_node, cookie);
 
-                        // dial discovered peers
+                        // Dial discovered peers
                         for (index, registration) in registrations.iter().enumerate() {
-                            // TODO: do anything with ttl here?
-                            let opts = DialOpts::peer_id(registration.record.peer_id())
-                                .addresses(registration.record.addresses().to_vec())
-                                .condition(libp2p::swarm::dial_opts::PeerCondition::Disconnected)
-                                .build();
-
-                            // Dial discovered peer if not at connected peers limit
-                            if event_handler.connected_peers.len() + index
-                                < event_handler.connected_peers_limit as usize
+                            // Dial discovered peer if not us and not at connected peers limit
+                            if &registration.record.peer_id() != event_handler.swarm.local_peer_id()
+                                && event_handler.connected_peers.len() + index
+                                    < event_handler.connected_peers_limit as usize
                             {
+                                // TODO: do anything with ttl here?
+                                let opts = DialOpts::peer_id(registration.record.peer_id())
+                                    .addresses(registration.record.addresses().to_vec())
+                                    .condition(
+                                        libp2p::swarm::dial_opts::PeerCondition::Disconnected,
+                                    )
+                                    .build();
                                 if let Err(err) = event_handler.swarm.dial(opts) {
                                     warn!(peer_id=registration.record.peer_id().to_string(), err=?err, "failed to dial peer discovered through rendezvous")
                                 }
