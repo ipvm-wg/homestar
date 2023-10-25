@@ -191,6 +191,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     cookie,
                 } => {
                     if cookie.namespace() == Some(&Namespace::from_static(RENDEZVOUS_NAMESPACE)) {
+                        debug!(
+                            peer_id = rendezvous_node.to_string(),
+                            "rendezvous peer served discovery request"
+                        );
+
                         // Store cookie
                         event_handler
                             .rendezvous_cookies
@@ -200,6 +205,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
                         // Skip dialing peers if at connected peers limit
                         if connected_peers_count >= event_handler.connected_peers_limit as usize {
+                            warn!("peers discovered through rendezvous not dialed because max connected peers limit reached");
                             return;
                         }
 
@@ -215,8 +221,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
                         // Dial newly discovered peers
                         for (index, registration) in new_registrations.iter().enumerate() {
+                            let our_registration = &registration.record.peer_id()
+                                == event_handler.swarm.local_peer_id();
+
                             // Dial discovered peer if not us and not at connected peers limit
-                            if &registration.record.peer_id() != event_handler.swarm.local_peer_id()
+                            if !our_registration
                                 && connected_peers_count + index
                                     < event_handler.connected_peers_limit as usize
                             {
@@ -230,11 +239,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 if let Err(err) = event_handler.swarm.dial(opts) {
                                     warn!(peer_id=registration.record.peer_id().to_string(), err=?err, "failed to dial peer discovered through rendezvous")
                                 }
-                            } else {
+                            } else if !our_registration {
                                 warn!(
-                                    peer_id=registration.record.peer_id().to_string(),
-                                    "peer discovered through rendezvous not dialed because max connected peers limit reached"
-                                )
+                                        peer_id=registration.record.peer_id().to_string(),
+                                        "peer discovered through rendezvous not dialed because the max connected peers limit was reached"
+                                    )
                             }
                         }
                     } else {
