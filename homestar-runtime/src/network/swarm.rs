@@ -27,7 +27,7 @@ use libp2p::{
     noise, rendezvous,
     request_response::{self, ProtocolSupport},
     swarm::{behaviour::toggle::Toggle, NetworkBehaviour, Swarm, SwarmBuilder},
-    tcp, yamux, StreamProtocol, Transport,
+    tcp, yamux, PeerId, StreamProtocol, Transport,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -193,6 +193,22 @@ pub(crate) fn init(
     }
 
     Ok(())
+}
+
+/// Discovery information for peers discovered through rendezvous.
+#[derive(Debug, Clone)]
+pub(crate) struct PeerDiscoveryInfo {
+    pub(crate) rendezvous_point: PeerId,
+}
+
+impl PeerDiscoveryInfo {
+    /// Create a new [PeerDiscoveryInfo] with the rendezvous point [PeerId] where
+    /// a peer was discovered.
+    ///
+    /// [PeerId]: libp2p::PeerId
+    pub(crate) fn new(rendezvous_point: PeerId) -> Self {
+        Self { rendezvous_point }
+    }
 }
 
 /// Key data structure for [request_response::Event] messages.

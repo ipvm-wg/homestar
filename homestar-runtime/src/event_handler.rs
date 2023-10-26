@@ -6,7 +6,7 @@ use crate::network::ws;
 use crate::network::IpfsCli;
 use crate::{
     db::Database,
-    network::swarm::{ComposedBehaviour, RequestResponseKey},
+    network::swarm::{ComposedBehaviour, PeerDiscoveryInfo, RequestResponseKey},
     settings,
 };
 use anyhow::Result;
@@ -59,6 +59,7 @@ pub(crate) struct EventHandler<DB: Database> {
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
     connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
     connected_peers_limit: u32,
+    discovered_peers: FnvHashMap<PeerId, PeerDiscoveryInfo>,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     rendezvous_ttl: Duration,
     rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
@@ -83,6 +84,7 @@ pub(crate) struct EventHandler<DB: Database> {
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
     connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
     connected_peers_limit: u32,
+    discovered_peers: FnvHashMap<PeerId, PeerDiscoveryInfo>,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     rendezvous_ttl: Duration,
     rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
@@ -126,6 +128,7 @@ where
             request_response_senders: FnvHashMap::default(),
             connected_peers: FnvHashMap::default(),
             connected_peers_limit: settings.network.max_connected_peers,
+            discovered_peers: FnvHashMap::default(),
             rendezvous_ttl: settings.network.rendezvous_ttl,
             rendezvous_cookies: FnvHashMap::default(),
             pubsub_enabled: settings.network.enable_pubsub,
@@ -151,6 +154,7 @@ where
             query_senders: FnvHashMap::default(),
             connected_peers: FnvHashMap::default(),
             connected_peers_limit: settings.network.max_connected_peers,
+            discovered_peers: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
             rendezvous_ttl: settings.network.rendezvous_ttl,
             rendezvous_cookies: FnvHashMap::default(),

@@ -7,7 +7,9 @@ use crate::{
     db::{Connection, Database},
     event_handler::{event::QueryRecord, Event, Handler, RequestResponseError},
     libp2p::multiaddr::MultiaddrExt,
-    network::swarm::{CapsuleTag, ComposedEvent, RequestResponseKey, HOMESTAR_PROTOCOL_VER},
+    network::swarm::{
+        CapsuleTag, ComposedEvent, PeerDiscoveryInfo, RequestResponseKey, HOMESTAR_PROTOCOL_VER,
+    },
     receipt::{RECEIPT_TAG, VERSION_KEY},
     workflow,
     workflow::WORKFLOW_TAG,
@@ -193,7 +195,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     if cookie.namespace() == Some(&Namespace::from_static(RENDEZVOUS_NAMESPACE)) {
                         debug!(
                             peer_id = rendezvous_node.to_string(),
-                            "rendezvous peer served discovery request"
+                            "received discovery from rendezvous server"
                         );
 
                         // Store cookie
@@ -229,16 +231,25 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 && connected_peers_count + index
                                     < event_handler.connected_peers_limit as usize
                             {
-                                // TODO: do anything with ttl here?
-                                let opts = DialOpts::peer_id(registration.record.peer_id())
+                                let peer_id = registration.record.peer_id();
+                                let opts = DialOpts::peer_id(peer_id)
                                     .addresses(registration.record.addresses().to_vec())
                                     .condition(
                                         libp2p::swarm::dial_opts::PeerCondition::Disconnected,
                                     )
                                     .build();
-                                if let Err(err) = event_handler.swarm.dial(opts) {
-                                    warn!(peer_id=registration.record.peer_id().to_string(), err=?err, "failed to dial peer discovered through rendezvous")
-                                }
+
+                                match event_handler.swarm.dial(opts) {
+                                    Ok(_) => {
+                                        event_handler.discovered_peers.insert(
+                                            peer_id,
+                                            PeerDiscoveryInfo::new(rendezvous_node),
+                                        );
+                                    }
+                                    Err(err) => {
+                                        warn!(peer_id=peer_id.to_string(), err=?err, "failed to dial peer discovered through rendezvous");
+                                    }
+                                };
                             } else if !our_registration {
                                 warn!(
                                         peer_id=registration.record.peer_id().to_string(),
@@ -283,12 +294,15 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         .as_mut()
                     {
                         let cookie = event_handler.rendezvous_cookies.get(&peer).cloned();
-                        rendezvous_client.discover(
-                            Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
-                            cookie,
-                            None,
-                            peer,
-                        );
+
+                        if let Some(discovery_info) = event_handler.discovered_peers.remove(&peer) {
+                            rendezvous_client.discover(
+                                Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
+                                cookie,
+                                None,
+                                discovery_info.rendezvous_point,
+                            );
+                        }
                     }
                 }
             }
