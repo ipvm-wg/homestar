@@ -160,7 +160,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             if let Err(err) = rendezvous_client.register(
                                 Namespace::from_static(RENDEZVOUS_NAMESPACE),
                                 peer_id,
-                                Some(event_handler.rendezvous_ttl.as_secs()),
+                                Some(event_handler.rendezvous_registration_ttl.as_secs()),
                             ) {
                                 warn!(
                                     peer_id = peer_id.to_string(),
