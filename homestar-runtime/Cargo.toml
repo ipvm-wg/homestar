@@ -111,6 +111,10 @@ metrics-exporter-prometheus = { version = "0.12.1", default-features = false, fe
   "http-listener",
 ], optional = true }
 miette = { version = "5.10", default-features = false, features = ["fancy"] }
+moka = { version = "0.12.1", default-features = false, features = [
+  "future",
+  "sync",
+] }
 names = { version = "0.14", default-features = false, optional = true }
 proptest = { version = "1.2", optional = true }
 puffin = { version = "0.17", default-features = false, optional = true }

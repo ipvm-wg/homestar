@@ -16,14 +16,17 @@ use libp2p::{
     core::ConnectedPoint, futures::StreamExt, kad::QueryId, rendezvous::Cookie,
     request_response::RequestId, swarm::Swarm, PeerId,
 };
+use moka::future::Cache;
 use std::{sync::Arc, time::Duration};
 use swarm_event::ResponseEvent;
 use tokio::select;
 
+pub(crate) mod cache;
 pub mod channel;
 pub(crate) mod error;
 pub(crate) mod event;
 pub(crate) mod swarm_event;
+pub(crate) use cache::{setup_cache, CacheValue};
 pub(crate) use error::RequestResponseError;
 pub(crate) use event::Event;
 
@@ -54,6 +57,7 @@ pub(crate) struct EventHandler<DB: Database> {
     p2p_provider_timeout: Duration,
     db: DB,
     swarm: Swarm<ComposedBehaviour>,
+    cache: Cache<String, CacheValue>,
     sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
     receiver: channel::AsyncBoundedChannelReceiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
@@ -80,6 +84,7 @@ pub(crate) struct EventHandler<DB: Database> {
     p2p_provider_timeout: Duration,
     db: DB,
     swarm: Swarm<ComposedBehaviour>,
+    cache: Cache<String, CacheValue>,
     sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
     receiver: channel::AsyncBoundedChannelReceiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
@@ -118,13 +123,15 @@ where
         ws_msg_sender: ws::Notifier,
     ) -> Self {
         let (sender, receiver) = Self::setup_channel(settings);
+        let sender = Arc::new(sender);
         Self {
             receipt_quorum: settings.network.receipt_quorum,
             workflow_quorum: settings.network.workflow_quorum,
             p2p_provider_timeout: settings.network.p2p_provider_timeout,
             db,
             swarm,
-            sender: Arc::new(sender),
+            cache: setup_cache(sender.clone()),
+            sender: sender.clone(),
             receiver,
             query_senders: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
@@ -146,13 +153,15 @@ where
     #[cfg(not(feature = "websocket-server"))]
     pub(crate) fn new(swarm: Swarm<ComposedBehaviour>, db: DB, settings: &settings::Node) -> Self {
         let (sender, receiver) = Self::setup_channel(settings);
+        let sender = Arc::new(sender);
         Self {
             receipt_quorum: settings.network.receipt_quorum,
             workflow_quorum: settings.network.workflow_quorum,
             p2p_provider_timeout: settings.network.p2p_provider_timeout,
             db,
             swarm,
-            sender: Arc::new(sender),
+            cache: setup_cache(sender.clone()),
+            sender: sender.clone(),
             receiver,
             query_senders: FnvHashMap::default(),
             connected_peers: FnvHashMap::default(),
@@ -205,8 +214,10 @@ where
                      swarm_event.handle_event(&mut self).await;
 
                 }
-
             }
+
+            // Poll cache for expired entries
+            self.cache.run_pending_tasks().await;
         }
     }
     /// Start [EventHandler] that matches on swarm and pubsub [events].
@@ -226,6 +237,9 @@ where
                         swarm_event.handle_event(&mut self, ipfs_clone).await;
                 }
             }
+
+            // Poll cache for expired entries
+            self.cache.run_pending_tasks().await;
         }
     }
 }

@@ -5,7 +5,11 @@ use super::EventHandler;
 use crate::network::IpfsCli;
 use crate::{
     db::{Connection, Database},
-    event_handler::{event::QueryRecord, Event, Handler, RequestResponseError},
+    event_handler::{
+        cache::{self, CacheData, CacheValue, Expiration},
+        event::QueryRecord,
+        Event, Handler, RequestResponseError,
+    },
     libp2p::multiaddr::MultiaddrExt,
     network::swarm::{
         CapsuleTag, ComposedEvent, PeerDiscoveryInfo, RequestResponseKey, HOMESTAR_PROTOCOL_VER,
@@ -35,7 +39,10 @@ use libp2p::{
     swarm::{dial_opts::DialOpts, SwarmEvent},
     PeerId, StreamProtocol,
 };
-use std::{collections::HashSet, fmt};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 use tracing::{debug, error, info, warn};
 
 const RENDEZVOUS_PROTOCOL_NAME: StreamProtocol = StreamProtocol::new("/rendezvous/1.0.0");
@@ -121,23 +128,22 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     {
                         info.observed_addr
                             .iter()
-                            // if _any_ part of the multiaddr includes a private IP, don't add it to our external address list
+                            // If any part of the multiaddr includes a private IP, don't add it to our external address list
                             .filter_map(|proto| match proto {
                                 Protocol::Ip4(ip) => Some(ip),
                                 _ => None,
                             })
                             .all(|proto| !proto.is_private())
-                            // identify observed a potentially valid external address that we weren't aware of.
-                            // add it to the addresses we announce to other peers
+                            // Identify observed a potentially valid external address that we weren't aware of.
+                            // Add it to the addresses we announce to other peers.
                             // TODO: have a set of _maybe_ external addresses that we validate with other peers first before adding it
                             .then(|| event_handler.swarm.add_external_address(info.observed_addr));
                     }
 
                     let behavior = event_handler.swarm.behaviour_mut();
 
-                    // kademlia
+                    // Add listen addresses to kademlia routing table
                     if info.protocols.contains(&kad::PROTOCOL_NAME) {
-                        // add listen addresses to kademlia routing table
                         for addr in info.listen_addrs {
                             behavior.kademlia.add_address(&peer_id, addr);
                             debug!(
@@ -147,8 +153,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         }
                     }
 
-                    // rendezvous
-                    // we are good to register self & discover with any node we contact. more peers = more better!
+                    // Register and discover with nodes running the rendezvous protocol
                     if info.protocols.contains(&RENDEZVOUS_PROTOCOL_NAME) {
                         if let Some(rendezvous_client) = event_handler
                             .swarm
@@ -169,7 +174,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 )
                             }
 
-                            // discover other nodes
+                            // Discover other nodes
                             rendezvous_client.discover(
                                 Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
                                 None,
@@ -257,6 +262,31 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                     )
                             }
                         }
+
+                        // Discover peers again at discovery interval
+                        event_handler
+                            .cache
+                            .insert(
+                                rendezvous_node.to_string(),
+                                CacheValue::new(
+                                    Expiration::Discovery(
+                                        event_handler.rendezvous_discovery_interval,
+                                    ),
+                                    HashMap::from([
+                                        (
+                                            "on_eviction".to_string(),
+                                            CacheData::OnEviction(
+                                                cache::DispatchEvent::DiscoverPeers,
+                                            ),
+                                        ),
+                                        (
+                                            "rendezvous_node".to_string(),
+                                            CacheData::Peer(rendezvous_node),
+                                        ),
+                                    ]),
+                                ),
+                            )
+                            .await;
                     } else {
                         // Do not dial peers that are not using our namespace
                         warn!(peer_id=rendezvous_node.to_string(), namespace=?cookie.namespace(), "rendezvous peer gave records from an unexpected namespace");
@@ -273,11 +303,33 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     rendezvous_node,
                     ttl,
                     ..
-                } => debug!(
-                    peer_id = rendezvous_node.to_string(),
-                    ttl = ttl,
-                    "registered self with rendezvous peer"
-                ),
+                } => {
+                    debug!(
+                        peer_id = rendezvous_node.to_string(),
+                        ttl = ttl,
+                        "registered self with rendezvous node"
+                    );
+
+                    event_handler
+                        .cache
+                        .insert(
+                            rendezvous_node.to_string(),
+                            CacheValue::new(
+                                Expiration::Registration(event_handler.rendezvous_registration_ttl),
+                                HashMap::from([
+                                    (
+                                        "on_eviction".to_string(),
+                                        CacheData::OnEviction(cache::DispatchEvent::RegisterPeer),
+                                    ),
+                                    (
+                                        "rendezvous_node".to_string(),
+                                        CacheData::Peer(rendezvous_node),
+                                    ),
+                                ]),
+                            ),
+                        )
+                        .await;
+                }
                 rendezvous::client::Event::RegisterFailed {
                     rendezvous_node,
                     error,

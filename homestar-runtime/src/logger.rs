@@ -58,6 +58,7 @@ fn init(
             )
             .add_directive("tarpc=info".parse().expect(DIRECTIVE_EXPECT))
             .add_directive("tower_http=info".parse().expect(DIRECTIVE_EXPECT))
+            .add_directive("moka=info".parse().expect(DIRECTIVE_EXPECT))
     });
 
     #[cfg(all(
