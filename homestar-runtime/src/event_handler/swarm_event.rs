@@ -780,7 +780,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         SwarmEvent::ListenerError { listener_id, error } => {
             error!(err=?error, listener_id=?listener_id, "listener error")
         }
-        SwarmEvent::Dialing { .. } => todo!(),
+        SwarmEvent::Dialing { peer_id, .. } => match peer_id {
+            Some(id) => debug!(peer_id = id.to_string(), "dialing peer"),
+            None => debug!("dialing an unknown peer"),
+        },
         e => debug!(e=?e, "uncaught event"),
     }
 }
