@@ -1,6 +1,10 @@
 use crate::{channel, event_handler::Event};
 use libp2p::PeerId;
-use moka::{future::Cache, Expiry as ExpiryBase};
+use moka::{
+    future::Cache,
+    notification::RemovalCause::{self, Expired},
+    Expiry as ExpiryBase,
+};
 use std::{
     collections::HashMap,
     sync::Arc,
@@ -35,7 +39,7 @@ impl CacheValue {
 #[derive(Clone, Debug)]
 pub(crate) enum CacheData {
     Peer(PeerId),
-    OnEviction(DispatchEvent),
+    OnExpiration(DispatchEvent),
 }
 
 #[derive(Clone, Debug)]
@@ -62,10 +66,14 @@ impl Expiration {
 pub(crate) fn setup_cache(
     sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
 ) -> Cache<String, CacheValue> {
-    let eviction_listener = move |_key: Arc<String>, val: CacheValue, _cause| {
+    let eviction_listener = move |_key: Arc<String>, val: CacheValue, cause: RemovalCause| {
         let tx = Arc::clone(&sender);
 
-        if let Some(CacheData::OnEviction(event)) = val.data.get("on_eviction") {
+        if let Some(CacheData::OnExpiration(event)) = val.data.get("on_expiration") {
+            if cause != Expired {
+                return;
+            }
+
             match event {
                 DispatchEvent::RegisterPeer => {
                     if let Some(CacheData::Peer(rendezvous_node)) = val.data.get("rendezvous_node")
@@ -85,7 +93,6 @@ pub(crate) fn setup_cache(
 
     Cache::builder()
         .expire_after(Expiry)
-        .time_to_live(Duration::from_secs(5))
         .eviction_listener(eviction_listener)
         .build()
 }

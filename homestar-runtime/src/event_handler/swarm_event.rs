@@ -274,8 +274,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                     ),
                                     HashMap::from([
                                         (
-                                            "on_eviction".to_string(),
-                                            CacheData::OnEviction(
+                                            "on_expiration".to_string(),
+                                            CacheData::OnExpiration(
                                                 cache::DispatchEvent::DiscoverPeers,
                                             ),
                                         ),
@@ -318,8 +318,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 Expiration::Registration(event_handler.rendezvous_registration_ttl),
                                 HashMap::from([
                                     (
-                                        "on_eviction".to_string(),
-                                        CacheData::OnEviction(cache::DispatchEvent::RegisterPeer),
+                                        "on_expiration".to_string(),
+                                        CacheData::OnExpiration(cache::DispatchEvent::RegisterPeer),
                                     ),
                                     (
                                         "rendezvous_node".to_string(),
