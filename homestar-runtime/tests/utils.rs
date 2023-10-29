@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 #[cfg(not(windows))]
 use assert_cmd::prelude::*;
+use chrono::{DateTime, FixedOffset};
 #[cfg(not(windows))]
 use nix::{
     sys::signal::{self, Signal},
@@ -95,14 +96,47 @@ pub(crate) fn retrieve_output(proc: Child) -> String {
 pub(crate) fn check_lines_for(output: String, predicates: Vec<&str>) -> bool {
     output
         .split("\n")
-        .map(|line| {
-            // Line contains all predicates
-            predicates
-                .iter()
-                .map(|pred| predicate::str::contains(*pred).eval(line))
-                .fold(true, |acc, curr| acc && curr)
-        })
+        .map(|line| line_contains(line, &predicates))
         .fold(false, |acc, curr| acc || curr)
+}
+
+/// Check process output line for all predicates
+fn line_contains(line: &str, predicates: &Vec<&str>) -> bool {
+    predicates
+        .iter()
+        .map(|pred| predicate::str::contains(*pred).eval(line))
+        .fold(true, |acc, curr| acc && curr)
+}
+
+/// Extract timestamps for process output lines with matching predicates
+pub(crate) fn extract_timestamps_where(
+    output: String,
+    predicates: Vec<&str>,
+) -> Vec<DateTime<FixedOffset>> {
+    output.split("\n").fold(vec![], |mut timestamps, line| {
+        if line_contains(line, &predicates) {
+            match extract_label(&line, "ts").and_then(|val| DateTime::parse_from_rfc3339(val).ok())
+            {
+                Some(datetime) => {
+                    timestamps.push(datetime);
+                    timestamps
+                }
+                None => {
+                    println!("Encountered a log entry that was missing a timestamp label: {line}");
+                    timestamps
+                }
+            }
+        } else {
+            timestamps
+        }
+    })
+}
+
+/// Extract label value from process output line
+fn extract_label<'a>(line: &'a str, key: &str) -> Option<&'a str> {
+    line.split(' ')
+        .find(|label| predicate::str::contains(format!("{key}=")).eval(label))
+        .and_then(|label| label.split('=').next_back())
 }
 
 /// Wait for process to exit or kill after timeout.
