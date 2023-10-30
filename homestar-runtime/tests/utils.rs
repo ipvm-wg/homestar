@@ -100,15 +100,18 @@ pub(crate) fn check_lines_for(output: String, predicates: Vec<&str>) -> bool {
         .fold(false, |acc, curr| acc || curr)
 }
 
-/// Check process output line for all predicates
-fn line_contains(line: &str, predicates: &Vec<&str>) -> bool {
-    predicates
-        .iter()
-        .map(|pred| predicate::str::contains(*pred).eval(line))
-        .fold(true, |acc, curr| acc && curr)
+pub(crate) fn count_lines_where(output: String, predicates: Vec<&str>) -> i32 {
+    output.split("\n").fold(0, |count, line| {
+        if line_contains(line, &predicates) {
+            count + 1
+        } else {
+            count
+        }
+    })
 }
 
 /// Extract timestamps for process output lines with matching predicates
+#[allow(dead_code)]
 pub(crate) fn extract_timestamps_where(
     output: String,
     predicates: Vec<&str>,
@@ -132,7 +135,16 @@ pub(crate) fn extract_timestamps_where(
     })
 }
 
+/// Check process output line for all predicates
+fn line_contains(line: &str, predicates: &Vec<&str>) -> bool {
+    predicates
+        .iter()
+        .map(|pred| predicate::str::contains(*pred).eval(line))
+        .fold(true, |acc, curr| acc && curr)
+}
+
 /// Extract label value from process output line
+#[allow(dead_code)]
 fn extract_label<'a>(line: &'a str, key: &str) -> Option<&'a str> {
     line.split(' ')
         .find(|label| predicate::str::contains(format!("{key}=")).eval(label))

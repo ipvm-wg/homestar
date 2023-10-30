@@ -1,4 +1,6 @@
-use crate::utils::{check_lines_for, kill_homestar, retrieve_output, stop_homestar, BIN_NAME};
+use crate::utils::{
+    check_lines_for, count_lines_where, kill_homestar, retrieve_output, stop_homestar, BIN_NAME,
+};
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use serial_test::file_serial;
@@ -676,6 +678,73 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
 
     assert!(two_disconnected_from_one);
     assert!(two_removed_from_dht_table);
+
+    Ok(())
+}
+
+#[test]
+#[file_serial]
+fn test_libp2p_rendezvous_renew_registration_serial() -> Result<()> {
+    let _ = stop_homestar();
+
+    // Start a rendezvous server
+    let rendezvous_server = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous1.toml")
+        .arg("--db")
+        .arg("homestar1.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Start a peer that will renew registrations with the rendezvous server once per second
+    let rendezvous_client1 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous4.toml")
+        .arg("--db")
+        .arg("homestar4.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Collect logs for five seconds then kill proceses.
+    let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
+    let dead_client = kill_homestar(rendezvous_client1, Some(Duration::from_secs(5)));
+
+    // Retrieve logs.
+    let stdout_server = retrieve_output(dead_server);
+    let stdout_client = retrieve_output(dead_client);
+
+    // Count registrations on the server
+    let server_registration_count = count_lines_where(
+        stdout_server,
+        vec![
+            "registered peer through rendezvous",
+            "12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq",
+        ],
+    );
+
+    // Count registrations on the client
+    let client_registration_count = count_lines_where(
+        stdout_client,
+        vec![
+            "registered self with rendezvous node",
+            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+        ],
+    );
+
+    assert!(server_registration_count > 1);
+    assert!(client_registration_count > 1);
 
     Ok(())
 }
