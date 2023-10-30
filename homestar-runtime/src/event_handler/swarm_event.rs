@@ -6,7 +6,7 @@ use crate::network::IpfsCli;
 use crate::{
     db::{Connection, Database},
     event_handler::{
-        cache::{self, CacheData, CacheValue, Expiration},
+        cache::{self, CacheData, CacheValue},
         event::QueryRecord,
         Event, Handler, RequestResponseError,
     },
@@ -269,9 +269,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             .insert(
                                 rendezvous_node.to_string(),
                                 CacheValue::new(
-                                    Expiration::Discovery(
-                                        event_handler.rendezvous_discovery_interval,
-                                    ),
+                                    event_handler.rendezvous_discovery_interval,
                                     HashMap::from([
                                         (
                                             "on_expiration".to_string(),
@@ -315,7 +313,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         .insert(
                             rendezvous_node.to_string(),
                             CacheValue::new(
-                                Expiration::Registration(event_handler.rendezvous_registration_ttl),
+                                event_handler.rendezvous_registration_ttl,
                                 HashMap::from([
                                     (
                                         "on_expiration".to_string(),
