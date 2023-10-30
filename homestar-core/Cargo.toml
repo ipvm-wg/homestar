@@ -44,7 +44,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 ucan = { workspace = true }
 url = { version = "2.3", default-features = false, features = ["serde"] }
-uuid = { version = "1.4", default-features = false, features = [
+uuid = { version = "1.5", default-features = false, features = [
   "v4",
   "fast-rng",
 ] }
