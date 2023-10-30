@@ -267,7 +267,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         event_handler
                             .cache
                             .insert(
-                                rendezvous_node.to_string(),
+                                format!("{}-discover", rendezvous_node),
                                 CacheValue::new(
                                     event_handler.rendezvous_discovery_interval,
                                     HashMap::from([
@@ -311,7 +311,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     event_handler
                         .cache
                         .insert(
-                            rendezvous_node.to_string(),
+                            format!("{}-register", rendezvous_node),
                             CacheValue::new(
                                 event_handler.rendezvous_registration_ttl,
                                 HashMap::from([

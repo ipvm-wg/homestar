@@ -19,7 +19,7 @@ use libp2p::{
 use moka::future::Cache;
 use std::{sync::Arc, time::Duration};
 use swarm_event::ResponseEvent;
-use tokio::select;
+use tokio::{runtime::Handle, select};
 
 pub(crate) mod cache;
 pub mod channel;
@@ -57,7 +57,7 @@ pub(crate) struct EventHandler<DB: Database> {
     p2p_provider_timeout: Duration,
     db: DB,
     swarm: Swarm<ComposedBehaviour>,
-    cache: Cache<String, CacheValue>,
+    cache: Arc<Cache<String, CacheValue>>,
     sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
     receiver: channel::AsyncBoundedChannelReceiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
@@ -130,7 +130,7 @@ where
             p2p_provider_timeout: settings.network.p2p_provider_timeout,
             db,
             swarm,
-            cache: setup_cache(sender.clone()),
+            cache: Arc::new(setup_cache(sender.clone())),
             sender: sender.clone(),
             receiver,
             query_senders: FnvHashMap::default(),
@@ -160,7 +160,7 @@ where
             p2p_provider_timeout: settings.network.p2p_provider_timeout,
             db,
             swarm,
-            cache: setup_cache(sender.clone()),
+            cache: Arc::new(setup_cache(sender.clone())),
             sender: sender.clone(),
             receiver,
             query_senders: FnvHashMap::default(),
@@ -225,6 +225,9 @@ where
     /// [events]: libp2p::swarm::SwarmEvent
     #[cfg(feature = "ipfs")]
     pub(crate) async fn start(mut self, ipfs: IpfsCli) -> Result<()> {
+        let handle = Handle::current();
+        handle.spawn(poll_cache(self.cache.clone()));
+
         loop {
             select! {
                 runtime_event = self.receiver.recv_async() => {
@@ -237,9 +240,16 @@ where
                         swarm_event.handle_event(&mut self, ipfs_clone).await;
                 }
             }
-
-            // Poll cache for expired entries
-            self.cache.run_pending_tasks().await;
         }
+    }
+}
+
+/// Poll cache for expired entries
+async fn poll_cache(cache: Arc<Cache<String, CacheValue>>) {
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+
+    loop {
+        interval.tick().await;
+        cache.run_pending_tasks().await;
     }
 }
