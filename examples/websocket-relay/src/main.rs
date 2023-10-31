@@ -36,7 +36,6 @@ fn main() -> Result<()> {
     Runner::start(settings, db).expect("Failed to start runtime");
 
     // ipfs cleanup after runtime is stopped
-
     if let Some(mut ipfs_daemon) = ipfs_daemon {
         match ipfs_daemon.try_wait() {
             Ok(Some(status)) => info!("exited with: {status}"),

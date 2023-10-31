@@ -13,6 +13,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const METRICS_URL: &str = "http://localhost:4020";
 
+#[cfg(feature = "monitoring")]
 #[test]
 #[file_serial]
 fn test_metrics_serial() -> Result<()> {

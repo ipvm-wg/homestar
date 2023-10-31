@@ -96,7 +96,7 @@ impl Context {
     }
 }
 
-/// TODO
+/// [RpcModule] wrapper.
 pub(crate) struct JsonRpc(RpcModule<Context>);
 
 impl JsonRpc {
@@ -106,8 +106,8 @@ impl JsonRpc {
         Ok(Self(module))
     }
 
-    #[allow(dead_code)]
     /// Get a reference to the inner [RpcModule].
+    #[allow(dead_code)]
     pub(crate) fn inner(&self) -> &RpcModule<Context> {
         &self.0
     }
