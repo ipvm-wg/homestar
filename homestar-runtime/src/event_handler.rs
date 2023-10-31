@@ -1,7 +1,7 @@
 //! [EventHandler] implementation for handling network events and messages.
 
-#[cfg(feature = "websocket-server")]
-use crate::network::ws;
+#[cfg(feature = "websocket-notify")]
+use crate::network::webserver;
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
@@ -45,11 +45,8 @@ where
 }
 
 /// Event loop handler for [libp2p] network events and commands.
-#[cfg(feature = "websocket-server")]
-#[cfg_attr(
-    docsrs,
-    doc(cfg(all(feature = "websocket-server", feature = "websocket-notify")))
-)]
+#[cfg(feature = "websocket-notify")]
+#[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
 #[allow(missing_debug_implementations, dead_code)]
 pub(crate) struct EventHandler<DB: Database> {
     receipt_quorum: usize,
@@ -65,7 +62,7 @@ pub(crate) struct EventHandler<DB: Database> {
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     rendezvous: Rendezvous,
     pubsub_enabled: bool,
-    ws_msg_sender: ws::Notifier,
+    ws_msg_sender: webserver::Notifier,
     node_addresses: Vec<libp2p::Multiaddr>,
     announce_addresses: Vec<libp2p::Multiaddr>,
     external_address_limit: u32,
@@ -73,7 +70,7 @@ pub(crate) struct EventHandler<DB: Database> {
 }
 
 /// Event loop handler for [libp2p] network events and commands.
-#[cfg(not(feature = "websocket-server"))]
+#[cfg(not(feature = "websocket-notify"))]
 #[allow(missing_debug_implementations, dead_code)]
 pub(crate) struct EventHandler<DB: Database> {
     receipt_quorum: usize,
@@ -123,12 +120,12 @@ where
     }
 
     /// Create an [EventHandler] with channel sender/receiver defaults.
-    #[cfg(feature = "websocket-server")]
+    #[cfg(feature = "websocket-notify")]
     pub(crate) fn new(
         swarm: Swarm<ComposedBehaviour>,
         db: DB,
         settings: &settings::Node,
-        ws_msg_sender: ws::Notifier,
+        ws_msg_sender: webserver::Notifier,
     ) -> Self {
         let (sender, receiver) = Self::setup_channel(settings);
         let sender = Arc::new(sender);
@@ -163,7 +160,7 @@ where
     }
 
     /// Create an [EventHandler] with channel sender/receiver defaults.
-    #[cfg(not(feature = "websocket-server"))]
+    #[cfg(not(feature = "websocket-notify"))]
     pub(crate) fn new(swarm: Swarm<ComposedBehaviour>, db: DB, settings: &settings::Node) -> Self {
         let (sender, receiver) = Self::setup_channel(settings);
         let sender = Arc::new(sender);
@@ -206,13 +203,10 @@ where
 
     /// [tokio::sync::broadcast::Sender] for sending messages through the
     /// webSocket server to subscribers.
-    #[cfg(all(feature = "websocket-server", feature = "websocket-notify"))]
-    #[cfg_attr(
-        docsrs,
-        doc(cfg(all(feature = "websocket-server", feature = "websocket-notify")))
-    )]
+    #[cfg(feature = "websocket-notify")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
     #[allow(dead_code)]
-    pub(crate) fn ws_sender(&self) -> ws::Notifier {
+    pub(crate) fn ws_sender(&self) -> webserver::Notifier {
         self.ws_msg_sender.clone()
     }
 
