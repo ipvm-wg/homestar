@@ -182,7 +182,7 @@ impl Event {
                     if let Err(err) = rendezvous_client.register(
                         Namespace::from_static(RENDEZVOUS_NAMESPACE),
                         peer_id,
-                        Some(event_handler.rendezvous_registration_ttl.as_secs()),
+                        Some(event_handler.rendezvous.registration_ttl.as_secs()),
                     ) {
                         warn!(
                             peer_id = peer_id.to_string(),
@@ -199,7 +199,7 @@ impl Event {
                     .rendezvous_client
                     .as_mut()
                 {
-                    let cookie = event_handler.rendezvous_cookies.get(&peer_id).cloned();
+                    let cookie = event_handler.rendezvous.cookies.get(&peer_id).cloned();
 
                     rendezvous_client.discover(
                         Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),

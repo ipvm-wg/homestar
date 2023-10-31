@@ -165,7 +165,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             if let Err(err) = rendezvous_client.register(
                                 Namespace::from_static(RENDEZVOUS_NAMESPACE),
                                 peer_id,
-                                Some(event_handler.rendezvous_registration_ttl.as_secs()),
+                                Some(event_handler.rendezvous.registration_ttl.as_secs()),
                             ) {
                                 warn!(
                                     peer_id = peer_id.to_string(),
@@ -205,7 +205,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
                         // Store cookie
                         event_handler
-                            .rendezvous_cookies
+                            .rendezvous
+                            .cookies
                             .insert(rendezvous_node, cookie);
 
                         let connected_peers_count = event_handler.connected_peers.len();
@@ -246,7 +247,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
                                 match event_handler.swarm.dial(opts) {
                                     Ok(_) => {
-                                        event_handler.discovered_peers.insert(
+                                        event_handler.rendezvous.discovered_peers.insert(
                                             peer_id,
                                             PeerDiscoveryInfo::new(rendezvous_node),
                                         );
@@ -269,7 +270,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             .insert(
                                 format!("{}-discover", rendezvous_node),
                                 CacheValue::new(
-                                    event_handler.rendezvous_discovery_interval,
+                                    event_handler.rendezvous.discovery_interval,
                                     HashMap::from([
                                         (
                                             "on_expiration".to_string(),
@@ -313,7 +314,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         .insert(
                             format!("{}-register", rendezvous_node),
                             CacheValue::new(
-                                event_handler.rendezvous_registration_ttl,
+                                event_handler.rendezvous.registration_ttl,
                                 HashMap::from([
                                     (
                                         "on_expiration".to_string(),
@@ -343,9 +344,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         .rendezvous_client
                         .as_mut()
                     {
-                        let cookie = event_handler.rendezvous_cookies.get(&peer).cloned();
+                        let cookie = event_handler.rendezvous.cookies.get(&peer).cloned();
 
-                        if let Some(discovery_info) = event_handler.discovered_peers.remove(&peer) {
+                        if let Some(discovery_info) =
+                            event_handler.rendezvous.discovered_peers.remove(&peer)
+                        {
                             rendezvous_client.discover(
                                 Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
                                 cookie,
