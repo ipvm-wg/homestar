@@ -1,14 +1,13 @@
 //! Node metrics, including system, process, network, and database information
 
-use crate::db::ENV as DATABASE_URL;
+use crate::Db;
 use anyhow::{anyhow, Context, Result};
 use metrics::{describe_counter, describe_gauge, Unit};
-use std::{env, time::Duration};
+use std::time::Duration;
 use sysinfo::{
     get_current_pid, CpuRefreshKind, Disk, DiskExt, NetworkExt, Networks, NetworksExt, ProcessExt,
     ProcessRefreshKind, RefreshKind, System, SystemExt,
 };
-use tokio::fs;
 use tracing::{info, warn};
 
 /// Create and describe gauges for node metrics.
@@ -152,11 +151,11 @@ async fn collect_stats(sys: System) -> Result<()> {
             .iter()
             .fold(0, |acc, interface| acc + interface.1.received())
     }
-    async fn compute_database_size() -> Option<u64> {
-        let url = env::var(DATABASE_URL).unwrap();
-        match fs::metadata(url).await {
-            Ok(metadata) => Some(metadata.len()),
-            Err(_) => None,
+    async fn compute_database_size() -> Option<f64> {
+        if let Ok(size) = Db::size().await {
+            Some(size.get_value())
+        } else {
+            None
         }
     }
 
@@ -223,7 +222,7 @@ async fn collect_stats(sys: System) -> Result<()> {
 
     // Database metrics
     if let Some(database_size) = compute_database_size().await {
-        metrics::gauge!("database_size_bytes", database_size as f64);
+        metrics::gauge!("database_size_bytes", database_size);
     }
 
     Ok(())

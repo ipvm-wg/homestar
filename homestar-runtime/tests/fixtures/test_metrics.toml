@@ -1,13 +1,13 @@
 [monitoring]
 process_collector_interval = 500
-metrics_port = 4020
 console_subscriber_port = 5570
 
 [node]
 
 [node.network]
+metrics_port = 4020
 rpc_port = 9810
-websocket_port = 8010
+webserver_port = 8010
 
 # Peer ID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN
 [node.network.keypair_config]

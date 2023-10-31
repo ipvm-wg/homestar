@@ -1,13 +1,13 @@
 [monitoring]
 process_collector_interval = 500
-metrics_port = 4038
 console_subscriber_port = 5588
 
 [node]
 
 [node.network]
-rpc_port = 9828
-websocket_port = 8028
+metrics_port = 4040
+rpc_port = 9830
+websocket_port = 8030
 listen_address = "/ip4/127.0.0.1/tcp/7005"
 announce_addresses = [
   "/ip4/127.0.0.1/tcp/7005/p2p/12D3KooWPT98FXMfDQYavZm66EeVjTqP9Nnehn1gyaydqV8L8BQw",
