@@ -815,3 +815,93 @@ fn test_libp2p_rendezvous_rediscovery_serial() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+#[file_serial]
+fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
+    let _ = stop_homestar();
+
+    // Start a rendezvous server
+    let rendezvous_server = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous1.toml")
+        .arg("--db")
+        .arg("homestar1.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Start a peer that will renew registrations with the rendezvous server every five seconds
+    let rendezvous_client1 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous6.toml")
+        .arg("--db")
+        .arg("homestar6.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Wait for registration to complete.
+    // TODO When we have websocket push events, listen on a registration event instead of using an arbitrary sleep.
+    thread::sleep(Duration::from_secs(2));
+
+    // Start a peer that will discover with the rendezvous server when
+    // a discovered registration expires. Note that by default discovery only
+    // occurs every ten minutes, so discovery requests in this test are driven
+    // by expirations.
+    let rendezvous_client2 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous3.toml")
+        .arg("--db")
+        .arg("homestar3.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Collect logs for seven seconds then kill proceses.
+    let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(7)));
+    let _ = kill_homestar(rendezvous_client1, Some(Duration::from_secs(7)));
+    let dead_client2 = kill_homestar(rendezvous_client2, Some(Duration::from_secs(7)));
+
+    // Retrieve logs.
+    let stdout_server = retrieve_output(dead_server);
+    let stdout_client2 = retrieve_output(dead_client2);
+
+    // Count discover requests on the server
+    let server_discovery_count = count_lines_where(
+        stdout_server,
+        vec![
+            "served rendezvous discover request to peer",
+            "12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5",
+        ],
+    );
+
+    // Count discovery responses the client
+    let client_discovery_count = count_lines_where(
+        stdout_client2,
+        vec![
+            "received discovery from rendezvous server",
+            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+        ],
+    );
+
+    assert!(server_discovery_count > 1);
+    assert!(client_discovery_count > 1);
+
+    Ok(())
+}
