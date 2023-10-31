@@ -233,11 +233,15 @@ mod test {
     use notifier::NotifyReceipt;
     use tokio::sync::mpsc;
 
+    fn set_ports(settings: &mut Settings) {
+        settings.node.network.metrics_port = test_utils::ports::get_port() as u16;
+        settings.node.network.webserver_port = test_utils::ports::get_port() as u16;
+    }
+
     #[tokio::test]
     async fn ws_connect() {
         let mut settings = Settings::load().unwrap();
-        settings.node.network.metrics_port = 6000;
-        settings.node.network.webserver_port = 1200;
+        set_ports(&mut settings);
         let server = Server::new(settings.node().network()).unwrap();
         #[cfg(feature = "monitoring")]
         let metrics_hdl = metrics::start(settings.monitoring(), settings.node.network())
@@ -272,8 +276,8 @@ mod test {
     #[tokio::test]
     async fn ws_metrics_no_prefix() {
         let mut settings = Settings::load().unwrap();
-        settings.node.network.metrics_port = 6001;
-        settings.node.network.webserver_port = 1201;
+        set_ports(&mut settings);
+        settings.monitoring.process_collector_interval = Duration::from_millis(100);
         let server = Server::new(settings.node().network()).unwrap();
 
         let metrics_hdl = metrics::start(settings.monitoring(), settings.node.network())
@@ -283,6 +287,9 @@ mod test {
         server.start(runner_tx, metrics_hdl).await.unwrap();
 
         let ws_url = format!("ws://{}", server.addr);
+
+        // wait for interval to pass
+        std::thread::sleep(Duration::from_millis(100));
 
         let client = WsClientBuilder::default().build(ws_url).await.unwrap();
         let ws_resp1: serde_json::Value = client
@@ -303,8 +310,7 @@ mod test {
     #[tokio::test]
     async fn ws_subscribe_unsubscribe_network_events() {
         let mut settings = Settings::load().unwrap();
-        settings.node.network.metrics_port = 6002;
-        settings.node.network.webserver_port = 1202;
+        set_ports(&mut settings);
         let server = Server::new(settings.node().network()).unwrap();
         #[cfg(feature = "monitoring")]
         let metrics_hdl = metrics::start(settings.monitoring(), settings.node.network())
@@ -341,8 +347,7 @@ mod test {
     #[tokio::test]
     async fn ws_subscribe_workflow_incorrect_params() {
         let mut settings = Settings::load().unwrap();
-        settings.node.network.metrics_port = 6003;
-        settings.node.network.webserver_port = 1203;
+        set_ports(&mut settings);
         let server = Server::new(settings.node().network()).unwrap();
         let metrics_hdl = metrics::start(settings.monitoring(), settings.node.network())
             .await
@@ -375,8 +380,7 @@ mod test {
     #[tokio::test]
     async fn ws_subscribe_workflow_runner_timeout() {
         let mut settings = Settings::load().unwrap();
-        settings.node.network.metrics_port = 6004;
-        settings.node.network.webserver_port = 1204;
+        set_ports(&mut settings);
         let server = Server::new(settings.node().network()).unwrap();
         let metrics_hdl = metrics::start(settings.monitoring(), settings.node.network())
             .await
