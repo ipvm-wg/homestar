@@ -141,7 +141,7 @@ fn test_server_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 9832);
+    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 9837);
     let result = retry(Exponential::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
@@ -156,7 +156,7 @@ fn test_server_serial() -> Result<()> {
         .arg("--host")
         .arg("::1")
         .arg("-p")
-        .arg("9832")
+        .arg("9837")
         .assert()
         .success()
         .stdout(predicate::str::contains("::1"))
@@ -167,7 +167,7 @@ fn test_server_serial() -> Result<()> {
         .arg("--host")
         .arg("::1")
         .arg("-p")
-        .arg("9830")
+        .arg("9835")
         .assert()
         .failure()
         .stderr(
@@ -274,7 +274,7 @@ fn test_daemon_serial() -> Result<()> {
         .assert()
         .success();
 
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9831);
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9836);
     let result = retry(Exponential::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
@@ -288,7 +288,7 @@ fn test_daemon_serial() -> Result<()> {
         .arg("--host")
         .arg("127.0.0.1")
         .arg("-p")
-        .arg("9831")
+        .arg("9836")
         .assert()
         .success()
         .stdout(predicate::str::contains("127.0.0.1"))
@@ -362,7 +362,7 @@ fn test_server_v4_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9830);
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9835);
     let result = retry(Exponential::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
@@ -377,7 +377,7 @@ fn test_server_v4_serial() -> Result<()> {
         .arg("--host")
         .arg("127.0.0.1")
         .arg("-p")
-        .arg("9830")
+        .arg("9835")
         .assert()
         .success()
         .stdout(predicate::str::contains("127.0.0.1"))
@@ -410,7 +410,7 @@ fn test_daemon_v4_serial() -> Result<()> {
         .assert()
         .success();
 
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9830);
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9835);
     let result = retry(Exponential::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
@@ -424,7 +424,7 @@ fn test_daemon_v4_serial() -> Result<()> {
         .arg("--host")
         .arg("127.0.0.1")
         .arg("-p")
-        .arg("9830")
+        .arg("9835")
         .assert()
         .success()
         .stdout(predicate::str::contains("127.0.0.1"))

@@ -15,5 +15,6 @@ node_addresses = [
 enable_mdns = false
 enable_rendezvous_client = false
 
+# Peer ID 16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc
 [node.network.keypair_config]
 existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }

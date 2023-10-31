@@ -18,5 +18,6 @@ node_addresses = [
 rendezvous_registration_ttl = 1
 enable_mdns = false
 
+# Peer ID 12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519_3.pem" }

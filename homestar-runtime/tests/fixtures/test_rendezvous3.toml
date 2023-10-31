@@ -14,5 +14,6 @@ node_addresses = [
 ]
 enable_mdns = false
 
+# Peer ID 12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }
