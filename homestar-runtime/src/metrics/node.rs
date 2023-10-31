@@ -108,8 +108,8 @@ pub(crate) fn describe() {
 }
 
 /// Collect node metrics on a settings-defined interval.
-pub(crate) async fn collect_metrics(interval: u64) {
-    let mut interval = tokio::time::interval(Duration::from_millis(interval));
+pub(crate) async fn collect_metrics(interval: Duration) {
+    let mut interval = tokio::time::interval(interval);
 
     // Log static system info
     log_static_info();
