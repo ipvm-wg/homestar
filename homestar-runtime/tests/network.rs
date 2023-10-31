@@ -748,3 +748,70 @@ fn test_libp2p_rendezvous_renew_registration_serial() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+#[file_serial]
+fn test_libp2p_rendezvous_rediscovery_serial() -> Result<()> {
+    let _ = stop_homestar();
+
+    // Start a rendezvous server
+    let rendezvous_server = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous1.toml")
+        .arg("--db")
+        .arg("homestar1.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Start a peer that will discover with the rendezvous server once per second
+    let rendezvous_client1 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_rendezvous5.toml")
+        .arg("--db")
+        .arg("homestar5.db")
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    // Collect logs for five seconds then kill proceses.
+    let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
+    let dead_client = kill_homestar(rendezvous_client1, Some(Duration::from_secs(5)));
+
+    // Retrieve logs.
+    let stdout_server = retrieve_output(dead_server);
+    let stdout_client = retrieve_output(dead_client);
+
+    // Count discover requests on the server
+    let server_discovery_count = count_lines_where(
+        stdout_server,
+        vec![
+            "served rendezvous discover request to peer",
+            "12D3KooWRndVhVZPCiQwHBBBdg769GyrPUW13zxwqQyf9r3ANaba",
+        ],
+    );
+
+    // Count discovery responses the client
+    let client_discovery_count = count_lines_where(
+        stdout_client,
+        vec![
+            "received discovery from rendezvous server",
+            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+        ],
+    );
+
+    assert!(server_discovery_count > 1);
+    assert!(client_discovery_count > 1);
+
+    Ok(())
+}
