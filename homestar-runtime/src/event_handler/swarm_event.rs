@@ -228,11 +228,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
                         // Dial newly discovered peers
                         for (index, registration) in new_registrations.iter().enumerate() {
-                            let our_registration = &registration.record.peer_id()
+                            let self_registration = &registration.record.peer_id()
                                 == event_handler.swarm.local_peer_id();
 
                             // Dial discovered peer if not us and not at connected peers limit
-                            if !our_registration
+                            if !self_registration
                                 && connected_peers_count + index
                                     < event_handler.connected_peers_limit as usize
                             {
@@ -255,7 +255,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                         warn!(peer_id=peer_id.to_string(), err=?err, "failed to dial peer discovered through rendezvous");
                                     }
                                 };
-                            } else if !our_registration {
+                            } else if !self_registration {
                                 warn!(
                                         peer_id=registration.record.peer_id().to_string(),
                                         "peer discovered through rendezvous not dialed because the max connected peers limit was reached"
