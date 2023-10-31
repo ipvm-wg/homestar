@@ -61,8 +61,7 @@ pub(crate) struct EventHandler<DB: Database> {
     sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
     receiver: channel::AsyncBoundedChannelReceiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
-    connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
-    connected_peers_limit: u32,
+    connections: Connections,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     rendezvous: Rendezvous,
     pubsub_enabled: bool,
@@ -85,8 +84,7 @@ pub(crate) struct EventHandler<DB: Database> {
     sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
     receiver: channel::AsyncBoundedChannelReceiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
-    connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
-    connected_peers_limit: u32,
+    connections: Connections,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     rendezvous: Rendezvous,
     pubsub_enabled: bool,
@@ -95,11 +93,18 @@ pub(crate) struct EventHandler<DB: Database> {
     external_address_limit: u32,
 }
 
+/// Rendezvous protocol configurations and state
 struct Rendezvous {
     registration_ttl: Duration,
     discovery_interval: Duration,
     discovered_peers: FnvHashMap<PeerId, PeerDiscoveryInfo>,
     cookies: FnvHashMap<PeerId, Cookie>,
+}
+
+// Connected peers configuration and state
+struct Connections {
+    peers: FnvHashMap<PeerId, ConnectedPoint>,
+    max_peers: u32,
 }
 
 impl<DB> EventHandler<DB>
@@ -136,8 +141,10 @@ where
             receiver,
             query_senders: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
-            connected_peers: FnvHashMap::default(),
-            connected_peers_limit: settings.network.max_connected_peers,
+            connections: Connections {
+                peers: FnvHashMap::default(),
+                max_peers: settings.network.max_connected_peers,
+            },
             rendezvous: Rendezvous {
                 registration_ttl: settings.network.rendezvous_registration_ttl,
                 discovery_interval: settings.network.rendezvous_discovery_interval,
@@ -167,10 +174,11 @@ where
             sender,
             receiver,
             query_senders: FnvHashMap::default(),
-            connected_peers: FnvHashMap::default(),
-            connected_peers_limit: settings.network.max_connected_peers,
-            discovered_peers: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
+            connections: Connections {
+                peers: FnvHashMap::default(),
+                max_peers: settings.network.max_connected_peers,
+            },
             rendezvous: Rendezvous {
                 registration_ttl: settings.network.rendezvous_registration_ttl,
                 discovery_interval: settings.network.rendezvous_discovery_interval,

@@ -209,10 +209,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             .cookies
                             .insert(rendezvous_node, cookie);
 
-                        let connected_peers_count = event_handler.connected_peers.len();
+                        let connected_peers_count = event_handler.connections.peers.len();
 
                         // Skip dialing peers if at connected peers limit
-                        if connected_peers_count >= event_handler.connected_peers_limit as usize {
+                        if connected_peers_count >= event_handler.connections.max_peers as usize {
                             warn!("peers discovered through rendezvous not dialed because max connected peers limit reached");
                             return;
                         }
@@ -222,7 +222,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             .iter()
                             .filter(|registration| {
                                 !event_handler
-                                    .connected_peers
+                                    .connections
+                                    .peers
                                     .contains_key(&registration.record.peer_id())
                             })
                             .collect();
@@ -235,7 +236,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             // Dial discovered peer if not us and not at connected peers limit
                             if !self_registration
                                 && connected_peers_count + index
-                                    < event_handler.connected_peers_limit as usize
+                                    < event_handler.connections.max_peers as usize
                             {
                                 let peer_id = registration.record.peer_id();
                                 let opts = DialOpts::peer_id(peer_id)
@@ -672,8 +673,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     "mDNS discovered a new peer"
                 );
 
-                if event_handler.connected_peers.len()
-                    < event_handler.connected_peers_limit as usize
+                if event_handler.connections.peers.len()
+                    < event_handler.connections.max_peers as usize
                 {
                     let _ = event_handler.swarm.dial(
                         DialOpts::peer_id(peer_id)
@@ -720,14 +721,14 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         } => {
             debug!(peer_id=peer_id.to_string(), endpoint=?endpoint, "peer connection established");
             // add peer to connected peers list
-            event_handler.connected_peers.insert(peer_id, endpoint);
+            event_handler.connections.peers.insert(peer_id, endpoint);
         }
         SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
             debug!(
                 peer_id = peer_id.to_string(),
                 "peer connection closed, cause: {cause:?}"
             );
-            event_handler.connected_peers.remove_entry(&peer_id);
+            event_handler.connections.peers.remove_entry(&peer_id);
 
             // Remove peer from DHT if not in configured peers
             if event_handler.node_addresses.iter().all(|multiaddr| {
