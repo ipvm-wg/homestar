@@ -29,8 +29,8 @@ use libipld::{Cid, Ipld};
 use libp2p::{
     gossipsub, identify, kad,
     kad::{
-        AddProviderOk, BootstrapOk, GetProvidersOk, GetRecordOk, KademliaEvent, PeerRecord,
-        PutRecordOk, QueryResult,
+        AddProviderOk, BootstrapOk, GetProvidersOk, GetRecordOk, PeerRecord, PutRecordOk,
+        QueryResult,
     },
     mdns,
     multiaddr::Protocol,
@@ -421,9 +421,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             _ => {}
         },
 
-        SwarmEvent::Behaviour(ComposedEvent::Kademlia(
-            KademliaEvent::OutboundQueryProgressed { id, result, .. },
-        )) => {
+        SwarmEvent::Behaviour(ComposedEvent::Kademlia(kad::Event::OutboundQueryProgressed {
+            id,
+            result,
+            ..
+        })) => {
             match result {
                 QueryResult::Bootstrap(Ok(BootstrapOk { peer, .. })) => {
                     debug!("successfully bootstrapped peer: {peer}")
@@ -558,9 +560,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 _ => {}
             }
         }
-        SwarmEvent::Behaviour(ComposedEvent::Kademlia(KademliaEvent::RoutingUpdated {
-            peer,
-            ..
+        SwarmEvent::Behaviour(ComposedEvent::Kademlia(kad::Event::RoutingUpdated {
+            peer, ..
         })) => {
             debug!(
                 peer = peer.to_string(),

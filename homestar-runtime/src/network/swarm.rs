@@ -20,13 +20,12 @@ use libp2p::{
     kad::{
         self,
         record::store::{MemoryStore, MemoryStoreConfig},
-        Kademlia, KademliaConfig, KademliaEvent,
     },
     mdns,
     multiaddr::Protocol,
     noise, rendezvous,
     request_response::{self, ProtocolSupport},
-    swarm::{behaviour::toggle::Toggle, NetworkBehaviour, Swarm, SwarmBuilder},
+    swarm::{self, behaviour::toggle::Toggle, NetworkBehaviour, Swarm},
     tcp, yamux, PeerId, StreamProtocol, Transport,
 };
 use serde::{Deserialize, Serialize};
@@ -53,7 +52,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         .timeout(settings.network.transport_connection_timeout)
         .boxed();
 
-    let mut swarm = SwarmBuilder::with_tokio_executor(
+    let mut swarm = Swarm::new(
         transport,
         ComposedBehaviour {
             gossipsub: Toggle::from(if settings.network.enable_pubsub {
@@ -61,7 +60,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
             } else {
                 None
             }),
-            kademlia: Kademlia::with_config(
+            kademlia: kad::Behaviour::with_config(
                 peer_id,
                 MemoryStore::with_config(
                     peer_id,
@@ -74,7 +73,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
                     },
                 ),
                 {
-                    let mut cfg = KademliaConfig::default();
+                    let mut cfg = kad::Config::default();
                     cfg.set_max_packet_size(10 * 1024 * 1024);
                     cfg
                 },
@@ -119,8 +118,8 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
             ),
         },
         peer_id,
-    )
-    .build();
+        swarm::Config::with_tokio_executor(),
+    );
 
     init(&mut swarm, &settings.network)?;
 
@@ -253,8 +252,8 @@ impl fmt::Display for CapsuleTag {
 pub(crate) enum ComposedEvent {
     /// [gossipsub::Event] event.
     Gossipsub(Box<gossipsub::Event>),
-    /// [KademliaEvent] event.
-    Kademlia(KademliaEvent),
+    /// [kad::Event] event.
+    Kademlia(kad::Event),
     /// [request_response::Event] event.
     RequestResponse(request_response::Event<RequestResponseKey, Vec<u8>>),
     /// [mdns::Event] event.
@@ -281,8 +280,8 @@ pub(crate) enum TopicMessage {
 pub(crate) struct ComposedBehaviour {
     /// [gossipsub::Behaviour] behaviour.
     pub(crate) gossipsub: Toggle<gossipsub::Behaviour>,
-    /// In-memory [kademlia: Kademlia] behaviour.
-    pub(crate) kademlia: Kademlia<MemoryStore>,
+    /// In-memory [kademlia: kad::Behaviour] behaviour.
+    pub(crate) kademlia: kad::Behaviour<MemoryStore>,
     /// [request_response::Behaviour] CBOR-flavored behaviour.
     pub(crate) request_response: request_response::cbor::Behaviour<RequestResponseKey, Vec<u8>>,
     /// [mdns::tokio::Behaviour] behaviour.
@@ -342,8 +341,8 @@ impl From<gossipsub::Event> for ComposedEvent {
     }
 }
 
-impl From<KademliaEvent> for ComposedEvent {
-    fn from(event: KademliaEvent) -> Self {
+impl From<kad::Event> for ComposedEvent {
+    fn from(event: kad::Event) -> Self {
         ComposedEvent::Kademlia(event)
     }
 }
