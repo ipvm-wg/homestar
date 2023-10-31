@@ -69,6 +69,7 @@ pub(crate) struct EventHandler<DB: Database> {
     node_addresses: Vec<libp2p::Multiaddr>,
     announce_addresses: Vec<libp2p::Multiaddr>,
     external_address_limit: u32,
+    poll_cache_interval: Duration,
 }
 
 /// Event loop handler for [libp2p] network events and commands.
@@ -91,6 +92,7 @@ pub(crate) struct EventHandler<DB: Database> {
     node_addresses: Vec<libp2p::Multiaddr>,
     announce_addresses: Vec<libp2p::Multiaddr>,
     external_address_limit: u32,
+    poll_cache_interval: Duration,
 }
 
 /// Rendezvous protocol configurations and state
@@ -156,6 +158,7 @@ where
             node_addresses: settings.network.node_addresses.clone(),
             announce_addresses: settings.network.announce_addresses.clone(),
             external_address_limit: settings.network.max_announce_addresses,
+            poll_cache_interval: settings.network.poll_cache_interval,
         }
     }
 
@@ -189,6 +192,7 @@ where
             node_addresses: settings.network.node_addresses.clone(),
             announce_addresses: settings.network.announce_addresses.clone(),
             external_address_limit: settings.network.max_announce_addresses,
+            poll_cache_interval: settings.network.poll_cache_interval,
         }
     }
 
@@ -240,7 +244,7 @@ where
     #[cfg(feature = "ipfs")]
     pub(crate) async fn start(mut self, ipfs: IpfsCli) -> Result<()> {
         let handle = Handle::current();
-        handle.spawn(poll_cache(self.cache.clone()));
+        handle.spawn(poll_cache(self.cache.clone(), self.poll_cache_interval));
 
         loop {
             select! {
@@ -259,8 +263,8 @@ where
 }
 
 /// Poll cache for expired entries
-async fn poll_cache(cache: Arc<Cache<String, CacheValue>>) {
-    let mut interval = tokio::time::interval(Duration::from_secs(1));
+async fn poll_cache(cache: Arc<Cache<String, CacheValue>>, poll_interval: Duration) {
+    let mut interval = tokio::time::interval(poll_interval);
 
     loop {
         interval.tick().await;

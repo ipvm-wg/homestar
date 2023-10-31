@@ -36,10 +36,10 @@ impl Settings {
 /// Process monitoring settings.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Monitoring {
-    /// Monitoring collection interval in milliseconds.
-    pub process_collector_interval: u64,
     /// Metrics port for prometheus scraping.
     pub metrics_port: u16,
+    /// Monitoring collection interval in milliseconds.
+    pub process_collector_interval: u64,
     /// Tokio console port.
     pub console_subscriber_port: u16,
 }
@@ -153,6 +153,9 @@ pub struct Network {
     pub(crate) max_connected_peers: u32,
     /// Limit on the number of external addresses we announce to other peers.
     pub(crate) max_announce_addresses: u32,
+    /// Event handler poll cache interval in milliseconds.
+    #[serde_as(as = "DurationMilliSeconds<u64>")]
+    pub(crate) poll_cache_interval: Duration,
 }
 
 /// Database-related settings for a homestar node.
@@ -224,8 +227,9 @@ impl Default for Network {
             keypair_config: PubkeyConfig::Random,
             node_addresses: Vec::new(),
             announce_addresses: Vec::new(),
-            max_announce_addresses: 10,
             max_connected_peers: 32,
+            max_announce_addresses: 10,
+            poll_cache_interval: Duration::from_millis(1000),
         }
     }
 }
