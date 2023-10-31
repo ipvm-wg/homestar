@@ -203,6 +203,9 @@ where
     /// [events]: libp2p::swarm::SwarmEvent
     #[cfg(not(feature = "ipfs"))]
     pub(crate) async fn start(mut self) -> Result<()> {
+        let handle = Handle::current();
+        handle.spawn(poll_cache(self.cache.clone()));
+
         loop {
             select! {
                 runtime_event = self.receiver.recv_async() => {
@@ -215,9 +218,6 @@ where
 
                 }
             }
-
-            // Poll cache for expired entries
-            self.cache.run_pending_tasks().await;
         }
     }
     /// Start [EventHandler] that matches on swarm and pubsub [events].
