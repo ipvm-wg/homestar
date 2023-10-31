@@ -39,10 +39,6 @@ path = "tests/main.rs"
 anyhow = { workspace = true }
 async-trait = "0.1"
 atomic_refcell = { workspace = true }
-axum = { version = "0.6", default-features = false, features = [
-  "ws",
-  "headers",
-], optional = true }
 byte-unit = { workspace = true }
 chrono = { workspace = true }
 clap = { version = "4.4", default-features = false, features = [
@@ -68,6 +64,7 @@ diesel = { version = "2.1", default-features = false, features = [
 ] }
 diesel_migrations = "2.1"
 dotenvy = "0.15"
+dyn-clone = "1.0"
 enum-assoc = { workspace = true }
 faststr = { workspace = true }
 flume = { version = "0.11", default-features = false, features = ["async"] }
@@ -86,6 +83,9 @@ ipfs-api-backend-hyper = { version = "0.6", default-features = false, features =
   "with-send-sync",
 ], optional = true }
 itertools = { workspace = true }
+jsonrpsee = { version = "0.20", default-features = false, features = [
+  "server",
+] }
 libipld = { workspace = true }
 libp2p = { version = "0.52", default-features = false, features = [
   "kad",
@@ -106,16 +106,19 @@ libp2p = { version = "0.52", default-features = false, features = [
 libsqlite3-sys = { version = "0.26", default-features = false, features = [
   "bundled",
 ] }
-metrics = { version = "0.21", default-features = false, optional = true }
+metrics = { version = "0.21", default-features = false }
 metrics-exporter-prometheus = { version = "0.12.1", default-features = false, features = [
   "http-listener",
-], optional = true }
+] }
+metrics-util = "0.15"
 miette = { version = "5.10", default-features = false, features = ["fancy"] }
-names = { version = "0.14", default-features = false, optional = true }
+names = { version = "0.14", default-features = false }
+once_cell = { version = "1.18", default-features = false }
 proptest = { version = "1.2", optional = true }
 puffin = { version = "0.17", default-features = false, optional = true }
 puffin_egui = { version = "0.23.0", default-features = false, optional = true }
 rand = { workspace = true }
+regex = "1.10"
 reqwest = { version = "0.11", default-features = false, features = [
   "blocking",
   "json",
@@ -124,7 +127,7 @@ sec1 = { version = "0.7", default-features = false, features = ["pem"] }
 semver = { version = "1.0", default-features = false }
 serde = { workspace = true }
 serde_ipld_dagcbor = { workspace = true }
-serde_json = { version = "1.0", optional = true, default-features = false, features = [
+serde_json = { version = "1.0", default-features = false, features = [
   "raw_value",
 ] }
 serde_with = { version = "3.3", default-features = false, features = [
@@ -148,7 +151,19 @@ tokio = { workspace = true }
 tokio-serde = { version = "0.8", default-features = false, features = [
   "messagepack",
 ] }
+tokio-stream = { version = "0.1", default-features = false, features = [
+  "sync",
+] }
 tokio-util = { version = "0.7", default-features = false }
+tower = { version = "0.4", default-features = false, features = [
+  "log",
+  "timeout",
+] }
+tower-http = { version = "0.4", default-features = false, features = [
+  "trace",
+  "catch-panic",
+  "cors",
+] }
 tracing = { workspace = true }
 tracing-appender = "0.2"
 tracing-logfmt = "0.3"
@@ -158,6 +173,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
   "registry",
 ] }
 tryhard = "0.5"
+typetag = "0.2"
 url = "2.4"
 wnfs-common = "0.1"
 
@@ -171,8 +187,11 @@ homestar-core = { version = "0.1", path = "../homestar-core", features = [
   "test-utils",
 ] }
 homestar_runtime_proc_macro = { path = "src/test_utils/proc_macro", package = "homestar-runtime-tests-proc-macro" }
+jsonrpsee = { version = "0.20", default-features = false, features = [
+  "client",
+] }
+maplit = "1.0"
 nix = { version = "0.27", features = ["signal"] }
-once_cell = { version = "1.18", default-features = false }
 predicates = { version = "3.0", default-features = false }
 prometheus-parse = "0.2.4"
 rand = { workspace = true }
@@ -182,7 +201,10 @@ serial_test = { version = "2.0", default-features = false, features = [
   "file_locks",
 ] }
 strip-ansi-escapes = "0.2.0"
-tokio-tungstenite = { version = "0.20", default-features = false }
+sysinfo = { version = "0.29", default-features = false }
+tokio-tungstenite = { version = "0.20", default-features = false, features = [
+  "connect",
+] }
 wait-timeout = "0.2"
 
 [features]
@@ -191,13 +213,11 @@ dev = ["ansi-logs", "ipfs", "monitoring", "websocket-notify"]
 ansi-logs = ["tracing-logfmt/ansi_logs"]
 console = ["dep:console-subscriber"]
 ipfs = ["dep:ipfs-api", "dep:ipfs-api-backend-hyper"]
-metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
-monitoring = ["metrics", "dep:sysinfo"]
+monitoring = ["dep:sysinfo"]
 profile = ["dep:puffin", "dep:puffin_egui"]
 test-utils = ["dep:proptest"]
 wasmtime-default = ["homestar-wasm/default"]
-websocket-notify = ["websocket-server", "dep:serde_json", "dep:names"]
-websocket-server = ["dep:axum"]
+websocket-notify = []
 
 [package.metadata.docs.rs]
 all-features = true

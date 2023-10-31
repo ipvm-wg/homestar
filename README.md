@@ -50,6 +50,7 @@
 ## Outline
 
 - [Quickstart](#quickstart)
+- [Packages](#packages)
 - [Running Examples](#running-examples)
 - [Workspace](#workspace)
 - [Contributing](#contributing)
@@ -79,6 +80,14 @@ If you're mainly interested in learning how to write and build-out Wasm
 components (currently focused on authoring in Rust), please jump into
 our [`homestar-functions`](./homestar-functions) directory and check out
 our examples there.
+
+## Packages
+
+Each `homestar` release will also build packages for distribution across
+different platforms.
+
+- [homebrew][homebrew]: `brew install fission-codes/fission/homestar`
+  This includes `ipfs` in the install by default.
 
 ## Running Examples
 
@@ -187,6 +196,7 @@ conditions.
 [demo-1]: https://www.loom.com/share/3204037368fe426ba3b4c952b0691c5c
 [foundations-for-openworld-compute]: https://youtu.be/dRz5mau6fsY
 [guest]: https://github.com/bytecodealliance/wit-bindgen#supported-guest-languages
+[homebrew]: https://brew.sh/
 [host-runtime]: https://github.com/bytecodealliance/wit-bindgen#host-runtimes-for-components
 [ipfs-thing-ipvm]: https://www.youtube.com/watch?v=rzJWk1nlYvs
 [ipld]: https://ipld.io/

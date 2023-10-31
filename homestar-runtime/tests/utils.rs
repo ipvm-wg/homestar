@@ -9,13 +9,13 @@ use nix::{
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
 use retry::{delay::Fixed, retry};
+#[cfg(feature = "ipfs")]
+use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream};
 use std::{
-    net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Child, Command, Stdio},
     time::Duration,
 };
-use strip_ansi_escapes;
 #[cfg(not(windows))]
 use sysinfo::PidExt;
 use sysinfo::{ProcessExt, SystemExt};
@@ -28,6 +28,7 @@ static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME))
 const IPFS: &str = "ipfs";
 
 /// Start-up IPFS daemon for tests with the feature turned-on.
+#[cfg(feature = "ipfs")]
 pub(crate) fn startup_ipfs() -> Result<()> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
     println!("starting ipfs daemon...{}", path.to_str().unwrap());
@@ -94,15 +95,15 @@ pub(crate) fn retrieve_output(proc: Child) -> String {
 /// Check process output for all predicates in any line
 pub(crate) fn check_lines_for(output: String, predicates: Vec<&str>) -> bool {
     output
-        .split("\n")
+        .split('\n')
         .map(|line| {
             // Line contains all predicates
             predicates
                 .iter()
                 .map(|pred| predicate::str::contains(*pred).eval(line))
-                .fold(true, |acc, curr| acc && curr)
+                .all(|curr| curr)
         })
-        .fold(false, |acc, curr| acc || curr)
+        .any(|curr| curr)
 }
 
 /// Wait for process to exit or kill after timeout.

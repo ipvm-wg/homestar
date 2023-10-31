@@ -1,13 +1,13 @@
 [monitoring]
 process_collector_interval = 500
-metrics_port = 4020
 console_subscriber_port = 5570
 
 [node]
 
 [node.network]
+metrics_port = 4020
 rpc_port = 9810
-websocket_port = 8010
+webserver_port = 8010
 
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }

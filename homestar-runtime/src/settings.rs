@@ -36,12 +36,10 @@ impl Settings {
 /// Process monitoring settings.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Monitoring {
-    /// Monitoring collection interval in milliseconds.
-    pub process_collector_interval: u64,
-    /// Metrics port for prometheus scraping.
-    pub metrics_port: u16,
     /// Tokio console port.
     pub console_subscriber_port: u16,
+    /// Monitoring collection interval in milliseconds.
+    pub process_collector_interval: u64,
 }
 
 /// Server settings.
@@ -65,10 +63,13 @@ pub struct Node {
 }
 
 /// Network-related settings for a homestar node.
+/// TODO: Split-up and re-arrange.
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Network {
+    /// Metrics port for prometheus scraping.
+    pub metrics_port: u16,
     /// Buffer-length for event(s) / command(s) channels.
     pub(crate) events_buffer_len: usize,
     /// Address for [Swarm] to listen on.
@@ -117,11 +118,14 @@ pub struct Network {
     /// Transport connection timeout.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) transport_connection_timeout: Duration,
-    /// Websocket-server host address.
+    /// Webserver host address.
     #[serde(with = "http_serde::uri")]
-    pub(crate) websocket_host: Uri,
-    /// Websocket-server port.
-    pub(crate) websocket_port: u16,
+    pub(crate) webserver_host: Uri,
+    /// Webserver-server port.
+    pub(crate) webserver_port: u16,
+    /// TODO
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) webserver_timeout: Duration,
     /// Number of *bounded* clients to send messages to, used for a
     /// [tokio::sync::broadcast::channel]
     pub(crate) websocket_capacity: usize,
@@ -165,7 +169,6 @@ pub(crate) struct Database {
 impl Default for Monitoring {
     fn default() -> Self {
         Self {
-            metrics_port: 4000,
             process_collector_interval: 5000,
             console_subscriber_port: 5555,
         }
@@ -184,6 +187,7 @@ impl Default for Database {
 impl Default for Network {
     fn default() -> Self {
         Self {
+            metrics_port: 4000,
             events_buffer_len: 1024,
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             // TODO: we would like to enable this by default, however this breaks mdns on at least some linux distros. Requires further investigation.
@@ -203,8 +207,9 @@ impl Default for Network {
             rpc_port: 3030,
             rpc_server_timeout: Duration::new(120, 0),
             transport_connection_timeout: Duration::new(20, 0),
-            websocket_host: Uri::from_static("127.0.0.1"),
-            websocket_port: 1337,
+            webserver_host: Uri::from_static("127.0.0.1"),
+            webserver_port: 1337,
+            webserver_timeout: Duration::new(60, 0),
             websocket_capacity: 1024,
             websocket_receiver_timeout: Duration::from_millis(200),
             workflow_quorum: 3,
@@ -297,7 +302,7 @@ mod test {
 
         let mut default_modded_settings = Node::default();
         default_modded_settings.network.events_buffer_len = 1000;
-        default_modded_settings.network.websocket_port = 9999;
+        default_modded_settings.network.webserver_port = 9999;
         default_modded_settings.gc_interval = Duration::from_secs(1800);
         default_modded_settings.shutdown_timeout = Duration::from_secs(20);
         default_modded_settings.network.node_addresses =
