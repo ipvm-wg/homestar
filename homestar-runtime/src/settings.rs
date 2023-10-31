@@ -33,13 +33,25 @@ impl Settings {
     }
 }
 
-/// Process monitoring settings.
+/// Monitoring settings.
+#[cfg(feature = "monitoring")]
+#[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Monitoring {
     /// Tokio console port.
     pub console_subscriber_port: u16,
     /// Monitoring collection interval in milliseconds.
-    pub process_collector_interval: u64,
+    #[serde_as(as = "DurationMilliSeconds<u64>")]
+    pub process_collector_interval: Duration,
+}
+
+/// Monitoring settings.
+#[cfg(not(feature = "monitoring"))]
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Monitoring {
+    /// Tokio console port.
+    pub console_subscriber_port: u16,
 }
 
 /// Server settings.
@@ -179,10 +191,20 @@ pub(crate) struct Database {
     pub(crate) max_pool_size: u32,
 }
 
+#[cfg(feature = "monitoring")]
 impl Default for Monitoring {
     fn default() -> Self {
         Self {
-            process_collector_interval: 5000,
+            process_collector_interval: Duration::from_millis(5000),
+            console_subscriber_port: 5555,
+        }
+    }
+}
+
+#[cfg(not(feature = "monitoring"))]
+impl Default for Monitoring {
+    fn default() -> Self {
+        Self {
             console_subscriber_port: 5555,
         }
     }
