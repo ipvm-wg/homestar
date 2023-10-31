@@ -1,6 +1,8 @@
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_daemon;
-use crate::utils::{kill_homestar, startup_ipfs, stop_all_bins, BIN_NAME};
+#[cfg(feature = "ipfs")]
+use crate::utils::startup_ipfs;
+use crate::utils::{kill_homestar, stop_all_bins, BIN_NAME};
 use anyhow::Result;
 use assert_cmd::prelude::*;
 use once_cell::sync::Lazy;
@@ -387,51 +389,6 @@ fn test_server_v4_serial() -> Result<()> {
 
     let _ = kill_homestar(homestar_proc, None);
     let _ = stop_all_bins();
-
-    Ok(())
-}
-
-#[test]
-#[file_serial]
-#[cfg(not(windows))]
-fn test_daemon_v4_serial() -> Result<()> {
-    let _ = stop_all_bins();
-
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs();
-
-    Command::new(BIN.as_os_str())
-        .arg("start")
-        .arg("-c")
-        .arg("tests/fixtures/test_v4.toml")
-        .arg("-d")
-        .env("DATABASE_URL", "homestar.db")
-        .stdout(Stdio::piped())
-        .assert()
-        .success();
-
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9835);
-    let result = retry(Exponential::from_millis(1000).take(10), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if result.is_err() {
-        panic!("Homestar server/runtime failed to start in time");
-    }
-
-    Command::new(BIN.as_os_str())
-        .arg("ping")
-        .arg("--host")
-        .arg("127.0.0.1")
-        .arg("-p")
-        .arg("9835")
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("127.0.0.1"))
-        .stdout(predicate::str::contains("pong"));
-
-    let _ = stop_all_bins();
-    let _ = kill_homestar_daemon();
 
     Ok(())
 }

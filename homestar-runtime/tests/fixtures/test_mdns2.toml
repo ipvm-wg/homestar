@@ -1,13 +1,13 @@
 [monitoring]
 process_collector_interval = 500
-metrics_port = 4002
 console_subscriber_port = 5561
 
 [node]
 
 [node.network]
+metrics_port = 4002
 rpc_port = 9801
-websocket_port = 8001
+webserver_port = 8001
 listen_address = "/ip4/0.0.0.0/tcp/0"
 enable_rendezvous_client = false
 

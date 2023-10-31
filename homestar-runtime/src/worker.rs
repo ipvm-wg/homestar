@@ -4,13 +4,15 @@
 //! [Workflow]: homestar_core::Workflow
 //! [EventHandler]: crate::event_handler::EventHandler
 
+#[cfg(feature = "websocket-notify")]
+use crate::event_handler::event::Replay;
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
     channel::{AsyncBoundedChannel, AsyncBoundedChannelSender},
     db::Database,
     event_handler::{
-        event::{Captured, QueryRecord, Replay},
+        event::{Captured, QueryRecord},
         swarm_event::{FoundEvent, ResponseEvent},
         Event,
     },
@@ -156,8 +158,8 @@ where
         };
 
         #[cfg(not(feature = "ipfs"))]
-        let fetch_fn = |rscs: Vec<Resource>| {
-            async move { fetch::get_resources(rscs, workflow_settings_fetch).await }.boxed()
+        let fetch_fn = |rscs: FnvHashSet<Resource>| {
+            async move { Fetch::get_resources(rscs, workflow_settings_fetch).await }.boxed()
         };
 
         let scheduler_ctx = TaskScheduler::init(
@@ -170,6 +172,7 @@ where
         self.run_queue(scheduler_ctx.scheduler, running_tasks).await
     }
 
+    #[allow(unused_mut)]
     async fn run_queue(
         mut self,
         mut scheduler: TaskScheduler<'a>,
@@ -257,7 +260,7 @@ where
             }
         }
 
-        // Always replay previous receipts.
+        // Replay previous receipts if subscriptions are on.
         #[cfg(feature = "websocket-notify")]
         {
             if scheduler.ran.as_ref().is_some_and(|ran| !ran.is_empty()) {
@@ -629,9 +632,11 @@ mod test {
         assert_eq!(running_tasks.get(&worker_workflow_cid).unwrap().len(), 1);
 
         // First receipt is a replay receipt.
-        let replay_msg = rx.recv_async().await.unwrap();
-
-        assert!(matches!(replay_msg, Event::ReplayReceipts(_)));
+        #[cfg(feature = "websocket-notify")]
+        {
+            let replay_msg = rx.recv_async().await.unwrap();
+            assert!(matches!(replay_msg, Event::ReplayReceipts(_)));
+        }
 
         // we should have received 1 receipt
         let next_run_receipt = rx.recv_async().await.unwrap();
