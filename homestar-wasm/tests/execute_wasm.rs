@@ -35,8 +35,6 @@ async fn test_wasm_exceeds_max_memory() {
     } else {
         panic!("Expected WasmRuntimeError")
     }
-
-    //assert()
 }
 
 #[tokio::test]

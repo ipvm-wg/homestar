@@ -50,7 +50,7 @@ export async function run(workflowId: WorkflowId) {
 
   // Record the first workflow that ran
   if (!firstWorkflowToRun) {
-    firstWorkflowToRunStore.set(workflowId)
+    firstWorkflowToRunStore.set(workflowId);
   }
 
   // Set workflow status to working
@@ -164,11 +164,11 @@ export async function handleMessage(event: MessageEvent) {
       const updatedTasks = store[activeWorkflow.id].map((t) =>
         t.id === taskId
           ? {
-            ...t,
-            status,
-            message: getTaskMessage(status),
-            receipt,
-          }
+              ...t,
+              status,
+              message: getTaskMessage(status),
+              receipt,
+            }
           : t
       );
 
@@ -259,7 +259,7 @@ export const workflowOneJson = {
         },
         nnc: "",
         op: "wasm/run",
-        rsc: "ipfs://bafybeiabbxwf2vn4j3zm7bbojr6rt6k7o6cg6xcbhqkllubmsnvocpv7y4",
+        rsc: "ipfs://bafybeichafzlolnoamugvfuyynjnj2gse7avstiqkeiuwuv2gyztap4qm4",
       },
     },
     {
@@ -274,7 +274,7 @@ export const workflowOneJson = {
           args: [
             {
               "await/ok": {
-                "/": "bafyrmibalyvlsj3zo2vdgjmvawdszh546jz53ejhud7u6lkmpg6mcvq5ja",
+                "/": "bafyrmigev36skyfjnslfswcez24rnrorzeaxkrpb3wci2arfkly5zcrepy",
               },
             },
           ],
@@ -282,7 +282,7 @@ export const workflowOneJson = {
         },
         nnc: "",
         op: "wasm/run",
-        rsc: "ipfs://bafybeiabbxwf2vn4j3zm7bbojr6rt6k7o6cg6xcbhqkllubmsnvocpv7y4",
+        rsc: "ipfs://bafybeichafzlolnoamugvfuyynjnj2gse7avstiqkeiuwuv2gyztap4qm4",
       },
     },
     {
@@ -297,7 +297,7 @@ export const workflowOneJson = {
           args: [
             {
               "await/ok": {
-                "/": "bafyrmiepk7vo7qcndopjhuywtv6bly7ojd6gzmwlqm4uzsingbyxluytny",
+                "/": "bafyrmiegkif6ofatmowjjmw7yttm7mi5pjjituoxtp5qqsmc3fw65ypbm4",
               },
             },
             20.2,
@@ -306,7 +306,7 @@ export const workflowOneJson = {
         },
         nnc: "",
         op: "wasm/run",
-        rsc: "ipfs://bafybeiabbxwf2vn4j3zm7bbojr6rt6k7o6cg6xcbhqkllubmsnvocpv7y4",
+        rsc: "ipfs://bafybeichafzlolnoamugvfuyynjnj2gse7avstiqkeiuwuv2gyztap4qm4",
       },
     },
   ],
@@ -336,7 +336,7 @@ export const workflowTwoJson = {
         },
         nnc: "",
         op: "wasm/run",
-        rsc: "ipfs://bafybeiabbxwf2vn4j3zm7bbojr6rt6k7o6cg6xcbhqkllubmsnvocpv7y4",
+        rsc: "ipfs://bafybeichafzlolnoamugvfuyynjnj2gse7avstiqkeiuwuv2gyztap4qm4",
       },
     },
     {
@@ -351,7 +351,7 @@ export const workflowTwoJson = {
           args: [
             {
               "await/ok": {
-                "/": "bafyrmibalyvlsj3zo2vdgjmvawdszh546jz53ejhud7u6lkmpg6mcvq5ja",
+                "/": "bafyrmigev36skyfjnslfswcez24rnrorzeaxkrpb3wci2arfkly5zcrepy",
               },
             },
           ],
@@ -359,7 +359,7 @@ export const workflowTwoJson = {
         },
         nnc: "",
         op: "wasm/run",
-        rsc: "ipfs://bafybeiabbxwf2vn4j3zm7bbojr6rt6k7o6cg6xcbhqkllubmsnvocpv7y4",
+        rsc: "ipfs://bafybeichafzlolnoamugvfuyynjnj2gse7avstiqkeiuwuv2gyztap4qm4",
       },
     },
     {
@@ -374,7 +374,7 @@ export const workflowTwoJson = {
           args: [
             {
               "await/ok": {
-                "/": "bafyrmiepk7vo7qcndopjhuywtv6bly7ojd6gzmwlqm4uzsingbyxluytny",
+                "/": "bafyrmiegkif6ofatmowjjmw7yttm7mi5pjjituoxtp5qqsmc3fw65ypbm4",
               },
             },
           ],
@@ -382,7 +382,7 @@ export const workflowTwoJson = {
         },
         nnc: "",
         op: "wasm/run",
-        rsc: "ipfs://bafybeiabbxwf2vn4j3zm7bbojr6rt6k7o6cg6xcbhqkllubmsnvocpv7y4",
+        rsc: "ipfs://bafybeichafzlolnoamugvfuyynjnj2gse7avstiqkeiuwuv2gyztap4qm4",
       },
     },
   ],
@@ -432,7 +432,7 @@ function sampleReceipt(
   workflowId: string,
   op: TaskOperation
 ) {
-  const base64Cat = getStore(base64CatStore)
+  const base64Cat = getStore(base64CatStore);
 
   return {
     metadata: {

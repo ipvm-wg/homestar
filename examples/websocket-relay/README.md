@@ -63,9 +63,9 @@ if they've been previously run.
 On macOS, for example, a simple homebrew install would install everything you
 need: `brew install rust npm ipfs`
 
-We have packaged homestar binaries via brew, so
+We have packaged homestar binaries using brew, so
 `brew install fission-codes/fission/homestar` will install everything you need,
-including `ipfs`. You will still need npm to run this example. From this folder,
+including `ipfs`. You will still need `npm` to run this example. From this folder,
 you can then run the example like this:
 
 ```

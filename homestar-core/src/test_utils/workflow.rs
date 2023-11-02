@@ -19,13 +19,13 @@ use std::collections::BTreeMap;
 use url::Url;
 
 const RAW: u64 = 0x55;
+const WASM_CID: &str = "bafkreihxcyjgyrz437ewzi7md55uqt2zf6yr3zn7xrfi4orc34xdc5jgrm";
 
 type NonceBytes = Vec<u8>;
 
 /// Return a `mocked` `wasm/run` [Instruction].
 pub fn wasm_instruction<'a, T>() -> Instruction<'a, T> {
-    let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
-    let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
+    let resource = Url::parse(format!("ipfs://{WASM_CID}").as_str()).unwrap();
 
     Instruction::new(
         resource,
@@ -45,8 +45,7 @@ where
     Ipld: From<T>,
     T: Clone,
 {
-    let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
-    let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
+    let resource = Url::parse(format!("ipfs://{WASM_CID}").as_str()).unwrap();
 
     let instr = Instruction::new(
         resource.clone(),
@@ -100,8 +99,7 @@ where
 
 /// Return a `mocked` `wasm/run` [Instruction], along with it's [Nonce] as bytes.
 pub fn wasm_instruction_with_nonce<'a, T>() -> (Instruction<'a, T>, NonceBytes) {
-    let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
-    let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
+    let resource = Url::parse(format!("ipfs://{WASM_CID}").as_str()).unwrap();
     let nonce = Nonce::generate();
 
     (
@@ -120,8 +118,7 @@ pub fn wasm_instruction_with_nonce<'a, T>() -> (Instruction<'a, T>, NonceBytes) 
 
 /// Return a `mocked` [Instruction].
 pub fn instruction<'a, T>() -> Instruction<'a, T> {
-    let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
-    let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
+    let resource = Url::parse(format!("ipfs://{WASM_CID}").as_str()).unwrap();
 
     Instruction::new(
         resource,
@@ -132,8 +129,7 @@ pub fn instruction<'a, T>() -> Instruction<'a, T> {
 
 /// Return a `mocked` [Instruction], along with it's [Nonce] as bytes.
 pub fn instruction_with_nonce<'a, T>() -> (Instruction<'a, T>, NonceBytes) {
-    let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
-    let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
+    let resource = Url::parse(format!("ipfs://{WASM_CID}").as_str()).unwrap();
     let nonce = Nonce::generate();
 
     (

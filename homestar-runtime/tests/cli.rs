@@ -197,7 +197,7 @@ fn test_workflow_run_serial() -> Result<()> {
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_workflow.toml")
+        .arg("tests/fixtures/test_workflow1.toml")
         .arg("--db")
         .arg("homestar.db")
         .stdout(Stdio::piped())
@@ -311,7 +311,7 @@ fn test_signal_kill_serial() -> Result<()> {
     #[cfg(feature = "ipfs")]
     let _ = startup_ipfs();
 
-    let mut homestar_proc = Command::new(BIN.as_os_str())
+    let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("--db")
         .arg("homestar.db")
