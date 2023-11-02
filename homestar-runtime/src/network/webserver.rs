@@ -217,11 +217,11 @@ fn port_available(host: IpAddr, port: u16) -> bool {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{metrics, settings::Settings};
+    use crate::settings::Settings;
+    use homestar_core::test_utils;
     #[cfg(feature = "websocket-notify")]
     use homestar_core::{
         ipld::DagJson,
-        test_utils,
         workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
     };
     #[cfg(feature = "websocket-notify")]
@@ -231,6 +231,7 @@ mod test {
     use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
     #[cfg(feature = "websocket-notify")]
     use notifier::NotifyReceipt;
+    use serial_test::file_serial;
     use tokio::sync::mpsc;
 
     fn set_ports(settings: &mut Settings) {
@@ -238,17 +239,27 @@ mod test {
         settings.node.network.webserver_port = test_utils::ports::get_port() as u16;
     }
 
+    async fn metrics_handle(settings: Settings) -> PrometheusHandle {
+        #[cfg(feature = "monitoring")]
+        let metrics_hdl = crate::metrics::start(settings.monitoring(), settings.node.network())
+            .await
+            .unwrap();
+
+        #[cfg(not(feature = "monitoring"))]
+        let metrics_hdl = crate::metrics::start(settings.node.network())
+            .await
+            .unwrap();
+
+        metrics_hdl
+    }
+
     #[tokio::test]
+    #[file_serial]
     async fn ws_connect() {
         let mut settings = Settings::load().unwrap();
         set_ports(&mut settings);
         let server = Server::new(settings.node().network()).unwrap();
-        #[cfg(feature = "monitoring")]
-        let metrics_hdl = metrics::start(settings.monitoring(), settings.node.network())
-            .await
-            .unwrap();
-        #[cfg(not(feature = "monitoring"))]
-        let metrics_hdl = metrics::start(settings.node.network()).await.unwrap();
+        let metrics_hdl = metrics_handle(settings).await;
         let (runner_tx, _runner_rx) = mpsc::channel(1);
         server.start(runner_tx, metrics_hdl).await.unwrap();
 
@@ -270,19 +281,19 @@ mod test {
         assert_eq!(http_resp.status(), 200);
         let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
         assert_eq!(http_resp, serde_json::json!({"healthy": true}));
+
+        unsafe { metrics::clear_recorder() }
     }
 
     #[cfg(feature = "monitoring")]
     #[tokio::test]
+    #[file_serial]
     async fn ws_metrics_no_prefix() {
         let mut settings = Settings::load().unwrap();
         set_ports(&mut settings);
         settings.monitoring.process_collector_interval = Duration::from_millis(100);
         let server = Server::new(settings.node().network()).unwrap();
-
-        let metrics_hdl = metrics::start(settings.monitoring(), settings.node.network())
-            .await
-            .unwrap();
+        let metrics_hdl = metrics_handle(settings).await;
         let (runner_tx, _runner_rx) = mpsc::channel(1);
         server.start(runner_tx, metrics_hdl).await.unwrap();
 
@@ -304,20 +315,18 @@ mod test {
         };
 
         assert!(len > 0);
+
+        unsafe { metrics::clear_recorder() }
     }
 
     #[cfg(feature = "websocket-notify")]
     #[tokio::test]
+    #[file_serial]
     async fn ws_subscribe_unsubscribe_network_events() {
         let mut settings = Settings::load().unwrap();
         set_ports(&mut settings);
         let server = Server::new(settings.node().network()).unwrap();
-        #[cfg(feature = "monitoring")]
-        let metrics_hdl = metrics::start(settings.monitoring(), settings.node.network())
-            .await
-            .unwrap();
-        #[cfg(not(feature = "monitoring"))]
-        let metrics_hdl = metrics::start(settings.node.network()).await.unwrap();
+        let metrics_hdl = metrics_handle(settings).await;
         let (runner_tx, _runner_rx) = mpsc::channel(1);
         server.start(runner_tx, metrics_hdl).await.unwrap();
 
@@ -333,25 +342,27 @@ mod test {
             .await
             .unwrap();
 
-        // send any bytes through (vec<u8)
+        // send any bytes through (Vec<u8>)
         let (invocation_receipt, runtime_receipt) = crate::test_utils::receipt::receipts();
         let receipt = NotifyReceipt::with(invocation_receipt, runtime_receipt.cid(), None);
         server.notifier.notify(receipt.to_json().unwrap()).unwrap();
         let msg = sub.next().await.unwrap().unwrap();
         let returned: NotifyReceipt = DagJson::from_json(&msg).unwrap();
+
         assert_eq!(returned, receipt);
         assert!(sub.unsubscribe().await.is_ok());
+
+        unsafe { metrics::clear_recorder() }
     }
 
     #[cfg(feature = "websocket-notify")]
     #[tokio::test]
+    #[file_serial]
     async fn ws_subscribe_workflow_incorrect_params() {
         let mut settings = Settings::load().unwrap();
         set_ports(&mut settings);
         let server = Server::new(settings.node().network()).unwrap();
-        let metrics_hdl = metrics::start(settings.monitoring(), settings.node.network())
-            .await
-            .unwrap();
+        let metrics_hdl = metrics_handle(settings).await;
         let (runner_tx, _runner_rx) = mpsc::channel(1);
         server.start(runner_tx, metrics_hdl).await.unwrap();
 
@@ -374,17 +385,18 @@ mod test {
         } else {
             panic!("expected same error code");
         }
+
+        unsafe { metrics::clear_recorder() }
     }
 
     #[cfg(feature = "websocket-notify")]
     #[tokio::test]
+    #[file_serial]
     async fn ws_subscribe_workflow_runner_timeout() {
         let mut settings = Settings::load().unwrap();
         set_ports(&mut settings);
         let server = Server::new(settings.node().network()).unwrap();
-        let metrics_hdl = metrics::start(settings.monitoring(), settings.node.network())
-            .await
-            .unwrap();
+        let metrics_hdl = metrics_handle(settings).await;
         let (runner_tx, _runner_rx) = mpsc::channel(1);
         server.start(runner_tx, metrics_hdl).await.unwrap();
 
@@ -410,6 +422,7 @@ mod test {
             r#"{{"name": "test","workflow": {}}}"#,
             workflow.to_json_string().unwrap()
         );
+
         let run: serde_json::Value = serde_json::from_str(&run_str).unwrap();
         let client = WsClientBuilder::default().build(ws_url).await.unwrap();
         let sub: Result<Subscription<Vec<u8>>, jsonrpsee::core::error::Error> = client
@@ -430,5 +443,7 @@ mod test {
         } else {
             panic!("expected same error code");
         }
+
+        unsafe { metrics::clear_recorder() }
     }
 }

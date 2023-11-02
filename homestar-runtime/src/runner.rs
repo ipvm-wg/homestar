@@ -7,7 +7,6 @@ use crate::{
     channel::AsyncBoundedChannelSender,
     db::Database,
     event_handler::{Event, EventHandler},
-    metrics,
     network::{rpc, swarm, webserver},
     worker::WorkerMessage,
     workflow, Settings, Worker,
@@ -197,7 +196,7 @@ impl Runner {
         let message_buffer_len = self.settings.node.network.events_buffer_len;
 
         #[cfg(feature = "monitoring")]
-        let metrics_hdl: PrometheusHandle = self.runtime.block_on(metrics::start(
+        let metrics_hdl: PrometheusHandle = self.runtime.block_on(crate::metrics::start(
             self.settings.monitoring(),
             self.settings.node.network(),
         ))?;
@@ -205,7 +204,7 @@ impl Runner {
         #[cfg(not(feature = "monitoring"))]
         let metrics_hdl: PrometheusHandle = self
             .runtime
-            .block_on(metrics::start(self.settings.node.network()))?;
+            .block_on(crate::metrics::start(self.settings.node.network()))?;
 
         let (mut ws_receiver, ws_hdl) = {
             let (mpsc_ws_tx, mpsc_ws_rx) = Self::setup_ws_mpsc_channel(message_buffer_len);
@@ -636,18 +635,15 @@ mod test {
     use crate::{network::rpc::Client, test_utils::WorkerBuilder};
     use homestar_core::test_utils as core_test_utils;
     use rand::thread_rng;
+    use serial_test::file_serial;
     use std::net::SocketAddr;
     use tarpc::context;
     use tokio::net::TcpStream;
 
+    #[file_serial]
     #[homestar_runtime_proc_macro::runner_test]
     fn shutdown() {
-        let TestRunner {
-            runner,
-            mut settings,
-        } = TestRunner::start();
-        settings.node.network.metrics_port = 7001;
-        settings.node.network.webserver_port = 2001;
+        let TestRunner { runner, settings } = TestRunner::start();
         let (tx, _rx) = Runner::setup_rpc_channel(1);
         let (runner_tx, _runner_rx) = Runner::setup_ws_mpsc_channel(1);
         let rpc_server = rpc::Server::new(settings.node.network(), Arc::new(tx));
@@ -661,11 +657,13 @@ mod test {
         let ws_hdl = runner.runtime.block_on(async {
             rpc_server.spawn().await.unwrap();
             #[cfg(feature = "monitoring")]
-            let metrics_hdl = metrics::start(settings.monitoring(), settings.node.network())
+            let metrics_hdl = crate::metrics::start(settings.monitoring(), settings.node.network())
                 .await
                 .unwrap();
             #[cfg(not(feature = "monitoring"))]
-            let metrics_hdl = metrics::start(settings.node.network()).await.unwrap();
+            let metrics_hdl = crate::metrics::start(settings.node.network())
+                .await
+                .unwrap();
 
             let ws_hdl = runner
                 .webserver
@@ -696,6 +694,8 @@ mod test {
                 _ => panic!("Shutdown failed."),
             }
         });
+
+        unsafe { metrics::clear_recorder() }
     }
 
     #[homestar_runtime_proc_macro::runner_test]
@@ -819,7 +819,6 @@ mod test {
     #[homestar_runtime_proc_macro::runner_test]
     fn gc_while_workers_finished() {
         let TestRunner { runner, settings } = TestRunner::start();
-
         runner.runtime.block_on(async {
             let worker = WorkerBuilder::new(settings.node).build().await;
             let _ = worker.run(runner.running_tasks()).await;
