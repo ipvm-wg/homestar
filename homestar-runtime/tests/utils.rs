@@ -24,9 +24,10 @@ use wait_timeout::ChildExt;
 
 /// Binary name, which is different than the crate name.
 pub(crate) const BIN_NAME: &str = "homestar";
+/// TODO
+pub(crate) const IPFS: &str = "ipfs";
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
-const IPFS: &str = "ipfs";
 
 /// Start-up IPFS daemon for tests with the feature turned-on.
 #[cfg(feature = "ipfs")]
@@ -82,7 +83,6 @@ pub(crate) fn stop_ipfs() -> Result<()> {
 pub(crate) fn stop_all_bins() -> Result<()> {
     let _ = stop_ipfs();
     let _ = stop_homestar();
-
     Ok(())
 }
 

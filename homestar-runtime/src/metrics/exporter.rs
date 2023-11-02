@@ -27,10 +27,9 @@ pub(crate) fn setup_metrics_recorder(
         .build()
         .expect("failed to install recorder/exporter");
 
+    let hdl = recorder.handle();
     let rt_hdl = Handle::current();
     rt_hdl.spawn(exporter);
-
-    let hdl = recorder.handle();
 
     Stack::new(recorder)
         .push(PrefixLayer::new("homestar"))
