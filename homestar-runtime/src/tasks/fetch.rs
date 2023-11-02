@@ -5,44 +5,32 @@
 
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
-#[cfg(any(test, feature = "test-utils"))]
-use crate::tasks::WasmContext;
 use crate::workflow::{self, Resource};
 use anyhow::Result;
 use fnv::FnvHashSet;
-#[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
-use futures::{stream::FuturesUnordered, TryStreamExt};
 use indexmap::IndexMap;
-#[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
-use libipld::Cid;
 use std::sync::Arc;
-#[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
-use tracing::info;
-#[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
-use tryhard::RetryFutureConfig;
 
 pub(crate) struct Fetch;
 
+#[cfg(test)]
+const WASM_CID: &str = "bafkreihxcyjgyrz437ewzi7md55uqt2zf6yr3zn7xrfi4orc34xdc5jgrm";
+
 impl Fetch {
     /// Gather resources from IPFS or elsewhere, leveraging an exponential backoff.
-    #[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
+    #[cfg(all(feature = "ipfs", not(test)))]
     #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     pub(crate) async fn get_resources(
         resources: FnvHashSet<Resource>,
         settings: Arc<workflow::Settings>,
         ipfs: IpfsCli,
     ) -> Result<IndexMap<Resource, Vec<u8>>> {
-        let settings = settings.as_ref();
+        use futures::{stream::FuturesUnordered, TryStreamExt};
+        let _settings = settings.as_ref();
         let tasks = FuturesUnordered::new();
         for rsc in resources.iter() {
-            info!(rsc = rsc.to_string(), "Fetching resource");
-            let task = tryhard::retry_fn(|| async { Self::fetch(rsc.clone(), ipfs.clone()).await })
-                .with_config(
-                    RetryFutureConfig::new(settings.retries)
-                        .exponential_backoff(settings.retry_initial_delay)
-                        .max_delay(settings.retry_max_delay),
-                );
-
+            tracing::info!(rsc = rsc.to_string(), "Fetching resource");
+            let task = Self::fetch(rsc.clone(), ipfs.clone());
             tasks.push(task);
         }
 
@@ -51,14 +39,14 @@ impl Fetch {
             |mut acc, res| {
                 let answer = res.1?;
                 acc.insert(res.0, answer);
+
                 Ok::<_, anyhow::Error>(acc)
             },
         )
     }
 
     /// Gather resources via URLs, leveraging an exponential backoff.
-    /// TODO: Client calls (only) over http(s).
-    #[cfg(all(not(feature = "ipfs"), not(test), not(feature = "test-utils")))]
+    #[cfg(all(not(feature = "ipfs"), not(test)))]
     #[allow(dead_code)]
     pub(crate) async fn get_resources<T>(
         _resources: FnvHashSet<Resource>,
@@ -67,7 +55,7 @@ impl Fetch {
         Ok(IndexMap::default())
     }
 
-    #[cfg(all(not(feature = "ipfs"), any(test, feature = "test-utils")))]
+    #[cfg(all(not(feature = "ipfs"), test))]
     #[doc(hidden)]
     #[allow(dead_code)]
     pub(crate) async fn get_resources(
@@ -77,17 +65,19 @@ impl Fetch {
         println!("Running in test mode");
         use crate::tasks::FileLoad;
         let path = std::path::PathBuf::from(format!(
-            "{}/../homestar-wasm/fixtures/example_test.wasm",
+            "{}/../homestar-wasm/fixtures/example_add.wasm",
             env!("CARGO_MANIFEST_DIR")
         ));
-        let bytes = WasmContext::load(path).await?;
+        let bytes = crate::tasks::WasmContext::load(path).await.unwrap();
         let mut map = IndexMap::default();
-        let rsc = "ipfs://bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy";
-        map.insert(Resource::Url(url::Url::parse(rsc)?), bytes);
+        map.insert(
+            Resource::Url(url::Url::parse(format!("ipfs://{WASM_CID}").as_str()).unwrap()),
+            bytes,
+        );
         Ok(map)
     }
 
-    #[cfg(all(feature = "ipfs", any(test, feature = "test-utils")))]
+    #[cfg(all(feature = "ipfs", test))]
     #[doc(hidden)]
     #[allow(dead_code)]
     pub(crate) async fn get_resources(
@@ -98,25 +88,26 @@ impl Fetch {
         println!("Running in test mode");
         use crate::tasks::FileLoad;
         let path = std::path::PathBuf::from(format!(
-            "{}/../homestar-wasm/fixtures/example_test.wasm",
+            "{}/../homestar-wasm/fixtures/example_add.wasm",
             env!("CARGO_MANIFEST_DIR")
         ));
-        let bytes = WasmContext::load(path).await?;
+        let bytes = crate::tasks::WasmContext::load(path).await.unwrap();
         let mut map = IndexMap::default();
-        let rsc = "ipfs://bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy";
-        map.insert(Resource::Url(url::Url::parse(rsc)?), bytes);
+        map.insert(
+            Resource::Url(url::Url::parse(format!("ipfs://{WASM_CID}").as_str()).unwrap()),
+            bytes,
+        );
         Ok(map)
     }
 
-    #[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
-    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
+    #[cfg(all(feature = "ipfs", not(test)))]
     async fn fetch(rsc: Resource, client: IpfsCli) -> Result<(Resource, Result<Vec<u8>>)> {
         match rsc {
             Resource::Url(url) => {
                 let bytes = match (url.scheme(), url.domain(), url.path()) {
                     ("ipfs", Some(cid), _) => {
-                        let cid = Cid::try_from(cid)?;
-                        client.get_cid(cid).await
+                        let parsed_cid = libipld::Cid::try_from(cid)?;
+                        client.get_cid(parsed_cid).await
                     }
                     (_, Some("ipfs.io"), _) => client.get_resource(&url).await,
                     (_, _, path) if path.contains("/ipfs/") || path.contains("/ipns/") => {
@@ -126,14 +117,14 @@ impl Fetch {
                         let split: Vec<&str> = domain.splitn(3, '.').collect();
                         // subdomain-gateway case:
                         // <https://bafybeiemxf5abjwjbikoz4mc3a3dla6ual3jsgpdr4cjr3oz3evfyavhwq.ipfs.dweb.link/wiki/>
-                        if let (Ok(_cid), "ipfs") = (Cid::try_from(split[0]), split[1]) {
+                        if let (Ok(_cid), "ipfs") = (libipld::Cid::try_from(split[0]), split[1]) {
                             client.get_resource(&url).await
                         } else {
-                            // TODO: reqwest call
+                            // TODO: reqwest call or error
                             todo!()
                         }
                     }
-                    // TODO: reqwest call
+                    // TODO: reqwest call or error
                     (_, _, _) => todo!(),
                 };
 

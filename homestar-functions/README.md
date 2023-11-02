@@ -51,7 +51,7 @@ cd test && cargo build --target wasm32-unknown-unknown --profile release-wasm-fn
 cargo build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn
 ```
 
-Guest Wasm modules will be generated within the top-level `homestar` directory:
+Guest Wasm modules will be generated in the top-level `homestar` directory:
 `./target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_test.wasm`.
 
 Sadly, this module is **not yet** an actual `component`. But, we can leverage
