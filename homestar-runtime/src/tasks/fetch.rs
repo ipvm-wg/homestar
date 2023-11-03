@@ -26,11 +26,16 @@ impl Fetch {
         ipfs: IpfsCli,
     ) -> Result<IndexMap<Resource, Vec<u8>>> {
         use futures::{stream::FuturesUnordered, TryStreamExt};
-        let _settings = settings.as_ref();
+        let settings = settings.as_ref();
         let tasks = FuturesUnordered::new();
         for rsc in resources.iter() {
             tracing::info!(rsc = rsc.to_string(), "Fetching resource");
-            let task = Self::fetch(rsc.clone(), ipfs.clone());
+            let task = tryhard::retry_fn(|| async { Self::fetch(rsc.clone(), ipfs.clone()).await })
+                .with_config(
+                    tryhard::RetryFutureConfig::new(settings.retries)
+                        .exponential_backoff(settings.retry_initial_delay)
+                        .max_delay(settings.retry_max_delay),
+                );
             tasks.push(task);
         }
 
