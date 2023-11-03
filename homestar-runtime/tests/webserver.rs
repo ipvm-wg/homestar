@@ -44,7 +44,7 @@ fn test_workflow_run_serial() -> Result<()> {
         "../examples/websocket-relay/example_test.wasm",
     ];
 
-    fs::remove_file("homestar.db").unwrap();
+    let _ = fs::remove_file("homestar_test_workflow_run_serial.db");
 
     let _ipfs_add_img = Command::new(IPFS)
         .args(add_image_args)
@@ -63,8 +63,8 @@ fn test_workflow_run_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_workflow2.toml")
         .arg("--db")
-        .arg("homestar.db")
-        //.stdout(Stdio::piped())
+        .arg("homestar_test_workflow_run_serial.db")
+        .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
@@ -103,7 +103,7 @@ fn test_workflow_run_serial() -> Result<()> {
             .await
             .unwrap();
 
-        // we have 3 operations
+        // we have 3 operations0
         sub.take(3)
             .for_each(|msg| async move {
                 let json: serde_json::Value = serde_json::from_slice(&msg.unwrap()).unwrap();

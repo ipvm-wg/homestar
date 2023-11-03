@@ -1,7 +1,5 @@
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_daemon;
-#[cfg(feature = "ipfs")]
-use crate::utils::startup_ipfs;
 use crate::utils::{kill_homestar, stop_all_bins, BIN_NAME};
 use anyhow::Result;
 use assert_cmd::prelude::*;
@@ -21,9 +19,6 @@ static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME))
 #[file_serial]
 fn test_help_serial() -> Result<()> {
     let _ = stop_all_bins();
-
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs();
 
     Command::new(BIN.as_os_str())
         .arg("help")
@@ -57,9 +52,6 @@ fn test_help_serial() -> Result<()> {
 fn test_version_serial() -> Result<()> {
     let _ = stop_all_bins();
 
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs();
-
     Command::new(BIN.as_os_str())
         .arg("--version")
         .assert()
@@ -79,9 +71,6 @@ fn test_version_serial() -> Result<()> {
 #[file_serial]
 fn test_server_not_running_serial() -> Result<()> {
     let _ = stop_all_bins();
-
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs();
 
     Command::new(BIN.as_os_str())
         .arg("ping")
@@ -122,9 +111,6 @@ fn test_server_not_running_serial() -> Result<()> {
 #[file_serial]
 fn test_server_serial() -> Result<()> {
     let _ = stop_all_bins();
-
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs();
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -190,9 +176,6 @@ fn test_server_serial() -> Result<()> {
 #[file_serial]
 fn test_workflow_run_serial() -> Result<()> {
     let _ = stop_all_bins();
-
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs();
 
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -263,9 +246,6 @@ fn test_workflow_run_serial() -> Result<()> {
 fn test_daemon_serial() -> Result<()> {
     let _ = stop_all_bins();
 
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs();
-
     Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
@@ -308,9 +288,6 @@ fn test_daemon_serial() -> Result<()> {
 fn test_signal_kill_serial() -> Result<()> {
     let _ = stop_all_bins();
 
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs();
-
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("--db")
@@ -350,9 +327,6 @@ fn test_signal_kill_serial() -> Result<()> {
 #[cfg(windows)]
 fn test_server_v4_serial() -> Result<()> {
     let _ = stop_all_bins();
-
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs();
 
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
