@@ -599,6 +599,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 .connected_peers
                 .insert(peer_id, endpoint.clone());
 
+            #[cfg(feature = "websocket-notify")]
             notification::send(
                 event_handler.ws_sender(),
                 EventNotification::new(
@@ -612,7 +613,12 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 ),
             );
         }
-        SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
+        SwarmEvent::ConnectionClosed {
+            peer_id,
+            cause,
+            endpoint,
+            ..
+        } => {
             debug!(
                 peer_id = peer_id.to_string(),
                 "peer connection closed, cause: {cause:?}"
@@ -641,6 +647,18 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     "removed peer from kademlia table"
                 );
             }
+
+            #[cfg(feature = "websocket-notify")]
+            notification::send(
+                event_handler.ws_sender(),
+                EventNotification::new(
+                    EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionClosed),
+                    btreemap! {
+                        "peer_id" => peer_id.to_string(),
+                        "address" => endpoint.get_remote_address().to_string()
+                    },
+                ),
+            );
         }
         SwarmEvent::OutgoingConnectionError {
             connection_id,
