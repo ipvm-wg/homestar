@@ -12,7 +12,9 @@ const DATA_KEY: &str = "data";
 const TIMESTAMP_KEY: &str = "timestamp";
 
 /// Send notification as bytes
-pub(crate) fn send(notifier: Notifier, notification: EventNotification) {
+pub(crate) fn send(notifier: Notifier, ty: EventNotificationType, data: BTreeMap<&str, String>) {
+    let notification = EventNotification::new(ty, data);
+
     if let Ok(json) = notification.to_json() {
         let _ = notifier.notify(json);
     } else {

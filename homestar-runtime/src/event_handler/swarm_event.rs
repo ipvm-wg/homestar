@@ -7,7 +7,7 @@ use crate::{
     db::{Connection, Database},
     event_handler::{
         event::QueryRecord,
-        notification::{self, EventNotification, EventNotificationType, SwarmNotification},
+        notification::{self, EventNotificationType, SwarmNotification},
         Event, Handler, RequestResponseError,
     },
     libp2p::multiaddr::MultiaddrExt,
@@ -602,15 +602,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             #[cfg(feature = "websocket-notify")]
             notification::send(
                 event_handler.ws_sender(),
-                EventNotification::new(
-                    EventNotificationType::SwarmNotification(
-                        SwarmNotification::ConnnectionEstablished,
-                    ),
-                    btreemap! {
-                        "peer_id" => peer_id.to_string(),
-                        "address" => endpoint.get_remote_address().to_string()
-                    },
-                ),
+                EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionEstablished),
+                btreemap! {
+                    "peer_id" => peer_id.to_string(),
+                    "address" => endpoint.get_remote_address().to_string()
+                },
             );
         }
         SwarmEvent::ConnectionClosed {
@@ -651,13 +647,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             #[cfg(feature = "websocket-notify")]
             notification::send(
                 event_handler.ws_sender(),
-                EventNotification::new(
-                    EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionClosed),
-                    btreemap! {
-                        "peer_id" => peer_id.to_string(),
-                        "address" => endpoint.get_remote_address().to_string()
-                    },
-                ),
+                EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionClosed),
+                btreemap! {
+                    "peer_id" => peer_id.to_string(),
+                    "address" => endpoint.get_remote_address().to_string()
+                },
             );
         }
         SwarmEvent::OutgoingConnectionError {
