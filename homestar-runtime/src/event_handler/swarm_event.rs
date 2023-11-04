@@ -664,7 +664,19 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 err=?error,
                 connection_id=?connection_id,
                 "outgoing connection error"
-            )
+            );
+
+            #[cfg(feature = "websocket-notify")]
+            notification::send(
+                event_handler.ws_sender(),
+                EventNotificationType::SwarmNotification(
+                    SwarmNotification::OutgoingConnectionError,
+                ),
+                btreemap! {
+                    "peer_id" => peer_id.map_or("Unknown peer".into(), |p| p.to_string()),
+                    "error" => error.to_string()
+                },
+            );
         }
         SwarmEvent::IncomingConnectionError {
             connection_id,
@@ -678,7 +690,18 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 local_address=local_addr.to_string(),
                 remote_address=send_back_addr.to_string(),
                 "incoming connection error"
-            )
+            );
+
+            #[cfg(feature = "websocket-notify")]
+            notification::send(
+                event_handler.ws_sender(),
+                EventNotificationType::SwarmNotification(
+                    SwarmNotification::IncomingConnectionError,
+                ),
+                btreemap! {
+                    "error" => error.to_string()
+                },
+            );
         }
         SwarmEvent::ListenerError { listener_id, error } => {
             error!(err=?error, listener_id=?listener_id, "listener error")

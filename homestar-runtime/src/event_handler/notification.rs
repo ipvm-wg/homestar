@@ -125,6 +125,8 @@ impl TryFrom<Ipld> for EventNotificationType {
 pub(crate) enum SwarmNotification {
     ConnnectionEstablished,
     ConnnectionClosed,
+    OutgoingConnectionError,
+    IncomingConnectionError,
 }
 
 impl DagJson for SwarmNotification where Ipld: From<SwarmNotification> {}
@@ -137,6 +139,12 @@ impl From<SwarmNotification> for Ipld {
                 Ipld::String("connectionEstablished".into())
             }
             SwarmNotification::ConnnectionClosed => Ipld::String("connectionClosed".into()),
+            SwarmNotification::OutgoingConnectionError => {
+                Ipld::String("outgoingConnectionError".into())
+            }
+            SwarmNotification::IncomingConnectionError => {
+                Ipld::String("incomingConnectionError".into())
+            }
         }
     }
 }
@@ -148,8 +156,10 @@ impl TryFrom<Ipld> for SwarmNotification {
         let ty = from_ipld::<String>(ipld)?;
 
         match ty.as_str() {
-            "connectionEstablished" => Ok(SwarmNotification::ConnnectionEstablished),
-            "connectionClosed" => Ok(SwarmNotification::ConnnectionClosed),
+            "connectionEstablished" => Ok(Self::ConnnectionEstablished),
+            "connectionClosed" => Ok(Self::ConnnectionClosed),
+            "outgoingConnectionError" => Ok(Self::OutgoingConnectionError),
+            "incomingConnectionError" => Ok(Self::IncomingConnectionError),
             _ => Err(anyhow!("Missing notification type.")),
         }
     }
