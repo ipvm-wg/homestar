@@ -5,7 +5,11 @@ use super::EventHandler;
 use crate::network::IpfsCli;
 use crate::{
     db::{Connection, Database},
-    event_handler::{event::QueryRecord, Event, Handler, RequestResponseError},
+    event_handler::{
+        event::QueryRecord,
+        notification::{EventNotification, EventNotificationType, SwarmNotification},
+        Event, Handler, RequestResponseError,
+    },
     libp2p::multiaddr::MultiaddrExt,
     network::swarm::{CapsuleTag, ComposedEvent, RequestResponseKey, HOMESTAR_PROTOCOL_VER},
     receipt::{RECEIPT_TAG, VERSION_KEY},
@@ -17,6 +21,7 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use homestar_core::{
     consts,
+    ipld::DagJson,
     workflow::{Pointer, Receipt as InvocationReceipt},
 };
 use libipld::{Cid, Ipld};
@@ -33,6 +38,7 @@ use libp2p::{
     swarm::{dial_opts::DialOpts, SwarmEvent},
     PeerId, StreamProtocol,
 };
+use maplit::btreemap;
 use std::{collections::HashSet, fmt};
 use tracing::{debug, error, info, warn};
 
@@ -590,7 +596,21 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         } => {
             debug!(peer_id=peer_id.to_string(), endpoint=?endpoint, "peer connection established");
             // add peer to connected peers list
-            event_handler.connected_peers.insert(peer_id, endpoint);
+            event_handler
+                .connected_peers
+                .insert(peer_id, endpoint.clone());
+
+            let notification = EventNotification::new(
+                EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionEstablished),
+                btreemap! {
+                    "peer_id" => peer_id.to_string(),
+                    "address" => endpoint.get_remote_address().to_string()
+                },
+            );
+
+            if let Ok(json) = notification.to_json() {
+                let _ = event_handler.ws_msg_sender.notify(json);
+            }
         }
         SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
             debug!(
