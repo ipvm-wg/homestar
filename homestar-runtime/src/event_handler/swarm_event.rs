@@ -584,9 +584,20 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         }
         SwarmEvent::NewListenAddr { address, .. } => {
             let local_peer = *event_handler.swarm.local_peer_id();
+
             info!(
-                "local node is listening on {}",
-                address.with(Protocol::P2p(local_peer))
+                peer_id = local_peer.to_string(),
+                "local node is listening on {}", address
+            );
+
+            #[cfg(feature = "websocket-notify")]
+            notification::send(
+                event_handler.ws_sender(),
+                EventNotificationType::SwarmNotification(SwarmNotification::ListeningOn),
+                btreemap! {
+                    "peer_id" => local_peer.to_string(),
+                    "address" => address.to_string()
+                },
             );
         }
         SwarmEvent::IncomingConnection { .. } => {}
