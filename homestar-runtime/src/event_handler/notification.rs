@@ -1,13 +1,24 @@
+use crate::network::webserver::Notifier;
 use anyhow::anyhow;
 use chrono::prelude::Utc;
 use homestar_core::ipld::DagJson;
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use tracing::warn;
 
 const TYPE_KEY: &str = "type";
 const DATA_KEY: &str = "data";
 const TIMESTAMP_KEY: &str = "timestamp";
+
+/// Send notification as bytes
+pub(crate) fn send(notifier: Notifier, notification: EventNotification) {
+    if let Ok(json) = notification.to_json() {
+        let _ = notifier.notify(json);
+    } else {
+        warn!("Unable to serialize notification as bytes: {notification:?}");
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct EventNotification {
@@ -82,9 +93,9 @@ pub(crate) enum EventNotificationType {
 impl DagJson for EventNotificationType where Ipld: From<EventNotificationType> {}
 
 impl From<EventNotificationType> for Ipld {
-    fn from(notification: EventNotificationType) -> Self {
-        match notification {
-            EventNotificationType::SwarmNotification(n) => n.into(),
+    fn from(event_type: EventNotificationType) -> Self {
+        match event_type {
+            EventNotificationType::SwarmNotification(ty) => ty.into(),
         }
     }
 }
@@ -98,6 +109,9 @@ impl TryFrom<Ipld> for EventNotificationType {
         match ty.as_str() {
             "connectionEstablished" => Ok(EventNotificationType::SwarmNotification(
                 SwarmNotification::ConnnectionEstablished,
+            )),
+            "connectionClosed" => Ok(EventNotificationType::SwarmNotification(
+                SwarmNotification::ConnnectionClosed,
             )),
             _ => Err(anyhow!("Missing notification type.")),
         }

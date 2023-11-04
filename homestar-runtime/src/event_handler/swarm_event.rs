@@ -7,7 +7,7 @@ use crate::{
     db::{Connection, Database},
     event_handler::{
         event::QueryRecord,
-        notification::{EventNotification, EventNotificationType, SwarmNotification},
+        notification::{self, EventNotification, EventNotificationType, SwarmNotification},
         Event, Handler, RequestResponseError,
     },
     libp2p::multiaddr::MultiaddrExt,
@@ -21,7 +21,6 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use homestar_core::{
     consts,
-    ipld::DagJson,
     workflow::{Pointer, Receipt as InvocationReceipt},
 };
 use libipld::{Cid, Ipld};
@@ -600,17 +599,18 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 .connected_peers
                 .insert(peer_id, endpoint.clone());
 
-            let notification = EventNotification::new(
-                EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionEstablished),
-                btreemap! {
-                    "peer_id" => peer_id.to_string(),
-                    "address" => endpoint.get_remote_address().to_string()
-                },
+            notification::send(
+                event_handler.ws_sender(),
+                EventNotification::new(
+                    EventNotificationType::SwarmNotification(
+                        SwarmNotification::ConnnectionEstablished,
+                    ),
+                    btreemap! {
+                        "peer_id" => peer_id.to_string(),
+                        "address" => endpoint.get_remote_address().to_string()
+                    },
+                ),
             );
-
-            if let Ok(json) = notification.to_json() {
-                let _ = event_handler.ws_msg_sender.notify(json);
-            }
         }
         SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
             debug!(
