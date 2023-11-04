@@ -160,7 +160,7 @@ mod test {
     use maplit::btreemap;
 
     #[test]
-    fn notification_rountrip_bytes() {
+    fn notification_bytes_rountrip() {
         let peer_id = PeerId::random().to_string();
         let address: String = "/ip4/127.0.0.1/tcp/7000".to_string();
 
@@ -174,6 +174,31 @@ mod test {
         let bytes = notification.to_json().unwrap();
 
         let parsed = EventNotification::from_json(bytes.as_ref()).unwrap();
+        let data: BTreeMap<String, String> = from_ipld(parsed.data).unwrap();
+
+        assert_eq!(
+            parsed.ty,
+            EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionEstablished)
+        );
+        assert_eq!(data.get("peer_id").unwrap(), &peer_id);
+        assert_eq!(data.get("address").unwrap(), &address);
+    }
+
+    #[test]
+    fn notification_json_string_rountrip() {
+        let peer_id = PeerId::random().to_string();
+        let address: String = "/ip4/127.0.0.1/tcp/7000".to_string();
+
+        let notification = EventNotification::new(
+            EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionEstablished),
+            btreemap! {
+                "peer_id" => peer_id.clone(),
+                "address" => address.clone()
+            },
+        );
+        let json_string = notification.to_json_string().unwrap();
+
+        let parsed = EventNotification::from_json_string(json_string).unwrap();
         let data: BTreeMap<String, String> = from_ipld(parsed.data).unwrap();
 
         assert_eq!(
