@@ -4,8 +4,11 @@ use chrono::prelude::Utc;
 use homestar_core::ipld::DagJson;
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, fmt, str::FromStr};
+use std::{collections::BTreeMap, str::FromStr};
 use tracing::warn;
+
+pub(crate) mod swarm;
+pub(crate) use swarm::SwarmNotification;
 
 const TYPE_KEY: &str = "type";
 const DATA_KEY: &str = "data";
@@ -119,47 +122,6 @@ impl TryFrom<Ipld> for EventNotificationType {
             Err(anyhow!(
                 "Event notification type missing colon delimiter between type and subtype."
             ))
-        }
-    }
-}
-
-// Types of swarm notification sent to clients
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) enum SwarmNotification {
-    ConnnectionEstablished,
-    ConnnectionClosed,
-    ListeningOn,
-    OutgoingConnectionError,
-    IncomingConnectionError,
-}
-
-impl fmt::Display for SwarmNotification {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            SwarmNotification::ConnnectionEstablished => write!(f, "connectionEstablished"),
-            SwarmNotification::ConnnectionClosed => write!(f, "connectionClosed"),
-            SwarmNotification::ListeningOn => write!(f, "listeningOn"),
-            SwarmNotification::OutgoingConnectionError => {
-                write!(f, "outgoingConnectionError")
-            }
-            SwarmNotification::IncomingConnectionError => {
-                write!(f, "incomingConnectionError")
-            }
-        }
-    }
-}
-
-impl FromStr for SwarmNotification {
-    type Err = anyhow::Error;
-
-    fn from_str(ty: &str) -> Result<Self, Self::Err> {
-        match ty {
-            "connectionEstablished" => Ok(Self::ConnnectionEstablished),
-            "connectionClosed" => Ok(Self::ConnnectionClosed),
-            "listeningOn" => Ok(Self::ListeningOn),
-            "outgoingConnectionError" => Ok(Self::OutgoingConnectionError),
-            "incomingConnectionError" => Ok(Self::IncomingConnectionError),
-            _ => Err(anyhow!("Missing swarm notification type: {}", ty)),
         }
     }
 }
