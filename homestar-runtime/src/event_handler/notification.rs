@@ -4,7 +4,7 @@ use chrono::prelude::Utc;
 use homestar_core::ipld::DagJson;
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt, str::FromStr};
 use tracing::warn;
 
 const TYPE_KEY: &str = "type";
@@ -95,9 +95,11 @@ pub(crate) enum EventNotificationType {
 impl DagJson for EventNotificationType where Ipld: From<EventNotificationType> {}
 
 impl From<EventNotificationType> for Ipld {
-    fn from(event_type: EventNotificationType) -> Self {
-        match event_type {
-            EventNotificationType::SwarmNotification(ty) => ty.into(),
+    fn from(ty: EventNotificationType) -> Self {
+        match ty {
+            EventNotificationType::SwarmNotification(subtype) => {
+                Ipld::String(format!("network:{}", subtype))
+            }
         }
     }
 }
@@ -106,16 +108,17 @@ impl TryFrom<Ipld> for EventNotificationType {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        let ty = from_ipld::<String>(ipld)?;
-
-        match ty.as_str() {
-            "connectionEstablished" => Ok(EventNotificationType::SwarmNotification(
-                SwarmNotification::ConnnectionEstablished,
-            )),
-            "connectionClosed" => Ok(EventNotificationType::SwarmNotification(
-                SwarmNotification::ConnnectionClosed,
-            )),
-            _ => Err(anyhow!("Missing notification type.")),
+        if let Some((ty, subtype)) = from_ipld::<String>(ipld)?.split_once(':') {
+            match ty {
+                "network" => Ok(EventNotificationType::SwarmNotification(
+                    SwarmNotification::from_str(subtype)?,
+                )),
+                _ => Err(anyhow!("Missing event notification type: {}", ty)),
+            }
+        } else {
+            Err(anyhow!(
+                "Event notification type missing colon delimiter between type and subtype."
+            ))
         }
     }
 }
@@ -130,40 +133,33 @@ pub(crate) enum SwarmNotification {
     IncomingConnectionError,
 }
 
-impl DagJson for SwarmNotification where Ipld: From<SwarmNotification> {}
-
-#[allow(unused_variables, non_snake_case)]
-impl From<SwarmNotification> for Ipld {
-    fn from(notification: SwarmNotification) -> Self {
-        match notification {
-            SwarmNotification::ConnnectionEstablished => {
-                Ipld::String("connectionEstablished".into())
-            }
-            SwarmNotification::ConnnectionClosed => Ipld::String("connectionClosed".into()),
-            SwarmNotification::ListeningOn => Ipld::String("listeningOn".into()),
+impl fmt::Display for SwarmNotification {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            SwarmNotification::ConnnectionEstablished => write!(f, "connectionEstablished"),
+            SwarmNotification::ConnnectionClosed => write!(f, "connectionClosed"),
+            SwarmNotification::ListeningOn => write!(f, "listeningOn"),
             SwarmNotification::OutgoingConnectionError => {
-                Ipld::String("outgoingConnectionError".into())
+                write!(f, "outgoingConnectionError")
             }
             SwarmNotification::IncomingConnectionError => {
-                Ipld::String("incomingConnectionError".into())
+                write!(f, "incomingConnectionError")
             }
         }
     }
 }
 
-impl TryFrom<Ipld> for SwarmNotification {
-    type Error = anyhow::Error;
+impl FromStr for SwarmNotification {
+    type Err = anyhow::Error;
 
-    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        let ty = from_ipld::<String>(ipld)?;
-
-        match ty.as_str() {
+    fn from_str(ty: &str) -> Result<Self, Self::Err> {
+        match ty {
             "connectionEstablished" => Ok(Self::ConnnectionEstablished),
             "connectionClosed" => Ok(Self::ConnnectionClosed),
             "listeningOn" => Ok(Self::ListeningOn),
             "outgoingConnectionError" => Ok(Self::OutgoingConnectionError),
             "incomingConnectionError" => Ok(Self::IncomingConnectionError),
-            _ => Err(anyhow!("Missing notification type.")),
+            _ => Err(anyhow!("Missing swarm notification type: {}", ty)),
         }
     }
 }
