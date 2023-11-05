@@ -14,7 +14,7 @@ const TYPE_KEY: &str = "type";
 const DATA_KEY: &str = "data";
 const TIMESTAMP_KEY: &str = "timestamp";
 
-/// Send notification as bytes
+/// Send notification as bytes.
 pub(crate) fn send(notifier: Notifier, ty: EventNotificationType, data: BTreeMap<&str, String>) {
     let notification = EventNotification::new(ty, data);
 
@@ -25,6 +25,7 @@ pub(crate) fn send(notifier: Notifier, ty: EventNotificationType, data: BTreeMap
     }
 }
 
+/// Notification sent to clients.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct EventNotification {
     ty: EventNotificationType,
@@ -90,6 +91,7 @@ impl TryFrom<Ipld> for EventNotification {
     }
 }
 
+/// Types of notification sent to clients.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum EventNotificationType {
     SwarmNotification(SwarmNotification),
