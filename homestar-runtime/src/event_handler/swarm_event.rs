@@ -7,7 +7,7 @@ use crate::{
     db::{Connection, Database},
     event_handler::{
         event::QueryRecord,
-        notification::{self, EventNotificationType, SwarmNotification},
+        notification::{self, EventNotificationTyp, SwarmNotification},
         Event, Handler, RequestResponseError,
     },
     libp2p::multiaddr::MultiaddrExt,
@@ -593,7 +593,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             #[cfg(feature = "websocket-notify")]
             notification::send(
                 event_handler.ws_evt_sender(),
-                EventNotificationType::SwarmNotification(SwarmNotification::ListeningOn),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::ListeningOn),
                 btreemap! {
                     "peer_id" => local_peer.to_string(),
                     "address" => address.to_string()
@@ -613,7 +613,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             #[cfg(feature = "websocket-notify")]
             notification::send(
                 event_handler.ws_evt_sender(),
-                EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionEstablished),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
                 btreemap! {
                     "peer_id" => peer_id.to_string(),
                     "address" => endpoint.get_remote_address().to_string()
@@ -658,7 +658,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             #[cfg(feature = "websocket-notify")]
             notification::send(
                 event_handler.ws_evt_sender(),
-                EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionClosed),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionClosed),
                 btreemap! {
                     "peer_id" => peer_id.to_string(),
                     "address" => endpoint.get_remote_address().to_string()
@@ -680,9 +680,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             #[cfg(feature = "websocket-notify")]
             notification::send(
                 event_handler.ws_evt_sender(),
-                EventNotificationType::SwarmNotification(
-                    SwarmNotification::OutgoingConnectionError,
-                ),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::OutgoingConnectionError),
                 btreemap! {
                     "peer_id" => peer_id.map_or("Unknown peer".into(), |p| p.to_string()),
                     "error" => error.to_string()
@@ -706,9 +704,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             #[cfg(feature = "websocket-notify")]
             notification::send(
                 event_handler.ws_evt_sender(),
-                EventNotificationType::SwarmNotification(
-                    SwarmNotification::IncomingConnectionError,
-                ),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::IncomingConnectionError),
                 btreemap! {
                     "error" => error.to_string()
                 },

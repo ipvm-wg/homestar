@@ -20,7 +20,7 @@ const TIMESTAMP_KEY: &str = "timestamp";
 /// Send notification as bytes.
 pub(crate) fn send(
     notifier: Notifier<notifier::Message>,
-    ty: EventNotificationType,
+    ty: EventNotificationTyp,
     data: BTreeMap<&str, String>,
 ) {
     let header = Header::new(
@@ -39,20 +39,20 @@ pub(crate) fn send(
 /// Notification sent to clients.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct EventNotification {
-    ty: EventNotificationType,
+    typ: EventNotificationTyp,
     data: Ipld,
     timestamp: i64,
 }
 
 impl EventNotification {
-    pub(crate) fn new(ty: EventNotificationType, data: BTreeMap<&str, String>) -> Self {
+    pub(crate) fn new(typ: EventNotificationTyp, data: BTreeMap<&str, String>) -> Self {
         let ipld_data = data
             .iter()
             .map(|(key, val)| (key.to_string(), Ipld::String(val.to_owned())))
             .collect();
 
         Self {
-            ty,
+            typ,
             data: Ipld::Map(ipld_data),
             timestamp: Utc::now().timestamp_millis(),
         }
@@ -64,7 +64,7 @@ impl DagJson for EventNotification where Ipld: From<EventNotification> {}
 impl From<EventNotification> for Ipld {
     fn from(notification: EventNotification) -> Self {
         Ipld::Map(BTreeMap::from([
-            ("type".into(), notification.ty.into()),
+            ("type".into(), notification.typ.into()),
             ("data".into(), notification.data),
             ("timestamp".into(), notification.timestamp.into()),
         ]))
@@ -77,7 +77,7 @@ impl TryFrom<Ipld> for EventNotification {
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
 
-        let ty: EventNotificationType = map
+        let typ: EventNotificationTyp = map
             .get(TYPE_KEY)
             .ok_or_else(|| anyhow!("missing {TYPE_KEY}"))?
             .to_owned()
@@ -95,7 +95,7 @@ impl TryFrom<Ipld> for EventNotification {
         )?;
 
         Ok(EventNotification {
-            ty,
+            typ,
             data,
             timestamp,
         })
@@ -104,29 +104,29 @@ impl TryFrom<Ipld> for EventNotification {
 
 /// Types of notification sent to clients.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) enum EventNotificationType {
+pub(crate) enum EventNotificationTyp {
     SwarmNotification(SwarmNotification),
 }
 
-impl DagJson for EventNotificationType where Ipld: From<EventNotificationType> {}
+impl DagJson for EventNotificationTyp where Ipld: From<EventNotificationTyp> {}
 
-impl From<EventNotificationType> for Ipld {
-    fn from(ty: EventNotificationType) -> Self {
-        match ty {
-            EventNotificationType::SwarmNotification(subtype) => {
+impl From<EventNotificationTyp> for Ipld {
+    fn from(typ: EventNotificationTyp) -> Self {
+        match typ {
+            EventNotificationTyp::SwarmNotification(subtype) => {
                 Ipld::String(format!("network:{}", subtype))
             }
         }
     }
 }
 
-impl TryFrom<Ipld> for EventNotificationType {
+impl TryFrom<Ipld> for EventNotificationTyp {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         if let Some((ty, subtype)) = from_ipld::<String>(ipld)?.split_once(':') {
             match ty {
-                "network" => Ok(EventNotificationType::SwarmNotification(
+                "network" => Ok(EventNotificationTyp::SwarmNotification(
                     SwarmNotification::from_str(subtype)?,
                 )),
                 _ => Err(anyhow!("Missing event notification type: {}", ty)),
@@ -151,7 +151,7 @@ mod test {
         let address: String = "/ip4/127.0.0.1/tcp/7000".to_string();
 
         let notification = EventNotification::new(
-            EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionEstablished),
+            EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
             btreemap! {
                 "peer_id" => peer_id.clone(),
                 "address" => address.clone()
@@ -163,8 +163,8 @@ mod test {
         let data: BTreeMap<String, String> = from_ipld(parsed.data).unwrap();
 
         assert_eq!(
-            parsed.ty,
-            EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionEstablished)
+            parsed.typ,
+            EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished)
         );
         assert_eq!(data.get("peer_id").unwrap(), &peer_id);
         assert_eq!(data.get("address").unwrap(), &address);
@@ -176,7 +176,7 @@ mod test {
         let address: String = "/ip4/127.0.0.1/tcp/7000".to_string();
 
         let notification = EventNotification::new(
-            EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionEstablished),
+            EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
             btreemap! {
                 "peer_id" => peer_id.clone(),
                 "address" => address.clone()
@@ -188,8 +188,8 @@ mod test {
         let data: BTreeMap<String, String> = from_ipld(parsed.data).unwrap();
 
         assert_eq!(
-            parsed.ty,
-            EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionEstablished)
+            parsed.typ,
+            EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished)
         );
         assert_eq!(data.get("peer_id").unwrap(), &peer_id);
         assert_eq!(data.get("address").unwrap(), &address);
