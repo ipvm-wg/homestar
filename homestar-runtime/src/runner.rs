@@ -160,11 +160,17 @@ impl Runner {
         let swarm = runtime.block_on(swarm::new(settings.node()))?;
 
         let webserver = webserver::Server::new(settings.node().network())?;
-        #[cfg(feature = "websocket-notify")]
-        let ws_msg_tx = webserver.notifier();
 
         #[cfg(feature = "websocket-notify")]
-        let event_handler = EventHandler::new(swarm, db, settings.node(), ws_msg_tx);
+        let (ws_msg_tx, ws_evt_tx) = {
+            let ws_msg_tx = webserver.workflow_msg_notifier();
+            let ws_evt_tx = webserver.evt_notifier();
+
+            (ws_msg_tx, ws_evt_tx)
+        };
+
+        #[cfg(feature = "websocket-notify")]
+        let event_handler = EventHandler::new(swarm, db, settings.node(), ws_evt_tx, ws_msg_tx);
         #[cfg(not(feature = "websocket-notify"))]
         let event_handler = EventHandler::new(swarm, db, settings.node());
 
@@ -268,9 +274,9 @@ impl Runner {
                             runner_worker_tx.clone(),
                             db.clone(),
                         ).await {
-                            Ok(_) => {
+                            Ok(data) => {
                                 info!("sending message to rpc server");
-                                let _ = oneshot_tx.send(webserver::Message::AckWorkflow);
+                                let _ = oneshot_tx.send(webserver::Message::AckWorkflow((data.info.cid, data.name)));
                             }
                             Err(err) => {
                                 error!(err=?err, "error handling ws message");
@@ -577,7 +583,7 @@ impl Runner {
         // `clone`, as the underlying type is an `Arc`.
         let initial_info = Arc::clone(&worker.workflow_info);
         let workflow_timeout = worker.workflow_settings.timeout;
-        let workflow_name = worker.workflow_name.to_string();
+        let workflow_name = worker.workflow_name.clone();
         let timestamp = worker.workflow_started;
 
         // Spawn worker, which initializees the scheduler and runs
@@ -619,7 +625,7 @@ impl Runner {
 
 struct WorkflowData {
     info: Arc<workflow::Info>,
-    name: String,
+    name: FastStr,
     timestamp: NaiveDateTime,
 }
 

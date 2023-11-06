@@ -9,8 +9,9 @@ use homestar_wasm::io::Arg;
 use http::{header::CONTENT_TYPE, Method};
 use jsonrpsee::{
     self,
-    server::{middleware::ProxyGetRequestLayer, ServerHandle},
+    server::{middleware::ProxyGetRequestLayer, RandomStringIdProvider, ServerHandle},
 };
+use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
 use std::{
     net::{IpAddr, SocketAddr, TcpListener},
@@ -45,7 +46,7 @@ pub(crate) enum Message {
     /// Run a workflow, given a tuple of name, and [Workflow].
     RunWorkflow((FastStr, Workflow<'static, Arg>)),
     /// Acknowledgement of a [Workflow] run.
-    AckWorkflow,
+    AckWorkflow((Cid, FastStr)),
 }
 
 /// WebSocket server fields.
@@ -56,9 +57,11 @@ pub(crate) struct Server {
     addr: SocketAddr,
     /// TODO
     capacity: usize,
+    /// TODO
+    evt_notifier: Notifier<notifier::Message>,
     /// Message sender for broadcasting to clients connected to the
     /// websocket server.
-    notifier: Notifier,
+    workflow_msg_notifier: Notifier<notifier::Message>,
     /// Receiver timeout for the websocket server.
     receiver_timeout: Duration,
     /// TODO
@@ -84,13 +87,17 @@ impl Server {
     #[cfg(feature = "websocket-notify")]
     fn setup_channel(
         capacity: usize,
-    ) -> (broadcast::Sender<Vec<u8>>, broadcast::Receiver<Vec<u8>>) {
+    ) -> (
+        broadcast::Sender<notifier::Message>,
+        broadcast::Receiver<notifier::Message>,
+    ) {
         broadcast::channel(capacity)
     }
 
     #[cfg(feature = "websocket-notify")]
     pub(crate) fn new(settings: &settings::Network) -> Result<Self> {
-        let (sender, _receiver) = Self::setup_channel(settings.websocket_capacity);
+        let (evt_sender, _receiver) = Self::setup_channel(settings.websocket_capacity);
+        let (msg_sender, _receiver) = Self::setup_channel(settings.websocket_capacity);
         let host = IpAddr::from_str(&settings.webserver_host.to_string())?;
         let port_setting = settings.webserver_port;
         let addr = if port_available(host, port_setting) {
@@ -105,7 +112,8 @@ impl Server {
         Ok(Self {
             addr,
             capacity: settings.websocket_capacity,
-            notifier: Notifier::new(sender),
+            evt_notifier: Notifier::new(evt_sender),
+            workflow_msg_notifier: Notifier::new(msg_sender),
             receiver_timeout: settings.websocket_receiver_timeout,
             webserver_timeout: settings.webserver_timeout,
         })
@@ -141,7 +149,8 @@ impl Server {
     ) -> Result<ServerHandle> {
         let module = JsonRpc::new(Context::new(
             metrics_hdl,
-            self.notifier.clone(),
+            self.evt_notifier.clone(),
+            self.workflow_msg_notifier.clone(),
             runner_sender,
             self.receiver_timeout,
         ))
@@ -169,8 +178,15 @@ impl Server {
     /// Get websocket message sender for broadcasting messages to websocket
     /// clients.
     #[cfg(feature = "websocket-notify")]
-    pub(crate) fn notifier(&self) -> Notifier {
-        self.notifier.clone()
+    pub(crate) fn evt_notifier(&self) -> Notifier<notifier::Message> {
+        self.evt_notifier.clone()
+    }
+
+    /// Get websocket message sender for broadcasting messages to websocket
+    /// clients.
+    #[cfg(feature = "websocket-notify")]
+    pub(crate) fn workflow_msg_notifier(&self) -> Notifier<notifier::Message> {
+        self.workflow_msg_notifier.clone()
     }
 
     async fn start_inner(&self, module: JsonRpc) -> Result<ServerHandle> {
@@ -198,6 +214,7 @@ impl Server {
         let server = jsonrpsee::server::Server::builder()
             .custom_tokio_runtime(runtime_hdl.clone())
             .set_middleware(middleware)
+            .set_id_provider(Box::new(RandomStringIdProvider::new(16)))
             .set_message_buffer_capacity(self.capacity as u32)
             .build(addr)
             .await
@@ -230,7 +247,7 @@ mod test {
     use jsonrpsee::types::error::ErrorCode;
     use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
     #[cfg(feature = "websocket-notify")]
-    use notifier::NotifyReceipt;
+    use notifier::{self, Header, NotifyReceipt};
     use serial_test::file_serial;
     use tokio::sync::mpsc;
 
@@ -345,11 +362,51 @@ mod test {
         // send any bytes through (Vec<u8>)
         let (invocation_receipt, runtime_receipt) = crate::test_utils::receipt::receipts();
         let receipt = NotifyReceipt::with(invocation_receipt, runtime_receipt.cid(), None);
-        server.notifier.notify(receipt.to_json().unwrap()).unwrap();
-        let msg = sub.next().await.unwrap().unwrap();
-        let returned: NotifyReceipt = DagJson::from_json(&msg).unwrap();
+        server
+            .evt_notifier
+            .notify(notifier::Message::new(
+                Header::new(
+                    notifier::SubscriptionTyp::EventSub(
+                        rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT.to_string(),
+                    ),
+                    None,
+                ),
+                receipt.to_json().unwrap(),
+            ))
+            .unwrap();
 
-        assert_eq!(returned, receipt);
+        // send an unknown msg: this should be dropped
+        server
+            .evt_notifier
+            .notify(notifier::Message::new(
+                Header::new(
+                    notifier::SubscriptionTyp::EventSub("test".to_string()),
+                    None,
+                ),
+                vec![],
+            ))
+            .unwrap();
+
+        server
+            .evt_notifier
+            .notify(notifier::Message::new(
+                Header::new(
+                    notifier::SubscriptionTyp::EventSub(
+                        rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT.to_string(),
+                    ),
+                    None,
+                ),
+                receipt.to_json().unwrap(),
+            ))
+            .unwrap();
+
+        let msg1 = sub.next().await.unwrap().unwrap();
+        let returned1: NotifyReceipt = DagJson::from_json(&msg1).unwrap();
+        assert_eq!(returned1, receipt);
+
+        let msg2 = sub.next().await.unwrap().unwrap();
+        let _returned1: NotifyReceipt = DagJson::from_json(&msg2).unwrap();
+
         assert!(sub.unsubscribe().await.is_ok());
 
         unsafe { metrics::clear_recorder() }

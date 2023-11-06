@@ -1,7 +1,7 @@
 //! [EventHandler] implementation for handling network events and messages.
 
 #[cfg(feature = "websocket-notify")]
-use crate::network::webserver;
+use crate::network::webserver::{self, notifier};
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
@@ -62,7 +62,8 @@ pub(crate) struct EventHandler<DB: Database> {
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     rendezvous: Rendezvous,
     pubsub_enabled: bool,
-    ws_msg_sender: webserver::Notifier,
+    ws_evt_sender: webserver::Notifier<notifier::Message>,
+    ws_workflow_sender: webserver::Notifier<notifier::Message>,
     node_addresses: Vec<libp2p::Multiaddr>,
     announce_addresses: Vec<libp2p::Multiaddr>,
     external_address_limit: u32,
@@ -125,7 +126,8 @@ where
         swarm: Swarm<ComposedBehaviour>,
         db: DB,
         settings: &settings::Node,
-        ws_msg_sender: webserver::Notifier,
+        ws_evt_sender: webserver::Notifier<notifier::Message>,
+        ws_workflow_sender: webserver::Notifier<notifier::Message>,
     ) -> Self {
         let (sender, receiver) = Self::setup_channel(settings);
         let sender = Arc::new(sender);
@@ -151,7 +153,8 @@ where
                 cookies: FnvHashMap::default(),
             },
             pubsub_enabled: settings.network.enable_pubsub,
-            ws_msg_sender,
+            ws_evt_sender,
+            ws_workflow_sender,
             node_addresses: settings.network.node_addresses.clone(),
             announce_addresses: settings.network.announce_addresses.clone(),
             external_address_limit: settings.network.max_announce_addresses,
@@ -206,8 +209,16 @@ where
     #[cfg(feature = "websocket-notify")]
     #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
     #[allow(dead_code)]
-    pub(crate) fn ws_sender(&self) -> webserver::Notifier {
-        self.ws_msg_sender.clone()
+    pub(crate) fn ws_workflow_sender(&self) -> webserver::Notifier<notifier::Message> {
+        self.ws_workflow_sender.clone()
+    }
+
+    /// TODO
+    #[cfg(feature = "websocket-notify")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
+    #[allow(dead_code)]
+    pub(crate) fn ws_evt_sender(&self) -> webserver::Notifier<notifier::Message> {
+        self.ws_evt_sender.clone()
     }
 
     /// Start [EventHandler] that matches on swarm and pubsub [events].
