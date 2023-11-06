@@ -1,13 +1,14 @@
 //! Node metrics, including system, process, network, and database information
 
-use crate::Db;
+use crate::db::ENV as DATABASE_URL;
 use anyhow::{anyhow, Context, Result};
 use metrics::{describe_counter, describe_gauge, Unit};
-use std::time::Duration;
+use std::{env, time::Duration};
 use sysinfo::{
     get_current_pid, CpuRefreshKind, Disk, DiskExt, NetworkExt, Networks, NetworksExt, ProcessExt,
     ProcessRefreshKind, RefreshKind, System, SystemExt,
 };
+use tokio::fs;
 use tracing::{info, warn};
 
 /// Create and describe gauges for node metrics.
@@ -108,8 +109,8 @@ pub(crate) fn describe() {
 }
 
 /// Collect node metrics on a settings-defined interval.
-pub(crate) async fn collect_metrics(interval: Duration) {
-    let mut interval = tokio::time::interval(interval);
+pub(crate) async fn collect_metrics(interval: u64) {
+    let mut interval = tokio::time::interval(Duration::from_millis(interval));
 
     // Log static system info
     log_static_info();
@@ -151,11 +152,11 @@ async fn collect_stats(sys: System) -> Result<()> {
             .iter()
             .fold(0, |acc, interface| acc + interface.1.received())
     }
-    async fn compute_database_size() -> Option<f64> {
-        if let Ok(size) = Db::size().await {
-            Some(size.get_value())
-        } else {
-            None
+    async fn compute_database_size() -> Option<u64> {
+        let url = env::var(DATABASE_URL).unwrap();
+        match fs::metadata(url).await {
+            Ok(metadata) => Some(metadata.len()),
+            Err(_) => None,
         }
     }
 
@@ -222,7 +223,7 @@ async fn collect_stats(sys: System) -> Result<()> {
 
     // Database metrics
     if let Some(database_size) = compute_database_size().await {
-        metrics::gauge!("database_size_bytes", database_size);
+        metrics::gauge!("database_size_bytes", database_size as f64);
     }
 
     Ok(())

@@ -98,9 +98,8 @@ pub fn runner_test(_attr: TokenStream, item: TokenStream) -> TokenStream {
             impl TestRunner {
                 fn start() -> TestRunner {
                     let mut settings = crate::Settings::load().unwrap();
-                    settings.node.network.webserver_port = ::homestar_core::test_utils::ports::get_port() as u16;
+                    settings.node.network.websocket_port = ::homestar_core::test_utils::ports::get_port() as u16;
                     settings.node.network.rpc_port = ::homestar_core::test_utils::ports::get_port() as u16;
-                    settings.node.network.metrics_port = ::homestar_core::test_utils::ports::get_port() as u16;
                     settings.node.db.url = Some(format!("{}.db", #func_name_as_string));
                     let db = crate::test_utils::db::MemoryDb::setup_connection_pool(&settings.node, None).unwrap();
                     let runner = crate::Runner::start(settings.clone(), db).unwrap();

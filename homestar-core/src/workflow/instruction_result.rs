@@ -82,13 +82,13 @@ where
         if let Ipld::List(v) = ipld {
             match &v[..] {
                 [Ipld::String(result), res] if result == OK => {
-                    Ok(InstructionResult::Ok(res.to_owned().into()))
+                    Ok(InstructionResult::Ok(res.to_owned().try_into()?))
                 }
                 [Ipld::String(result), res] if result == ERR => {
-                    Ok(InstructionResult::Error(res.to_owned().into()))
+                    Ok(InstructionResult::Error(res.to_owned().try_into()?))
                 }
                 [Ipld::String(result), res] if result == JUST => {
-                    Ok(InstructionResult::Just(res.to_owned().into()))
+                    Ok(InstructionResult::Just(res.to_owned().try_into()?))
                 }
                 other_ipld => Err(workflow::Error::unexpected_ipld(
                     other_ipld.to_owned().into(),

@@ -64,7 +64,7 @@ impl<T> From<Parsed<T>> for Args<T> {
 /// use libipld::Ipld;
 /// use url::Url;
 ///
-/// let wasm = "bafkreihxcyjgyrz437ewzi7md55uqt2zf6yr3zn7xrfi4orc34xdc5jgrm".to_string();
+/// let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
 /// let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
 ///
 /// let inst = Instruction::unique(

@@ -63,14 +63,7 @@ if they've been previously run.
 On macOS, for example, a simple homebrew install would install everything you
 need: `brew install rust npm ipfs`
 
-We have packaged homestar binaries using brew, so
-`brew install fission-codes/fission/homestar` will install everything you need,
-including `ipfs`. You will still need `npm` to run this example. From this folder,
-you can then run the example like this:
-
-```
-homestar start --config ./config/settings.toml --db homestar.db`
-```
+We have packaged homestar binaries via brew, so `brew install fission-codes/fission/homestar` will install everything you need, including `ipfs`. You will still need npm to run this example. From this folder, you can run the example via `homestar start --config ./config/settings.toml --db homestar.db`.
 
 Running `homestar` via `cargo run` requires a minimum Rust version of
 `1.70.0`. If you've got an older install of rust, update it with

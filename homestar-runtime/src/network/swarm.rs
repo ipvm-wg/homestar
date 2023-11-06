@@ -41,7 +41,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         .network
         .keypair_config
         .keypair()
-        .with_context(|| "failed to generate/import keypair for libp2p".to_string())?;
+        .with_context(|| "Failed to generate/import keypair for libp2p".to_string())?;
 
     let peer_id = keypair.public().to_peer_id();
     info!(peer_id = peer_id.to_string(), "local peer ID generated");
