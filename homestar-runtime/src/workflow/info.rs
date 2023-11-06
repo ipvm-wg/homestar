@@ -30,6 +30,7 @@ use tracing::info;
 pub const WORKFLOW_TAG: &str = "ipvm/workflow";
 
 const CID_KEY: &str = "cid";
+const NAME_KEY: &str = "name";
 const NUM_TASKS_KEY: &str = "num_tasks";
 const PROGRESS_KEY: &str = "progress";
 const PROGRESS_COUNT_KEY: &str = "progress_count";
@@ -137,6 +138,7 @@ impl StoredReceipt {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Info {
     pub(crate) cid: Cid,
+    pub(crate) name: Option<FastStr>,
     pub(crate) num_tasks: u32,
     pub(crate) progress: Vec<Cid>,
     pub(crate) progress_count: u32,
@@ -147,8 +149,11 @@ impl fmt::Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "cid: {}, progress: {}/{}",
-            self.cid, self.progress_count, self.num_tasks
+            "cid: {}, local_name: {}, name, progress: {}/{}",
+            self.cid,
+            self.name.clone().unwrap_or(self.cid.to_string().into()),
+            self.progress_count,
+            self.num_tasks
         )
     }
 }
@@ -161,6 +166,7 @@ impl Info {
         let cid = stored.cid.cid();
         Self {
             cid,
+            name: stored.name.map(|name| name.into()),
             num_tasks: stored.num_tasks as u32,
             progress,
             progress_count,
@@ -173,6 +179,7 @@ impl Info {
         let cid = stored.cid.cid();
         Self {
             cid,
+            name: stored.name.map(|name| name.into()),
             num_tasks: stored.num_tasks as u32,
             progress: vec![],
             progress_count: 0,
@@ -380,6 +387,14 @@ impl From<Info> for Ipld {
         Ipld::Map(BTreeMap::from([
             (CID_KEY.into(), Ipld::Link(workflow.cid)),
             (
+                NAME_KEY.into(),
+                workflow
+                    .name
+                    .as_ref()
+                    .map(|name| name.to_string().into())
+                    .unwrap_or(Ipld::Null),
+            ),
+            (
                 NUM_TASKS_KEY.into(),
                 Ipld::Integer(workflow.num_tasks as i128),
             ),
@@ -406,6 +421,13 @@ impl TryFrom<Ipld> for Info {
                 .ok_or_else(|| anyhow!("no `cid` set"))?
                 .to_owned(),
         )?;
+        let name = map
+            .get(NAME_KEY)
+            .and_then(|ipld| match ipld {
+                Ipld::Null => None,
+                ipld => Some(ipld),
+            })
+            .and_then(|ipld| from_ipld(ipld.to_owned()).ok());
         let num_tasks = from_ipld(
             map.get(NUM_TASKS_KEY)
                 .ok_or_else(|| anyhow!("no `num_tasks` set"))?
@@ -429,6 +451,7 @@ impl TryFrom<Ipld> for Info {
 
         Ok(Self {
             cid,
+            name,
             num_tasks,
             progress,
             progress_count,
