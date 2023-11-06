@@ -32,6 +32,7 @@ mod rpc;
 
 #[cfg(feature = "websocket-notify")]
 pub(crate) use notifier::Notifier;
+pub(crate) use rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT;
 use rpc::{Context, JsonRpc};
 
 /// Message type for messages sent back from the

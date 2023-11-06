@@ -1,4 +1,7 @@
-use crate::network::webserver::Notifier;
+use crate::network::webserver::{
+    notifier::{self, Header, Message, Notifier, SubscriptionTyp},
+    SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+};
 use anyhow::anyhow;
 use chrono::prelude::Utc;
 use homestar_core::ipld::DagJson;
@@ -15,11 +18,19 @@ const DATA_KEY: &str = "data";
 const TIMESTAMP_KEY: &str = "timestamp";
 
 /// Send notification as bytes.
-pub(crate) fn send(notifier: Notifier, ty: EventNotificationType, data: BTreeMap<&str, String>) {
+pub(crate) fn send(
+    notifier: Notifier<notifier::Message>,
+    ty: EventNotificationType,
+    data: BTreeMap<&str, String>,
+) {
+    let header = Header::new(
+        SubscriptionTyp::EventSub(SUBSCRIBE_NETWORK_EVENTS_ENDPOINT.to_string()),
+        None,
+    );
     let notification = EventNotification::new(ty, data);
 
     if let Ok(json) = notification.to_json() {
-        let _ = notifier.notify(json);
+        let _ = notifier.notify(Message::new(header, json));
     } else {
         warn!("Unable to serialize notification as bytes: {notification:?}");
     }

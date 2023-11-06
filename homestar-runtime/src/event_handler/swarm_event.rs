@@ -592,7 +592,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
             #[cfg(feature = "websocket-notify")]
             notification::send(
-                event_handler.ws_sender(),
+                event_handler.ws_evt_sender(),
                 EventNotificationType::SwarmNotification(SwarmNotification::ListeningOn),
                 btreemap! {
                     "peer_id" => local_peer.to_string(),
@@ -612,7 +612,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
             #[cfg(feature = "websocket-notify")]
             notification::send(
-                event_handler.ws_sender(),
+                event_handler.ws_evt_sender(),
                 EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionEstablished),
                 btreemap! {
                     "peer_id" => peer_id.to_string(),
@@ -657,7 +657,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
             #[cfg(feature = "websocket-notify")]
             notification::send(
-                event_handler.ws_sender(),
+                event_handler.ws_evt_sender(),
                 EventNotificationType::SwarmNotification(SwarmNotification::ConnnectionClosed),
                 btreemap! {
                     "peer_id" => peer_id.to_string(),
@@ -679,7 +679,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
             #[cfg(feature = "websocket-notify")]
             notification::send(
-                event_handler.ws_sender(),
+                event_handler.ws_evt_sender(),
                 EventNotificationType::SwarmNotification(
                     SwarmNotification::OutgoingConnectionError,
                 ),
@@ -705,7 +705,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
             #[cfg(feature = "websocket-notify")]
             notification::send(
-                event_handler.ws_sender(),
+                event_handler.ws_evt_sender(),
                 EventNotificationType::SwarmNotification(
                     SwarmNotification::IncomingConnectionError,
                 ),
