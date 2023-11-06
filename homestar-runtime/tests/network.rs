@@ -95,7 +95,6 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "websocket-server")]
 #[test]
 #[file_serial]
 fn test_websocket_listens_on_address_serial() -> Result<()> {
@@ -113,8 +112,7 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
-    let logs_expected =
-        check_lines_for(stdout, vec!["websocket server listening", "127.0.0.1:8020"]);
+    let logs_expected = check_lines_for(stdout, vec!["webserver listening", "127.0.0.1:8020"]);
 
     assert!(logs_expected);
 

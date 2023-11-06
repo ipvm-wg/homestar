@@ -13,6 +13,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const METRICS_URL: &str = "http://localhost:4020";
 
+#[cfg(feature = "monitoring")]
 #[test]
 #[file_serial]
 fn test_metrics_serial() -> Result<()> {
@@ -37,8 +38,8 @@ fn test_metrics_serial() -> Result<()> {
         metrics
             .samples
             .iter()
-            .find(|sample| sample.metric.as_str() == "system_used_memory_bytes")
-            .and_then(|sample| Some(sample.value.to_owned()))
+            .find(|sample| sample.metric.as_str() == "homestar_system_used_memory_bytes")
+            .map(|sample| sample.value.to_owned())
     }
 
     let _ = stop_homestar();
