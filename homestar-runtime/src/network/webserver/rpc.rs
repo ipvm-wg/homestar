@@ -19,7 +19,7 @@ use jsonrpsee::{
     types::{error::ErrorCode, ErrorObjectOwned},
 };
 #[cfg(feature = "websocket-notify")]
-use jsonrpsee::{ConnectionId, SubscriptionMessage, SubscriptionSink, TrySendError};
+use jsonrpsee::{types::SubscriptionId, SubscriptionMessage, SubscriptionSink, TrySendError};
 #[cfg(feature = "websocket-notify")]
 use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
@@ -36,7 +36,7 @@ use tokio::{
 #[cfg(feature = "websocket-notify")]
 use tokio_stream::wrappers::BroadcastStream;
 #[cfg(feature = "websocket-notify")]
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 /// Health endpoint.
 pub(crate) const HEALTH_ENDPOINT: &str = "health";
@@ -63,7 +63,7 @@ pub(crate) struct Context {
     workflow_msg_notifier: Notifier<notifier::Message>,
     runner_sender: WsSender,
     receiver_timeout: Duration,
-    workflow_listeners: Arc<DashMap<ConnectionId, (Cid, FastStr)>>,
+    workflow_listeners: Arc<DashMap<SubscriptionId<'static>, (Cid, FastStr)>>,
 }
 
 /// TODO
@@ -188,12 +188,12 @@ impl JsonRpc {
                         if let Ok(Ok(Message::AckWorkflow((cid, name)))) =
                             time::timeout_at(Instant::now() + ctx.receiver_timeout, rx).await
                         {
+                            let sink = pending.accept().await?;
                             ctx.workflow_listeners
-                                .insert(pending.connection_id(), (cid, name));
-                            debug!(
-                                "inserted workflow listener with connection_id: {:#?}",
-                                pending.connection_id()
-                            );
+                                .insert(sink.subscription_id(), (cid, name));
+                            let rx = ctx.workflow_msg_notifier.inner().subscribe();
+                            let stream = BroadcastStream::new(rx);
+                            Self::handle_workflow_subscription(sink, stream, ctx).await?;
                         } else {
                             warn!("did not acknowledge message in time");
                             let _ = pending
@@ -201,20 +201,13 @@ impl JsonRpc {
                                     ErrorCode::InternalError,
                                 )))
                                 .await;
-                            return Ok(());
                         }
                     }
                     Err(err) => {
                         warn!("failed to parse run workflow params: {}", err);
                         let _ = pending.reject(err).await;
-                        return Ok(());
                     }
                 }
-
-                let sink = pending.accept().await?;
-                let rx = ctx.workflow_msg_notifier.inner().subscribe();
-                let stream = BroadcastStream::new(rx);
-                Self::handle_workflow_subscription(sink, stream, ctx).await?;
                 Ok(())
             },
         )?;
@@ -280,7 +273,7 @@ impl JsonRpc {
         loop {
             select! {
                 _ = sink.closed() => {
-                    ctx.workflow_listeners.remove(&sink.connection_id());
+                    ctx.workflow_listeners.remove(&sink.subscription_id());
                     break Ok(());
                 }
                 next_msg = stream.next() => {
@@ -290,7 +283,7 @@ impl JsonRpc {
                             payload,
                         })) => {
                             let msg = ctx.workflow_listeners
-                                .get(&sink.connection_id())
+                                .get(&sink.subscription_id())
                                 .and_then(|v| {
                                     let (v_cid, v_name) = v.value();
                                     if v_cid == &cid && (Some(v_name) == ident.as_ref() || ident.is_none()) {
@@ -309,7 +302,7 @@ impl JsonRpc {
                         }
                         Some(Err(err)) => {
                             error!("subscription stream error: {}", err);
-                            ctx.workflow_listeners.remove(&sink.connection_id());
+                            ctx.workflow_listeners.remove(&sink.subscription_id());
                             break Err(err.into());
                         }
                         None => break Ok(()),
@@ -320,6 +313,7 @@ impl JsonRpc {
                         match sink.try_send(sub_msg) {
                             Ok(()) => (),
                             Err(TrySendError::Closed(_)) => {
+                                ctx.workflow_listeners.remove(&sink.subscription_id());
                                 break Err(anyhow!("subscription sink closed"));
                             }
                             Err(TrySendError::Full(_)) => {
