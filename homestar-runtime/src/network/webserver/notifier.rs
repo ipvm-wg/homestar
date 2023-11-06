@@ -90,6 +90,7 @@ impl Message {
     }
 
     /// TODO
+    #[allow(dead_code)]
     pub(crate) fn payload(&self) -> &[u8] {
         &self.payload
     }
