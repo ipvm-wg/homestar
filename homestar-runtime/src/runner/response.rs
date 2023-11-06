@@ -6,6 +6,7 @@ use crate::{
     workflow::{self, IndexedResources},
 };
 use chrono::NaiveDateTime;
+use faststr::FastStr;
 use libipld::Cid;
 use serde::{Deserialize, Serialize};
 use std::{fmt, net::SocketAddr, sync::Arc};
@@ -20,7 +21,7 @@ use tabled::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Tabled)]
 pub struct AckWorkflow {
     pub(crate) cid: Cid,
-    pub(crate) name: String,
+    pub(crate) name: FastStr,
     pub(crate) num_tasks: u32,
     #[tabled(skip)]
     pub(crate) progress: Vec<Cid>,
@@ -44,7 +45,7 @@ impl AckWorkflow {
     /// Workflow information for response / display.
     pub(crate) fn new(
         workflow_info: Arc<workflow::Info>,
-        name: String,
+        name: FastStr,
         timestamp: NaiveDateTime,
     ) -> Self {
         Self {

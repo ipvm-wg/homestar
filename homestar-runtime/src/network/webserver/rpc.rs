@@ -1,10 +1,17 @@
 use super::{listener, prom::PrometheusData};
 #[cfg(feature = "websocket-notify")]
-use super::{Message, Notifier};
+use super::{
+    notifier::{self, Header, Notifier, SubscriptionTyp},
+    Message,
+};
 use crate::runner::WsSender;
 #[cfg(feature = "websocket-notify")]
 use anyhow::anyhow;
 use anyhow::Result;
+#[cfg(feature = "websocket-notify")]
+use dashmap::DashMap;
+#[cfg(feature = "websocket-notify")]
+use faststr::FastStr;
 #[cfg(feature = "websocket-notify")]
 use futures::StreamExt;
 use jsonrpsee::{
@@ -12,8 +19,12 @@ use jsonrpsee::{
     types::{error::ErrorCode, ErrorObjectOwned},
 };
 #[cfg(feature = "websocket-notify")]
-use jsonrpsee::{SubscriptionMessage, SubscriptionSink, TrySendError};
+use jsonrpsee::{ConnectionId, SubscriptionMessage, SubscriptionSink, TrySendError};
+#[cfg(feature = "websocket-notify")]
+use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
+#[cfg(feature = "websocket-notify")]
+use std::sync::Arc;
 use std::time::Duration;
 #[cfg(feature = "websocket-notify")]
 use tokio::{
@@ -25,13 +36,12 @@ use tokio::{
 #[cfg(feature = "websocket-notify")]
 use tokio_stream::wrappers::BroadcastStream;
 #[cfg(feature = "websocket-notify")]
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Health endpoint.
 pub(crate) const HEALTH_ENDPOINT: &str = "health";
 /// Metrics endpoint for prometheus / openmetrics polling.
 pub(crate) const METRICS_ENDPOINT: &str = "metrics";
-
 /// Run a workflow and subscribe to that workflow's events.
 #[cfg(feature = "websocket-notify")]
 pub(crate) const SUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "subscribe_run_workflow";
@@ -49,9 +59,11 @@ pub(crate) const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_networ
 #[cfg(feature = "websocket-notify")]
 pub(crate) struct Context {
     metrics_hdl: PrometheusHandle,
-    notifier: Notifier,
+    evt_notifier: Notifier<notifier::Message>,
+    workflow_msg_notifier: Notifier<notifier::Message>,
     runner_sender: WsSender,
     receiver_timeout: Duration,
+    workflow_listeners: Arc<DashMap<ConnectionId, (Cid, FastStr)>>,
 }
 
 /// TODO
@@ -69,15 +81,18 @@ impl Context {
     #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
     pub(crate) fn new(
         metrics_hdl: PrometheusHandle,
-        notifier: Notifier,
+        evt_notifier: Notifier<notifier::Message>,
+        workflow_msg_notifier: Notifier<notifier::Message>,
         runner_sender: WsSender,
         receiver_timeout: Duration,
     ) -> Self {
         Self {
             metrics_hdl,
-            notifier,
+            evt_notifier,
+            workflow_msg_notifier,
             runner_sender,
             receiver_timeout,
+            workflow_listeners: DashMap::new().into(),
         }
     }
 
@@ -145,9 +160,14 @@ impl JsonRpc {
             UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
             |_, pending, ctx| async move {
                 let sink = pending.accept().await?;
-                let rx = ctx.notifier.inner().subscribe();
+                let rx = ctx.evt_notifier.inner().subscribe();
                 let stream = BroadcastStream::new(rx);
-                Self::handle_event_subscription(sink, stream).await?;
+                Self::handle_event_subscription(
+                    sink,
+                    stream,
+                    SUBSCRIBE_NETWORK_EVENTS_ENDPOINT.to_string(),
+                )
+                .await?;
                 Ok(())
             },
         )?;
@@ -165,10 +185,17 @@ impl JsonRpc {
                             .send((Message::RunWorkflow((name, workflow)), Some(tx)))
                             .await?;
 
-                        if (time::timeout_at(Instant::now() + ctx.receiver_timeout, rx).await)
-                            .is_err()
+                        if let Ok(Ok(Message::AckWorkflow((cid, name)))) =
+                            time::timeout_at(Instant::now() + ctx.receiver_timeout, rx).await
                         {
-                            error!("did not acknowledge message in time");
+                            ctx.workflow_listeners
+                                .insert(pending.connection_id(), (cid, name));
+                            debug!(
+                                "inserted workflow listener with connection_id: {:#?}",
+                                pending.connection_id()
+                            );
+                        } else {
+                            warn!("did not acknowledge message in time");
                             let _ = pending
                                 .reject(ErrorObjectOwned::from(ErrorObjectOwned::from(
                                     ErrorCode::InternalError,
@@ -183,10 +210,11 @@ impl JsonRpc {
                         return Ok(());
                     }
                 }
+
                 let sink = pending.accept().await?;
-                let rx = ctx.notifier.inner().subscribe();
+                let rx = ctx.workflow_msg_notifier.inner().subscribe();
                 let stream = BroadcastStream::new(rx);
-                Self::handle_event_subscription(sink, stream).await?;
+                Self::handle_workflow_subscription(sink, stream, ctx).await?;
                 Ok(())
             },
         )?;
@@ -197,7 +225,8 @@ impl JsonRpc {
     #[cfg(feature = "websocket-notify")]
     async fn handle_event_subscription(
         mut sink: SubscriptionSink,
-        mut stream: BroadcastStream<Vec<u8>>,
+        mut stream: BroadcastStream<notifier::Message>,
+        subscription_type: String,
     ) -> Result<()> {
         let rt_hdl = Handle::current();
         rt_hdl.spawn(async move {
@@ -208,7 +237,14 @@ impl JsonRpc {
                     }
                     next_msg = stream.next() => {
                         let msg = match next_msg {
-                            Some(Ok(msg)) => msg,
+                            Some(Ok(notifier::Message {
+                                header: Header {
+                                    subscription: SubscriptionTyp::EventSub(evt),
+                                    ..
+                                },
+                                payload,
+                            })) if evt == subscription_type => payload,
+                            Some(Ok(_)) => continue,
                             Some(Err(err)) => {
                                 error!("subscription stream error: {}", err);
                                 break Err(err.into());
@@ -229,6 +265,72 @@ impl JsonRpc {
                 }
             }
         });
+
+        Ok(())
+    }
+
+    #[cfg(feature = "websocket-notify")]
+    async fn handle_workflow_subscription(
+        mut sink: SubscriptionSink,
+        mut stream: BroadcastStream<notifier::Message>,
+        ctx: Arc<Context>,
+    ) -> Result<()> {
+        let rt_hdl = Handle::current();
+        rt_hdl.spawn(async move {
+        loop {
+            select! {
+                _ = sink.closed() => {
+                    ctx.workflow_listeners.remove(&sink.connection_id());
+                    break Ok(());
+                }
+                next_msg = stream.next() => {
+                    let msg = match next_msg {
+                        Some(Ok(notifier::Message {
+                            header: Header { subscription: SubscriptionTyp::Cid(cid), ident },
+                            payload,
+                        })) => {
+                            let msg = ctx.workflow_listeners
+                                .get(&sink.connection_id())
+                                .and_then(|v| {
+                                    let (v_cid, v_name) = v.value();
+                                    if v_cid == &cid && (Some(v_name) == ident.as_ref() || ident.is_none()) {
+                                        Some(payload)
+                                    } else {
+                                        None
+                                    }
+                                });
+                            msg
+                        }
+                        Some(Ok(notifier::Message {
+                            header: notifier::Header { subscription: _sub, ..},
+                            ..
+                        })) => {
+                            continue;
+                        }
+                        Some(Err(err)) => {
+                            error!("subscription stream error: {}", err);
+                            ctx.workflow_listeners.remove(&sink.connection_id());
+                            break Err(err.into());
+                        }
+                        None => break Ok(()),
+                    };
+
+                    if let Some(msg) = msg {
+                        let sub_msg = SubscriptionMessage::from_json(&msg)?;
+                        match sink.try_send(sub_msg) {
+                            Ok(()) => (),
+                            Err(TrySendError::Closed(_)) => {
+                                break Err(anyhow!("subscription sink closed"));
+                            }
+                            Err(TrySendError::Full(_)) => {
+                                info!("subscription sink full");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
 
         Ok(())
     }
