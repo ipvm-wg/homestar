@@ -8,6 +8,8 @@ use std::{
     time::Duration,
 };
 
+mod notification;
+
 #[allow(dead_code)]
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
