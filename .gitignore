@@ -35,7 +35,6 @@ report.json
 homestar.err
 homestar.out
 homestar.pid
-homestar.log*
 
 # locks
 homestar-wasm/Cargo.lock

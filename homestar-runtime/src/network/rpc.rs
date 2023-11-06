@@ -47,7 +47,6 @@ pub(crate) enum ServerMessage {
     ///
     /// [Workflow]: homestar_core::Workflow
     RunErr(runner::Error),
-    /// For skipping server messages.
     Skip,
 }
 

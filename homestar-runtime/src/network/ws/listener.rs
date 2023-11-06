@@ -1,7 +1,9 @@
+use std::borrow::Cow;
+
 use faststr::FastStr;
 use homestar_core::{ipld::DagJson, Workflow};
 use homestar_wasm::io::Arg;
-use names::{Generator, Name};
+use names::Name;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::value::RawValue;
 
@@ -11,6 +13,7 @@ use serde_json::value::RawValue;
 /// implementation, which is not a direct [Deserialize] implementation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Run<'a> {
+    pub(crate) action: Cow<'static, str>,
     #[serde(default = "default_name")]
     pub(crate) name: FastStr,
     #[serde(deserialize_with = "from_raw_value")]
@@ -18,7 +21,7 @@ pub(crate) struct Run<'a> {
 }
 
 fn default_name() -> FastStr {
-    let mut name_gen = Generator::with_naming(Name::Numbered);
+    let mut name_gen = names::Generator::with_naming(Name::Numbered);
     name_gen
         .next()
         .unwrap_or_else(|| "workflow".to_string())
@@ -31,12 +34,6 @@ where
 {
     let raw_value: &RawValue = Deserialize::deserialize(deserializer)?;
     Workflow::from_json(raw_value.get().as_bytes()).map_err(de::Error::custom)
-}
-
-/// Filter metrics by prefix.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) struct MetricsPrefix {
-    pub(crate) prefix: String,
 }
 
 #[cfg(test)]
@@ -67,12 +64,13 @@ mod test {
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let run = Run {
+            action: Cow::Borrowed("run"),
             name: "test".into(),
             workflow: workflow.clone(),
         };
 
         let run_str = format!(
-            r#"{{"name": "test","workflow": {}}}"#,
+            r#"{{"action": "run","name": "test","workflow": {}}}"#,
             workflow.to_json_string().unwrap()
         );
 

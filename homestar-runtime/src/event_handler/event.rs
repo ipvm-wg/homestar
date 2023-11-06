@@ -2,7 +2,7 @@
 
 use super::EventHandler;
 #[cfg(feature = "websocket-notify")]
-use crate::network::webserver::notifier::{Header, Message, NotifyReceipt, SubscriptionTyp};
+use crate::network::ws::notifier::NotifyReceipt;
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
@@ -16,15 +16,9 @@ use crate::{
 };
 use anyhow::Result;
 use async_trait::async_trait;
-use homestar_core::workflow::Receipt as InvocationReceipt;
+use homestar_core::workflow::Pointer;
 #[cfg(feature = "websocket-notify")]
-use homestar_core::{
-    ipld::DagJson,
-    workflow::{
-        receipt::metadata::{WORKFLOW_KEY, WORKFLOW_NAME_KEY},
-        Pointer,
-    },
-};
+use homestar_core::{ipld::DagJson, workflow::Receipt as InvocationReceipt};
 use libipld::{Cid, Ipld};
 use libp2p::{
     kad::{record::Key, Quorum, Record},
@@ -37,7 +31,6 @@ use tokio::sync::oneshot;
 use tracing::{error, info, warn};
 
 /// A [Receipt] captured (inner) event.
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) struct Captured {
     /// The captured receipt.
@@ -191,7 +184,6 @@ impl Captured {
         }
     }
 
-    #[allow(dead_code)]
     fn store_and_notify<DB>(
         mut self,
         event_handler: &mut EventHandler<DB>,
@@ -201,13 +193,13 @@ impl Captured {
     {
         let receipt = Db::find_receipt_by_cid(self.receipt, &mut event_handler.db.conn()?)?;
         let invocation_receipt = InvocationReceipt::from(&receipt);
+        let invocation_notification = invocation_receipt.clone();
         let instruction_bytes = receipt.instruction_cid_as_bytes();
         let receipt_cid = receipt.cid();
 
-        #[cfg(feature = "websocket-notify")]
+        #[cfg(all(feature = "websocket-server", feature = "websocket-notify"))]
         {
-            let invocation_notification = invocation_receipt.clone();
-            let ws_tx = event_handler.ws_workflow_sender();
+            let ws_tx = event_handler.ws_sender();
             let metadata = self.metadata.to_owned();
             let receipt = NotifyReceipt::with(invocation_notification, receipt_cid, metadata);
             if let Ok(json) = receipt.to_json() {
@@ -215,13 +207,7 @@ impl Captured {
                     cid = receipt_cid.to_string(),
                     "Sending receipt to websocket"
                 );
-                let _ = ws_tx.notify(Message::new(
-                    Header::new(
-                        SubscriptionTyp::Cid(self.workflow.cid),
-                        self.workflow.name.clone(),
-                    ),
-                    json,
-                ));
+                let _ = ws_tx.notify(json);
             }
         }
 
@@ -327,7 +313,7 @@ impl Replay {
             let invocation_notification = invocation_receipt;
             let receipt_cid = receipt.cid();
 
-            let ws_tx = event_handler.ws_workflow_sender();
+            let ws_tx = event_handler.ws_sender();
             let metadata = self.metadata.to_owned();
             let receipt = NotifyReceipt::with(invocation_notification, receipt_cid, metadata);
             if let Ok(json) = receipt.to_json() {
@@ -335,23 +321,7 @@ impl Replay {
                     cid = receipt_cid.to_string(),
                     "Sending receipt to websocket"
                 );
-
-                if let Some(ipld) = &self.metadata {
-                    match (ipld.get(WORKFLOW_KEY), ipld.get(WORKFLOW_NAME_KEY)) {
-                        (Ok(Ipld::Link(cid)), Ok(Ipld::String(name))) => {
-                            let header = Header::new(
-                                SubscriptionTyp::Cid(*cid),
-                                Some((name.to_string()).into()),
-                            );
-                            let _ = ws_tx.notify(Message::new(header, json));
-                        }
-                        (Ok(Ipld::Link(cid)), Err(_err)) => {
-                            let header = Header::new(SubscriptionTyp::Cid(*cid), None);
-                            let _ = ws_tx.notify(Message::new(header, json));
-                        }
-                        _ => (),
-                    }
-                }
+                let _ = ws_tx.notify(json);
             }
         });
 

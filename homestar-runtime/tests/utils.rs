@@ -9,30 +9,25 @@ use nix::{
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
 use retry::{delay::Fixed, retry};
-#[cfg(feature = "ipfs")]
-use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream};
 use std::{
-    future::Future,
+    net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Child, Command, Stdio},
     time::Duration,
 };
+use strip_ansi_escapes;
 #[cfg(not(windows))]
 use sysinfo::PidExt;
 use sysinfo::{ProcessExt, SystemExt};
-use tokio::time::{timeout, Timeout};
 use wait_timeout::ChildExt;
 
 /// Binary name, which is different than the crate name.
 pub(crate) const BIN_NAME: &str = "homestar";
-/// TODO
-pub(crate) const IPFS: &str = "ipfs";
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
+const IPFS: &str = "ipfs";
 
 /// Start-up IPFS daemon for tests with the feature turned-on.
-#[allow(dead_code)]
-#[cfg(feature = "ipfs")]
 pub(crate) fn startup_ipfs() -> Result<()> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
     println!("starting ipfs daemon...{}", path.to_str().unwrap());
@@ -82,10 +77,10 @@ pub(crate) fn stop_ipfs() -> Result<()> {
 }
 
 /// Stop all binaries.
-#[allow(dead_code)]
 pub(crate) fn stop_all_bins() -> Result<()> {
     let _ = stop_ipfs();
     let _ = stop_homestar();
+
     Ok(())
 }
 
@@ -99,15 +94,15 @@ pub(crate) fn retrieve_output(proc: Child) -> String {
 /// Check process output for all predicates in any line
 pub(crate) fn check_lines_for(output: String, predicates: Vec<&str>) -> bool {
     output
-        .split('\n')
+        .split("\n")
         .map(|line| {
             // Line contains all predicates
             predicates
                 .iter()
                 .map(|pred| predicate::str::contains(*pred).eval(line))
-                .all(|curr| curr)
+                .fold(true, |acc, curr| acc && curr)
         })
-        .any(|curr| curr)
+        .fold(false, |acc, curr| acc || curr)
 }
 
 /// Wait for process to exit or kill after timeout.
@@ -174,28 +169,3 @@ pub(crate) fn kill_homestar_daemon() -> Result<()> {
 
     Ok(())
 }
-
-/// Helper extension trait which allows to limit execution time for the futures.
-/// It is helpful in tests to ensure that no future will ever get stuck forever.
-pub(crate) trait TimeoutFutureExt<T>: Future<Output = T> + Sized {
-    /// Returns a reasonable value that can be used as a future timeout with a certain
-    /// degree of confidence that timeout won't be triggered by the test specifics.
-    fn default_timeout() -> Duration {
-        // If some future wasn't done in 60 seconds, it's either a poorly written test
-        // or (most likely) a bug related to some future never actually being completed.
-        const TIMEOUT_SECONDS: u64 = 60;
-        Duration::from_secs(TIMEOUT_SECONDS)
-    }
-
-    /// Adds a fixed timeout to the future.
-    fn with_default_timeout(self) -> Timeout<Self> {
-        self.with_timeout(Self::default_timeout())
-    }
-
-    /// Adds a custom timeout to the future.
-    fn with_timeout(self, timeout_value: Duration) -> Timeout<Self> {
-        timeout(timeout_value, self)
-    }
-}
-
-impl<T, U> TimeoutFutureExt<T> for U where U: Future<Output = T> + Sized {}

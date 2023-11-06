@@ -34,7 +34,7 @@ impl From<Ipld> for Unit {
 // Default implementation.
 impl input::Parse<Unit> for Input<Unit> {
     fn parse(&self) -> Result<Parsed<Unit>, InputParseError<Unit>> {
-        let args = match Ipld::from(self.to_owned()) {
+        let args = match Ipld::try_from(self.to_owned())? {
             Ipld::List(v) => Ipld::List(v).try_into()?,
             ipld => Args::new(vec![ipld.try_into()?]),
         };
