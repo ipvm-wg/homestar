@@ -2,7 +2,7 @@
 
 use super::EventHandler;
 #[cfg(feature = "websocket-notify")]
-use crate::network::webserver::notifier::NotifyReceipt;
+use crate::network::webserver::notifier::{Header, Message, NotifyReceipt, SubscriptionTyp};
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
@@ -18,7 +18,13 @@ use anyhow::Result;
 use async_trait::async_trait;
 use homestar_core::workflow::Receipt as InvocationReceipt;
 #[cfg(feature = "websocket-notify")]
-use homestar_core::{ipld::DagJson, workflow::Pointer};
+use homestar_core::{
+    ipld::DagJson,
+    workflow::{
+        receipt::metadata::{WORKFLOW_KEY, WORKFLOW_NAME_KEY},
+        Pointer,
+    },
+};
 use libipld::{Cid, Ipld};
 use libp2p::{
     kad::{record::Key, Quorum, Record},
@@ -246,7 +252,7 @@ impl Captured {
         #[cfg(feature = "websocket-notify")]
         {
             let invocation_notification = invocation_receipt.clone();
-            let ws_tx = event_handler.ws_sender();
+            let ws_tx = event_handler.ws_workflow_sender();
             let metadata = self.metadata.to_owned();
             let receipt = NotifyReceipt::with(invocation_notification, receipt_cid, metadata);
             if let Ok(json) = receipt.to_json() {
@@ -254,7 +260,13 @@ impl Captured {
                     cid = receipt_cid.to_string(),
                     "Sending receipt to websocket"
                 );
-                let _ = ws_tx.notify(json);
+                let _ = ws_tx.notify(Message::new(
+                    Header::new(
+                        SubscriptionTyp::Cid(self.workflow.cid),
+                        self.workflow.name.clone(),
+                    ),
+                    json,
+                ));
             }
         }
 
@@ -360,7 +372,7 @@ impl Replay {
             let invocation_notification = invocation_receipt;
             let receipt_cid = receipt.cid();
 
-            let ws_tx = event_handler.ws_sender();
+            let ws_tx = event_handler.ws_workflow_sender();
             let metadata = self.metadata.to_owned();
             let receipt = NotifyReceipt::with(invocation_notification, receipt_cid, metadata);
             if let Ok(json) = receipt.to_json() {
@@ -368,7 +380,23 @@ impl Replay {
                     cid = receipt_cid.to_string(),
                     "Sending receipt to websocket"
                 );
-                let _ = ws_tx.notify(json);
+
+                if let Some(ipld) = &self.metadata {
+                    match (ipld.get(WORKFLOW_KEY), ipld.get(WORKFLOW_NAME_KEY)) {
+                        (Ok(Ipld::Link(cid)), Ok(Ipld::String(name))) => {
+                            let header = Header::new(
+                                SubscriptionTyp::Cid(*cid),
+                                Some((name.to_string()).into()),
+                            );
+                            let _ = ws_tx.notify(Message::new(header, json));
+                        }
+                        (Ok(Ipld::Link(cid)), Err(_err)) => {
+                            let header = Header::new(SubscriptionTyp::Cid(*cid), None);
+                            let _ = ws_tx.notify(Message::new(header, json));
+                        }
+                        _ => (),
+                    }
+                }
             }
         });
 

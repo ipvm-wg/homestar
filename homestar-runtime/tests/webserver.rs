@@ -2,7 +2,7 @@
 use crate::utils::startup_ipfs;
 use crate::utils::{kill_homestar, stop_all_bins, BIN_NAME, IPFS};
 use anyhow::Result;
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
     rpc_params,
@@ -64,7 +64,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .arg("tests/fixtures/test_workflow2.toml")
         .arg("--db")
         .arg("homestar_test_workflow_run_serial.db")
-        .stdout(Stdio::piped())
+        //.stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
@@ -93,18 +93,21 @@ fn test_workflow_run_serial() -> Result<()> {
         let run_str = format!(r#"{{"name": "test","workflow": {}}}"#, json_string);
         let run: serde_json::Value = serde_json::from_str(&run_str).unwrap();
 
-        let client = WsClientBuilder::default().build(ws_url).await.unwrap();
-        let sub: Subscription<Vec<u8>> = client
+        let client1 = WsClientBuilder::default()
+            .build(ws_url.clone())
+            .await
+            .unwrap();
+        let sub1: Subscription<Vec<u8>> = client1
             .subscribe(
                 SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
-                rpc_params![run],
+                rpc_params![run.clone()],
                 UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
             )
             .await
             .unwrap();
 
-        // we have 3 operations0
-        sub.take(3)
+        // we have 3 operations
+        sub1.take(3)
             .for_each(|msg| async move {
                 let json: serde_json::Value = serde_json::from_slice(&msg.unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
@@ -117,6 +120,36 @@ fn test_workflow_run_serial() -> Result<()> {
                 }
             })
             .await;
+
+        // separate subscription, only 3 events too
+        let mut sub2: Subscription<Vec<u8>> = client1
+            .subscribe(
+                SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+                rpc_params![run.clone()],
+                UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+            )
+            .await
+            .unwrap();
+
+        assert!(sub2.next().await.is_some());
+        assert!(sub2.next().await.is_some());
+        assert!(sub2.next().await.is_some());
+        assert!(sub2.next().now_or_never().is_none());
+
+        let client2 = WsClientBuilder::default().build(ws_url).await.unwrap();
+        let mut sub3: Subscription<Vec<u8>> = client2
+            .subscribe(
+                SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+                rpc_params![run],
+                UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+            )
+            .await
+            .unwrap();
+
+        assert!(sub3.next().await.is_some());
+        assert!(sub3.next().await.is_some());
+        assert!(sub3.next().await.is_some());
+        assert!(sub3.next().now_or_never().is_none());
     });
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();

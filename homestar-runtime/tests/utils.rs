@@ -30,6 +30,7 @@ pub(crate) const IPFS: &str = "ipfs";
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
 /// Start-up IPFS daemon for tests with the feature turned-on.
+#[allow(dead_code)]
 #[cfg(feature = "ipfs")]
 pub(crate) fn startup_ipfs() -> Result<()> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");

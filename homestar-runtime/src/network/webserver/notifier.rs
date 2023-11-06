@@ -1,43 +1,97 @@
 //! Notifier for broadcasting messages to websocket clients.
 
 use anyhow::Result;
+use faststr::FastStr;
 use homestar_core::{ipld::DagJson, workflow::Receipt};
 use libipld::{ipld, Cid, Ipld};
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 use tokio::sync::broadcast;
 
 /// Type-wrapper for websocket sender.
 #[derive(Debug)]
-pub(crate) struct Notifier(Arc<broadcast::Sender<Vec<u8>>>);
+pub(crate) struct Notifier<T>(Arc<broadcast::Sender<T>>);
 
-impl Clone for Notifier {
+impl<T> Clone for Notifier<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl Notifier {
+impl<T> Notifier<T>
+where
+    T: Send + Sync + fmt::Debug + 'static,
+{
     /// Create a new [Notifier].
-    pub(crate) fn new(sender: broadcast::Sender<Vec<u8>>) -> Self {
+    pub(crate) fn new(sender: broadcast::Sender<T>) -> Self {
         Self(sender.into())
     }
 
     /// Get a reference to the inner [broadcast::Sender].
     #[allow(dead_code)]
-    pub(crate) fn inner(&self) -> &Arc<broadcast::Sender<Vec<u8>>> {
+    pub(crate) fn inner(&self) -> &Arc<broadcast::Sender<T>> {
         &self.0
     }
 
     /// Get and take ownership of the inner [broadcast::Sender].
     #[allow(dead_code)]
-    pub(crate) fn into_inner(self) -> Arc<broadcast::Sender<Vec<u8>>> {
+    pub(crate) fn into_inner(self) -> Arc<broadcast::Sender<T>> {
         self.0
     }
 
     /// Send a message to all connected websocket clients.
-    pub(crate) fn notify(&self, msg: Vec<u8>) -> Result<()> {
+    pub(crate) fn notify(&self, msg: T) -> Result<()> {
         let _ = self.0.send(msg)?;
         Ok(())
+    }
+}
+
+/// Subscription type: either directed via a [Cid] or an event subscription string.
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub(crate) enum SubscriptionTyp {
+    EventSub(String),
+    Cid(Cid),
+}
+
+/// A header for a message to be sent to a websocket client.
+#[derive(Debug, Clone)]
+pub(crate) struct Header {
+    pub(crate) subscription: SubscriptionTyp,
+    pub(crate) ident: Option<FastStr>,
+}
+
+impl Header {
+    /// Create a new [Header].
+    pub(crate) fn new(sub: SubscriptionTyp, ident: Option<FastStr>) -> Self {
+        Self {
+            subscription: sub,
+            ident,
+        }
+    }
+}
+
+/// A message to be sent to a websocket client, with a header and payload.
+#[derive(Debug, Clone)]
+pub(crate) struct Message {
+    pub(crate) header: Header,
+    pub(crate) payload: Vec<u8>,
+}
+
+impl Message {
+    /// TODO
+    pub(crate) fn new(header: Header, payload: Vec<u8>) -> Self {
+        Self { header, payload }
+    }
+
+    /// TODO
+    #[allow(dead_code)]
+    pub(crate) fn header(&self) -> &Header {
+        &self.header
+    }
+
+    /// TODO
+    pub(crate) fn payload(&self) -> &[u8] {
+        &self.payload
     }
 }
 
@@ -46,6 +100,18 @@ impl Notifier {
 pub(crate) struct NotifyReceipt(Ipld);
 
 impl NotifyReceipt {
+    /// TODO
+    #[allow(dead_code)]
+    pub(crate) fn inner(&self) -> &Ipld {
+        &self.0
+    }
+
+    /// TODO
+    #[allow(dead_code)]
+    pub(crate) fn into_inner(self) -> Ipld {
+        self.0.to_owned()
+    }
+
     pub(crate) fn with(receipt: Receipt<Ipld>, cid: Cid, metadata: Option<Ipld>) -> Self {
         let receipt: Ipld = receipt.into();
         let data = ipld!({
