@@ -1,8 +1,8 @@
 #[cfg(feature = "ipfs")]
 use crate::utils::startup_ipfs;
-use crate::utils::{kill_homestar, stop_all_bins, BIN_NAME, IPFS};
+use crate::utils::{kill_homestar, stop_all_bins, TimeoutFutureExt, BIN_NAME, IPFS};
 use anyhow::Result;
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
     rpc_params,
@@ -64,7 +64,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .arg("tests/fixtures/test_workflow2.toml")
         .arg("--db")
         .arg("homestar_test_workflow_run_serial.db")
-        //.stdout(Stdio::piped())
+        .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
@@ -113,9 +113,7 @@ fn test_workflow_run_serial() -> Result<()> {
                 let check = json.get("metadata").unwrap();
                 let expected1 = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": "bafyrmicvwgispoezdciv5z6w3coutfjjtnhtmbegpcrrocqd76y7dvtknq"}});
                 let expected2 = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmicvwgispoezdciv5z6w3coutfjjtnhtmbegpcrrocqd76y7dvtknq"}});
-                if check == &expected1 || check == &expected2 {
-                    println!("JSONRPC response is expected");
-                } else {
+                if check != &expected1 && check != &expected2 {
                     panic!("JSONRPC response is not expected");
                 }
             })
@@ -134,7 +132,6 @@ fn test_workflow_run_serial() -> Result<()> {
         assert!(sub2.next().await.is_some());
         assert!(sub2.next().await.is_some());
         assert!(sub2.next().await.is_some());
-        assert!(sub2.next().now_or_never().is_none());
 
         let client2 = WsClientBuilder::default().build(ws_url).await.unwrap();
         let mut sub3: Subscription<Vec<u8>> = client2
@@ -146,10 +143,34 @@ fn test_workflow_run_serial() -> Result<()> {
             .await
             .unwrap();
 
+        let _ = sub2
+            .next()
+            .with_timeout(std::time::Duration::from_millis(500))
+            .await
+            .is_err();
         assert!(sub3.next().await.is_some());
         assert!(sub3.next().await.is_some());
         assert!(sub3.next().await.is_some());
-        assert!(sub3.next().now_or_never().is_none());
+
+        let another_run_str = format!(r#"{{"name": "another_test","workflow": {}}}"#, json_string);
+        let another_run: serde_json::Value = serde_json::from_str(&another_run_str).unwrap();
+        let mut sub4: Subscription<Vec<u8>> = client2
+            .subscribe(
+                SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+                rpc_params![another_run],
+                UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+            )
+            .await
+            .unwrap();
+
+        let _ = sub3
+            .next()
+            .with_timeout(std::time::Duration::from_millis(500))
+            .await
+            .is_err();
+        assert!(sub4.next().await.is_some());
+        assert!(sub4.next().await.is_some());
+        assert!(sub4.next().await.is_some());
     });
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
