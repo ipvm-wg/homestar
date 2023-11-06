@@ -42,7 +42,6 @@ impl Fetch {
         tasks.try_collect::<Vec<_>>().await?.into_iter().try_fold(
             IndexMap::default(),
             |mut acc, res| {
-                println!("NOT TEST");
                 let answer = res.1?;
                 acc.insert(res.0, answer);
 
