@@ -1,6 +1,6 @@
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_daemon;
-use crate::utils::{kill_homestar, stop_all_bins, BIN_NAME};
+use crate::utils::{kill_homestar, stop_homestar, BIN_NAME};
 use anyhow::Result;
 use assert_cmd::prelude::*;
 use once_cell::sync::Lazy;
@@ -18,7 +18,7 @@ static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME))
 #[test]
 #[file_serial]
 fn test_help_serial() -> Result<()> {
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
         .arg("help")
@@ -42,7 +42,7 @@ fn test_help_serial() -> Result<()> {
         .stdout(predicate::str::contains("help"))
         .stdout(predicate::str::contains("version"));
 
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Ok(())
 }
@@ -50,7 +50,7 @@ fn test_help_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_version_serial() -> Result<()> {
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
         .arg("--version")
@@ -62,7 +62,7 @@ fn test_version_serial() -> Result<()> {
             env!("CARGO_PKG_VERSION")
         )));
 
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Ok(())
 }
@@ -70,7 +70,7 @@ fn test_version_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_server_not_running_serial() -> Result<()> {
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
         .arg("ping")
@@ -102,7 +102,7 @@ fn test_server_not_running_serial() -> Result<()> {
                     .or(predicate::str::contains("No connection could be made"))),
         );
 
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Ok(())
 }
@@ -110,7 +110,7 @@ fn test_server_not_running_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_server_serial() -> Result<()> {
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -166,7 +166,7 @@ fn test_server_serial() -> Result<()> {
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
 
     let _ = kill_homestar(homestar_proc, None);
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Ok(())
 }
@@ -175,7 +175,7 @@ fn test_server_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_workflow_run_serial() -> Result<()> {
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -235,7 +235,7 @@ fn test_workflow_run_serial() -> Result<()> {
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
 
     let _ = kill_homestar(homestar_proc, None);
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Ok(())
 }
@@ -244,7 +244,7 @@ fn test_workflow_run_serial() -> Result<()> {
 #[file_serial]
 #[cfg(not(windows))]
 fn test_daemon_serial() -> Result<()> {
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -276,7 +276,7 @@ fn test_daemon_serial() -> Result<()> {
         .stdout(predicate::str::contains("127.0.0.1"))
         .stdout(predicate::str::contains("pong"));
 
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
     let _ = kill_homestar_daemon();
 
     Ok(())
@@ -286,7 +286,7 @@ fn test_daemon_serial() -> Result<()> {
 #[file_serial]
 #[cfg(windows)]
 fn test_signal_kill_serial() -> Result<()> {
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -317,7 +317,7 @@ fn test_signal_kill_serial() -> Result<()> {
 
     Command::new(BIN.as_os_str()).arg("ping").assert().failure();
 
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Ok(())
 }
@@ -326,7 +326,7 @@ fn test_signal_kill_serial() -> Result<()> {
 #[file_serial]
 #[cfg(windows)]
 fn test_server_v4_serial() -> Result<()> {
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -362,7 +362,7 @@ fn test_server_v4_serial() -> Result<()> {
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
 
     let _ = kill_homestar(homestar_proc, None);
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Ok(())
 }

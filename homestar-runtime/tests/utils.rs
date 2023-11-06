@@ -82,6 +82,7 @@ pub(crate) fn stop_ipfs() -> Result<()> {
 }
 
 /// Stop all binaries.
+#[allow(dead_code)]
 pub(crate) fn stop_all_bins() -> Result<()> {
     let _ = stop_ipfs();
     let _ = stop_homestar();
