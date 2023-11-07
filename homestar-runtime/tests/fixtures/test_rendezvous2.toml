@@ -7,7 +7,7 @@ console_subscriber_port = 5586
 [node.network]
 metrics_port = 4036
 rpc_port = 9826
-websocket_port = 8026
+webserver_port = 8026
 listen_address = "/ip4/127.0.0.1/tcp/7001"
 announce_addresses = [
   "/ip4/127.0.0.1/tcp/7001/p2p/16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",

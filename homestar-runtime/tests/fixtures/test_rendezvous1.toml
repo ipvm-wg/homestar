@@ -5,9 +5,9 @@ console_subscriber_port = 5585
 [node]
 
 [node.network]
-metrics_port = 4035
-rpc_port = 9825
-websocket_port = 8025
+metrics_port = 4034
+rpc_port = 9824
+webserver_port = 8024
 listen_address = "/ip4/127.0.0.1/tcp/7000"
 enable_rendezvous_server = true
 enable_mdns = false
