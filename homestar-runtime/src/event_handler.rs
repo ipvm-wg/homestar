@@ -25,6 +25,7 @@ pub(crate) mod cache;
 pub mod channel;
 pub(crate) mod error;
 pub(crate) mod event;
+pub(crate) mod notification;
 pub(crate) mod swarm_event;
 pub(crate) use cache::{setup_cache, CacheValue};
 pub(crate) use error::RequestResponseError;

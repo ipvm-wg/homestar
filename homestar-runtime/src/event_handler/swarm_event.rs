@@ -8,6 +8,7 @@ use crate::{
     event_handler::{
         cache::{self, CacheData, CacheValue},
         event::QueryRecord,
+        notification::{self, EventNotificationTyp, SwarmNotification},
         Event, Handler, RequestResponseError,
     },
     libp2p::multiaddr::MultiaddrExt,
@@ -39,6 +40,7 @@ use libp2p::{
     swarm::{dial_opts::DialOpts, SwarmEvent},
     PeerId, StreamProtocol,
 };
+use maplit::btreemap;
 use std::{
     collections::{HashMap, HashSet},
     fmt,
@@ -711,9 +713,20 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         }
         SwarmEvent::NewListenAddr { address, .. } => {
             let local_peer = *event_handler.swarm.local_peer_id();
+
             info!(
-                "local node is listening on {}",
-                address.with(Protocol::P2p(local_peer))
+                peer_id = local_peer.to_string(),
+                "local node is listening on {}", address
+            );
+
+            #[cfg(feature = "websocket-notify")]
+            notification::emit_event(
+                event_handler.ws_evt_sender(),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::ListeningOn),
+                btreemap! {
+                    "peer_id" => local_peer.to_string(),
+                    "address" => address.to_string()
+                },
             );
         }
         SwarmEvent::IncomingConnection { .. } => {}
@@ -722,9 +735,27 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         } => {
             debug!(peer_id=peer_id.to_string(), endpoint=?endpoint, "peer connection established");
             // add peer to connected peers list
-            event_handler.connections.peers.insert(peer_id, endpoint);
+            event_handler
+                .connections
+                .peers
+                .insert(peer_id, endpoint.clone());
+
+            #[cfg(feature = "websocket-notify")]
+            notification::emit_event(
+                event_handler.ws_evt_sender(),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
+                btreemap! {
+                    "peer_id" => peer_id.to_string(),
+                    "address" => endpoint.get_remote_address().to_string()
+                },
+            );
         }
-        SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
+        SwarmEvent::ConnectionClosed {
+            peer_id,
+            cause,
+            endpoint,
+            ..
+        } => {
             debug!(
                 peer_id = peer_id.to_string(),
                 "peer connection closed, cause: {cause:?}"
@@ -753,6 +784,16 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     "removed peer from kademlia table"
                 );
             }
+
+            #[cfg(feature = "websocket-notify")]
+            notification::emit_event(
+                event_handler.ws_evt_sender(),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionClosed),
+                btreemap! {
+                    "peer_id" => peer_id.to_string(),
+                    "address" => endpoint.get_remote_address().to_string()
+                },
+            );
         }
         SwarmEvent::OutgoingConnectionError {
             connection_id,
@@ -764,7 +805,17 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 err=?error,
                 connection_id=?connection_id,
                 "outgoing connection error"
-            )
+            );
+
+            #[cfg(feature = "websocket-notify")]
+            notification::emit_event(
+                event_handler.ws_evt_sender(),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::OutgoingConnectionError),
+                btreemap! {
+                    "peer_id" => peer_id.map_or("Unknown peer".into(), |p| p.to_string()),
+                    "error" => error.to_string()
+                },
+            );
         }
         SwarmEvent::IncomingConnectionError {
             connection_id,
@@ -778,7 +829,16 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 local_address=local_addr.to_string(),
                 remote_address=send_back_addr.to_string(),
                 "incoming connection error"
-            )
+            );
+
+            #[cfg(feature = "websocket-notify")]
+            notification::emit_event(
+                event_handler.ws_evt_sender(),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::IncomingConnectionError),
+                btreemap! {
+                    "error" => error.to_string()
+                },
+            );
         }
         SwarmEvent::ListenerError { listener_id, error } => {
             error!(err=?error, listener_id=?listener_id, "listener error")
