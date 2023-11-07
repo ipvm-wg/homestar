@@ -31,14 +31,14 @@ fn test_connection_notifications_serial() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_network1.toml")
+        .arg("tests/fixtures/test_notification1.toml")
         .arg("--db")
         .arg("homestar1.db")
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
-    let ws_port = 8020;
+    let ws_port = 8022;
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), ws_port);
     let result = retry(Exponential::from_millis(1000).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
@@ -68,6 +68,8 @@ fn test_connection_notifications_serial() -> Result<()> {
             .await
             .unwrap();
 
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
         let homestar_proc2 = Command::new(BIN.as_os_str())
             .env(
                 "RUST_LOG",
@@ -75,7 +77,7 @@ fn test_connection_notifications_serial() -> Result<()> {
             )
             .arg("start")
             .arg("-c")
-            .arg("tests/fixtures/test_network2.toml")
+            .arg("tests/fixtures/test_notification2.toml")
             .arg("--db")
             .arg("homestar2.db")
             .stdout(Stdio::piped())
