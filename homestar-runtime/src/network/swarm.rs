@@ -20,14 +20,13 @@ use libp2p::{
     kad::{
         self,
         record::store::{MemoryStore, MemoryStoreConfig},
-        Kademlia, KademliaConfig, KademliaEvent,
     },
     mdns,
     multiaddr::Protocol,
     noise, rendezvous,
     request_response::{self, ProtocolSupport},
-    swarm::{behaviour::toggle::Toggle, NetworkBehaviour, Swarm, SwarmBuilder},
-    tcp, yamux, StreamProtocol, Transport,
+    swarm::{self, behaviour::toggle::Toggle, NetworkBehaviour, Swarm},
+    tcp, yamux, PeerId, StreamProtocol, Transport,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -41,7 +40,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         .network
         .keypair_config
         .keypair()
-        .with_context(|| "Failed to generate/import keypair for libp2p".to_string())?;
+        .with_context(|| "failed to generate/import keypair for libp2p".to_string())?;
 
     let peer_id = keypair.public().to_peer_id();
     info!(peer_id = peer_id.to_string(), "local peer ID generated");
@@ -53,7 +52,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         .timeout(settings.network.transport_connection_timeout)
         .boxed();
 
-    let mut swarm = SwarmBuilder::with_tokio_executor(
+    let mut swarm = Swarm::new(
         transport,
         ComposedBehaviour {
             gossipsub: Toggle::from(if settings.network.enable_pubsub {
@@ -61,7 +60,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
             } else {
                 None
             }),
-            kademlia: Kademlia::with_config(
+            kademlia: kad::Behaviour::with_config(
                 peer_id,
                 MemoryStore::with_config(
                     peer_id,
@@ -74,7 +73,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
                     },
                 ),
                 {
-                    let mut cfg = KademliaConfig::default();
+                    let mut cfg = kad::Config::default();
                     cfg.set_max_packet_size(10 * 1024 * 1024);
                     cfg
                 },
@@ -98,14 +97,17 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
             } else {
                 None
             }),
-            rendezvous_client: Toggle::from(if settings.network.enable_rendezvous {
+            rendezvous_client: Toggle::from(if settings.network.enable_rendezvous_client {
                 Some(rendezvous::client::Behaviour::new(keypair.clone()))
             } else {
                 None
             }),
-            rendezvous_server: Toggle::from(if settings.network.enable_rendezvous {
+            rendezvous_server: Toggle::from(if settings.network.enable_rendezvous_server {
                 Some(rendezvous::server::Behaviour::new(
-                    rendezvous::server::Config::default(),
+                    rendezvous::server::Config::with_min_ttl(
+                        rendezvous::server::Config::default(),
+                        1,
+                    ),
                 ))
             } else {
                 None
@@ -116,8 +118,8 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
             ),
         },
         peer_id,
-    )
-    .build();
+        swarm::Config::with_tokio_executor(),
+    );
 
     init(&mut swarm, &settings.network)?;
 
@@ -158,23 +160,27 @@ pub(crate) fn init(
     }
 
     // Dial nodes specified in settings. Failure here shouldn't halt node startup.
-    for addr in &settings.node_addresses {
-        let _ = swarm
-            .dial(addr.clone())
-            // log dial failure and continue
-            .map_err(|e| warn!(err=?e, "failed to dial configured node"));
+    for (index, addr) in settings.node_addresses.iter().enumerate() {
+        if index < settings.max_connected_peers as usize {
+            let _ = swarm
+                .dial(addr.clone())
+                // log dial failure and continue
+                .map_err(|e| warn!(err=?e, "failed to dial configured node"));
 
-        // add node to kademlia routing table
-        if let Some(Protocol::P2p(peer_id)) =
-            addr.iter().find(|proto| matches!(proto, Protocol::P2p(_)))
-        {
-            info!(addr=?addr, "added configured node to kademlia routing table");
-            swarm
-                .behaviour_mut()
-                .kademlia
-                .add_address(&peer_id, addr.clone());
+            // add node to kademlia routing table
+            if let Some(Protocol::P2p(peer_id)) =
+                addr.iter().find(|proto| matches!(proto, Protocol::P2p(_)))
+            {
+                info!(addr=?addr, "added configured node to kademlia routing table");
+                swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .add_address(&peer_id, addr.clone());
+            } else {
+                warn!(addr=?addr, err="configured node address did not include a peer ID", "node not added to kademlia routing table")
+            }
         } else {
-            warn!(addr=?addr, err="configured node address did not include a peer ID", "node not added to kademlia routing table")
+            warn!(addr=?addr, "address not dialed because node addresses count exceeds max connected peers configuration")
         }
     }
 
@@ -186,6 +192,22 @@ pub(crate) fn init(
     }
 
     Ok(())
+}
+
+/// Discovery information for peers discovered through rendezvous.
+#[derive(Debug, Clone)]
+pub(crate) struct PeerDiscoveryInfo {
+    pub(crate) rendezvous_point: PeerId,
+}
+
+impl PeerDiscoveryInfo {
+    /// Create a new [PeerDiscoveryInfo] with the rendezvous point [PeerId] where
+    /// a peer was discovered.
+    ///
+    /// [PeerId]: libp2p::PeerId
+    pub(crate) fn new(rendezvous_point: PeerId) -> Self {
+        Self { rendezvous_point }
+    }
 }
 
 /// Key data structure for [request_response::Event] messages.
@@ -230,8 +252,8 @@ impl fmt::Display for CapsuleTag {
 pub(crate) enum ComposedEvent {
     /// [gossipsub::Event] event.
     Gossipsub(Box<gossipsub::Event>),
-    /// [KademliaEvent] event.
-    Kademlia(KademliaEvent),
+    /// [kad::Event] event.
+    Kademlia(kad::Event),
     /// [request_response::Event] event.
     RequestResponse(request_response::Event<RequestResponseKey, Vec<u8>>),
     /// [mdns::Event] event.
@@ -258,8 +280,8 @@ pub(crate) enum TopicMessage {
 pub(crate) struct ComposedBehaviour {
     /// [gossipsub::Behaviour] behaviour.
     pub(crate) gossipsub: Toggle<gossipsub::Behaviour>,
-    /// In-memory [kademlia: Kademlia] behaviour.
-    pub(crate) kademlia: Kademlia<MemoryStore>,
+    /// In-memory [kademlia: kad::Behaviour] behaviour.
+    pub(crate) kademlia: kad::Behaviour<MemoryStore>,
     /// [request_response::Behaviour] CBOR-flavored behaviour.
     pub(crate) request_response: request_response::cbor::Behaviour<RequestResponseKey, Vec<u8>>,
     /// [mdns::tokio::Behaviour] behaviour.
@@ -319,8 +341,8 @@ impl From<gossipsub::Event> for ComposedEvent {
     }
 }
 
-impl From<KademliaEvent> for ComposedEvent {
-    fn from(event: KademliaEvent) -> Self {
+impl From<kad::Event> for ComposedEvent {
+    fn from(event: kad::Event) -> Self {
         ComposedEvent::Kademlia(event)
     }
 }

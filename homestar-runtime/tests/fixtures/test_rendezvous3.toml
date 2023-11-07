@@ -1,0 +1,19 @@
+[monitoring]
+process_collector_interval = 500
+console_subscriber_port = 5587
+
+[node]
+
+[node.network]
+metrics_port = 4037
+rpc_port = 9827
+webserver_port = 8027
+listen_address = "/ip4/127.0.0.1/tcp/7002"
+node_addresses = [
+  "/ip4/127.0.0.1/tcp/7000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+]
+enable_mdns = false
+
+# Peer ID 12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5
+[node.network.keypair_config]
+existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }

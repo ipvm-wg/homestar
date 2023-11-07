@@ -1,19 +1,21 @@
 [monitoring]
 process_collector_interval = 500
-console_subscriber_port = 5581
+console_subscriber_port = 5586
 
 [node]
 
 [node.network]
-metrics_port = 4031
-rpc_port = 9821
-webserver_port = 8021
+metrics_port = 4036
+rpc_port = 9826
+webserver_port = 8026
 listen_address = "/ip4/127.0.0.1/tcp/7001"
+announce_addresses = [
+  "/ip4/127.0.0.1/tcp/7001/p2p/16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+]
 node_addresses = [
   "/ip4/127.0.0.1/tcp/7000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
 ]
 enable_mdns = false
-enable_rendezvous_client = false
 
 # Peer ID 16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc
 [node.network.keypair_config]

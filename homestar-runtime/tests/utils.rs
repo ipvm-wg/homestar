@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 #[cfg(not(windows))]
 use assert_cmd::prelude::*;
+use chrono::{DateTime, FixedOffset};
 #[cfg(not(windows))]
 use nix::{
     sys::signal::{self, Signal},
@@ -12,6 +13,7 @@ use retry::{delay::Fixed, retry};
 #[cfg(feature = "ipfs")]
 use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream};
 use std::{
+    future::Future,
     path::PathBuf,
     process::{Child, Command, Stdio},
     time::Duration,
@@ -19,6 +21,7 @@ use std::{
 #[cfg(not(windows))]
 use sysinfo::PidExt;
 use sysinfo::{ProcessExt, SystemExt};
+use tokio::time::{timeout, Timeout};
 use wait_timeout::ChildExt;
 
 /// Binary name, which is different than the crate name.
@@ -80,6 +83,7 @@ pub(crate) fn stop_ipfs() -> Result<()> {
 }
 
 /// Stop all binaries.
+#[allow(dead_code)]
 pub(crate) fn stop_all_bins() -> Result<()> {
     let _ = stop_ipfs();
     let _ = stop_homestar();
@@ -97,14 +101,59 @@ pub(crate) fn retrieve_output(proc: Child) -> String {
 pub(crate) fn check_lines_for(output: String, predicates: Vec<&str>) -> bool {
     output
         .split('\n')
-        .map(|line| {
-            // Line contains all predicates
-            predicates
-                .iter()
-                .map(|pred| predicate::str::contains(*pred).eval(line))
-                .all(|curr| curr)
-        })
+        .map(|line| line_contains(line, &predicates))
         .any(|curr| curr)
+}
+
+pub(crate) fn count_lines_where(output: String, predicates: Vec<&str>) -> i32 {
+    output.split('\n').fold(0, |count, line| {
+        if line_contains(line, &predicates) {
+            count + 1
+        } else {
+            count
+        }
+    })
+}
+
+/// Extract timestamps for process output lines with matching predicates
+#[allow(dead_code)]
+pub(crate) fn extract_timestamps_where(
+    output: String,
+    predicates: Vec<&str>,
+) -> Vec<DateTime<FixedOffset>> {
+    output.split("\n").fold(vec![], |mut timestamps, line| {
+        if line_contains(line, &predicates) {
+            match extract_label(&line, "ts").and_then(|val| DateTime::parse_from_rfc3339(val).ok())
+            {
+                Some(datetime) => {
+                    timestamps.push(datetime);
+                    timestamps
+                }
+                None => {
+                    println!("Encountered a log entry that was missing a timestamp label: {line}");
+                    timestamps
+                }
+            }
+        } else {
+            timestamps
+        }
+    })
+}
+
+/// Check process output line for all predicates
+fn line_contains(line: &str, predicates: &Vec<&str>) -> bool {
+    predicates
+        .iter()
+        .map(|pred| predicate::str::contains(*pred).eval(line))
+        .fold(true, |acc, curr| acc && curr)
+}
+
+/// Extract label value from process output line
+#[allow(dead_code)]
+fn extract_label<'a>(line: &'a str, key: &str) -> Option<&'a str> {
+    line.split(' ')
+        .find(|label| predicate::str::contains(format!("{key}=")).eval(label))
+        .and_then(|label| label.split('=').next_back())
 }
 
 /// Wait for process to exit or kill after timeout.
@@ -171,3 +220,28 @@ pub(crate) fn kill_homestar_daemon() -> Result<()> {
 
     Ok(())
 }
+
+/// Helper extension trait which allows to limit execution time for the futures.
+/// It is helpful in tests to ensure that no future will ever get stuck forever.
+pub(crate) trait TimeoutFutureExt<T>: Future<Output = T> + Sized {
+    /// Returns a reasonable value that can be used as a future timeout with a certain
+    /// degree of confidence that timeout won't be triggered by the test specifics.
+    fn default_timeout() -> Duration {
+        // If some future wasn't done in 60 seconds, it's either a poorly written test
+        // or (most likely) a bug related to some future never actually being completed.
+        const TIMEOUT_SECONDS: u64 = 60;
+        Duration::from_secs(TIMEOUT_SECONDS)
+    }
+
+    /// Adds a fixed timeout to the future.
+    fn with_default_timeout(self) -> Timeout<Self> {
+        self.with_timeout(Self::default_timeout())
+    }
+
+    /// Adds a custom timeout to the future.
+    fn with_timeout(self, timeout_value: Duration) -> Timeout<Self> {
+        timeout(timeout_value, self)
+    }
+}
+
+impl<T, U> TimeoutFutureExt<T> for U where U: Future<Output = T> + Sized {}

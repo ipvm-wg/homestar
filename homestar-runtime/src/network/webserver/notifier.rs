@@ -78,7 +78,7 @@ pub(crate) struct Message {
 }
 
 impl Message {
-    /// TODO
+    /// Create a new [Message].
     pub(crate) fn new(header: Header, payload: Vec<u8>) -> Self {
         Self { header, payload }
     }
@@ -90,6 +90,7 @@ impl Message {
     }
 
     /// TODO
+    #[allow(dead_code)]
     pub(crate) fn payload(&self) -> &[u8] {
         &self.payload
     }
