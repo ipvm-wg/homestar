@@ -11,6 +11,9 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "websocket-notify")]
+mod notification;
+
 #[allow(dead_code)]
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
@@ -65,7 +68,8 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
         stdout,
         vec![
             "local node is listening",
-            "/ip4/127.0.0.1/tcp/7000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+            "/ip4/127.0.0.1/tcp/7000",
+            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
         ],
     );
 

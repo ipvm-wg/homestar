@@ -106,6 +106,7 @@ libp2p = { version = "0.52", default-features = false, features = [
 libsqlite3-sys = { version = "0.26", default-features = false, features = [
   "bundled",
 ] }
+maplit = "1.0"
 metrics = { version = "0.21", default-features = false }
 metrics-exporter-prometheus = { version = "0.12.1", default-features = false, features = [
   "http-listener",
@@ -194,7 +195,6 @@ homestar_runtime_proc_macro = { path = "src/test_utils/proc_macro", package = "h
 jsonrpsee = { version = "0.20", default-features = false, features = [
   "client",
 ] }
-maplit = "1.0"
 nix = { version = "0.27", features = ["signal"] }
 predicates = { version = "3.0", default-features = false }
 prometheus-parse = "0.2.4"
