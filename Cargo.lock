@@ -2200,7 +2200,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6fb8d784f27acf97159b40fc4db5ecd8aa23b9ad5ef69cdd136d3bc80665f0c0"
 dependencies = [
  "fallible-iterator 0.3.0",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "stable_deref_trait",
 ]
 
@@ -2385,7 +2385,7 @@ dependencies = [
  "enum-assoc",
  "futures",
  "generic-array 1.0.0",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "json",
  "libipld",
  "libsqlite3-sys",
@@ -2452,7 +2452,7 @@ dependencies = [
  "http",
  "http-serde",
  "humantime",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "ipfs-api",
  "ipfs-api-backend-hyper",
  "itertools 0.11.0",
@@ -2784,9 +2784,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.0.2"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8adf3ddd720272c6ea8bf59463c04e0f93d0bbf7c5439b691bca2987e0270897"
+checksum = "d530e1a18b1cb4c484e6e34556a0d948706958449fca0cab753d649f2bce3d1f"
 dependencies = [
  "equivalent",
  "hashbrown 0.14.1",
@@ -4290,7 +4290,7 @@ checksum = "9cf5f9dd3933bd50a9e1f149ec995f39ae2c496d31fd772c1fd45ebc27e902b0"
 dependencies = [
  "crc32fast",
  "hashbrown 0.14.1",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "memchr",
 ]
 
@@ -5512,7 +5512,7 @@ dependencies = [
  "chrono",
  "hex",
  "indexmap 1.9.3",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "serde",
  "serde_json",
  "serde_with_macros",
@@ -6326,7 +6326,7 @@ version = "0.19.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "serde",
  "serde_spanned",
  "toml_datetime",
@@ -7031,7 +7031,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14abc161bfda5b519aa229758b68f2a52b45a12b993808665c857d1a9a00223c"
 dependencies = [
  "anyhow",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "serde",
  "serde_derive",
  "serde_json",
@@ -7056,7 +7056,7 @@ version = "0.112.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e986b010f47fcce49cf8ea5d5f9e5d2737832f12b53ae8ae785bbe895d0877bf"
 dependencies = [
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "semver",
 ]
 
@@ -7066,7 +7066,7 @@ version = "0.113.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "286049849b5a5bd09a8773171be96824afabffc7cc3df6caaf33a38db6cd07ae"
 dependencies = [
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "semver",
 ]
 
@@ -7076,7 +7076,7 @@ version = "0.115.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e06c0641a4add879ba71ccb3a1e4278fd546f76f1eafb21d8f7b07733b547cd5"
 dependencies = [
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "semver",
 ]
 
@@ -7134,7 +7134,7 @@ dependencies = [
  "cfg-if",
  "encoding_rs",
  "fxprof-processed-profile",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "libc",
  "log",
  "object 0.32.1",
@@ -7310,7 +7310,7 @@ dependencies = [
  "anyhow",
  "cranelift-entity 0.100.0",
  "gimli 0.28.0",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "log",
  "object 0.32.1",
  "serde",
@@ -7481,7 +7481,7 @@ dependencies = [
  "cc",
  "cfg-if",
  "encoding_rs",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "libc",
  "log",
  "mach",
@@ -7590,7 +7590,7 @@ checksum = "62003d48822f89cc393e93643366ddbee1766779c0874353b8ba2ede4679fbf9"
 dependencies = [
  "anyhow",
  "heck",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "wit-parser 0.11.1",
 ]
 
@@ -7957,7 +7957,7 @@ checksum = "af872ef43ecb73cc49c7bd2dd19ef9117168e183c78cf70000dca0e14b6a5473"
 dependencies = [
  "anyhow",
  "bitflags 2.4.0",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "log",
  "serde",
  "serde_json",
@@ -7975,7 +7975,7 @@ checksum = "e87488b57a08e2cbbd076b325acbe7f8666965af174d69d5929cd373bd54547f"
 dependencies = [
  "anyhow",
  "bitflags 2.4.0",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "log",
  "serde",
  "serde_derive",
@@ -8010,7 +8010,7 @@ checksum = "1dcd022610436a1873e60bfdd9b407763f2404adf7d1cb57912c7ae4059e57a5"
 dependencies = [
  "anyhow",
  "id-arena",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "log",
  "pulldown-cmark 0.9.3",
  "semver",
@@ -8028,7 +8028,7 @@ checksum = "f6ace9943d89bbf3dbbc71b966da0e7302057b311f36a4ac3d65ddfef17b52cf"
 dependencies = [
  "anyhow",
  "id-arena",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "log",
  "semver",
  "serde",
