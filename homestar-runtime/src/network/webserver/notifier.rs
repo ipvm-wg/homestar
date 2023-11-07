@@ -2,8 +2,7 @@
 
 use anyhow::Result;
 use faststr::FastStr;
-use homestar_core::{ipld::DagJson, workflow::Receipt};
-use libipld::{ipld, Cid, Ipld};
+use libipld::Cid;
 use std::{fmt, sync::Arc};
 use tokio::sync::broadcast;
 
@@ -93,47 +92,5 @@ impl Message {
     #[allow(dead_code)]
     pub(crate) fn payload(&self) -> &[u8] {
         &self.payload
-    }
-}
-
-/// A [Receipt] that is sent out *just* for websocket notifications.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct NotifyReceipt(Ipld);
-
-impl NotifyReceipt {
-    /// TODO
-    #[allow(dead_code)]
-    pub(crate) fn inner(&self) -> &Ipld {
-        &self.0
-    }
-
-    /// TODO
-    #[allow(dead_code)]
-    pub(crate) fn into_inner(self) -> Ipld {
-        self.0.to_owned()
-    }
-
-    pub(crate) fn with(receipt: Receipt<Ipld>, cid: Cid, metadata: Option<Ipld>) -> Self {
-        let receipt: Ipld = receipt.into();
-        let data = ipld!({
-            "receipt": receipt,
-            "metadata": metadata.as_ref().map(|m| m.to_owned()).map_or(Ipld::Null, |m| m),
-            "receipt_cid": cid,
-        });
-        NotifyReceipt(data)
-    }
-}
-
-impl DagJson for NotifyReceipt where Ipld: From<NotifyReceipt> {}
-
-impl From<NotifyReceipt> for Ipld {
-    fn from(receipt: NotifyReceipt) -> Self {
-        receipt.0
-    }
-}
-
-impl From<Ipld> for NotifyReceipt {
-    fn from(ipld: Ipld) -> Self {
-        NotifyReceipt(ipld)
     }
 }

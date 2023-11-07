@@ -235,7 +235,7 @@ fn port_available(host: IpAddr, port: u16) -> bool {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::settings::Settings;
+    use crate::{event_handler::notification::ReceiptNotification, settings::Settings};
     use homestar_core::test_utils;
     #[cfg(feature = "websocket-notify")]
     use homestar_core::{
@@ -248,7 +248,7 @@ mod test {
     use jsonrpsee::types::error::ErrorCode;
     use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
     #[cfg(feature = "websocket-notify")]
-    use notifier::{self, Header, NotifyReceipt};
+    use notifier::{self, Header};
     use serial_test::file_serial;
     use tokio::sync::mpsc;
 
@@ -362,7 +362,7 @@ mod test {
 
         // send any bytes through (Vec<u8>)
         let (invocation_receipt, runtime_receipt) = crate::test_utils::receipt::receipts();
-        let receipt = NotifyReceipt::with(invocation_receipt, runtime_receipt.cid(), None);
+        let receipt = ReceiptNotification::with(invocation_receipt, runtime_receipt.cid(), None);
         server
             .evt_notifier
             .notify(notifier::Message::new(
@@ -402,11 +402,11 @@ mod test {
             .unwrap();
 
         let msg1 = sub.next().await.unwrap().unwrap();
-        let returned1: NotifyReceipt = DagJson::from_json(&msg1).unwrap();
+        let returned1: ReceiptNotification = DagJson::from_json(&msg1).unwrap();
         assert_eq!(returned1, receipt);
 
         let msg2 = sub.next().await.unwrap().unwrap();
-        let _returned1: NotifyReceipt = DagJson::from_json(&msg2).unwrap();
+        let _returned1: ReceiptNotification = DagJson::from_json(&msg2).unwrap();
 
         assert!(sub.unsubscribe().await.is_ok());
 

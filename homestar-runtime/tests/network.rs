@@ -11,6 +11,7 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "websocket-notify")]
 mod notification;
 
 #[allow(dead_code)]

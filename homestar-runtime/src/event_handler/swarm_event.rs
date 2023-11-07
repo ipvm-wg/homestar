@@ -720,7 +720,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             );
 
             #[cfg(feature = "websocket-notify")]
-            notification::send(
+            notification::emit_event(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ListeningOn),
                 btreemap! {
@@ -741,7 +741,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 .insert(peer_id, endpoint.clone());
 
             #[cfg(feature = "websocket-notify")]
-            notification::send(
+            notification::emit_event(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
                 btreemap! {
@@ -786,7 +786,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             }
 
             #[cfg(feature = "websocket-notify")]
-            notification::send(
+            notification::emit_event(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionClosed),
                 btreemap! {
@@ -808,7 +808,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             );
 
             #[cfg(feature = "websocket-notify")]
-            notification::send(
+            notification::emit_event(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::OutgoingConnectionError),
                 btreemap! {
@@ -832,7 +832,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             );
 
             #[cfg(feature = "websocket-notify")]
-            notification::send(
+            notification::emit_event(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::IncomingConnectionError),
                 btreemap! {

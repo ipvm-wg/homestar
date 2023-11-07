@@ -1,24 +1,69 @@
-use crate::network::webserver::{
-    notifier::{self, Header, Message, Notifier, SubscriptionTyp},
-    SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+use crate::{
+    network::webserver::{
+        notifier::{self, Header, Message, Notifier, SubscriptionTyp},
+        SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+    },
+    Receipt,
 };
 use anyhow::anyhow;
 use chrono::prelude::Utc;
-use homestar_core::ipld::DagJson;
+use homestar_core::{
+    ipld::DagJson,
+    workflow::{
+        receipt::metadata::{WORKFLOW_KEY, WORKFLOW_NAME_KEY},
+        Receipt as InvocationReceipt,
+    },
+};
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, str::FromStr};
-use tracing::warn;
+use tracing::{info, warn};
 
+pub(crate) mod receipt;
 pub(crate) mod swarm;
+pub(crate) use receipt::ReceiptNotification;
 pub(crate) use swarm::SwarmNotification;
 
 const TYPE_KEY: &str = "type";
 const DATA_KEY: &str = "data";
 const TIMESTAMP_KEY: &str = "timestamp";
 
-/// Send notification as bytes.
-pub(crate) fn send(
+/// Send receipt notification as bytes.
+pub(crate) fn emit_receipt(
+    notifier: Notifier<notifier::Message>,
+    receipt: Receipt,
+    metadata: Option<Ipld>,
+) {
+    let invocation_receipt = InvocationReceipt::from(&receipt);
+    let receipt_cid = receipt.cid();
+    let notification = ReceiptNotification::with(invocation_receipt, receipt_cid, metadata.clone());
+
+    if let Ok(json) = notification.to_json() {
+        info!(
+            cid = receipt_cid.to_string(),
+            "Sending receipt to websocket"
+        );
+        if let Some(ipld) = metadata {
+            match (ipld.get(WORKFLOW_KEY), ipld.get(WORKFLOW_NAME_KEY)) {
+                (Ok(Ipld::Link(cid)), Ok(Ipld::String(name))) => {
+                    let header =
+                        Header::new(SubscriptionTyp::Cid(*cid), Some((name.to_string()).into()));
+                    let _ = notifier.notify(Message::new(header, json));
+                }
+                (Ok(Ipld::Link(cid)), Err(_err)) => {
+                    let header = Header::new(SubscriptionTyp::Cid(*cid), None);
+                    let _ = notifier.notify(Message::new(header, json));
+                }
+                _ => (),
+            }
+        }
+    } else {
+        warn!("Unable to serialize receipt as bytes: {receipt:?}");
+    }
+}
+
+/// Send event notification as bytes.
+pub(crate) fn emit_event(
     notifier: Notifier<notifier::Message>,
     ty: EventNotificationTyp,
     data: BTreeMap<&str, String>,
