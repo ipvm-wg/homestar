@@ -22,6 +22,7 @@ use homestar_core::{ipld::DagJson, workflow::Receipt as InvocationReceipt};
 use libipld::{Cid, Ipld};
 use libp2p::{
     kad::{record::Key, Quorum, Record},
+    rendezvous::Namespace,
     PeerId,
 };
 use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
@@ -106,7 +107,13 @@ pub(crate) enum Event {
     ProvideRecord(Cid, Option<P2PSender>, CapsuleTag),
     /// Found Providers/[PeerId]s on the DHT.
     Providers(Result<(HashSet<PeerId>, RequestResponseKey, P2PSender)>),
+    /// Register with a rendezvous node.
+    RegisterPeer(PeerId),
+    /// Discover peers from a rendezvous node.
+    DiscoverPeers(PeerId),
 }
+
+const RENDEZVOUS_NAMESPACE: &str = "homestar";
 
 impl Event {
     async fn handle_info<DB>(self, event_handler: &mut EventHandler<DB>) -> Result<()>
@@ -163,6 +170,44 @@ impl Event {
             }
             Event::Providers(Err(err)) => {
                 error!("failed to find providers: {}", err);
+            }
+            Event::RegisterPeer(peer_id) => {
+                if let Some(rendezvous_client) = event_handler
+                    .swarm
+                    .behaviour_mut()
+                    .rendezvous_client
+                    .as_mut()
+                {
+                    // register self with remote
+                    if let Err(err) = rendezvous_client.register(
+                        Namespace::from_static(RENDEZVOUS_NAMESPACE),
+                        peer_id,
+                        Some(event_handler.rendezvous.registration_ttl.as_secs()),
+                    ) {
+                        warn!(
+                            peer_id = peer_id.to_string(),
+                            err = format!("{err}"),
+                            "failed to register with rendezvous peer"
+                        )
+                    }
+                }
+            }
+            Event::DiscoverPeers(peer_id) => {
+                if let Some(rendezvous_client) = event_handler
+                    .swarm
+                    .behaviour_mut()
+                    .rendezvous_client
+                    .as_mut()
+                {
+                    let cookie = event_handler.rendezvous.cookies.get(&peer_id).cloned();
+
+                    rendezvous_client.discover(
+                        Some(Namespace::from_static(RENDEZVOUS_NAMESPACE)),
+                        cookie,
+                        None,
+                        peer_id,
+                    );
+                }
             }
             _ => {}
         }

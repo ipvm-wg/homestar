@@ -9,7 +9,8 @@ console_subscriber_port = 5561
 rpc_port = 9801
 websocket_port = 8001
 listen_address = "/ip4/0.0.0.0/tcp/0"
-enable_rendezvous = false
+enable_rendezvous_client = false
 
+# Peer ID 16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc
 [node.network.keypair_config]
 existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }

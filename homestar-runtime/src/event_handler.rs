@@ -6,7 +6,7 @@ use crate::network::ws;
 use crate::network::IpfsCli;
 use crate::{
     db::Database,
-    network::swarm::{ComposedBehaviour, RequestResponseKey},
+    network::swarm::{ComposedBehaviour, PeerDiscoveryInfo, RequestResponseKey},
     settings,
 };
 use anyhow::Result;
@@ -16,14 +16,17 @@ use libp2p::{
     core::ConnectedPoint, futures::StreamExt, kad::QueryId, rendezvous::Cookie,
     request_response::RequestId, swarm::Swarm, PeerId,
 };
+use moka::future::Cache;
 use std::{sync::Arc, time::Duration};
 use swarm_event::ResponseEvent;
-use tokio::select;
+use tokio::{runtime::Handle, select};
 
+pub(crate) mod cache;
 pub mod channel;
 pub(crate) mod error;
 pub(crate) mod event;
 pub(crate) mod swarm_event;
+pub(crate) use cache::{setup_cache, CacheValue};
 pub(crate) use error::RequestResponseError;
 pub(crate) use event::Event;
 
@@ -54,17 +57,19 @@ pub(crate) struct EventHandler<DB: Database> {
     p2p_provider_timeout: Duration,
     db: DB,
     swarm: Swarm<ComposedBehaviour>,
+    cache: Arc<Cache<String, CacheValue>>,
     sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
     receiver: channel::AsyncBoundedChannelReceiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
-    connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
+    connections: Connections,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
-    rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
+    rendezvous: Rendezvous,
     pubsub_enabled: bool,
     ws_msg_sender: ws::Notifier,
     node_addresses: Vec<libp2p::Multiaddr>,
     announce_addresses: Vec<libp2p::Multiaddr>,
     external_address_limit: u32,
+    poll_cache_interval: Duration,
 }
 
 /// Event loop handler for [libp2p] network events and commands.
@@ -76,16 +81,32 @@ pub(crate) struct EventHandler<DB: Database> {
     p2p_provider_timeout: Duration,
     db: DB,
     swarm: Swarm<ComposedBehaviour>,
+    cache: Cache<String, CacheValue>,
     sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
     receiver: channel::AsyncBoundedChannelReceiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
-    connected_peers: FnvHashMap<PeerId, ConnectedPoint>,
+    connections: Connections,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
-    rendezvous_cookies: FnvHashMap<PeerId, Cookie>,
+    rendezvous: Rendezvous,
     pubsub_enabled: bool,
     node_addresses: Vec<libp2p::Multiaddr>,
     announce_addresses: Vec<libp2p::Multiaddr>,
     external_address_limit: u32,
+    poll_cache_interval: Duration,
+}
+
+/// Rendezvous protocol configurations and state
+struct Rendezvous {
+    registration_ttl: Duration,
+    discovery_interval: Duration,
+    discovered_peers: FnvHashMap<PeerId, PeerDiscoveryInfo>,
+    cookies: FnvHashMap<PeerId, Cookie>,
+}
+
+// Connected peers configuration and state
+struct Connections {
+    peers: FnvHashMap<PeerId, ConnectedPoint>,
+    max_peers: u32,
 }
 
 impl<DB> EventHandler<DB>
@@ -110,23 +131,34 @@ where
         ws_msg_sender: ws::Notifier,
     ) -> Self {
         let (sender, receiver) = Self::setup_channel(settings);
+        let sender = Arc::new(sender);
         Self {
             receipt_quorum: settings.network.receipt_quorum,
             workflow_quorum: settings.network.workflow_quorum,
             p2p_provider_timeout: settings.network.p2p_provider_timeout,
             db,
             swarm,
-            sender: Arc::new(sender),
+            cache: Arc::new(setup_cache(sender.clone())),
+            sender,
             receiver,
             query_senders: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
-            connected_peers: FnvHashMap::default(),
-            rendezvous_cookies: FnvHashMap::default(),
+            connections: Connections {
+                peers: FnvHashMap::default(),
+                max_peers: settings.network.max_connected_peers,
+            },
+            rendezvous: Rendezvous {
+                registration_ttl: settings.network.rendezvous_registration_ttl,
+                discovery_interval: settings.network.rendezvous_discovery_interval,
+                discovered_peers: FnvHashMap::default(),
+                cookies: FnvHashMap::default(),
+            },
             pubsub_enabled: settings.network.enable_pubsub,
             ws_msg_sender,
             node_addresses: settings.network.node_addresses.clone(),
             announce_addresses: settings.network.announce_addresses.clone(),
             external_address_limit: settings.network.max_announce_addresses,
+            poll_cache_interval: settings.network.poll_cache_interval,
         }
     }
 
@@ -134,22 +166,33 @@ where
     #[cfg(not(feature = "websocket-server"))]
     pub(crate) fn new(swarm: Swarm<ComposedBehaviour>, db: DB, settings: &settings::Node) -> Self {
         let (sender, receiver) = Self::setup_channel(settings);
+        let sender = Arc::new(sender);
         Self {
             receipt_quorum: settings.network.receipt_quorum,
             workflow_quorum: settings.network.workflow_quorum,
             p2p_provider_timeout: settings.network.p2p_provider_timeout,
             db,
             swarm,
-            sender: Arc::new(sender),
+            cache: Arc::new(setup_cache(sender.clone())),
+            sender,
             receiver,
             query_senders: FnvHashMap::default(),
-            connected_peers: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
-            rendezvous_cookies: FnvHashMap::default(),
+            connections: Connections {
+                peers: FnvHashMap::default(),
+                max_peers: settings.network.max_connected_peers,
+            },
+            rendezvous: Rendezvous {
+                registration_ttl: settings.network.rendezvous_registration_ttl,
+                discovery_interval: settings.network.rendezvous_discovery_interval,
+                discovered_peers: FnvHashMap::default(),
+                cookies: FnvHashMap::default(),
+            },
             pubsub_enabled: settings.network.enable_pubsub,
             node_addresses: settings.network.node_addresses.clone(),
             announce_addresses: settings.network.announce_addresses.clone(),
             external_address_limit: settings.network.max_announce_addresses,
+            poll_cache_interval: settings.network.poll_cache_interval,
         }
     }
 
@@ -178,6 +221,9 @@ where
     /// [events]: libp2p::swarm::SwarmEvent
     #[cfg(not(feature = "ipfs"))]
     pub(crate) async fn start(mut self) -> Result<()> {
+        let handle = Handle::current();
+        handle.spawn(poll_cache(self.cache.clone()));
+
         loop {
             select! {
                 runtime_event = self.receiver.recv_async() => {
@@ -189,7 +235,6 @@ where
                      swarm_event.handle_event(&mut self).await;
 
                 }
-
             }
         }
     }
@@ -198,6 +243,9 @@ where
     /// [events]: libp2p::swarm::SwarmEvent
     #[cfg(feature = "ipfs")]
     pub(crate) async fn start(mut self, ipfs: IpfsCli) -> Result<()> {
+        let handle = Handle::current();
+        handle.spawn(poll_cache(self.cache.clone(), self.poll_cache_interval));
+
         loop {
             select! {
                 runtime_event = self.receiver.recv_async() => {
@@ -211,5 +259,15 @@ where
                 }
             }
         }
+    }
+}
+
+/// Poll cache for expired entries
+async fn poll_cache(cache: Arc<Cache<String, CacheValue>>, poll_interval: Duration) {
+    let mut interval = tokio::time::interval(poll_interval);
+
+    loop {
+        interval.tick().await;
+        cache.run_pending_tasks().await;
     }
 }

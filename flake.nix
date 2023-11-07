@@ -56,7 +56,6 @@
           cargo-cross
           cargo-expand
           cargo-nextest
-          cargo-outdated
           cargo-sort
           cargo-spellcheck
           cargo-unused-features
