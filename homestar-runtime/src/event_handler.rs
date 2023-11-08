@@ -25,6 +25,7 @@ pub(crate) mod cache;
 pub mod channel;
 pub(crate) mod error;
 pub(crate) mod event;
+#[cfg(feature = "websocket-notify")]
 pub(crate) mod notification;
 pub(crate) mod swarm_event;
 pub(crate) use cache::{setup_cache, CacheValue};
@@ -80,7 +81,7 @@ pub(crate) struct EventHandler<DB: Database> {
     p2p_provider_timeout: Duration,
     db: DB,
     swarm: Swarm<ComposedBehaviour>,
-    cache: Cache<String, CacheValue>,
+    cache: Arc<Cache<String, CacheValue>>,
     sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
     receiver: channel::AsyncBoundedChannelReceiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
@@ -228,7 +229,7 @@ where
     #[cfg(not(feature = "ipfs"))]
     pub(crate) async fn start(mut self) -> Result<()> {
         let handle = Handle::current();
-        handle.spawn(poll_cache(self.cache.clone()));
+        handle.spawn(poll_cache(self.cache.clone(), self.poll_cache_interval));
 
         loop {
             select! {

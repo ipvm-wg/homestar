@@ -31,10 +31,10 @@ const TIMESTAMP_KEY: &str = "timestamp";
 /// Send receipt notification as bytes.
 pub(crate) fn emit_receipt(
     notifier: Notifier<notifier::Message>,
-    receipt: Receipt,
+    receipt: &Receipt,
     metadata: Option<Ipld>,
 ) {
-    let invocation_receipt = InvocationReceipt::from(&receipt);
+    let invocation_receipt = InvocationReceipt::from(receipt);
     let receipt_cid = receipt.cid();
     let notification = ReceiptNotification::with(invocation_receipt, receipt_cid, metadata.clone());
 

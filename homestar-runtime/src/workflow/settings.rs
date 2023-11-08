@@ -21,7 +21,7 @@ impl Default for Settings {
             retries: 10,
             retry_max_delay: Duration::new(60, 0),
             retry_initial_delay: Duration::from_millis(500),
-            p2p_timeout: Duration::new(60, 0),
+            p2p_timeout: Duration::new(5, 0),
             timeout: Duration::new(3600, 0),
         }
     }

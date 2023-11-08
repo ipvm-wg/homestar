@@ -101,7 +101,7 @@ hooks. Please run this before every commit and/or push.
   * **`nx-test`**, which translates to
     `cargo nextest run --workspace && cargo test --workspace --doc`
   * **`x-test`** for testing continuously as files change, translating to
-    `cargo watch -c -s "cargo nextest run --workspace --nocapture && cargo test --doc"`
+    `cargo watch -c -s "cargo nextest run --workspace --no-capture && cargo test --doc"`
   * **`x-<build,check,run,clippy>`** for running a variety of `cargo watch`
     execution stages
   * **`nx-test-<all,0>`**, which is just like `nx-test`, but adds `all` or `0`

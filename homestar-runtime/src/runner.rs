@@ -8,15 +8,18 @@ use crate::{
     db::Database,
     event_handler::{Event, EventHandler},
     network::{rpc, swarm, webserver},
+    tasks::Fetch,
     worker::WorkerMessage,
-    workflow, Settings, Worker,
+    workflow::{self, Resource},
+    Settings, Worker,
 };
 use anyhow::{anyhow, Context, Result};
 use atomic_refcell::AtomicRefCell;
 use chrono::NaiveDateTime;
 use dashmap::DashMap;
 use faststr::FastStr;
-use futures::future::poll_fn;
+use fnv::FnvHashSet;
+use futures::{future::poll_fn, FutureExt};
 use homestar_core::Workflow;
 use homestar_wasm::io::Arg;
 use jsonrpsee::server::ServerHandle;
@@ -40,8 +43,10 @@ use tracing::{error, info, warn};
 
 mod error;
 pub(crate) mod file;
+mod nodeinfo;
 pub(crate) mod response;
 pub(crate) use error::Error;
+pub(crate) use nodeinfo::NodeInfo;
 
 #[cfg(not(test))]
 const HOMESTAR_THREAD: &str = "homestar-runtime";
@@ -100,10 +105,11 @@ impl ModifiedSet for RunningTaskSet {
 pub struct Runner {
     event_sender: Arc<AsyncBoundedChannelSender<Event>>,
     expiration_queue: Rc<AtomicRefCell<DelayQueue<Cid>>>,
+    node_info: NodeInfo,
     running_tasks: Arc<RunningTaskSet>,
     running_workers: RunningWorkerSet,
-    runtime: tokio::runtime::Runtime,
-    settings: Arc<Settings>,
+    pub(crate) runtime: tokio::runtime::Runtime,
+    pub(crate) settings: Arc<Settings>,
     webserver: Arc<webserver::Server>,
 }
 
@@ -158,6 +164,7 @@ impl Runner {
         runtime: tokio::runtime::Runtime,
     ) -> Result<Self> {
         let swarm = runtime.block_on(swarm::new(settings.node()))?;
+        let peer_id = *swarm.local_peer_id();
 
         let webserver = webserver::Server::new(settings.node().network())?;
 
@@ -178,7 +185,7 @@ impl Runner {
 
         #[cfg(feature = "ipfs")]
         let _event_handler_hdl = runtime.spawn({
-            let ipfs = IpfsCli::default();
+            let ipfs = IpfsCli::new(settings.node.network.ipfs())?;
             event_handler.start(ipfs)
         });
 
@@ -188,6 +195,7 @@ impl Runner {
         Ok(Self {
             event_sender,
             expiration_queue: Rc::new(AtomicRefCell::new(DelayQueue::new())),
+            node_info: NodeInfo::new(peer_id),
             running_tasks: DashMap::new().into(),
             running_workers: DashMap::new(),
             runtime,
@@ -263,27 +271,39 @@ impl Runner {
                              _ => {}
                         }
                     }
-                    Some((webserver::Message::RunWorkflow((name, workflow)), Some(oneshot_tx))) = ws_receiver.recv() => {
-                        info!("running workflow: {}", name);
-                        // TODO: Parse this from the workflow data itself.
-                        let workflow_settings = workflow::Settings::default();
-                        match self.run_worker(
-                            workflow,
-                            workflow_settings,
-                            Some(name),
-                            runner_worker_tx.clone(),
-                            db.clone(),
-                        ).await {
-                            Ok(data) => {
-                                info!("sending message to rpc server");
-                                let _ = oneshot_tx.send(webserver::Message::AckWorkflow((data.info.cid, data.name)));
+                    Some(msg) = ws_receiver.recv() => {
+                        println!("ws message: {:?}", msg);
+                        match msg {
+                            (webserver::Message::RunWorkflow((name, workflow)), Some(oneshot_tx)) => {
+                                info!("running workflow: {}", name);
+                                // TODO: Parse this from the workflow data itself.
+                                let workflow_settings = workflow::Settings::default();
+                                match self.run_worker(
+                                    workflow,
+                                    workflow_settings,
+                                    Some(name),
+                                    runner_worker_tx.clone(),
+                                    db.clone(),
+                                ).await {
+                                    Ok(data) => {
+                                        info!("sending message to rpc server");
+                                        let _ = oneshot_tx.send(webserver::Message::AckWorkflow((data.info.cid, data.name)));
+                                    }
+                                    Err(err) => {
+                                        error!(err=?err, "error handling ws message");
+                                        let _ = oneshot_tx.send(webserver::Message::RunErr(err.into()));
+                                    }
+                                }
+
                             }
-                            Err(err) => {
-                                error!(err=?err, "error handling ws message");
-                                let _ = oneshot_tx.send(webserver::Message::RunErr(err.into()));
+                            (webserver::Message::GetNodeInfo, Some(oneshot_tx)) => {
+                                info!("getting node info");
+                                let _ = oneshot_tx.send(webserver::Message::AckNodeInfo(self.node_info.clone()));
                             }
+                            _ => ()
                         }
                     }
+
                     // Handle messages from the worker.
                     Some(msg) = runner_worker_rx.recv() => {
                         match msg {
@@ -584,6 +604,7 @@ impl Runner {
         let initial_info = Arc::clone(&worker.workflow_info);
         let workflow_timeout = worker.workflow_settings.timeout;
         let workflow_name = worker.workflow_name.clone();
+        let workflow_settings = worker.workflow_settings.clone();
         let timestamp = worker.workflow_started;
 
         // Spawn worker, which initializees the scheduler and runs
@@ -602,7 +623,23 @@ impl Runner {
             ))
             .await?;
 
-        let handle = self.runtime.spawn(worker.run(self.running_tasks()));
+        #[cfg(feature = "ipfs")]
+        let fetch_fn = {
+            let settings = Arc::clone(&self.settings);
+            let ipfs = IpfsCli::new(settings.node.network.ipfs())?;
+            move |rscs: FnvHashSet<Resource>| {
+                async move { Fetch::get_resources(rscs, workflow_settings, ipfs).await }.boxed()
+            }
+        };
+
+        #[cfg(not(feature = "ipfs"))]
+        let fetch_fn = |rscs: FnvHashSet<Resource>| {
+            async move { Fetch::get_resources(rscs, workflow_settings).await }.boxed()
+        };
+
+        let handle = self
+            .runtime
+            .spawn(worker.run(self.running_tasks(), fetch_fn));
 
         // Add Cid to expirations timing wheel
         let delay_key = self
@@ -641,12 +678,10 @@ mod test {
     use crate::{network::rpc::Client, test_utils::WorkerBuilder};
     use homestar_core::test_utils as core_test_utils;
     use rand::thread_rng;
-    use serial_test::file_serial;
     use std::net::SocketAddr;
     use tarpc::context;
     use tokio::net::TcpStream;
 
-    #[file_serial]
     #[homestar_runtime_proc_macro::runner_test]
     fn shutdown() {
         let TestRunner { runner, settings } = TestRunner::start();
@@ -730,10 +765,14 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
 
         runner.runtime.block_on(async {
-            let worker = WorkerBuilder::new(settings.node).build().await;
+            let builder = WorkerBuilder::new(settings.node);
+            let fetch_fn = builder.fetch_fn();
+            let worker = builder.build().await;
             let workflow_cid = worker.workflow_info.cid;
             let workflow_timeout = worker.workflow_settings.timeout;
-            let handle = runner.runtime.spawn(worker.run(runner.running_tasks()));
+            let handle = runner
+                .runtime
+                .spawn(worker.run(runner.running_tasks(), fetch_fn));
             let delay_key = runner
                 .expiration_queue
                 .try_borrow_mut()
@@ -763,10 +802,14 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
 
         runner.runtime.block_on(async {
-            let worker = WorkerBuilder::new(settings.node).build().await;
+            let builder = WorkerBuilder::new(settings.node);
+            let fetch_fn = builder.fetch_fn();
+            let worker = builder.build().await;
             let workflow_cid = worker.workflow_info.cid;
             let workflow_timeout = worker.workflow_settings.timeout;
-            let handle = runner.runtime.spawn(worker.run(runner.running_tasks()));
+            let handle = runner
+                .runtime
+                .spawn(worker.run(runner.running_tasks(), fetch_fn));
             let delay_key = runner
                 .expiration_queue
                 .try_borrow_mut()
@@ -787,10 +830,14 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
 
         runner.runtime.block_on(async {
-            let worker = WorkerBuilder::new(settings.node).build().await;
+            let builder = WorkerBuilder::new(settings.node);
+            let fetch_fn = builder.fetch_fn();
+            let worker = builder.build().await;
             let workflow_cid = worker.workflow_info.cid;
             let workflow_timeout = worker.workflow_settings.timeout;
-            let handle = runner.runtime.spawn(worker.run(runner.running_tasks()));
+            let handle = runner
+                .runtime
+                .spawn(worker.run(runner.running_tasks(), fetch_fn));
             let delay_key = runner
                 .expiration_queue
                 .try_borrow_mut()
@@ -826,8 +873,10 @@ mod test {
     fn gc_while_workers_finished() {
         let TestRunner { runner, settings } = TestRunner::start();
         runner.runtime.block_on(async {
-            let worker = WorkerBuilder::new(settings.node).build().await;
-            let _ = worker.run(runner.running_tasks()).await;
+            let builder = WorkerBuilder::new(settings.node);
+            let fetch_fn = builder.fetch_fn();
+            let worker = builder.build().await;
+            let _ = worker.run(runner.running_tasks(), fetch_fn).await;
         });
 
         runner.running_tasks.iter().for_each(|handles| {

@@ -4,6 +4,8 @@ use config::{Config, ConfigError, Environment, File};
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr, DurationMilliSeconds, DurationSeconds};
+#[cfg(feature = "ipfs")]
+use std::net::Ipv4Addr;
 use std::{
     net::{IpAddr, Ipv6Addr},
     path::PathBuf,
@@ -34,24 +36,15 @@ impl Settings {
 }
 
 /// Monitoring settings.
-#[cfg(feature = "monitoring")]
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Monitoring {
     /// Tokio console port.
     pub console_subscriber_port: u16,
     /// Monitoring collection interval in milliseconds.
+    #[cfg(feature = "monitoring")]
     #[serde_as(as = "DurationMilliSeconds<u64>")]
     pub process_collector_interval: Duration,
-}
-
-/// Monitoring settings.
-#[cfg(not(feature = "monitoring"))]
-#[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Monitoring {
-    /// Tokio console port.
-    pub console_subscriber_port: u16,
 }
 
 /// Server settings.
@@ -123,6 +116,14 @@ pub struct Network {
     /// Pub/sub idle timeout
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) pubsub_idle_timeout: Duration,
+    /// TODO
+    pub(crate) pubsub_mesh_n_low: usize,
+    /// TODO
+    pub(crate) pubsub_mesh_n_high: usize,
+    /// TODO
+    pub(crate) pubsub_mesh_n: usize,
+    /// TODO
+    pub(crate) pubsub_mesh_outbound_min: usize,
     /// Quorum for receipt records on the DHT.
     pub(crate) receipt_quorum: usize,
     /// RPC-server port.
@@ -172,6 +173,20 @@ pub struct Network {
     /// Event handler poll cache interval in milliseconds.
     #[serde_as(as = "DurationMilliSeconds<u64>")]
     pub(crate) poll_cache_interval: Duration,
+    /// TODO
+    #[cfg(feature = "ipfs")]
+    pub(crate) ipfs: Ipfs,
+}
+
+#[cfg(feature = "ipfs")]
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub(crate) struct Ipfs {
+    /// TODO
+    pub(crate) host: String,
+    /// TODO
+    pub(crate) port: u16,
 }
 
 /// Database-related settings for a homestar node.
@@ -210,6 +225,16 @@ impl Default for Monitoring {
     }
 }
 
+#[cfg(feature = "ipfs")]
+impl Default for Ipfs {
+    fn default() -> Self {
+        Self {
+            host: Ipv4Addr::LOCALHOST.to_string(),
+            port: 5001,
+        }
+    }
+}
+
 impl Default for Database {
     fn default() -> Self {
         Self {
@@ -239,6 +264,10 @@ impl Default for Network {
             pubsub_duplication_cache_time: Duration::new(1, 0),
             pubsub_heartbeat: Duration::new(60, 0),
             pubsub_idle_timeout: Duration::new(60 * 60 * 24, 0),
+            pubsub_mesh_n_low: 1,
+            pubsub_mesh_n_high: 10,
+            pubsub_mesh_n: 2,
+            pubsub_mesh_outbound_min: 1,
             receipt_quorum: 2,
             rpc_host: IpAddr::V6(Ipv6Addr::LOCALHOST),
             rpc_max_connections: 10,
@@ -247,7 +276,7 @@ impl Default for Network {
             transport_connection_timeout: Duration::new(20, 0),
             webserver_host: Uri::from_static("127.0.0.1"),
             webserver_port: 1337,
-            webserver_timeout: Duration::new(60, 0),
+            webserver_timeout: Duration::new(120, 0),
             websocket_capacity: 1024,
             websocket_receiver_timeout: Duration::from_millis(200),
             workflow_quorum: 3,
@@ -257,6 +286,8 @@ impl Default for Network {
             max_connected_peers: 32,
             max_announce_addresses: 10,
             poll_cache_interval: Duration::from_millis(1000),
+            #[cfg(feature = "ipfs")]
+            ipfs: Default::default(),
         }
     }
 }
@@ -269,6 +300,14 @@ impl Node {
     /// Node shutdown timeout.
     pub fn shutdown_timeout(&self) -> Duration {
         self.shutdown_timeout
+    }
+}
+
+impl Network {
+    /// TODO
+    #[cfg(feature = "ipfs")]
+    pub(crate) fn ipfs(&self) -> &Ipfs {
+        &self.ipfs
     }
 }
 

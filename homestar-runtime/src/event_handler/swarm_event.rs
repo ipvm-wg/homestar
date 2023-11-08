@@ -1,6 +1,8 @@
 //! Internal libp2p [SwarmEvent] handling and [Handler] implementation.
 
 use super::EventHandler;
+#[cfg(feature = "websocket-notify")]
+use crate::event_handler::notification::{self, EventNotificationTyp, SwarmNotification};
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
@@ -8,7 +10,6 @@ use crate::{
     event_handler::{
         cache::{self, CacheData, CacheValue},
         event::QueryRecord,
-        notification::{self, EventNotificationTyp, SwarmNotification},
         Event, Handler, RequestResponseError,
     },
     libp2p::multiaddr::MultiaddrExt,
@@ -40,6 +41,7 @@ use libp2p::{
     swarm::{dial_opts::DialOpts, SwarmEvent},
     PeerId, StreamProtocol,
 };
+#[cfg(feature = "websocket-notify")]
 use maplit::btreemap;
 use std::{
     collections::{HashMap, HashSet},
@@ -56,6 +58,8 @@ const RENDEZVOUS_NAMESPACE: &str = "homestar";
 pub(crate) enum ResponseEvent {
     /// Found [PeerRecord] on the DHT.
     Found(Result<FoundEvent>),
+    /// TODO
+    NoPeersAvailable,
     /// Found Providers/[PeerId]s on the DHT.
     Providers(Result<HashSet<PeerId>>),
 }
@@ -758,7 +762,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         } => {
             debug!(
                 peer_id = peer_id.to_string(),
-                "peer connection closed, cause: {cause:?}"
+                "peer connection closed, cause: {cause:#?}, endpoint: {endpoint:#?}"
             );
             event_handler.connections.peers.remove_entry(&peer_id);
 
