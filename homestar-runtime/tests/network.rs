@@ -591,7 +591,7 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
     );
 
     assert!(two_disconnected_from_one);
-    assert_eq!(false, two_removed_from_dht_table);
+    assert!(!two_removed_from_dht_table);
 
     Ok(())
 }

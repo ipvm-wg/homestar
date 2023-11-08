@@ -44,7 +44,8 @@ fn test_workflow_run_serial() -> Result<()> {
         "../examples/websocket-relay/example_test.wasm",
     ];
 
-    let _ = fs::remove_file("homestar_test_workflow_run_serial.db");
+    const DB: &str = "ws_homestar_test_workflow_run.db";
+    let _ = fs::remove_file(DB);
 
     let _ipfs_add_img = Command::new(IPFS)
         .args(add_image_args)
@@ -63,7 +64,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_workflow2.toml")
         .arg("--db")
-        .arg("homestar_test_workflow_run_serial.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -179,6 +180,7 @@ fn test_workflow_run_serial() -> Result<()> {
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
     let _ = kill_homestar(homestar_proc, None);
     let _ = stop_all_bins();
+    let _ = fs::remove_file(DB);
 
     Ok(())
 }
