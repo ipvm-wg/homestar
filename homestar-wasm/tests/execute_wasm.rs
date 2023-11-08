@@ -134,6 +134,33 @@ async fn test_append_string() {
 }
 
 #[tokio::test]
+async fn test_rotate_base64() {
+    let img_uri = r#"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAG9SURBVHgBrVRLTgJBEK3qaYhLtiZGxxMoN8CdISTiCYSEmLgSTkA8AXFFAgv0BkNMDDu4gXAC2vhhy9IIU2X1CGb4T5CXzCRd3f26Xv0QBOna+ykiVJjBha2A3XhMlbz8vsFsdeCOtP/CAAn4H4bAcKbGMarsgMwiYVUqIj6FHYERXBU2oHV7BYI95HsH6VKk5eUzkw0TPqfDCwK400iGWDXmw+BrJ9mSoE/X59VBZ2/vazjy4xIyzk3tat6Tp8Kh54+d5J8HgRZuhsksWjf7xssfD5npNaxsXvLV9PDz9cGxlSaB7sopA0uQbfQlEeoorAalBvvC5E4IO1KLj0L2ABGQqb+lCLAd8sgsSI5KFtxHXii3GUJxPZWuf5QhIgici7WEwavAKSsFNsB2mCQru5HQFqfW2sAGSLveLuuwBULR7X77fluSlYMVyNQ+LVlx2Z6ec8+TXzOunY5XmK07C1smo3GsTEDFFW/Nls2vBYwtH/G0R9I1gYlUAh04kSzk1g4SuasXjCJZLuWCfVbTg8AEkaAQl3fBViDuKemM0ropExWWg2K6iHYhk8NVMmhF2FazUUiMhKQkXdb9AfsesrssluqmAAAAAElFTkSuQmCC"#;
+    let ipld = Input::Ipld(Ipld::Map(BTreeMap::from([
+        ("func".into(), Ipld::String("crop-base64".to_string())),
+        (
+            "args".into(),
+            Ipld::List(vec![
+                Ipld::String(img_uri.to_string()),
+                Ipld::Integer(10),
+                Ipld::Integer(10),
+                Ipld::Integer(50),
+                Ipld::Integer(50),
+            ]),
+        ),
+    ])));
+
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
+    let mut env = World::instantiate(wasm, "crop-base64", State::default())
+        .await
+        .unwrap();
+
+    let res = env.execute(ipld.parse().unwrap().try_into().unwrap()).await;
+
+    assert!(res.is_ok());
+}
+
+#[tokio::test]
 async fn test_matrix_transpose() {
     let ipld_inner = Ipld::List(vec![
         Ipld::List(vec![Ipld::Integer(1), Ipld::Integer(2), Ipld::Integer(3)]),
