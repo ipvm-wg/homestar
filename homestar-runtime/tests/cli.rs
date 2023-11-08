@@ -171,7 +171,6 @@ fn test_server_serial() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "test-utils")]
 #[test]
 #[file_serial]
 fn test_workflow_run_serial() -> Result<()> {
@@ -206,10 +205,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
-        ))
-        .stdout(predicate::str::contains(
-            "ipfs://bafkreihxcyjgyrz437ewzi7md55uqt2zf6yr3zn7xrfi4orc34xdc5jgrm",
+            "ipfs://bafkreidgxzucs63ums2yhzs4unin5a3vjemapc373rypon63kdp5xoqlzm",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
@@ -224,10 +220,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
-        ))
-        .stdout(predicate::str::contains(
-            "ipfs://bafkreihxcyjgyrz437ewzi7md55uqt2zf6yr3zn7xrfi4orc34xdc5jgrm",
+            "ipfs://bafkreidgxzucs63ums2yhzs4unin5a3vjemapc373rypon63kdp5xoqlzm",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
