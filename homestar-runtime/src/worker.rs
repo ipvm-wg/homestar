@@ -389,7 +389,6 @@ where
                     }
                 };
                 let output_to_store = Ipld::try_from(executed)?;
-
                 let invocation_receipt = InvocationReceipt::new(
                     invocation_ptr,
                     InstructionResult::Ok(output_to_store),

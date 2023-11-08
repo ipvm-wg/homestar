@@ -10,6 +10,7 @@ use jsonrpsee::{
 };
 use once_cell::sync::Lazy;
 use retry::{delay::Exponential, retry};
+use serial_test::file_serial;
 use std::{
     fs,
     net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
@@ -22,7 +23,8 @@ const SUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "subscribe_run_workflow";
 const UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "unsubscribe_run_workflow";
 
 #[test]
-fn test_workflow_run() -> Result<()> {
+#[file_serial]
+fn test_workflow_run_serial() -> Result<()> {
     let _ = stop_all_bins();
 
     #[cfg(feature = "ipfs")]
@@ -64,7 +66,7 @@ fn test_workflow_run() -> Result<()> {
         .arg("--db")
         .arg("homestar_test_workflow_run_serial.db")
         .arg(DB)
-        .stdout(Stdio::piped())
+        //.stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
