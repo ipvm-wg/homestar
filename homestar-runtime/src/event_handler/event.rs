@@ -362,8 +362,8 @@ impl Replay {
         });
 
         // gossiping replayed receipts
-        receipts.into_iter().for_each(|receipt| {
-            if event_handler.pubsub_enabled {
+        if event_handler.pubsub_enabled {
+            receipts.into_iter().for_each(|receipt| {
                 let receipt_cid = receipt.cid().to_string();
                 let _ = event_handler
                     .swarm
@@ -380,9 +380,8 @@ impl Replay {
                         warn!(err=?err, cid=receipt_cid,
                               "message not published on {} topic for receipt", pubsub::RECEIPTS_TOPIC),
                     );
-            }
-        });
-
+            });
+        }
         Ok(())
     }
 }

@@ -111,7 +111,7 @@ fn test_workflow_run_serial() -> Result<()> {
             .for_each(|msg| async move {
                 let json: serde_json::Value = serde_json::from_slice(&msg.unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
-                let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmicvwgispoezdciv5z6w3coutfjjtnhtmbegpcrrocqd76y7dvtknq"}});
+                let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
                 assert_eq!(check, &expected);
             })
             .await;
@@ -129,7 +129,7 @@ fn test_workflow_run_serial() -> Result<()> {
         let msg = sub2.next().await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&msg.unwrap()).unwrap();
         let check = json.get("metadata").unwrap();
-        let expected = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": "bafyrmicvwgispoezdciv5z6w3coutfjjtnhtmbegpcrrocqd76y7dvtknq"}});
+        let expected = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
         assert_eq!(check, &expected);
 
         assert!(sub2.next().await.is_some());

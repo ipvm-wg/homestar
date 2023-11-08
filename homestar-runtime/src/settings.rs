@@ -278,7 +278,7 @@ impl Default for Network {
             webserver_port: 1337,
             webserver_timeout: Duration::new(120, 0),
             websocket_capacity: 1024,
-            websocket_receiver_timeout: Duration::from_millis(200),
+            websocket_receiver_timeout: Duration::from_millis(500),
             workflow_quorum: 3,
             keypair_config: PubkeyConfig::Random,
             node_addresses: Vec::new(),

@@ -12,6 +12,7 @@ use dashmap::DashMap;
 use faststr::FastStr;
 #[cfg(feature = "websocket-notify")]
 use futures::StreamExt;
+use homestar_core::ipld::DagCbor;
 use jsonrpsee::{
     server::RpcModule,
     types::error::{ErrorCode, ErrorObject},
@@ -211,7 +212,10 @@ impl JsonRpc {
                     Ok(listener::Run { name, workflow }) => {
                         let (tx, rx) = oneshot::channel();
                         ctx.runner_sender
-                            .send((Message::RunWorkflow((name.clone(), workflow)), Some(tx)))
+                            .send((
+                                Message::RunWorkflow((name.clone(), workflow.clone())),
+                                Some(tx),
+                            ))
                             .await?;
 
                         if let Ok(Ok(Message::AckWorkflow((cid, name)))) =
@@ -230,7 +234,10 @@ impl JsonRpc {
                                 "did not acknowledge message in time"
                             );
                             let _ = pending
-                                .reject(busy_err("workflow not able to run workflow: {cid}"))
+                                .reject(busy_err(format!(
+                                    "not able to run workflow {}",
+                                    workflow.to_cid()?
+                                )))
                                 .await;
                         }
                     }

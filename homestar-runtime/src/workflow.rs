@@ -29,6 +29,7 @@ use itertools::Itertools;
 use libipld::{cbor::DagCborCodec, cid::Cid, prelude::Codec, serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::Path};
+use tracing::debug;
 use url::Url;
 
 mod info;
@@ -155,6 +156,7 @@ impl<'a> Builder<'a> {
             (Dag::default(), IndexMap::new()),
             |(mut dag, mut resources), (i, task)| {
                 let instr_cid = task.instruction_cid()?;
+                debug!("instruction cid: {}", instr_cid);
 
                 // Clone as we're owning the struct going backward.
                 let ptr: Pointer = Invocation::<Arg>::from(task.clone()).try_into()?;

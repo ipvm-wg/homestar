@@ -376,7 +376,18 @@ where
             running_tasks.append_or_insert(self.workflow_info.cid(), handles);
 
             while let Some(res) = task_set.join_next().await {
-                let (executed, instruction_ptr, invocation_ptr, receipt_meta, add_meta) = res??;
+                let (executed, instruction_ptr, invocation_ptr, receipt_meta, add_meta) = match res
+                {
+                    Ok(Ok(data)) => data,
+                    Ok(Err(err)) => {
+                        error!(err=?err, "error in running task");
+                        break;
+                    }
+                    Err(err) => {
+                        error!(err=?err, "error in running task");
+                        break;
+                    }
+                };
                 let output_to_store = Ipld::try_from(executed)?;
 
                 let invocation_receipt = InvocationReceipt::new(
