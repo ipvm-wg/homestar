@@ -30,7 +30,7 @@ futures = { workspace = true }
 generic-array = { version = "1.0", default-features = false, features = [
   "serde",
 ] }
-indexmap = { version = "2.0", default-features = false }
+indexmap = { version = "2.1", default-features = false }
 libipld = { workspace = true }
 libsqlite3-sys = { version = "0.26", default-features = false, features = [
   "bundled",
