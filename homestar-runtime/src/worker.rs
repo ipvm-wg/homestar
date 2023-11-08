@@ -417,6 +417,10 @@ where
 
                 let stored_receipt =
                     Db::commit_receipt(self.workflow_info.cid, receipt, &mut self.db.conn()?)?;
+                debug!(
+                    cid = self.workflow_info.cid.to_string(),
+                    "commited to database"
+                );
 
                 let _ = self
                     .event_sender
