@@ -406,7 +406,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             } => match Receipt::try_from(message.data) {
                 // TODO: dont fail blindly if we get a non receipt message
                 Ok(receipt) => {
-                    info!("got message: {receipt} from {propagation_source} with message id: {message_id}");
+                    info!(
+                        peer_id = propagation_source.to_string(),
+                        message_id = message_id.to_string(),
+                        "message recevied on receipts topic: {receipt}"
+                    );
 
                     // Store gossiped receipt.
                     let _ = event_handler

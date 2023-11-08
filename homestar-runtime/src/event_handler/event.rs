@@ -259,7 +259,8 @@ impl Captured {
             ) {
                 Ok(msg_id) => info!(
                     cid = receipt_cid.to_string(),
-                    "message {msg_id} published on {} topic for receipt",
+                    message_id = msg_id.to_string(),
+                    "message published on {} topic for receipt with cid: {receipt_cid}",
                     pubsub::RECEIPTS_TOPIC
                 ),
                 Err(err) => {
