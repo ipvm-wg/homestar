@@ -5,6 +5,7 @@ wit_bindgen::generate!({
     }
 });
 
+use base64::{engine::general_purpose, Engine};
 use std::io::Cursor;
 
 pub struct Component;
@@ -46,6 +47,14 @@ impl Guest for Component {
         buffer
     }
 
+    fn blur_base64(data: String, sigma: f32) -> Vec<u8> {
+        let base64_encoded_png = data.replace("data:image/png;base64,", "");
+        let decoded = general_purpose::STANDARD
+            .decode(base64_encoded_png)
+            .unwrap();
+        Self::blur(decoded, sigma)
+    }
+
     fn crop(data: Vec<u8>, x: u32, y: u32, target_width: u32, target_height: u32) -> Vec<u8> {
         let mut img = image::load_from_memory_with_format(&data, image::ImageFormat::Png).unwrap();
 
@@ -60,6 +69,14 @@ impl Guest for Component {
         buffer
     }
 
+    fn crop_base64(data: String, x: u32, y: u32, target_width: u32, target_height: u32) -> Vec<u8> {
+        let base64_encoded_png = data.replace("data:image/png;base64,", "");
+        let decoded = general_purpose::STANDARD
+            .decode(base64_encoded_png)
+            .unwrap();
+        Self::crop(decoded, x, y, target_width, target_height)
+    }
+
     fn grayscale(data: Vec<u8>) -> Vec<u8> {
         let img = image::load_from_memory_with_format(&data, image::ImageFormat::Png).unwrap();
         let gray = img.grayscale();
@@ -71,9 +88,16 @@ impl Guest for Component {
         buffer
     }
 
+    fn grayscale_base64(data: String) -> Vec<u8> {
+        let base64_encoded_png = data.replace("data:image/png;base64,", "");
+        let decoded = general_purpose::STANDARD
+            .decode(base64_encoded_png)
+            .unwrap();
+        Self::grayscale(decoded)
+    }
+
     fn rotate90(data: Vec<u8>) -> Vec<u8> {
         let img = image::load_from_memory_with_format(&data, image::ImageFormat::Png).unwrap();
-
         let rotated = img.rotate90();
 
         let mut buffer: Vec<u8> = Vec::new();
@@ -82,6 +106,14 @@ impl Guest for Component {
             .unwrap();
 
         buffer
+    }
+
+    fn rotate90_base64(data: String) -> Vec<u8> {
+        let base64_encoded_png = data.replace("data:image/png;base64,", "");
+        let decoded = general_purpose::STANDARD
+            .decode(base64_encoded_png)
+            .unwrap();
+        Self::rotate90(decoded)
     }
 }
 
@@ -213,5 +245,22 @@ mod test_mod {
         let gray = Component::grayscale(rotated);
         let cropped = Component::crop(gray, 150, 350, 400, 400);
         Component::blur(cropped, 0.1);
+    }
+
+    #[cfg(feature = "run-image-tests")]
+    #[test]
+    fn mixed_base64() {
+        let img_uri = r#"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAG9SURBVHgBrVRLTgJBEK3qaYhLtiZGxxMoN8CdISTiCYSEmLgSTkA8AXFFAgv0BkNMDDu4gXAC2vhhy9IIU2X1CGb4T5CXzCRd3f26Xv0QBOna+ykiVJjBha2A3XhMlbz8vsFsdeCOtP/CAAn4H4bAcKbGMarsgMwiYVUqIj6FHYERXBU2oHV7BYI95HsH6VKk5eUzkw0TPqfDCwK400iGWDXmw+BrJ9mSoE/X59VBZ2/vazjy4xIyzk3tat6Tp8Kh54+d5J8HgRZuhsksWjf7xssfD5npNaxsXvLV9PDz9cGxlSaB7sopA0uQbfQlEeoorAalBvvC5E4IO1KLj0L2ABGQqb+lCLAd8sgsSI5KFtxHXii3GUJxPZWuf5QhIgici7WEwavAKSsFNsB2mCQru5HQFqfW2sAGSLveLuuwBULR7X77fluSlYMVyNQ+LVlx2Z6ec8+TXzOunY5XmK07C1smo3GsTEDFFW/Nls2vBYwtH/G0R9I1gYlUAh04kSzk1g4SuasXjCJZLuWCfVbTg8AEkaAQl3fBViDuKemM0ropExWWg2K6iHYhk8NVMmhF2FazUUiMhKQkXdb9AfsesrssluqmAAAAAElFTkSuQmCC"#;
+        // Call component to rotate the image 90 deg clockwise
+        let rotated = Component::rotate90_base64(img_uri.into());
+        let gray = Component::grayscale(rotated);
+        let cropped = Component::crop(gray, 10, 10, 50, 50);
+        let result = Component::blur(cropped, 0.1);
+
+        let png_img = image::io::Reader::new(Cursor::new(&result))
+            .with_guessed_format()
+            .unwrap()
+            .decode()
+            .unwrap();
     }
 }

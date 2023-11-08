@@ -259,7 +259,7 @@ export const workflowOneJson = {
         },
         nnc: "",
         op: "wasm/run",
-        rsc: "ipfs://bafybeichafzlolnoamugvfuyynjnj2gse7avstiqkeiuwuv2gyztap4qm4",
+        rsc: "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
       },
     },
     {
@@ -282,7 +282,7 @@ export const workflowOneJson = {
         },
         nnc: "",
         op: "wasm/run",
-        rsc: "ipfs://bafybeichafzlolnoamugvfuyynjnj2gse7avstiqkeiuwuv2gyztap4qm4",
+        rsc: "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
       },
     },
     {
@@ -306,7 +306,7 @@ export const workflowOneJson = {
         },
         nnc: "",
         op: "wasm/run",
-        rsc: "ipfs://bafybeichafzlolnoamugvfuyynjnj2gse7avstiqkeiuwuv2gyztap4qm4",
+        rsc: "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
       },
     },
   ],
@@ -336,7 +336,7 @@ export const workflowTwoJson = {
         },
         nnc: "",
         op: "wasm/run",
-        rsc: "ipfs://bafybeichafzlolnoamugvfuyynjnj2gse7avstiqkeiuwuv2gyztap4qm4",
+        rsc: "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
       },
     },
     {
@@ -359,7 +359,7 @@ export const workflowTwoJson = {
         },
         nnc: "",
         op: "wasm/run",
-        rsc: "ipfs://bafybeichafzlolnoamugvfuyynjnj2gse7avstiqkeiuwuv2gyztap4qm4",
+        rsc: "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
       },
     },
     {
@@ -382,7 +382,7 @@ export const workflowTwoJson = {
         },
         nnc: "",
         op: "wasm/run",
-        rsc: "ipfs://bafybeichafzlolnoamugvfuyynjnj2gse7avstiqkeiuwuv2gyztap4qm4",
+        rsc: "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
       },
     },
   ],
