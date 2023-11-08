@@ -6,8 +6,8 @@ use assert_cmd::prelude::*;
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
 use retry::{delay::Exponential, retry};
-use serial_test::file_serial;
 use std::{
+    fs,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Command, Stdio},
@@ -16,8 +16,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
 #[test]
-#[file_serial]
-fn test_help_serial() -> Result<()> {
+fn test_help() -> Result<()> {
     let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
@@ -48,8 +47,7 @@ fn test_help_serial() -> Result<()> {
 }
 
 #[test]
-#[file_serial]
-fn test_version_serial() -> Result<()> {
+fn test_version() -> Result<()> {
     let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
@@ -68,8 +66,7 @@ fn test_version_serial() -> Result<()> {
 }
 
 #[test]
-#[file_serial]
-fn test_server_not_running_serial() -> Result<()> {
+fn test_server_not_running() -> Result<()> {
     let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
@@ -108,8 +105,7 @@ fn test_server_not_running_serial() -> Result<()> {
 }
 
 #[test]
-#[file_serial]
-fn test_server_serial() -> Result<()> {
+fn test_server() -> Result<()> {
     let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
@@ -172,16 +168,16 @@ fn test_server_serial() -> Result<()> {
 }
 
 #[test]
-#[file_serial]
-fn test_workflow_run_serial() -> Result<()> {
+fn test_workflow_run() -> Result<()> {
     let _ = stop_homestar();
 
+    const DB: &str = "cli_homestar_test_workflow_run.db";
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
         .arg("tests/fixtures/test_workflow1.toml")
         .arg("--db")
-        .arg("homestar.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -229,14 +225,14 @@ fn test_workflow_run_serial() -> Result<()> {
 
     let _ = kill_homestar(homestar_proc, None);
     let _ = stop_homestar();
+    let _ = fs::remove_file(DB);
 
     Ok(())
 }
 
 #[test]
-#[file_serial]
 #[cfg(not(windows))]
-fn test_daemon_serial() -> Result<()> {
+fn test_daemon() -> Result<()> {
     let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
@@ -276,9 +272,8 @@ fn test_daemon_serial() -> Result<()> {
 }
 
 #[test]
-#[file_serial]
 #[cfg(windows)]
-fn test_signal_kill_serial() -> Result<()> {
+fn test_signal_kill() -> Result<()> {
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -316,9 +311,8 @@ fn test_signal_kill_serial() -> Result<()> {
 }
 
 #[test]
-#[file_serial]
 #[cfg(windows)]
-fn test_server_v4_serial() -> Result<()> {
+fn test_server_v4() -> Result<()> {
     let _ = stop_homestar();
 
     let mut homestar_proc = Command::new(BIN.as_os_str())

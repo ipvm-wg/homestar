@@ -3,7 +3,6 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use reqwest::StatusCode;
 use retry::{delay::Exponential, retry, OperationResult};
-use serial_test::file_serial;
 use std::{
     net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
@@ -15,8 +14,7 @@ const METRICS_URL: &str = "http://localhost:4020";
 
 #[cfg(feature = "monitoring")]
 #[test]
-#[file_serial]
-fn test_metrics_serial() -> Result<()> {
+fn test_metrics() -> Result<()> {
     fn sample_metrics() -> Option<prometheus_parse::Value> {
         let body = retry(
             Exponential::from_millis(500).take(20),

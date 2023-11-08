@@ -7,7 +7,6 @@ use jsonrpsee::{
 };
 use once_cell::sync::Lazy;
 use retry::{delay::Exponential, retry};
-use serial_test::file_serial;
 use std::{
     net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
@@ -20,8 +19,7 @@ const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
 const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
-#[file_serial]
-fn test_connection_notifications_serial() -> Result<()> {
+fn test_connection_notifications() -> Result<()> {
     let _ = stop_homestar();
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
