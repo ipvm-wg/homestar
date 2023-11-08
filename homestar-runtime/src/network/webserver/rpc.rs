@@ -1,9 +1,7 @@
-use super::{listener, prom::PrometheusData};
 #[cfg(feature = "websocket-notify")]
-use super::{
-    notifier::{self, Header, Notifier, SubscriptionTyp},
-    Message,
-};
+use super::notifier::{self, Header, Notifier, SubscriptionTyp};
+#[allow(unused_imports)]
+use super::{listener, prom::PrometheusData, Message};
 use crate::runner::WsSender;
 #[cfg(feature = "websocket-notify")]
 use anyhow::anyhow;
@@ -16,7 +14,7 @@ use faststr::FastStr;
 use futures::StreamExt;
 use jsonrpsee::{
     server::RpcModule,
-    types::{error::ErrorCode, ErrorObjectOwned},
+    types::error::{ErrorCode, ErrorObject},
 };
 #[cfg(feature = "websocket-notify")]
 use jsonrpsee::{types::SubscriptionId, SubscriptionMessage, SubscriptionSink, TrySendError};
@@ -27,16 +25,18 @@ use metrics_exporter_prometheus::PrometheusHandle;
 use std::sync::Arc;
 use std::time::Duration;
 #[cfg(feature = "websocket-notify")]
+use tokio::{runtime::Handle, select};
+#[allow(unused_imports)]
 use tokio::{
-    runtime::Handle,
-    select,
     sync::oneshot,
     time::{self, Instant},
 };
 #[cfg(feature = "websocket-notify")]
 use tokio_stream::wrappers::BroadcastStream;
+#[allow(unused_imports)]
+use tracing::warn;
 #[cfg(feature = "websocket-notify")]
-use tracing::{error, info, warn};
+use tracing::{debug, error, info};
 
 /// Health endpoint.
 pub(crate) const HEALTH_ENDPOINT: &str = "health";
@@ -135,8 +135,34 @@ impl JsonRpc {
     async fn register(ctx: Context) -> Result<RpcModule<Context>> {
         let mut module = RpcModule::new(ctx);
 
+        #[cfg(not(test))]
+        module.register_async_method(HEALTH_ENDPOINT, |_, ctx| async move {
+            let (tx, rx) = oneshot::channel();
+            ctx.runner_sender
+                .send((Message::GetNodeInfo, Some(tx)))
+                .await
+                .map_err(|err| internal_err(err.to_string()))?;
+
+            if let Ok(Ok(Message::AckNodeInfo(info))) =
+                time::timeout_at(Instant::now() + ctx.receiver_timeout, rx).await
+            {
+                Ok(serde_json::json!({ "healthy": true, "nodeInfo": info}))
+            } else {
+                warn!(sub = HEALTH_ENDPOINT, "did not acknowledge message in time");
+                Err(internal_err("failed to get node information".to_string()))
+            }
+        })?;
+
+        #[cfg(test)]
         module.register_async_method(HEALTH_ENDPOINT, |_, _| async move {
-            serde_json::json!({ "healthy": true })
+            use crate::runner::NodeInfo;
+            use std::str::FromStr;
+            let peer_id =
+                libp2p::PeerId::from_str("12D3KooWRNw2pJC9748Fmq4WNV27HoSTcX3r37132FLkQMrbKAiC")
+                    .unwrap();
+            Ok::<serde_json::Value, ErrorObject<'_>>(serde_json::json!({
+                "healthy": true, "nodeInfo": NodeInfo::new(peer_id)
+            }))
         })?;
 
         module.register_async_method(METRICS_ENDPOINT, |params, ctx| async move {
@@ -144,12 +170,15 @@ impl JsonRpc {
 
             // TODO: Handle prefix specific metrics in parser.
             match params.one::<listener::MetricsPrefix>() {
-                Ok(listener::MetricsPrefix { prefix: _prefix }) => {
-                    PrometheusData::from_string(&render)
-                        .map_err(|_err| ErrorObjectOwned::from(ErrorCode::InternalError))
-                }
+                Ok(listener::MetricsPrefix { prefix }) => PrometheusData::from_string(&render)
+                    .map_err(|err| {
+                        internal_err(format!(
+                            "failed to render metrics @prefix {} : {:#?}",
+                            prefix, err
+                        ))
+                    }),
                 Err(_) => PrometheusData::from_string(&render)
-                    .map_err(|_err| ErrorObjectOwned::from(ErrorCode::InternalError)),
+                    .map_err(|err| internal_err(format!("failed to render metrics: {:#?}", err))),
             }
         })?;
 
@@ -182,7 +211,7 @@ impl JsonRpc {
                     Ok(listener::Run { name, workflow }) => {
                         let (tx, rx) = oneshot::channel();
                         ctx.runner_sender
-                            .send((Message::RunWorkflow((name, workflow)), Some(tx)))
+                            .send((Message::RunWorkflow((name.clone(), workflow)), Some(tx)))
                             .await?;
 
                         if let Ok(Ok(Message::AckWorkflow((cid, name)))) =
@@ -195,11 +224,13 @@ impl JsonRpc {
                             let stream = BroadcastStream::new(rx);
                             Self::handle_workflow_subscription(sink, stream, ctx).await?;
                         } else {
-                            warn!("did not acknowledge message in time");
+                            warn!(
+                                sub = SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+                                workflow_name = name.to_string(),
+                                "did not acknowledge message in time"
+                            );
                             let _ = pending
-                                .reject(ErrorObjectOwned::from(ErrorObjectOwned::from(
-                                    ErrorCode::InternalError,
-                                )))
+                                .reject(busy_err("workflow not able to run workflow: {cid}"))
                                 .await;
                         }
                     }
@@ -287,6 +318,9 @@ impl JsonRpc {
                                 .and_then(|v| {
                                     let (v_cid, v_name) = v.value();
                                     if v_cid == &cid && (Some(v_name) == ident.as_ref() || ident.is_none()) {
+                                        debug!(cid = cid.to_string(),
+                                               ident = ident.clone().unwrap_or(
+                                                   "undefined".into()).to_string(), "received message");
                                         Some(payload)
                                     } else {
                                         None
@@ -328,4 +362,13 @@ impl JsonRpc {
 
         Ok(())
     }
+}
+
+fn internal_err<'a, T: ToString>(msg: T) -> ErrorObject<'a> {
+    ErrorObject::owned(ErrorCode::InternalError.code(), msg.to_string(), None::<()>)
+}
+
+#[allow(dead_code)]
+fn busy_err<'a, T: ToString>(msg: T) -> ErrorObject<'a> {
+    ErrorObject::owned(ErrorCode::ServerIsBusy.code(), msg.to_string(), None::<()>)
 }

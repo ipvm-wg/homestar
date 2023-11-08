@@ -7,7 +7,7 @@ use crate::event_handler::notification::emit_receipt;
 use crate::network::IpfsCli;
 use crate::{
     db::Database,
-    event_handler::{Handler, P2PSender},
+    event_handler::{Handler, P2PSender, ResponseEvent},
     network::{
         pubsub,
         swarm::{CapsuleTag, RequestResponseKey, TopicMessage},
@@ -127,8 +127,8 @@ impl Event {
                 event_handler.shutdown().await;
                 let _ = tx.send(());
             }
-            Event::FindRecord(record) => record.find(event_handler),
-            Event::RemoveRecord(record) => record.remove(event_handler),
+            Event::FindRecord(record) => record.find(event_handler).await,
+            Event::RemoveRecord(record) => record.remove(event_handler).await,
             Event::OutboundRequest(PeerRequest {
                 peer,
                 request,
@@ -144,7 +144,7 @@ impl Event {
                     .request_response_senders
                     .insert(request_id, (request, sender));
             }
-            Event::GetProviders(record) => record.get_providers(event_handler),
+            Event::GetProviders(record) => record.get_providers(event_handler).await,
             Event::ProvideRecord(cid, sender, capsule_tag) => {
                 let query_id = event_handler
                     .swarm
@@ -247,7 +247,7 @@ impl Captured {
         {
             emit_receipt(
                 event_handler.ws_workflow_sender(),
-                receipt.clone(),
+                &receipt,
                 self.metadata.to_owned(),
             )
         }
@@ -258,12 +258,15 @@ impl Captured {
                 TopicMessage::CapturedReceipt(receipt),
             ) {
                 Ok(msg_id) => info!(
-                    "message {msg_id} published on {} topic for receipt with cid: {receipt_cid}",
+                    cid = receipt_cid.to_string(),
+                    "message {msg_id} published on {} topic for receipt",
                     pubsub::RECEIPTS_TOPIC
                 ),
-                Err(_err) => {
-                    error!(
-                        "message not published on {} topic for receipt with cid: {receipt_cid}",
+                Err(err) => {
+                    warn!(
+                        err=?err,
+                        cid = receipt_cid.to_string(),
+                        "message not published on {} topic for receipt",
                         pubsub::RECEIPTS_TOPIC
                     )
                 }
@@ -328,7 +331,7 @@ impl Replay {
         Self { pointers, metadata }
     }
 
-    fn notify<DB>(self, event_handler: &EventHandler<DB>) -> Result<()>
+    fn notify<DB>(self, event_handler: &mut EventHandler<DB>) -> Result<()>
     where
         DB: Database,
     {
@@ -350,12 +353,34 @@ impl Replay {
         );
 
         #[cfg(feature = "websocket-notify")]
-        receipts.into_iter().for_each(|receipt| {
+        receipts.iter().for_each(|receipt| {
             emit_receipt(
                 event_handler.ws_workflow_sender(),
                 receipt,
                 self.metadata.to_owned(),
             );
+        });
+
+        // gossiping replayed receipts
+        receipts.into_iter().for_each(|receipt| {
+            if event_handler.pubsub_enabled {
+                let receipt_cid = receipt.cid().to_string();
+                let _ = event_handler
+                    .swarm
+                    .behaviour_mut()
+                    .gossip_publish(
+                        pubsub::RECEIPTS_TOPIC,
+                        TopicMessage::CapturedReceipt(receipt),
+                    )
+                    .map(|msg_id|
+                         info!(cid=receipt_cid,
+                               "message {msg_id} published on {} topic for receipt", pubsub::RECEIPTS_TOPIC))
+                    .map_err(
+                        |err|
+                        warn!(err=?err, cid=receipt_cid,
+                              "message not published on {} topic for receipt", pubsub::RECEIPTS_TOPIC),
+                    );
+            }
         });
 
         Ok(())
@@ -372,10 +397,20 @@ impl QueryRecord {
         }
     }
 
-    fn find<DB>(self, event_handler: &mut EventHandler<DB>)
+    async fn find<DB>(self, event_handler: &mut EventHandler<DB>)
     where
         DB: Database,
     {
+        if event_handler.connections.peers.is_empty() {
+            info!("no connections to send request to");
+
+            if let Some(sender) = self.sender {
+                let _ = sender.send_async(ResponseEvent::NoPeersAvailable).await;
+            }
+
+            return;
+        }
+
         let id = event_handler
             .swarm
             .behaviour_mut()
@@ -386,10 +421,20 @@ impl QueryRecord {
         event_handler.query_senders.insert(id, (key, self.sender));
     }
 
-    fn remove<DB>(self, event_handler: &mut EventHandler<DB>)
+    async fn remove<DB>(self, event_handler: &mut EventHandler<DB>)
     where
         DB: Database,
     {
+        if event_handler.connections.peers.is_empty() {
+            info!("no connections to send request to");
+
+            if let Some(sender) = self.sender {
+                let _ = sender.send_async(ResponseEvent::NoPeersAvailable).await;
+            }
+
+            return;
+        }
+
         event_handler
             .swarm
             .behaviour_mut()
@@ -403,10 +448,20 @@ impl QueryRecord {
             .stop_providing(&Key::new(&self.cid.to_bytes()));
     }
 
-    fn get_providers<DB>(self, event_handler: &mut EventHandler<DB>)
+    async fn get_providers<DB>(self, event_handler: &mut EventHandler<DB>)
     where
         DB: Database,
     {
+        if event_handler.connections.peers.is_empty() {
+            info!("no connections to send request to");
+
+            if let Some(sender) = self.sender {
+                let _ = sender.send_async(ResponseEvent::NoPeersAvailable).await;
+            }
+
+            return;
+        }
+
         let id = event_handler
             .swarm
             .behaviour_mut()

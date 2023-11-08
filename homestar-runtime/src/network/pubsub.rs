@@ -34,9 +34,10 @@ pub(crate) fn new(keypair: Keypair, settings: &settings::Node) -> Result<gossips
         .idle_timeout(settings.network.pubsub_idle_timeout)
         // This sets the kind of message validation. The default is Strict (enforce message signing).
         .validation_mode(ValidationMode::Strict)
-        .mesh_n_low(1)
-        .mesh_outbound_min(1)
-        .mesh_n(2)
+        .mesh_n_low(settings.network.pubsub_mesh_n_low)
+        .mesh_outbound_min(settings.network.pubsub_mesh_outbound_min)
+        .mesh_n(settings.network.pubsub_mesh_n)
+        .mesh_n_high(settings.network.pubsub_mesh_n_high)
         // Content-address messages. No two messages of the same content will be propagated.
         .message_id_fn(message_id_fn)
         .duplicate_cache_time(settings.network.pubsub_duplication_cache_time)

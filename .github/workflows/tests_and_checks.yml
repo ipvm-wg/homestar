@@ -189,7 +189,7 @@ jobs:
 
       - name: Run Tests (no-default-features)
         if: ${{ matrix.default-features == 'none' }}
-        run: cargo nextest run --workspace --profile ci --no-default-features --features "test-utils"
+        run: cargo nextest run --profile ci --no-default-features --features "test-utils"
 
       - name: Run Doc Tests
         if: ${{ matrix.default-features == 'all' }}
@@ -241,7 +241,7 @@ jobs:
 
       - name: Run Tests (no-default-features)
         if: ${{ matrix.default-features == 'none' }}
-        run: cargo nextest run --workspace --profile ci --no-default-features --features "test-utils"
+        run: cargo nextest run --profile ci --no-default-features --features "test-utils"
 
       - name: Run Doc Tests
         if: ${{ matrix.default-features == 'all' }}

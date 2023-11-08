@@ -1,10 +1,20 @@
 //! Module for building out [Worker]s for testing purposes.
 
 use super::{db::MemoryDb, event};
+#[cfg(feature = "ipfs")]
+use crate::network::IpfsCli;
 use crate::{
-    channel::AsyncBoundedChannelSender, db::Database, event_handler::Event, settings,
-    worker::WorkerMessage, workflow, Settings, Worker,
+    channel::AsyncBoundedChannelSender,
+    db::Database,
+    event_handler::Event,
+    settings,
+    tasks::Fetch,
+    worker::WorkerMessage,
+    workflow::{self, Resource},
+    Settings, Worker,
 };
+use fnv::FnvHashSet;
+use futures::{future::BoxFuture, FutureExt};
 use homestar_core::{
     ipld::DagCbor,
     test_utils::workflow as workflow_test_utils,
@@ -12,9 +22,24 @@ use homestar_core::{
     Workflow,
 };
 use homestar_wasm::io::Arg;
+use indexmap::IndexMap;
 use libipld::Cid;
 use tokio::sync::mpsc;
 
+/// TODO
+#[cfg(feature = "ipfs")]
+pub(crate) struct WorkerBuilder<'a> {
+    db: MemoryDb,
+    event_sender: AsyncBoundedChannelSender<Event>,
+    ipfs: IpfsCli,
+    runner_sender: mpsc::Sender<WorkerMessage>,
+    name: Option<String>,
+    workflow: Workflow<'a, Arg>,
+    workflow_settings: workflow::Settings,
+}
+
+/// TODO
+#[cfg(not(feature = "ipfs"))]
 pub(crate) struct WorkerBuilder<'a> {
     db: MemoryDb,
     event_sender: AsyncBoundedChannelSender<Event>,
@@ -31,12 +56,12 @@ impl<'a> WorkerBuilder<'a> {
         let (instruction1, instruction2, _) =
             workflow_test_utils::related_wasm_instructions::<Arg>();
         let task1 = Task::new(
-            RunInstruction::Expanded(instruction1),
+            RunInstruction::Expanded(instruction1.clone()),
             config.clone().into(),
             UcanPrf::default(),
         );
         let task2 = Task::new(
-            RunInstruction::Expanded(instruction2),
+            RunInstruction::Expanded(instruction2.clone()),
             config.into(),
             UcanPrf::default(),
         );
@@ -46,13 +71,31 @@ impl<'a> WorkerBuilder<'a> {
 
         let workflow = Workflow::new(vec![task1, task2]);
         let workflow_cid = workflow.clone().to_cid().unwrap();
-        Self {
-            db: MemoryDb::setup_connection_pool(&settings, None).unwrap(),
-            event_sender: evt_tx,
-            runner_sender: wk_tx,
-            name: Some(workflow_cid.to_string()),
-            workflow,
-            workflow_settings: workflow::Settings::default(),
+
+        #[cfg(feature = "ipfs")]
+        {
+            let ipfs = IpfsCli::new(settings.network.ipfs()).unwrap();
+            Self {
+                db: MemoryDb::setup_connection_pool(&settings, None).unwrap(),
+                event_sender: evt_tx,
+                ipfs: ipfs.clone(),
+                runner_sender: wk_tx,
+                name: Some(workflow_cid.to_string()),
+                workflow,
+                workflow_settings: workflow::Settings::default(),
+            }
+        }
+
+        #[cfg(not(feature = "ipfs"))]
+        {
+            Self {
+                db: MemoryDb::setup_connection_pool(&settings, None).unwrap(),
+                event_sender: evt_tx,
+                runner_sender: wk_tx,
+                name: Some(workflow_cid.to_string()),
+                workflow,
+                workflow_settings: workflow::Settings::default(),
+            }
         }
     }
 
@@ -69,6 +112,37 @@ impl<'a> WorkerBuilder<'a> {
         )
         .await
         .unwrap()
+    }
+
+    /// TODO
+    #[cfg(feature = "ipfs")]
+    #[allow(dead_code)]
+    pub(crate) fn fetch_fn(
+        &self,
+    ) -> impl FnOnce(FnvHashSet<Resource>) -> BoxFuture<'a, anyhow::Result<IndexMap<Resource, Vec<u8>>>>
+    {
+        let fetch_settings = self.workflow_settings.clone().into();
+        let ipfs = self.ipfs.clone();
+        let fetch_fn = move |rscs: FnvHashSet<Resource>| {
+            async move { Fetch::get_resources(rscs, fetch_settings, ipfs).await }.boxed()
+        };
+
+        fetch_fn
+    }
+
+    /// TODO
+    #[cfg(not(feature = "ipfs"))]
+    #[allow(dead_code)]
+    pub(crate) fn fetch_fn(
+        &self,
+    ) -> impl FnOnce(FnvHashSet<Resource>) -> BoxFuture<'a, anyhow::Result<IndexMap<Resource, Vec<u8>>>>
+    {
+        let fetch_settings = self.workflow_settings.clone().into();
+        let fetch_fn = |rscs: FnvHashSet<Resource>| {
+            async move { Fetch::get_resources(rscs, fetch_settings).await }.boxed()
+        };
+
+        fetch_fn
     }
 
     /// Get the [Cid] of the workflow from the builder state.

@@ -6,8 +6,6 @@
 
 #[cfg(feature = "websocket-notify")]
 use crate::event_handler::event::Replay;
-#[cfg(feature = "ipfs")]
-use crate::network::IpfsCli;
 use crate::{
     channel::{AsyncBoundedChannel, AsyncBoundedChannelSender},
     db::Database,
@@ -19,7 +17,7 @@ use crate::{
     network::swarm::CapsuleTag,
     runner::{ModifiedSet, RunningTaskSet},
     scheduler::{ExecutionGraph, TaskScheduler},
-    tasks::{Fetch, RegisteredTasks, WasmContext},
+    tasks::{RegisteredTasks, WasmContext},
     workflow::{self, Resource},
     Db, Receipt,
 };
@@ -27,7 +25,7 @@ use anyhow::{anyhow, Result};
 use chrono::NaiveDateTime;
 use faststr::FastStr;
 use fnv::FnvHashSet;
-use futures::FutureExt;
+use futures::{future::BoxFuture, FutureExt};
 use homestar_core::{
     bail,
     ipld::DagCbor,
@@ -145,23 +143,10 @@ where
     ///
     /// [Instruction]: homestar_core::workflow::Instruction
     /// [Swarm]: crate::network::swarm
-    pub(crate) async fn run(self, running_tasks: Arc<RunningTaskSet>) -> Result<()> {
-        let workflow_settings_fetch = self.workflow_settings.clone();
-        #[cfg(feature = "ipfs")]
-        let fetch_fn = {
-            let ipfs = IpfsCli::default();
-
-            move |rscs: FnvHashSet<Resource>| {
-                async move { Fetch::get_resources(rscs, workflow_settings_fetch, ipfs).await }
-                    .boxed()
-            }
-        };
-
-        #[cfg(not(feature = "ipfs"))]
-        let fetch_fn = |rscs: FnvHashSet<Resource>| {
-            async move { Fetch::get_resources(rscs, workflow_settings_fetch).await }.boxed()
-        };
-
+    pub(crate) async fn run<F>(self, running_tasks: Arc<RunningTaskSet>, fetch_fn: F) -> Result<()>
+    where
+        F: FnOnce(FnvHashSet<Resource>) -> BoxFuture<'a, Result<IndexMap<Resource, Vec<u8>>>>,
+    {
         let scheduler_ctx = TaskScheduler::init(
             self.graph.clone(), // Arc'ed
             &mut self.db.conn()?,
@@ -204,7 +189,7 @@ where
             );
 
             if let Some(result) = linkmap.read().await.get(&cid) {
-                info!(cid = cid.to_string(), "found in in-memory linkmap");
+                debug!(cid = cid.to_string(), "found in in-memory linkmap");
                 Ok(result.to_owned())
             } else if let Some(bytes) = resources.read().await.get(&Resource::Cid(cid)) {
                 Ok(InstructionResult::Ok(Arg::Ipld(Ipld::Bytes(
@@ -236,6 +221,11 @@ where
                                 bail!(ResolveError::UnresolvedCid(format!(
                                     "failure in attempting to find event: {err}"
                                 )))
+                            }
+                            Ok(Ok(ResponseEvent::NoPeersAvailable)) => {
+                                bail!(ResolveError::UnresolvedCid(
+                                    "no peers available to communicate with".to_string()
+                                ))
                             }
                             Ok(Ok(_)) => bail!(ResolveError::UnresolvedCid(
                                 "wrong or unexpected event message received".to_string(),
@@ -465,6 +455,7 @@ mod test {
         let (tx, rx) = test_utils::event::setup_event_channel(settings.clone().node);
 
         let builder = WorkerBuilder::new(settings.node).with_event_sender(tx);
+        let fetch_fn = builder.fetch_fn();
         let db = builder.db();
         let worker = builder.build().await;
         let workflow_cid = worker.workflow_info.cid;
@@ -484,7 +475,7 @@ mod test {
 
         let running_tasks = Arc::new(RunningTaskSet::new());
         let worker_workflow_cid = worker.workflow_info.cid;
-        worker.run(running_tasks.clone()).await.unwrap();
+        worker.run(running_tasks.clone(), fetch_fn).await.unwrap();
         assert_eq!(running_tasks.len(), 1);
         assert!(running_tasks.contains_key(&worker_workflow_cid));
         assert_eq!(running_tasks.get(&worker_workflow_cid).unwrap().len(), 2);
@@ -582,6 +573,7 @@ mod test {
         let builder = WorkerBuilder::new(settings.node)
             .with_event_sender(tx)
             .with_tasks(vec![task1, task2]);
+        let fetch_fn = builder.fetch_fn();
         let db = builder.db();
         let workflow_cid = builder.workflow_cid();
 
@@ -626,7 +618,7 @@ mod test {
 
         let running_tasks = Arc::new(RunningTaskSet::new());
         let worker_workflow_cid = worker.workflow_info.cid;
-        worker.run(running_tasks.clone()).await.unwrap();
+        worker.run(running_tasks.clone(), fetch_fn).await.unwrap();
         assert_eq!(running_tasks.len(), 1);
         assert!(running_tasks.contains_key(&worker_workflow_cid));
         assert_eq!(running_tasks.get(&worker_workflow_cid).unwrap().len(), 1);

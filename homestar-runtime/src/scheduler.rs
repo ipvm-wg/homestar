@@ -106,7 +106,7 @@ impl<'a> TaskScheduler<'a> {
         let mut_graph = Arc::make_mut(&mut graph);
         let schedule: &mut Schedule<'a> = mut_graph.schedule.as_mut();
         let schedule_length = schedule.len();
-        let mut resources_to_fetch: FnvHashSet<Resource> = FnvHashSet::default();
+        let mut resources_to_fetch = vec![];
 
         let resume = 'resume: {
             for (idx, vec) in schedule.iter().enumerate().rev() {
@@ -117,7 +117,7 @@ impl<'a> TaskScheduler<'a> {
                         .get(&cid)
                         .map(|resource| {
                             resource.iter().for_each(|rsc| {
-                                resources_to_fetch.insert(rsc.to_owned());
+                                resources_to_fetch.push((cid, rsc));
                             });
                             ptrs.push(Pointer::new(cid));
                         })
@@ -131,6 +131,13 @@ impl<'a> TaskScheduler<'a> {
                             let linkmap = found.iter().fold(
                                 LinkMap::<InstructionResult<Arg>>::new(),
                                 |mut map, receipt| {
+                                    if let Some(idx) = resources_to_fetch
+                                        .iter()
+                                        .position(|(cid, _rsc)| cid == &receipt.instruction().cid())
+                                    {
+                                        resources_to_fetch.swap_remove(idx);
+                                    }
+
                                     let _ = map.insert(
                                         receipt.instruction().cid(),
                                         receipt.output_as_arg(),
@@ -160,6 +167,10 @@ impl<'a> TaskScheduler<'a> {
             ControlFlow::Continue(())
         };
 
+        let resources_to_fetch: FnvHashSet<Resource> = resources_to_fetch
+            .into_iter()
+            .map(|(_, rsc)| rsc.to_owned())
+            .collect();
         let fetched = fetch_fn(resources_to_fetch).await?;
 
         match resume {

@@ -134,7 +134,7 @@
         xFuncNoDefault = cmd:
           pkgs.writeScriptBin "x-${cmd}-0" ''
             #!${pkgs.stdenv.shell}
-            cargo watch -c -s "cargo ${cmd} --workspace --no-default-features"
+            cargo watch -c -s "cargo ${cmd} --no-default-features"
           '';
 
         xFuncPackage = cmd: crate:
@@ -145,19 +145,19 @@
 
         xFuncTest = pkgs.writeScriptBin "x-test" ''
           #!${pkgs.stdenv.shell}
-          cargo watch -c -s "cargo nextest run --workspace --nocapture && cargo test --doc"
+          cargo watch -c -s "cargo nextest run --workspace --no-capture && cargo test --doc"
         '';
 
         xFuncTestAll = pkgs.writeScriptBin "x-test-all" ''
           #!${pkgs.stdenv.shell}
-          cargo watch -c -s "cargo nextest run --workspace --all-features --nocapture \
+          cargo watch -c -s "cargo nextest run --workspace --all-features --no-capture \
           && cargo test --workspace --doc --all-features"
         '';
 
         xFuncTestNoDefault = pkgs.writeScriptBin "x-test-0" ''
           #!${pkgs.stdenv.shell}
-          cargo watch -c -s "cargo nextest run --workspace --no-default-features --nocapture \
-          && cargo test --workspace --doc --no-default-features"
+          cargo watch -c -s "cargo nextest run --no-default-features --no-capture \
+          && cargo test --doc --no-default-features"
         '';
 
         xFuncTestPackage = crate:
@@ -175,14 +175,14 @@
 
         nxTestAll = pkgs.writeScriptBin "nx-test-all" ''
           #!${pkgs.stdenv.shell}
-          cargo nextest run --workspace --all-features --nocapture
+          cargo nextest run --workspace --all-features --no-capture
           cargo test --workspace --doc --all-features
         '';
 
         nxTestNoDefault = pkgs.writeScriptBin "nx-test-0" ''
           #!${pkgs.stdenv.shell}
-          cargo nextest run --workspace --no-default-features --nocapture
-          cargo test --workspace --doc --no-default-features
+          cargo nextest run --no-default-features --no-capture
+          cargo test --doc --no-default-features
         '';
 
         wasmTest = pkgs.writeScriptBin "wasm-ex-test" ''

@@ -102,6 +102,7 @@ libp2p = { version = "0.52", default-features = false, features = [
   "noise",
   "cbor",
   "yamux",
+  "serde",
 ] }
 libsqlite3-sys = { version = "0.26", default-features = false, features = [
   "bundled",
@@ -166,6 +167,7 @@ tower = { version = "0.4", default-features = false, features = [
 ] }
 tower-http = { version = "0.4", default-features = false, features = [
   "trace",
+  "sensitive-headers",
   "catch-panic",
   "cors",
 ] }

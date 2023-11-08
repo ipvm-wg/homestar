@@ -2,14 +2,17 @@
 //!
 //! [IpfsClient]: ipfs_api::IpfsClient
 
+use crate::settings;
 use anyhow::Result;
 use futures::TryStreamExt;
 use homestar_core::workflow::Receipt;
+use http::uri::Scheme;
 use ipfs_api::{
     request::{DagCodec, DagPut},
     response::DagPutResponse,
     IpfsApi, IpfsClient,
 };
+use ipfs_api_backend_hyper::TryFromUri;
 use libipld::{Cid, Ipld};
 use std::{io::Cursor, sync::Arc};
 use url::Url;
@@ -20,15 +23,21 @@ const SHA3_256: &str = "sha3-256";
 #[allow(missing_debug_implementations)]
 pub(crate) struct IpfsCli(Arc<IpfsClient>);
 
-impl Clone for IpfsCli {
-    fn clone(&self) -> Self {
-        IpfsCli(Arc::clone(&self.0))
+impl IpfsCli {
+    /// Create a new [IpfsCli] from a [IpfsClient].
+    pub(crate) fn new(settings: &settings::Ipfs) -> Result<Self> {
+        let cli = Self(Arc::new(IpfsClient::from_host_and_port(
+            Scheme::HTTP,
+            settings.host.as_str(),
+            settings.port,
+        )?));
+        Ok(cli)
     }
 }
 
-impl Default for IpfsCli {
-    fn default() -> Self {
-        Self(Arc::new(IpfsClient::default()))
+impl Clone for IpfsCli {
+    fn clone(&self) -> Self {
+        IpfsCli(Arc::clone(&self.0))
     }
 }
 

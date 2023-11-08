@@ -1,12 +1,19 @@
 //! Sets up a websocket server for sending and receiving messages from browser
 //! clients.
 
-use crate::{runner, runner::WsSender, settings};
+use crate::{
+    runner,
+    runner::{NodeInfo, WsSender},
+    settings,
+};
 use anyhow::{anyhow, Result};
 use faststr::FastStr;
 use homestar_core::Workflow;
 use homestar_wasm::io::Arg;
-use http::{header::CONTENT_TYPE, Method};
+use http::{
+    header::{AUTHORIZATION, CONTENT_TYPE},
+    Method,
+};
 use jsonrpsee::{
     self,
     server::{middleware::ProxyGetRequestLayer, RandomStringIdProvider, ServerHandle},
@@ -14,6 +21,7 @@ use jsonrpsee::{
 use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
 use std::{
+    iter::once,
     net::{IpAddr, SocketAddr, TcpListener},
     str::FromStr,
     time::Duration,
@@ -21,7 +29,10 @@ use std::{
 use tokio::runtime::Handle;
 #[cfg(feature = "websocket-notify")]
 use tokio::sync::broadcast;
-use tower_http::cors::{self, CorsLayer};
+use tower_http::{
+    cors::{self, CorsLayer},
+    sensitive_headers::SetSensitiveRequestHeadersLayer,
+};
 use tracing::info;
 
 pub(crate) mod listener;
@@ -32,6 +43,7 @@ mod rpc;
 
 #[cfg(feature = "websocket-notify")]
 pub(crate) use notifier::Notifier;
+#[cfg(feature = "websocket-notify")]
 pub(crate) use rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT;
 use rpc::{Context, JsonRpc};
 
@@ -48,6 +60,10 @@ pub(crate) enum Message {
     RunWorkflow((FastStr, Workflow<'static, Arg>)),
     /// Acknowledgement of a [Workflow] run.
     AckWorkflow((Cid, FastStr)),
+    /// TODO
+    GetNodeInfo,
+    /// TODO
+    AckNodeInfo(NodeInfo),
 }
 
 /// WebSocket server fields.
@@ -208,6 +224,7 @@ impl Server {
                 rpc::METRICS_ENDPOINT,
             )?)
             .layer(cors)
+            .layer(SetSensitiveRequestHeadersLayer::new(once(AUTHORIZATION)))
             .timeout(self.webserver_timeout);
 
         let runtime_hdl = Handle::current();
@@ -235,11 +252,13 @@ fn port_available(host: IpAddr, port: u16) -> bool {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{event_handler::notification::ReceiptNotification, settings::Settings};
-    use homestar_core::test_utils;
+    #[cfg(feature = "websocket-notify")]
+    use crate::event_handler::notification::ReceiptNotification;
+    use crate::{db::Database, settings::Settings};
     #[cfg(feature = "websocket-notify")]
     use homestar_core::{
         ipld::DagJson,
+        test_utils,
         workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
     };
     #[cfg(feature = "websocket-notify")]
@@ -249,13 +268,7 @@ mod test {
     use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
     #[cfg(feature = "websocket-notify")]
     use notifier::{self, Header};
-    use serial_test::file_serial;
     use tokio::sync::mpsc;
-
-    fn set_ports(settings: &mut Settings) {
-        settings.node.network.metrics_port = test_utils::ports::get_port() as u16;
-        settings.node.network.webserver_port = test_utils::ports::get_port() as u16;
-    }
 
     async fn metrics_handle(settings: Settings) -> PrometheusHandle {
         #[cfg(feature = "monitoring")]
@@ -271,237 +284,246 @@ mod test {
         metrics_hdl
     }
 
-    #[tokio::test]
-    #[file_serial]
-    async fn ws_connect() {
-        let mut settings = Settings::load().unwrap();
-        set_ports(&mut settings);
-        let server = Server::new(settings.node().network()).unwrap();
-        let metrics_hdl = metrics_handle(settings).await;
-        let (runner_tx, _runner_rx) = mpsc::channel(1);
-        server.start(runner_tx, metrics_hdl).await.unwrap();
+    #[homestar_runtime_proc_macro::runner_test]
+    fn ws_connect() {
+        let TestRunner { runner, settings } = TestRunner::start();
+        runner.runtime.block_on(async {
+            let server = Server::new(settings.node().network()).unwrap();
+            let metrics_hdl = metrics_handle(settings).await;
+            let (runner_tx, _runner_rx) = mpsc::channel(1);
+            server.start(runner_tx, metrics_hdl).await.unwrap();
 
-        let ws_url = format!("ws://{}", server.addr);
-        let http_url = format!("http://{}", server.addr);
+            let ws_url = format!("ws://{}", server.addr);
+            let http_url = format!("http://{}", server.addr);
 
-        tokio_tungstenite::connect_async(ws_url.clone())
-            .await
-            .unwrap();
+            tokio_tungstenite::connect_async(ws_url.clone())
+                .await
+                .unwrap();
 
-        let client = WsClientBuilder::default().build(ws_url).await.unwrap();
-        let ws_resp: serde_json::Value = client
-            .request(rpc::HEALTH_ENDPOINT, rpc_params![])
-            .await
-            .unwrap();
-
-        assert_eq!(ws_resp, serde_json::json!({"healthy": true}));
-        let http_resp = reqwest::get(format!("{}/health", http_url)).await.unwrap();
-        assert_eq!(http_resp.status(), 200);
-        let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
-        assert_eq!(http_resp, serde_json::json!({"healthy": true}));
+            let client = WsClientBuilder::default().build(ws_url).await.unwrap();
+            let ws_resp: serde_json::Value = client
+                .request(rpc::HEALTH_ENDPOINT, rpc_params![])
+                .await
+                .unwrap();
+            let peer_id =
+                libp2p::PeerId::from_str("12D3KooWRNw2pJC9748Fmq4WNV27HoSTcX3r37132FLkQMrbKAiC")
+                    .unwrap();
+            let nodeinfo = NodeInfo::new(peer_id);
+            assert_eq!(
+                ws_resp,
+                serde_json::json!({"healthy": true, "nodeInfo": nodeinfo})
+            );
+            let http_resp = reqwest::get(format!("{}/health", http_url)).await.unwrap();
+            assert_eq!(http_resp.status(), 200);
+            let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
+            assert_eq!(
+                http_resp,
+                serde_json::json!({"healthy": true, "nodeInfo": nodeinfo})
+            );
+        });
 
         unsafe { metrics::clear_recorder() }
     }
 
     #[cfg(feature = "monitoring")]
-    #[tokio::test]
-    #[file_serial]
+    #[homestar_runtime_proc_macro::runner_test]
     async fn ws_metrics_no_prefix() {
-        let mut settings = Settings::load().unwrap();
-        set_ports(&mut settings);
-        settings.monitoring.process_collector_interval = Duration::from_millis(100);
-        let server = Server::new(settings.node().network()).unwrap();
-        let metrics_hdl = metrics_handle(settings).await;
-        let (runner_tx, _runner_rx) = mpsc::channel(1);
-        server.start(runner_tx, metrics_hdl).await.unwrap();
+        let TestRunner { runner, settings } = TestRunner::start();
+        runner.runtime.block_on(async {
+            let server = Server::new(settings.node().network()).unwrap();
+            let metrics_hdl = metrics_handle(settings).await;
+            let (runner_tx, _runner_rx) = mpsc::channel(1);
+            server.start(runner_tx, metrics_hdl).await.unwrap();
 
-        let ws_url = format!("ws://{}", server.addr);
+            let ws_url = format!("ws://{}", server.addr);
 
-        // wait for interval to pass
-        std::thread::sleep(Duration::from_millis(100));
+            // wait for interval to pass
+            std::thread::sleep(Duration::from_millis(150));
 
-        let client = WsClientBuilder::default().build(ws_url).await.unwrap();
-        let ws_resp1: serde_json::Value = client
-            .request(rpc::METRICS_ENDPOINT, rpc_params![])
-            .await
-            .unwrap();
+            let client = WsClientBuilder::default().build(ws_url).await.unwrap();
+            let ws_resp1: serde_json::Value = client
+                .request(rpc::METRICS_ENDPOINT, rpc_params![])
+                .await
+                .unwrap();
 
-        let len = if let serde_json::Value::Array(array) = &ws_resp1["metrics"] {
-            array.len()
-        } else {
-            panic!("expected array");
-        };
+            let len = if let serde_json::Value::Array(array) = &ws_resp1["metrics"] {
+                array.len()
+            } else {
+                panic!("expected array");
+            };
 
-        assert!(len > 0);
+            assert!(len > 0);
 
-        unsafe { metrics::clear_recorder() }
+            unsafe { metrics::clear_recorder() }
+        });
     }
 
     #[cfg(feature = "websocket-notify")]
-    #[tokio::test]
-    #[file_serial]
+    #[homestar_runtime_proc_macro::runner_test]
     async fn ws_subscribe_unsubscribe_network_events() {
-        let mut settings = Settings::load().unwrap();
-        set_ports(&mut settings);
-        let server = Server::new(settings.node().network()).unwrap();
-        let metrics_hdl = metrics_handle(settings).await;
-        let (runner_tx, _runner_rx) = mpsc::channel(1);
-        server.start(runner_tx, metrics_hdl).await.unwrap();
+        let TestRunner { runner, settings } = TestRunner::start();
+        runner.runtime.block_on(async {
+            let server = Server::new(settings.node().network()).unwrap();
+            let metrics_hdl = metrics_handle(settings).await;
+            let (runner_tx, _runner_rx) = mpsc::channel(1);
+            server.start(runner_tx, metrics_hdl).await.unwrap();
 
-        let ws_url = format!("ws://{}", server.addr);
+            let ws_url = format!("ws://{}", server.addr);
 
-        let client1 = WsClientBuilder::default().build(ws_url).await.unwrap();
-        let mut sub: Subscription<Vec<u8>> = client1
-            .subscribe(
-                rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                rpc::UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+            let client1 = WsClientBuilder::default().build(ws_url).await.unwrap();
+            let mut sub: Subscription<Vec<u8>> = client1
+                .subscribe(
+                    rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                    rpc_params![],
+                    rpc::UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                )
+                .await
+                .unwrap();
 
-        // send any bytes through (Vec<u8>)
-        let (invocation_receipt, runtime_receipt) = crate::test_utils::receipt::receipts();
-        let receipt = ReceiptNotification::with(invocation_receipt, runtime_receipt.cid(), None);
-        server
-            .evt_notifier
-            .notify(notifier::Message::new(
-                Header::new(
-                    notifier::SubscriptionTyp::EventSub(
-                        rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT.to_string(),
+            // send any bytes through (Vec<u8>)
+            let (invocation_receipt, runtime_receipt) = crate::test_utils::receipt::receipts();
+            let receipt =
+                ReceiptNotification::with(invocation_receipt, runtime_receipt.cid(), None);
+            server
+                .evt_notifier
+                .notify(notifier::Message::new(
+                    Header::new(
+                        notifier::SubscriptionTyp::EventSub(
+                            rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT.to_string(),
+                        ),
+                        None,
                     ),
-                    None,
-                ),
-                receipt.to_json().unwrap(),
-            ))
-            .unwrap();
+                    receipt.to_json().unwrap(),
+                ))
+                .unwrap();
 
-        // send an unknown msg: this should be dropped
-        server
-            .evt_notifier
-            .notify(notifier::Message::new(
-                Header::new(
-                    notifier::SubscriptionTyp::EventSub("test".to_string()),
-                    None,
-                ),
-                vec![],
-            ))
-            .unwrap();
-
-        server
-            .evt_notifier
-            .notify(notifier::Message::new(
-                Header::new(
-                    notifier::SubscriptionTyp::EventSub(
-                        rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT.to_string(),
+            // send an unknown msg: this should be dropped
+            server
+                .evt_notifier
+                .notify(notifier::Message::new(
+                    Header::new(
+                        notifier::SubscriptionTyp::EventSub("test".to_string()),
+                        None,
                     ),
-                    None,
-                ),
-                receipt.to_json().unwrap(),
-            ))
-            .unwrap();
+                    vec![],
+                ))
+                .unwrap();
 
-        let msg1 = sub.next().await.unwrap().unwrap();
-        let returned1: ReceiptNotification = DagJson::from_json(&msg1).unwrap();
-        assert_eq!(returned1, receipt);
+            server
+                .evt_notifier
+                .notify(notifier::Message::new(
+                    Header::new(
+                        notifier::SubscriptionTyp::EventSub(
+                            rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT.to_string(),
+                        ),
+                        None,
+                    ),
+                    receipt.to_json().unwrap(),
+                ))
+                .unwrap();
 
-        let msg2 = sub.next().await.unwrap().unwrap();
-        let _returned1: ReceiptNotification = DagJson::from_json(&msg2).unwrap();
+            let msg1 = sub.next().await.unwrap().unwrap();
+            let returned1: ReceiptNotification = DagJson::from_json(&msg1).unwrap();
+            assert_eq!(returned1, receipt);
 
-        assert!(sub.unsubscribe().await.is_ok());
+            let msg2 = sub.next().await.unwrap().unwrap();
+            let _returned1: ReceiptNotification = DagJson::from_json(&msg2).unwrap();
 
-        unsafe { metrics::clear_recorder() }
+            assert!(sub.unsubscribe().await.is_ok());
+
+            unsafe { metrics::clear_recorder() }
+        });
     }
 
     #[cfg(feature = "websocket-notify")]
-    #[tokio::test]
-    #[file_serial]
+    #[homestar_runtime_proc_macro::runner_test]
     async fn ws_subscribe_workflow_incorrect_params() {
-        let mut settings = Settings::load().unwrap();
-        set_ports(&mut settings);
-        let server = Server::new(settings.node().network()).unwrap();
-        let metrics_hdl = metrics_handle(settings).await;
-        let (runner_tx, _runner_rx) = mpsc::channel(1);
-        server.start(runner_tx, metrics_hdl).await.unwrap();
+        let TestRunner { runner, settings } = TestRunner::start();
+        runner.runtime.block_on(async {
+            let server = Server::new(settings.node().network()).unwrap();
+            let metrics_hdl = metrics_handle(settings).await;
+            let (runner_tx, _runner_rx) = mpsc::channel(1);
+            server.start(runner_tx, metrics_hdl).await.unwrap();
 
-        let ws_url = format!("ws://{}", server.addr);
+            let ws_url = format!("ws://{}", server.addr);
 
-        let client = WsClientBuilder::default().build(ws_url).await.unwrap();
-        let sub: Result<Subscription<Vec<u8>>, jsonrpsee::core::error::Error> = client
-            .subscribe(
-                rpc::SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
-                rpc_params![],
-                rpc::UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
-            )
-            .await;
+            let client = WsClientBuilder::default().build(ws_url).await.unwrap();
+            let sub: Result<Subscription<Vec<u8>>, jsonrpsee::core::error::Error> = client
+                .subscribe(
+                    rpc::SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+                    rpc_params![],
+                    rpc::UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+                )
+                .await;
 
-        assert!(sub.is_err());
+            assert!(sub.is_err());
 
-        if let Err(jsonrpsee::core::error::Error::Call(err)) = sub {
-            let check = ErrorCode::InvalidParams;
-            assert_eq!(err.code(), check.code());
-        } else {
-            panic!("expected same error code");
-        }
+            if let Err(jsonrpsee::core::error::Error::Call(err)) = sub {
+                let check = ErrorCode::InvalidParams;
+                assert_eq!(err.code(), check.code());
+            } else {
+                panic!("expected same error code");
+            }
 
-        unsafe { metrics::clear_recorder() }
+            unsafe { metrics::clear_recorder() }
+        });
     }
 
     #[cfg(feature = "websocket-notify")]
-    #[tokio::test]
-    #[file_serial]
+    #[homestar_runtime_proc_macro::runner_test]
     async fn ws_subscribe_workflow_runner_timeout() {
-        let mut settings = Settings::load().unwrap();
-        set_ports(&mut settings);
-        let server = Server::new(settings.node().network()).unwrap();
-        let metrics_hdl = metrics_handle(settings).await;
-        let (runner_tx, _runner_rx) = mpsc::channel(1);
-        server.start(runner_tx, metrics_hdl).await.unwrap();
+        let TestRunner { runner, settings } = TestRunner::start();
+        runner.runtime.block_on(async {
+            let server = Server::new(settings.node().network()).unwrap();
+            let metrics_hdl = metrics_handle(settings).await;
+            let (runner_tx, _runner_rx) = mpsc::channel(1);
+            server.start(runner_tx, metrics_hdl).await.unwrap();
 
-        let ws_url = format!("ws://{}", server.addr);
+            let ws_url = format!("ws://{}", server.addr);
 
-        let config = Resources::default();
-        let instruction1 = test_utils::workflow::instruction::<Arg>();
-        let (instruction2, _) = test_utils::workflow::wasm_instruction_with_nonce::<Arg>();
+            let config = Resources::default();
+            let instruction1 = test_utils::workflow::instruction::<Arg>();
+            let (instruction2, _) = test_utils::workflow::wasm_instruction_with_nonce::<Arg>();
 
-        let task1 = Task::new(
-            RunInstruction::Expanded(instruction1),
-            config.clone().into(),
-            UcanPrf::default(),
-        );
-        let task2 = Task::new(
-            RunInstruction::Expanded(instruction2),
-            config.into(),
-            UcanPrf::default(),
-        );
+            let task1 = Task::new(
+                RunInstruction::Expanded(instruction1),
+                config.clone().into(),
+                UcanPrf::default(),
+            );
+            let task2 = Task::new(
+                RunInstruction::Expanded(instruction2),
+                config.into(),
+                UcanPrf::default(),
+            );
 
-        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let run_str = format!(
-            r#"{{"name": "test","workflow": {}}}"#,
-            workflow.to_json_string().unwrap()
-        );
+            let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+            let run_str = format!(
+                r#"{{"name": "test","workflow": {}}}"#,
+                workflow.to_json_string().unwrap()
+            );
 
-        let run: serde_json::Value = serde_json::from_str(&run_str).unwrap();
-        let client = WsClientBuilder::default().build(ws_url).await.unwrap();
-        let sub: Result<Subscription<Vec<u8>>, jsonrpsee::core::error::Error> = client
-            .subscribe(
-                rpc::SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
-                rpc_params![run],
-                rpc::UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
-            )
-            .await;
+            let run: serde_json::Value = serde_json::from_str(&run_str).unwrap();
+            let client = WsClientBuilder::default().build(ws_url).await.unwrap();
+            let sub: Result<Subscription<Vec<u8>>, jsonrpsee::core::error::Error> = client
+                .subscribe(
+                    rpc::SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+                    rpc_params![run],
+                    rpc::UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+                )
+                .await;
 
-        assert!(sub.is_err());
+            assert!(sub.is_err());
 
-        // Assure error is not on parse of params, but due to runner
-        // timeout (as runner is not available).
-        if let Err(jsonrpsee::core::error::Error::Call(err)) = sub {
-            let check = ErrorCode::InternalError;
-            assert_eq!(err.code(), check.code());
-        } else {
-            panic!("expected same error code");
-        }
+            // Assure error is not on parse of params, but due to runner
+            // timeout (as runner is not available).
+            if let Err(jsonrpsee::core::error::Error::Call(err)) = sub {
+                let check = ErrorCode::ServerIsBusy;
+                assert_eq!(err.code(), check.code());
+            } else {
+                panic!("expected same error code");
+            }
 
-        unsafe { metrics::clear_recorder() }
+            unsafe { metrics::clear_recorder() }
+        });
     }
 }

@@ -64,7 +64,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .arg("tests/fixtures/test_workflow2.toml")
         .arg("--db")
         .arg("homestar_test_workflow_run_serial.db")
-        .stdout(Stdio::piped())
+        //.stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
@@ -111,11 +111,8 @@ fn test_workflow_run_serial() -> Result<()> {
             .for_each(|msg| async move {
                 let json: serde_json::Value = serde_json::from_slice(&msg.unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
-                let expected1 = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": "bafyrmicvwgispoezdciv5z6w3coutfjjtnhtmbegpcrrocqd76y7dvtknq"}});
-                let expected2 = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmicvwgispoezdciv5z6w3coutfjjtnhtmbegpcrrocqd76y7dvtknq"}});
-                if check != &expected1 && check != &expected2 {
-                    panic!("JSONRPC response is not expected");
-                }
+                let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmicvwgispoezdciv5z6w3coutfjjtnhtmbegpcrrocqd76y7dvtknq"}});
+                assert_eq!(check, &expected);
             })
             .await;
 
@@ -129,7 +126,12 @@ fn test_workflow_run_serial() -> Result<()> {
             .await
             .unwrap();
 
-        assert!(sub2.next().await.is_some());
+        let msg = sub2.next().await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&msg.unwrap()).unwrap();
+        let check = json.get("metadata").unwrap();
+        let expected = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": "bafyrmicvwgispoezdciv5z6w3coutfjjtnhtmbegpcrrocqd76y7dvtknq"}});
+        assert_eq!(check, &expected);
+
         assert!(sub2.next().await.is_some());
         assert!(sub2.next().await.is_some());
 
@@ -148,9 +150,10 @@ fn test_workflow_run_serial() -> Result<()> {
             .with_timeout(std::time::Duration::from_millis(500))
             .await
             .is_err();
+
         assert!(sub3.next().await.is_some());
-        assert!(sub3.next().await.is_some());
-        assert!(sub3.next().await.is_some());
+        assert!(sub2.next().await.is_some());
+        assert!(sub2.next().await.is_some());
 
         let another_run_str = format!(r#"{{"name": "another_test","workflow": {}}}"#, json_string);
         let another_run: serde_json::Value = serde_json::from_str(&another_run_str).unwrap();
