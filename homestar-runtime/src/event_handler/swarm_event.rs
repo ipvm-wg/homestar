@@ -409,7 +409,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     info!(
                         peer_id = propagation_source.to_string(),
                         message_id = message_id.to_string(),
-                        "message recevied on receipts topic: {receipt}"
+                        "message received on receipts topic: {receipt}"
                     );
 
                     // Store gossiped receipt.

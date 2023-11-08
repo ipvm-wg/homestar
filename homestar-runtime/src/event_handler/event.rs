@@ -375,7 +375,9 @@ impl Replay {
                     )
                     .map(|msg_id|
                          info!(cid=receipt_cid,
-                               "message {msg_id} published on {} topic for receipt", pubsub::RECEIPTS_TOPIC))
+                             message_id = msg_id.to_string(),
+                             "message published on {} topic for receipt with cid: {receipt_cid}",
+                              pubsub::RECEIPTS_TOPIC))
                     .map_err(
                         |err|
                         warn!(err=?err, cid=receipt_cid,

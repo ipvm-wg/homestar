@@ -11,6 +11,7 @@ use std::{
     time::Duration,
 };
 
+mod gossip;
 #[cfg(feature = "websocket-notify")]
 mod notification;
 
