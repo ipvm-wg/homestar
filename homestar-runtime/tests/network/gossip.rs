@@ -6,7 +6,6 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use serial_test::file_serial;
 use std::{
-    fs,
     path::PathBuf,
     process::{Command, Stdio},
     thread,
@@ -97,6 +96,9 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
 
     assert!(message_published);
     assert!(message_received);
+
+    remove_db("homestar_test_libp2p_receipt_gossip_serial1");
+    remove_db("homestar_test_libp2p_receipt_gossip_serial2");
 
     let _ = stop_all_bins();
 

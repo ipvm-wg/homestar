@@ -13,6 +13,7 @@ use retry::{delay::Fixed, retry};
 #[cfg(feature = "ipfs")]
 use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream};
 use std::{
+    fs,
     future::Future,
     path::PathBuf,
     process::{Child, Command, Stdio},
@@ -219,6 +220,12 @@ pub(crate) fn kill_homestar_daemon() -> Result<()> {
     };
 
     Ok(())
+}
+
+pub(crate) fn remove_db(name: &str) {
+    let _ = fs::remove_file(format!("{name}.db"));
+    let _ = fs::remove_file(format!("{name}.db-shm"));
+    let _ = fs::remove_file(format!("{name}.db-wal"));
 }
 
 /// Helper extension trait which allows to limit execution time for the futures.
