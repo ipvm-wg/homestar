@@ -64,7 +64,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .arg("tests/fixtures/test_workflow2.toml")
         .arg("--db")
         .arg("homestar_test_workflow_run_serial.db")
-        //.stdout(Stdio::piped())
+        .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 

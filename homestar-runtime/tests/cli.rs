@@ -206,10 +206,10 @@ fn test_workflow_run_serial() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "bafyrmibcfltf6vhtfdson5z4av4r4wg3rccpt4hxajt54msacojeecazqy",
+            "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         ))
         .stdout(predicate::str::contains(
-            "ipfs://bafybeiabbxwf2vn4j3zm7bbojr6rt6k7o6cg6xcbhqkllubmsnvocpv7y4",
+            "ipfs://bafkreihxcyjgyrz437ewzi7md55uqt2zf6yr3zn7xrfi4orc34xdc5jgrm",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
@@ -224,10 +224,10 @@ fn test_workflow_run_serial() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "bafyrmibcfltf6vhtfdson5z4av4r4wg3rccpt4hxajt54msacojeecazqy",
+            "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         ))
         .stdout(predicate::str::contains(
-            "ipfs://bafybeiabbxwf2vn4j3zm7bbojr6rt6k7o6cg6xcbhqkllubmsnvocpv7y4",
+            "ipfs://bafkreihxcyjgyrz437ewzi7md55uqt2zf6yr3zn7xrfi4orc34xdc5jgrm",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
