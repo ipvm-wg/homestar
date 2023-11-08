@@ -6,7 +6,7 @@ edition = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
-wit-bindgen = "0.13"
+wit-bindgen = "0.14"
 
 [lib]
 doc = false
