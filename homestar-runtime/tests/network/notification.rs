@@ -82,9 +82,16 @@ fn test_connection_notifications() -> Result<()> {
             .spawn()
             .unwrap();
 
-        let _ = kill_homestar(homestar_proc2, None);
+        let next_ws_port = 8023;
+        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), next_ws_port);
+        let result = retry(Exponential::from_millis(1000).take(10), || {
+            TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
+        });
 
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        if result.is_err() {
+            let _ = kill_homestar(homestar_proc2, None);
+            panic!("Homestar server/runtime failed to start in time");
+        }
 
         {
             let msg = sub
