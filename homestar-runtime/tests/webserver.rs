@@ -25,10 +25,13 @@ const UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "unsubscribe_run_workflow";
 #[test]
 #[file_serial]
 fn test_workflow_run_serial() -> Result<()> {
+    const DB: &str = "ws_homestar_test_workflow_run.db";
+    const IPFS_EXT: &str = "ws_homestar_test_workflow_run";
+
     let _ = stop_all_bins();
 
     #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs();
+    let _ = startup_ipfs(IPFS_EXT);
 
     let add_image_args = vec![
         "add",
@@ -44,7 +47,6 @@ fn test_workflow_run_serial() -> Result<()> {
         "../examples/websocket-relay/example_test.wasm",
     ];
 
-    const DB: &str = "ws_homestar_test_workflow_run.db";
     let _ = fs::remove_file(DB);
 
     let _ipfs_add_img = Command::new(IPFS)
