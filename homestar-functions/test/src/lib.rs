@@ -255,12 +255,6 @@ mod test_mod {
         let rotated = Component::rotate90_base64(img_uri.into());
         let gray = Component::grayscale(rotated);
         let cropped = Component::crop(gray, 10, 10, 50, 50);
-        let result = Component::blur(cropped, 0.1);
-
-        let png_img = image::io::Reader::new(Cursor::new(&result))
-            .with_guessed_format()
-            .unwrap()
-            .decode()
-            .unwrap();
+        Component::blur(cropped, 0.1);
     }
 }

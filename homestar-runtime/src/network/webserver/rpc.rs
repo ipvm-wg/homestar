@@ -12,6 +12,7 @@ use dashmap::DashMap;
 use faststr::FastStr;
 #[cfg(feature = "websocket-notify")]
 use futures::StreamExt;
+#[cfg(feature = "websocket-notify")]
 use homestar_core::ipld::DagCbor;
 use jsonrpsee::{
     server::RpcModule,

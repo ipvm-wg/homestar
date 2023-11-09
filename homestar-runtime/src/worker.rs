@@ -21,7 +21,7 @@ use crate::{
     workflow::{self, Resource},
     Db, Receipt,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use chrono::NaiveDateTime;
 use faststr::FastStr;
 use fnv::FnvHashSet;
@@ -351,7 +351,16 @@ where
                         });
 
                         let handle = task_set.spawn(async move {
-                            let resolved = resolved.await?;
+                            let resolved = match resolved.await {
+                                Ok(inst_result) => inst_result,
+                                Err(err) => {
+                                    error!(err=?err, "error resolving cid");
+                                    return Err(anyhow!("error resolving cid: {err}"))
+                                        .with_context(|| {
+                                            format!("could not spawn task for cid: {workflow_cid}")
+                                        });
+                                }
+                            };
                             match wasm_ctx.run(wasm, &fun, resolved).await {
                                 Ok(output) => Ok((
                                     output,
