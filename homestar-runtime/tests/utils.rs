@@ -34,8 +34,8 @@ static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME))
 /// Start-up IPFS daemon for tests with the feature turned-on.
 #[allow(dead_code)]
 #[cfg(feature = "ipfs")]
-pub(crate) fn startup_ipfs() -> Result<()> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
+pub(crate) fn startup_ipfs(ext: &str) -> Result<()> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(".ipfs{}", ext));
     println!("starting ipfs daemon...{}", path.to_str().unwrap());
     let mut ipfs_daemon = Command::new(IPFS)
         .args(["--offline", "daemon", "--init"])
