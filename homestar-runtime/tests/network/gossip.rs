@@ -1,6 +1,6 @@
 use crate::utils::{
     check_lines_for, kill_homestar, remove_db, retrieve_output, startup_ipfs, stop_all_bins,
-    wait_for_socket_connection, BIN_NAME, IPFS,
+    wait_for_socket_connection, TimeoutFutureExt, BIN_NAME, IPFS,
 };
 use anyhow::Result;
 use jsonrpsee::{
@@ -16,7 +16,6 @@ use std::{
     process::{Command, Stdio},
     time::Duration,
 };
-use tokio::time::timeout;
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
@@ -95,7 +94,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
 
         // Poll for connection established message
         loop {
-            if let Ok(msg) = timeout(Duration::from_secs(3), sub.next()).await {
+            if let Ok(msg) = sub.next().with_timeout(Duration::from_secs(3)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
@@ -107,6 +106,22 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             }
         }
 
+        let ws_port2 = 7991;
+        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
+        let client2 = WsClientBuilder::default()
+            .build(ws_url2.clone())
+            .await
+            .unwrap();
+
+        let mut sub2: Subscription<Vec<u8>> = client2
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
+
         // Run test workflow
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
@@ -116,9 +131,42 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 
+        // Poll for published and received receipt messages
+        let mut confirmed_messages = vec![false, false];
+        loop {
+            if let Ok(msg) = sub.next().with_timeout(Duration::from_secs(3)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["type"].as_str().unwrap() == "network:publishedReceiptPubsub" {
+                    confirmed_messages[0] = true;
+                }
+            } else {
+                panic!("Node one did not publish receipt in time.")
+            }
+
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(3)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["type"].as_str().unwrap() == "network:receivedReceiptPubsub" {
+                    confirmed_messages[1] = true;
+                }
+            } else {
+                panic!("Node two did not receive receipt in time.")
+            }
+
+            if confirmed_messages
+                .iter()
+                .all(|confirmation| confirmation.to_owned())
+            {
+                break;
+            }
+        }
+
         // Collect logs for seven seconds then kill proceses.
-        let dead_proc1 = kill_homestar(homestar_proc1, Some(Duration::from_secs(7)));
-        let dead_proc2 = kill_homestar(homestar_proc2, Some(Duration::from_secs(7)));
+        let dead_proc1 = kill_homestar(homestar_proc1, None);
+        let dead_proc2 = kill_homestar(homestar_proc2, None);
 
         // Retrieve logs.
         let stdout1 = retrieve_output(dead_proc1);

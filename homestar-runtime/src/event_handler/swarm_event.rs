@@ -417,9 +417,22 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         .db
                         .conn()
                         .as_mut()
-                        .map(|conn| Db::store_receipt(receipt, conn));
+                        .map(|conn| Db::store_receipt(receipt.clone(), conn));
+
+                    #[cfg(feature = "websocket-notify")]
+                    notification::emit_event(
+                        event_handler.ws_evt_sender(),
+                        EventNotificationTyp::SwarmNotification(
+                            SwarmNotification::ReceivedReceiptPubsub,
+                        ),
+                        btreemap! {
+                            "peerId" => propagation_source.to_string(),
+                            "cid" => receipt.cid().to_string(),
+                            "ran" => receipt.ran().to_string()
+                        },
+                    );
                 }
-                Err(err) => info!(err=?err, "cannot handle incoming event message"),
+                Err(err) => info!(err=?err, "cannot handle incoming gossipsub message"),
             },
             gossipsub::Event::Subscribed { peer_id, topic } => {
                 debug!(
