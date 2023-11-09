@@ -9,7 +9,10 @@ use nix::{
 };
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
-use retry::{delay::Fixed, retry};
+use retry::{
+    delay::{Exponential, Fixed},
+    retry,
+};
 #[cfg(feature = "ipfs")]
 use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream};
 use std::{
@@ -222,10 +225,21 @@ pub(crate) fn kill_homestar_daemon() -> Result<()> {
     Ok(())
 }
 
+/// Remove sqlite database and associated temporary files
 pub(crate) fn remove_db(name: &str) {
     let _ = fs::remove_file(format!("{name}.db"));
     let _ = fs::remove_file(format!("{name}.db-shm"));
     let _ = fs::remove_file(format!("{name}.db-wal"));
+}
+
+/// Wait for socket connection or timeout
+pub(crate) fn wait_for_socket_connection(port: u16, exp_retry_base: u64) -> Result<(), ()> {
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+    let result = retry(Exponential::from_millis(exp_retry_base).take(10), || {
+        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
+    });
+
+    result.map_or_else(|_| Err(()), |_| Ok(()))
 }
 
 /// Helper extension trait which allows to limit execution time for the futures.
