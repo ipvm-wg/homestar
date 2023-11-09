@@ -1,6 +1,6 @@
 #[cfg(feature = "ipfs")]
 use crate::utils::startup_ipfs;
-use crate::utils::{kill_homestar, stop_all_bins, TimeoutFutureExt, BIN_NAME, IPFS};
+use crate::utils::{kill_homestar, remove_db, stop_all_bins, TimeoutFutureExt, BIN_NAME, IPFS};
 use anyhow::Result;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
@@ -244,7 +244,7 @@ fn test_workflow_run_serial() -> Result<()> {
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
     let _ = kill_homestar(homestar_proc, None);
     let _ = stop_all_bins();
-    let _ = fs::remove_file(DB);
+    remove_db(DB);
 
     Ok(())
 }

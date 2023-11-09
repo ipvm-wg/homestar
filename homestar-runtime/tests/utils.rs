@@ -227,9 +227,9 @@ pub(crate) fn kill_homestar_daemon() -> Result<()> {
 
 /// Remove sqlite database and associated temporary files
 pub(crate) fn remove_db(name: &str) {
-    let _ = fs::remove_file(format!("{name}.db"));
-    let _ = fs::remove_file(format!("{name}.db-shm"));
-    let _ = fs::remove_file(format!("{name}.db-wal"));
+    let _ = fs::remove_file(format!("{name}"));
+    let _ = fs::remove_file(format!("{name}-shm"));
+    let _ = fs::remove_file(format!("{name}-wal"));
 }
 
 /// Wait for socket connection or timeout

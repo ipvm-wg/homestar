@@ -28,10 +28,14 @@ const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 #[test]
 #[file_serial]
 fn test_libp2p_receipt_gossip_serial() -> Result<()> {
+    const IPFS_EXT: &str = "test_libp2p_receipt_gossip_serial";
+    const DB1: &str = "homestar_test_libp2p_receipt_gossip_serial1.db";
+    const DB2: &str = "homestar_test_libp2p_receipt_gossip_serial2.db";
+
     let _ = stop_all_bins();
 
     #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs();
+    let _ = startup_ipfs(IPFS_EXT);
 
     let add_wasm_args = vec![
         "add",
@@ -55,7 +59,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_gossip1.toml")
         .arg("--db")
-        .arg("homestar_test_libp2p_receipt_gossip_serial1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -91,7 +95,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             .arg("-c")
             .arg("tests/fixtures/test_gossip2.toml")
             .arg("--db")
-            .arg("homestar_test_libp2p_receipt_gossip_serial2.db")
+            .arg(DB2)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
@@ -198,11 +202,8 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
 
         let settings =
             Settings::load_from_file(PathBuf::from("tests/fixtures/test_gossip2.toml")).unwrap();
-        let db = Db::setup_connection_pool(
-            settings.node(),
-            Some("homestar_test_libp2p_receipt_gossip_serial2.db".to_string()),
-        )
-        .expect("Failed to connect to node two database");
+        let db = Db::setup_connection_pool(settings.node(), Some(DB2.to_string()))
+            .expect("Failed to connect to node two database");
 
         // Check database for stored receipts
         let stored_receipts: Vec<_> = received_cids
@@ -217,8 +218,8 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
         assert_eq!(stored_receipts.len(), 2)
     });
 
-    remove_db("homestar_test_libp2p_receipt_gossip_serial1");
-    remove_db("homestar_test_libp2p_receipt_gossip_serial2");
+    remove_db(DB1);
+    remove_db(DB2);
 
     let _ = stop_all_bins();
 
