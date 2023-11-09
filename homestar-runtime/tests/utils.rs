@@ -13,11 +13,10 @@ use retry::{
     delay::{Exponential, Fixed},
     retry,
 };
-#[cfg(feature = "ipfs")]
-use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream};
 use std::{
     fs,
     future::Future,
+    net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Child, Command, Stdio},
     time::Duration,
