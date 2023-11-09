@@ -21,6 +21,7 @@ static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME))
 const SUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "subscribe_run_workflow";
 const UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "unsubscribe_run_workflow";
 
+#[cfg(feature = "test-utils")]
 #[test]
 #[file_serial]
 fn test_workflow_run_serial() -> Result<()> {
