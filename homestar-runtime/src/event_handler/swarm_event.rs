@@ -745,7 +745,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ListeningOn),
                 btreemap! {
-                    "peer_id" => local_peer.to_string(),
+                    "peerId" => local_peer.to_string(),
                     "address" => address.to_string()
                 },
             );
@@ -766,7 +766,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
                 btreemap! {
-                    "peer_id" => peer_id.to_string(),
+                    "peerId" => peer_id.to_string(),
                     "address" => endpoint.get_remote_address().to_string()
                 },
             );
@@ -811,7 +811,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionClosed),
                 btreemap! {
-                    "peer_id" => peer_id.to_string(),
+                    "peerId" => peer_id.to_string(),
                     "address" => endpoint.get_remote_address().to_string()
                 },
             );
@@ -833,7 +833,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::OutgoingConnectionError),
                 btreemap! {
-                    "peer_id" => peer_id.map_or("Unknown peer".into(), |p| p.to_string()),
+                    "peerId" => peer_id.map_or("Unknown peer".into(), |p| p.to_string()),
                     "error" => error.to_string()
                 },
             );

@@ -95,7 +95,7 @@ fn test_connection_notifications_serial() -> Result<()> {
                 .expect("Subscription did not receive a connection established message");
             let json: serde_json::Value = serde_json::from_slice(&msg.unwrap()).unwrap();
             let typ = json["type"].as_str().unwrap();
-            let peer_id = json["data"]["peer_id"].as_str().unwrap();
+            let peer_id = json["data"]["peerId"].as_str().unwrap();
 
             assert_eq!(typ, "network:connectionEstablished");
             assert_eq!(
@@ -111,7 +111,7 @@ fn test_connection_notifications_serial() -> Result<()> {
                 .expect("Subscription did not receive a connection closed message");
             let json: serde_json::Value = serde_json::from_slice(&msg.unwrap()).unwrap();
             let typ = json["type"].as_str().unwrap();
-            let peer_id = json["data"]["peer_id"].as_str().unwrap();
+            let peer_id = json["data"]["peerId"].as_str().unwrap();
 
             assert_eq!(typ, "network:connectionClosed");
             assert_eq!(
