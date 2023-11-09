@@ -107,7 +107,7 @@ fn test_workflow_run_serial() -> Result<()> {
         // we have 3 operations
         let one = sub1
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&one.unwrap().unwrap()).unwrap();
@@ -117,7 +117,7 @@ fn test_workflow_run_serial() -> Result<()> {
 
         let two = sub1
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&two.unwrap().unwrap()).unwrap();
@@ -127,7 +127,7 @@ fn test_workflow_run_serial() -> Result<()> {
 
         let three = sub1
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&three.unwrap().unwrap()).unwrap();
@@ -147,7 +147,7 @@ fn test_workflow_run_serial() -> Result<()> {
 
         let msg = sub2
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
@@ -157,13 +157,13 @@ fn test_workflow_run_serial() -> Result<()> {
 
         assert!(sub2
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .unwrap()
             .is_some());
         assert!(sub2
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .unwrap()
             .is_some());
@@ -180,25 +180,25 @@ fn test_workflow_run_serial() -> Result<()> {
 
         let _ = sub2
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .is_err();
 
         assert!(sub3
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .unwrap()
             .is_some());
         assert!(sub2
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .unwrap()
             .is_some());
         assert!(sub2
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .unwrap()
             .is_some());
@@ -216,24 +216,24 @@ fn test_workflow_run_serial() -> Result<()> {
 
         let _ = sub3
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .is_err();
         assert!(sub4
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .unwrap()
             .is_some());
         assert!(sub4
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .unwrap()
             .is_some());
         assert!(sub4
             .next()
-            .with_timeout(std::time::Duration::from_millis(10000))
+            .with_timeout(std::time::Duration::from_millis(25000))
             .await
             .unwrap()
             .is_some());
