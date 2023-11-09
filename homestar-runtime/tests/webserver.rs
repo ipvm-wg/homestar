@@ -2,7 +2,6 @@
 use crate::utils::startup_ipfs;
 use crate::utils::{kill_homestar, stop_all_bins, TimeoutFutureExt, BIN_NAME, IPFS};
 use anyhow::Result;
-use futures::StreamExt;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
     rpc_params,
@@ -83,10 +82,6 @@ fn test_workflow_run_serial() -> Result<()> {
     let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port);
 
     tokio_test::block_on(async {
-        tokio_tungstenite::connect_async(ws_url.clone())
-            .await
-            .unwrap();
-
         let workflow_str =
             fs::read_to_string("tests/fixtures/test-workflow-image-pipeline.json").unwrap();
         let json: serde_json::Value = serde_json::from_str(&workflow_str).unwrap();
@@ -98,7 +93,7 @@ fn test_workflow_run_serial() -> Result<()> {
             .build(ws_url.clone())
             .await
             .unwrap();
-        let sub1: Subscription<Vec<u8>> = client1
+        let mut sub1: Subscription<Vec<u8>> = client1
             .subscribe(
                 SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
                 rpc_params![run.clone()],
@@ -108,14 +103,35 @@ fn test_workflow_run_serial() -> Result<()> {
             .unwrap();
 
         // we have 3 operations
-        sub1.take(3)
-            .for_each(|msg| async move {
-                let json: serde_json::Value = serde_json::from_slice(&msg.unwrap()).unwrap();
-                let check = json.get("metadata").unwrap();
-                let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
-                assert_eq!(check, &expected);
-            })
-            .await;
+        let one = sub1
+            .next()
+            .with_timeout(std::time::Duration::from_millis(2500))
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&one.unwrap().unwrap()).unwrap();
+        let check = json.get("metadata").unwrap();
+        let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
+        assert_eq!(check, &expected);
+
+        let two = sub1
+            .next()
+            .with_timeout(std::time::Duration::from_millis(2500))
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&two.unwrap().unwrap()).unwrap();
+        let check = json.get("metadata").unwrap();
+        let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
+        assert_eq!(check, &expected);
+
+        let three = sub1
+            .next()
+            .with_timeout(std::time::Duration::from_millis(2500))
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&three.unwrap().unwrap()).unwrap();
+        let check = json.get("metadata").unwrap();
+        let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
+        assert_eq!(check, &expected);
 
         // separate subscription, only 3 events too
         let mut sub2: Subscription<Vec<u8>> = client1
@@ -127,14 +143,28 @@ fn test_workflow_run_serial() -> Result<()> {
             .await
             .unwrap();
 
-        let msg = sub2.next().await.unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&msg.unwrap()).unwrap();
+        let msg = sub2
+            .next()
+            .with_timeout(std::time::Duration::from_millis(2500))
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
         let check = json.get("metadata").unwrap();
         let expected = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
         assert_eq!(check, &expected);
 
-        assert!(sub2.next().await.is_some());
-        assert!(sub2.next().await.is_some());
+        assert!(sub2
+            .next()
+            .with_timeout(std::time::Duration::from_millis(2500))
+            .await
+            .unwrap()
+            .is_some());
+        assert!(sub2
+            .next()
+            .with_timeout(std::time::Duration::from_millis(2500))
+            .await
+            .unwrap()
+            .is_some());
 
         let client2 = WsClientBuilder::default().build(ws_url).await.unwrap();
         let mut sub3: Subscription<Vec<u8>> = client2
@@ -148,13 +178,28 @@ fn test_workflow_run_serial() -> Result<()> {
 
         let _ = sub2
             .next()
-            .with_timeout(std::time::Duration::from_millis(500))
+            .with_timeout(std::time::Duration::from_millis(2500))
             .await
             .is_err();
 
-        assert!(sub3.next().await.is_some());
-        assert!(sub2.next().await.is_some());
-        assert!(sub2.next().await.is_some());
+        assert!(sub3
+            .next()
+            .with_timeout(std::time::Duration::from_millis(2500))
+            .await
+            .unwrap()
+            .is_some());
+        assert!(sub2
+            .next()
+            .with_timeout(std::time::Duration::from_millis(2500))
+            .await
+            .unwrap()
+            .is_some());
+        assert!(sub2
+            .next()
+            .with_timeout(std::time::Duration::from_millis(2500))
+            .await
+            .unwrap()
+            .is_some());
 
         let another_run_str = format!(r#"{{"name": "another_test","workflow": {}}}"#, json_string);
         let another_run: serde_json::Value = serde_json::from_str(&another_run_str).unwrap();
@@ -169,12 +214,27 @@ fn test_workflow_run_serial() -> Result<()> {
 
         let _ = sub3
             .next()
-            .with_timeout(std::time::Duration::from_millis(500))
+            .with_timeout(std::time::Duration::from_millis(5000))
             .await
             .is_err();
-        assert!(sub4.next().await.is_some());
-        assert!(sub4.next().await.is_some());
-        assert!(sub4.next().await.is_some());
+        assert!(sub4
+            .next()
+            .with_timeout(std::time::Duration::from_millis(5000))
+            .await
+            .unwrap()
+            .is_some());
+        assert!(sub4
+            .next()
+            .with_timeout(std::time::Duration::from_millis(5000))
+            .await
+            .unwrap()
+            .is_some());
+        assert!(sub4
+            .next()
+            .with_timeout(std::time::Duration::from_millis(5000))
+            .await
+            .unwrap()
+            .is_some());
     });
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
