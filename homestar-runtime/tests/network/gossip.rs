@@ -3,17 +3,21 @@ use crate::utils::{
     wait_for_socket_connection, TimeoutFutureExt, BIN_NAME, IPFS,
 };
 use anyhow::Result;
+use homestar_runtime::{db::Database, Db, Settings};
+use itertools::Itertools;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
     rpc_params,
     ws_client::WsClientBuilder,
 };
+use libipld::Cid;
 use once_cell::sync::Lazy;
 use serial_test::file_serial;
 use std::{
     net::Ipv4Addr,
     path::PathBuf,
     process::{Command, Stdio},
+    str::FromStr,
     time::Duration,
 };
 
@@ -69,7 +73,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             .await
             .unwrap();
 
-        let mut sub: Subscription<Vec<u8>> = client
+        let mut sub1: Subscription<Vec<u8>> = client
             .subscribe(
                 SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
                 rpc_params![],
@@ -94,7 +98,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
 
         // Poll for connection established message
         loop {
-            if let Ok(msg) = sub.next().with_timeout(Duration::from_secs(3)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(3)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
@@ -132,14 +136,18 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             .output();
 
         // Poll for published and received receipt messages
-        let mut confirmed_messages = vec![false, false];
+        let mut published_cids: Vec<Cid> = vec![];
+        let mut received_cids: Vec<Cid> = vec![];
         loop {
-            if let Ok(msg) = sub.next().with_timeout(Duration::from_secs(3)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(3)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
                 if json["type"].as_str().unwrap() == "network:publishedReceiptPubsub" {
-                    confirmed_messages[0] = true;
+                    published_cids.push(
+                        Cid::from_str(json["data"]["cid"].as_str().unwrap())
+                            .expect("Unable to parse published receipt CID."),
+                    );
                 }
             } else {
                 panic!("Node one did not publish receipt in time.")
@@ -150,21 +158,21 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
                 if json["type"].as_str().unwrap() == "network:receivedReceiptPubsub" {
-                    confirmed_messages[1] = true;
+                    received_cids.push(
+                        Cid::from_str(json["data"]["cid"].as_str().unwrap())
+                            .expect("Unable to parse received receipt CID."),
+                    );
                 }
             } else {
                 panic!("Node two did not receive receipt in time.")
             }
 
-            if confirmed_messages
-                .iter()
-                .all(|confirmation| confirmation.to_owned())
-            {
+            if published_cids.len() == 2 && received_cids.len() == 2 {
                 break;
             }
         }
 
-        // Collect logs for seven seconds then kill proceses.
+        // Collect logs then kill proceses.
         let dead_proc1 = kill_homestar(homestar_proc1, None);
         let dead_proc2 = kill_homestar(homestar_proc2, None);
 
@@ -187,6 +195,26 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
 
         assert!(message_published);
         assert!(message_received);
+
+        let settings =
+            Settings::load_from_file(PathBuf::from("tests/fixtures/test_gossip2.toml")).unwrap();
+        let db = Db::setup_connection_pool(
+            settings.node(),
+            Some("homestar_test_libp2p_receipt_gossip_serial2.db".to_string()),
+        )
+        .expect("Failed to connect to node two database");
+
+        // Check database for stored receipts
+        let stored_receipts: Vec<_> = received_cids
+            .iter()
+            .map(|cid| {
+                Db::find_receipt_by_cid(*cid, &mut db.conn().unwrap()).expect(
+                    format!("Failed to find receipt with CID {} in database", *cid).as_str(),
+                )
+            })
+            .collect_vec();
+
+        assert_eq!(stored_receipts.len(), 2)
     });
 
     remove_db("homestar_test_libp2p_receipt_gossip_serial1");
