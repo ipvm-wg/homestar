@@ -2,15 +2,14 @@
 
 use super::EventHandler;
 #[cfg(feature = "websocket-notify")]
-use crate::event_handler::notification::emit_receipt;
+use crate::event_handler::notification::{
+    self, emit_receipt, EventNotificationTyp, SwarmNotification,
+};
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
     db::Database,
-    event_handler::{
-        notification::{self, EventNotificationTyp, SwarmNotification},
-        Handler, P2PSender, ResponseEvent,
-    },
+    event_handler::{Handler, P2PSender, ResponseEvent},
     network::{
         pubsub,
         swarm::{CapsuleTag, RequestResponseKey, TopicMessage},
@@ -28,6 +27,7 @@ use libp2p::{
     rendezvous::Namespace,
     PeerId,
 };
+#[cfg(feature = "websocket-notify")]
 use maplit::btreemap;
 use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
 #[cfg(feature = "ipfs")]
