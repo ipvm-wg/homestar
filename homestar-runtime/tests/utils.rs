@@ -46,14 +46,9 @@ pub(crate) fn startup_ipfs(ext: &str) -> Result<()> {
         .spawn()?;
 
     // wait for ipfs daemon to start by testing for a connection
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 5001);
-    let result = retry(Fixed::from_millis(500), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if let Err(err) = result {
+    if wait_for_socket_connection(5001, 1000).is_err() {
         ipfs_daemon.kill().unwrap();
-        panic!("`ipfs daemon` failed to start: {:?}", err);
+        panic!("`ipfs daemon` failed to start");
     } else {
         Ok(())
     }

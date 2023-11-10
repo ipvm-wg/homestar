@@ -284,49 +284,10 @@ fn test_daemon_serial() -> Result<()> {
 
 #[test]
 #[file_serial]
-#[cfg(windows)]
-fn test_signal_kill_serial() -> Result<()> {
-    let _ = stop_homestar();
-
-    let homestar_proc = Command::new(BIN.as_os_str())
-        .arg("start")
-        .arg("-c")
-        .arg("tests/fixtures/test_windows_v4.toml")
-        .arg("--db")
-        .arg("homestar.db")
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-
-    if wait_for_socket_connection(9001, 1000).is_err() {
-        let _ = kill_homestar(homestar_proc, None);
-        panic!("Homestar server/runtime failed to start in time");
-    }
-
-    Command::new(BIN.as_os_str())
-        .arg("ping")
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("::1"))
-        .stdout(predicate::str::contains("pong"));
-
-    let _ = Command::new(BIN.as_os_str()).arg("stop").output();
-    let _ = kill_homestar(homestar_proc, None);
-
-    Command::new(BIN.as_os_str()).arg("ping").assert().failure();
-
-    let _ = stop_homestar();
-
-    Ok(())
-}
-
-#[test]
-#[file_serial]
-#[cfg(windows)]
 fn test_server_v4_serial() -> Result<()> {
     let _ = stop_homestar();
 
-    let mut homestar_proc = Command::new(BIN.as_os_str())
+    let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
         .arg("tests/fixtures/test_v4.toml")
