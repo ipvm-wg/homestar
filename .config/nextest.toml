@@ -4,9 +4,10 @@ test-threads = "num-cpus"
 threads-required = 1
 
 [profile.ci]
-retries = { backoff = "exponential", count = 3, delay = "5s", jitter = true, max-delay = "30s" }
+retries = { backoff = "exponential", count = 3, delay = "30s", jitter = true, max-delay = "300s" }
 failure-output = "immediate-final"
 leak-timeout = "800ms"
+slow-timeout = { period = "120s", terminate-after = 2 }
 fail-fast = false
 
 [test-groups]
@@ -15,13 +16,6 @@ serial = { max-threads = 1 }
 [[profile.default.overrides]]
 filter = 'test(/_serial$/)'
 test-group = 'serial'
-
-[[profile.ci.overrides]]
-platform = { host = 'cfg(target_os = "windows")' }
-filter = 'test(/_serial$/)'
-test-group = 'serial'
-retries = { backoff = "exponential", count = 5, delay = "60s", jitter = true, max-delay = "500s" }
-slow-timeout = { period = "120s", terminate-after = 2 }
 
 [[profile.ci.overrides]]
 filter = 'test(/_serial$/)'

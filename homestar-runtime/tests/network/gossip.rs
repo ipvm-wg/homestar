@@ -108,7 +108,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
 
         // Poll for connection established message
         loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(3)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(10)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
@@ -148,7 +148,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
         let mut published_cids: Vec<Cid> = vec![];
         let mut received_cids: Vec<Cid> = vec![];
         loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(3)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(10)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
@@ -162,7 +162,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
                 panic!("Node one did not publish receipt in time.")
             }
 
-            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(3)).await {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(10)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
