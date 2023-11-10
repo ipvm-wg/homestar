@@ -1,4 +1,4 @@
-use crate::utils::{kill_homestar, stop_homestar, BIN_NAME};
+use crate::utils::{kill_homestar, stop_homestar, wait_for_socket_connection, BIN_NAME};
 use anyhow::Result;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
@@ -6,10 +6,9 @@ use jsonrpsee::{
     ws_client::WsClientBuilder,
 };
 use once_cell::sync::Lazy;
-use retry::{delay::Exponential, retry};
 use serial_test::file_serial;
 use std::{
-    net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
+    net::Ipv4Addr,
     path::PathBuf,
     process::{Command, Stdio},
     time::Duration,
@@ -39,12 +38,7 @@ fn test_connection_notifications_serial() -> Result<()> {
         .unwrap();
 
     let ws_port = 8022;
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), ws_port);
-    let result = retry(Exponential::from_millis(1000).take(10), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if result.is_err() {
+    if wait_for_socket_connection(8022, 1000).is_err() {
         let _ = kill_homestar(homestar_proc1, None);
         panic!("Homestar server/runtime failed to start in time");
     }
@@ -83,6 +77,11 @@ fn test_connection_notifications_serial() -> Result<()> {
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
+
+        if wait_for_socket_connection(8023, 1000).is_err() {
+            let _ = kill_homestar(homestar_proc2, None);
+            panic!("Homestar server/runtime failed to start in time");
+        }
 
         let _ = kill_homestar(homestar_proc2, None);
 

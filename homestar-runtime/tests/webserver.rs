@@ -1,6 +1,9 @@
 #[cfg(feature = "ipfs")]
 use crate::utils::startup_ipfs;
-use crate::utils::{kill_homestar, remove_db, stop_all_bins, TimeoutFutureExt, BIN_NAME, IPFS};
+use crate::utils::{
+    kill_homestar, remove_db, stop_all_bins, wait_for_socket_connection, TimeoutFutureExt,
+    BIN_NAME, IPFS,
+};
 use anyhow::Result;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
@@ -8,11 +11,10 @@ use jsonrpsee::{
     ws_client::WsClientBuilder,
 };
 use once_cell::sync::Lazy;
-use retry::{delay::Exponential, retry};
 use serial_test::file_serial;
 use std::{
     fs,
-    net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
+    net::Ipv4Addr,
     path::PathBuf,
     process::{Command, Stdio},
 };
@@ -61,7 +63,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .output()
         .expect("`ipfs add` of wasm mod");
 
-    let mut homestar_proc = Command::new(BIN.as_os_str())
+    let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
         .arg("tests/fixtures/test_workflow2.toml")
@@ -72,13 +74,8 @@ fn test_workflow_run_serial() -> Result<()> {
         .unwrap();
 
     let ws_port = 8061;
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), ws_port);
-    let result = retry(Exponential::from_millis(1000).take(10), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if result.is_err() {
-        homestar_proc.kill().unwrap();
+    if wait_for_socket_connection(ws_port, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
         panic!("Homestar server/runtime failed to start in time");
     }
 

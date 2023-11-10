@@ -1,11 +1,10 @@
-use crate::utils::{kill_homestar, stop_homestar, BIN_NAME};
+use crate::utils::{kill_homestar, stop_homestar, wait_for_socket_connection, BIN_NAME};
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use reqwest::StatusCode;
 use retry::{delay::Exponential, retry, OperationResult};
 use serial_test::file_serial;
 use std::{
-    net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Command, Stdio},
 };
@@ -54,13 +53,8 @@ fn test_metrics_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 4020);
-    let result = retry(Exponential::from_millis(1000).take(10), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if result.is_err() {
-        homestar_proc.kill().unwrap();
+    if wait_for_socket_connection(4020, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
         panic!("Homestar server/runtime failed to start in time");
     }
 

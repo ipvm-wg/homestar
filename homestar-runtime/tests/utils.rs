@@ -16,7 +16,7 @@ use retry::{
 use std::{
     fs,
     future::Future,
-    net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Child, Command, Stdio},
     time::Duration,
@@ -233,6 +233,16 @@ pub(crate) fn remove_db(name: &str) {
 /// Wait for socket connection or timeout
 pub(crate) fn wait_for_socket_connection(port: u16, exp_retry_base: u64) -> Result<(), ()> {
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+    let result = retry(Exponential::from_millis(exp_retry_base).take(10), || {
+        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
+    });
+
+    result.map_or_else(|_| Err(()), |_| Ok(()))
+}
+
+/// Wait for socket connection or timeout (ipv6)
+pub(crate) fn wait_for_socket_connection_v6(port: u16, exp_retry_base: u64) -> Result<(), ()> {
+    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), port);
     let result = retry(Exponential::from_millis(exp_retry_base).take(10), || {
         TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
     });
