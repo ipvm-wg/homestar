@@ -236,12 +236,12 @@ jobs:
 
       - name: Run Tests (all-features)
         if: ${{ matrix.default-features == 'all' }}
-        run: cargo nextest run --workspace --profile ci --all-features
+        run: cargo nextest run --workspace --profile ci-windows --all-features
         continue-on-error: ${{ matrix.rust-toolchain == 'nightly' }}
 
       - name: Run Tests (no-default-features)
         if: ${{ matrix.default-features == 'none' }}
-        run: cargo nextest run --profile ci --no-default-features --features "test-utils"
+        run: cargo nextest run --profile ci-windows --no-default-features --features "test-utils"
 
       - name: Run Doc Tests
         if: ${{ matrix.default-features == 'all' }}
