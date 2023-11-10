@@ -53,7 +53,7 @@ impl Fetch {
     }
 
     /// Gather resources via URLs, leveraging an exponential backoff.
-    #[cfg(all(not(feature = "ipfs"), not(test)))]
+    #[cfg(all(not(feature = "ipfs"), not(test), not(feature = "test-utils")))]
     #[allow(dead_code)]
     pub(crate) async fn get_resources<T>(
         _resources: FnvHashSet<Resource>,
@@ -109,8 +109,6 @@ impl Fetch {
             "{}/../examples/websocket-relay/synthcat.png",
             env!("CARGO_MANIFEST_DIR")
         ));
-
-        println!("Running in test mode: {}", img_path.display());
 
         let bytes = crate::tasks::WasmContext::load(wasm_path).await.unwrap();
         let buf = crate::tasks::WasmContext::load(img_path).await.unwrap();

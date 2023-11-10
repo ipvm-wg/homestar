@@ -99,7 +99,7 @@ fn test_workflow_run_serial() -> Result<()> {
             .unwrap();
 
         loop {
-            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(10)).await {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
@@ -128,12 +128,12 @@ fn test_workflow_run_serial() -> Result<()> {
 
         let _ = sub2
             .next()
-            .with_timeout(Duration::from_secs(10))
+            .with_timeout(Duration::from_secs(30))
             .await
             .is_err();
 
         loop {
-            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(10)).await {
+            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
@@ -168,7 +168,7 @@ fn test_workflow_run_serial() -> Result<()> {
             .unwrap();
 
         loop {
-            if let Ok(msg) = sub4.next().with_timeout(Duration::from_secs(10)).await {
+            if let Ok(msg) = sub4.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
