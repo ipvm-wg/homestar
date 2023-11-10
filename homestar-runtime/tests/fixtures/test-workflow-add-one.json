@@ -17,7 +17,7 @@
         },
         "nnc": "",
         "op": "wasm/run",
-        "rsc": "ipfs://bafkreidgxzucs63ums2yhzs4unin5a3vjemapc373rypon63kdp5xoqlzm"
+        "rsc": "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia"
       }
     },
     {
@@ -33,7 +33,7 @@
           "args": [
             {
               "await/ok": {
-                "/": "bafyrmigpbec3fpc64hxkehxkszctb5f5roylk5ej2t2qgfylf64gpdn54m"
+                "/": "bafyrmid5morwzj3lz436g44usvu35xcfyn4ommfe4ozulmnrsohybdez3a"
               }
             }
           ],
@@ -41,7 +41,7 @@
         },
         "nnc": "",
         "op": "wasm/run",
-        "rsc": "ipfs://bafkreidgxzucs63ums2yhzs4unin5a3vjemapc373rypon63kdp5xoqlzm"
+        "rsc": "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia"
       }
     }
   ]

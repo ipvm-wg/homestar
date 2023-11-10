@@ -1,8 +1,5 @@
-#[cfg(feature = "ipfs")]
-use crate::utils::startup_ipfs;
 use crate::utils::{
-    kill_homestar, remove_db, stop_all_bins, wait_for_socket_connection, TimeoutFutureExt,
-    BIN_NAME, IPFS,
+    kill_homestar, remove_db, stop_homestar, wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
 };
 use anyhow::Result;
 use jsonrpsee::{
@@ -28,40 +25,8 @@ const UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "unsubscribe_run_workflow";
 #[file_serial]
 fn test_workflow_run_serial() -> Result<()> {
     const DB: &str = "ws_homestar_test_workflow_run.db";
-    const IPFS_EXT: &str = "ws_homestar_test_workflow_run";
-
-    let _ = stop_all_bins();
-
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs(IPFS_EXT);
-
-    let add_image_args = vec![
-        "add",
-        "--cid-version",
-        "1",
-        "../examples/websocket-relay/synthcat.png",
-    ];
-
-    let add_wasm_args = vec![
-        "add",
-        "--cid-version",
-        "1",
-        "../examples/websocket-relay/example_test.wasm",
-    ];
-
+    let _ = stop_homestar();
     let _ = fs::remove_file(DB);
-
-    let _ipfs_add_img = Command::new(IPFS)
-        .args(add_image_args)
-        .stdout(Stdio::piped())
-        .output()
-        .expect("`ipfs add` of synthcat.png");
-
-    let _ipfs_add_wasm = Command::new(IPFS)
-        .args(add_wasm_args)
-        .stdout(Stdio::piped())
-        .output()
-        .expect("`ipfs add` of wasm mod");
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -69,7 +34,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .arg("tests/fixtures/test_workflow2.toml")
         .arg("--db")
         .arg(DB)
-        //.stdout(Stdio::piped())
+        .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
@@ -106,7 +71,7 @@ fn test_workflow_run_serial() -> Result<()> {
         // we have 3 operations
         let mut received_cids = 0;
         loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(10)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
@@ -222,7 +187,7 @@ fn test_workflow_run_serial() -> Result<()> {
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
     let _ = kill_homestar(homestar_proc, None);
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
     remove_db(DB);
 
     Ok(())

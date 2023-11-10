@@ -1,10 +1,8 @@
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_daemon;
-#[cfg(feature = "ipfs")]
-use crate::utils::startup_ipfs;
 use crate::utils::{
-    kill_homestar, remove_db, stop_all_bins, stop_homestar, wait_for_socket_connection,
-    wait_for_socket_connection_v6, BIN_NAME, IPFS,
+    kill_homestar, remove_db, stop_homestar, wait_for_socket_connection,
+    wait_for_socket_connection_v6, BIN_NAME,
 };
 use anyhow::Result;
 use assert_cmd::prelude::*;
@@ -172,26 +170,9 @@ fn test_server_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_workflow_run_serial() -> Result<()> {
-    const IPFS_EXT: &str = "cli_test_workflow_run_serial";
     const DB: &str = "homestar_test_cli_test_workflow_run_serial.db";
 
-    let _ = stop_all_bins();
-
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs(IPFS_EXT);
-
-    let add_wasm_args = vec![
-        "add",
-        "--cid-version",
-        "1",
-        "../homestar-wasm/fixtures/example_add.wasm",
-    ];
-
-    let _ipfs_add_wasm = Command::new(IPFS)
-        .args(add_wasm_args)
-        .stdout(Stdio::piped())
-        .output()
-        .expect("`ipfs add` of wasm mod");
+    let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -217,7 +198,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafkreidgxzucs63ums2yhzs4unin5a3vjemapc373rypon63kdp5xoqlzm",
+            "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
@@ -232,14 +213,14 @@ fn test_workflow_run_serial() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafkreidgxzucs63ums2yhzs4unin5a3vjemapc373rypon63kdp5xoqlzm",
+            "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
     let _ = kill_homestar(homestar_proc, None);
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
     remove_db(DB);
 
     Ok(())
@@ -249,7 +230,7 @@ fn test_workflow_run_serial() -> Result<()> {
 #[file_serial]
 #[cfg(not(windows))]
 fn test_daemon_serial() -> Result<()> {
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -276,7 +257,7 @@ fn test_daemon_serial() -> Result<()> {
         .stdout(predicate::str::contains("127.0.0.1"))
         .stdout(predicate::str::contains("pong"));
 
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
     let _ = kill_homestar_daemon();
 
     Ok(())
@@ -314,7 +295,6 @@ fn test_server_v4_serial() -> Result<()> {
         .stdout(predicate::str::contains("pong"));
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
-
     let _ = kill_homestar(homestar_proc, None);
     let _ = stop_homestar();
 

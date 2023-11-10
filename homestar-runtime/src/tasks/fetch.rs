@@ -13,12 +13,14 @@ use std::sync::Arc;
 
 pub(crate) struct Fetch;
 
-#[cfg(test)]
-const WASM_CID: &str = "bafkreihxcyjgyrz437ewzi7md55uqt2zf6yr3zn7xrfi4orc34xdc5jgrm";
+#[cfg(any(test, feature = "test-utils"))]
+const WASM_CID: &str = "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia";
+#[cfg(any(test, feature = "test-utils"))]
+const CAT_CID: &str = "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm";
 
 impl Fetch {
     /// Gather resources from IPFS or elsewhere, leveraging an exponential backoff.
-    #[cfg(all(feature = "ipfs", not(test)))]
+    #[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
     #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     pub(crate) async fn get_resources(
         resources: FnvHashSet<Resource>,
@@ -60,7 +62,7 @@ impl Fetch {
         Ok(IndexMap::default())
     }
 
-    #[cfg(all(not(feature = "ipfs"), test))]
+    #[cfg(all(not(feature = "ipfs"), any(test, feature = "test-utils")))]
     #[doc(hidden)]
     #[allow(dead_code)]
     pub(crate) async fn get_resources(
@@ -69,20 +71,27 @@ impl Fetch {
     ) -> Result<IndexMap<Resource, Vec<u8>>> {
         println!("Running in test mode");
         use crate::tasks::FileLoad;
-        let path = std::path::PathBuf::from(format!(
-            "{}/../homestar-wasm/fixtures/example_add.wasm",
+        let wasm_path = std::path::PathBuf::from(format!(
+            "{}/../homestar-wasm/fixtures/example_test.wasm",
             env!("CARGO_MANIFEST_DIR")
         ));
-        let bytes = crate::tasks::WasmContext::load(path).await.unwrap();
+        let img_path = std::path::PathBuf::from(format!(
+            "{}/../examples/websocket-relay/synthcat.png",
+            env!("CARGO_MANIFEST_DIR")
+        ));
+
+        let bytes = crate::tasks::WasmContext::load(wasm_path).await.unwrap();
+        let buf = crate::tasks::WasmContext::load(img_path).await.unwrap();
         let mut map = IndexMap::default();
         map.insert(
             Resource::Url(url::Url::parse(format!("ipfs://{WASM_CID}").as_str()).unwrap()),
             bytes,
         );
+        map.insert(Resource::Cid(libipld::Cid::try_from(CAT_CID).unwrap()), buf);
         Ok(map)
     }
 
-    #[cfg(all(feature = "ipfs", test))]
+    #[cfg(all(feature = "ipfs", any(test, feature = "test-utils")))]
     #[doc(hidden)]
     #[allow(dead_code)]
     pub(crate) async fn get_resources(
@@ -92,20 +101,29 @@ impl Fetch {
     ) -> Result<IndexMap<Resource, Vec<u8>>> {
         println!("Running in test mode");
         use crate::tasks::FileLoad;
-        let path = std::path::PathBuf::from(format!(
-            "{}/../homestar-wasm/fixtures/example_add.wasm",
+        let wasm_path = std::path::PathBuf::from(format!(
+            "{}/../homestar-wasm/fixtures/example_test.wasm",
             env!("CARGO_MANIFEST_DIR")
         ));
-        let bytes = crate::tasks::WasmContext::load(path).await.unwrap();
+        let img_path = std::path::PathBuf::from(format!(
+            "{}/../examples/websocket-relay/synthcat.png",
+            env!("CARGO_MANIFEST_DIR")
+        ));
+
+        println!("Running in test mode: {}", img_path.display());
+
+        let bytes = crate::tasks::WasmContext::load(wasm_path).await.unwrap();
+        let buf = crate::tasks::WasmContext::load(img_path).await.unwrap();
         let mut map = IndexMap::default();
         map.insert(
             Resource::Url(url::Url::parse(format!("ipfs://{WASM_CID}").as_str()).unwrap()),
             bytes,
         );
+        map.insert(Resource::Cid(libipld::Cid::try_from(CAT_CID).unwrap()), buf);
         Ok(map)
     }
 
-    #[cfg(all(feature = "ipfs", not(test)))]
+    #[cfg(all(feature = "ipfs", not(test), not(feature = "test-utils")))]
     async fn fetch(rsc: Resource, client: IpfsCli) -> Result<(Resource, Result<Vec<u8>>)> {
         match rsc {
             Resource::Url(url) => {

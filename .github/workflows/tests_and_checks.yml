@@ -236,7 +236,7 @@ jobs:
 
       - name: Run Tests (all-features)
         if: ${{ matrix.default-features == 'all' }}
-        run: cargo nextest run --workspace --profile ci --all-features --no-capture
+        run: cargo nextest run --workspace --profile ci --all-features
         continue-on-error: ${{ matrix.rust-toolchain == 'nightly' }}
 
       - name: Run Tests (no-default-features)
@@ -246,7 +246,6 @@ jobs:
       - name: Run Doc Tests
         if: ${{ matrix.default-features == 'all' }}
         run: cargo test --doc --workspace
-        continue-on-error: ${{ matrix.rust-toolchain == 'nightly' }}
 
   run-docs:
     needs: changes

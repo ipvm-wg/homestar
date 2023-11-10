@@ -1,6 +1,6 @@
 use crate::utils::{
-    check_lines_for, kill_homestar, remove_db, retrieve_output, startup_ipfs, stop_all_bins,
-    wait_for_socket_connection, TimeoutFutureExt, BIN_NAME, IPFS,
+    check_lines_for, kill_homestar, remove_db, retrieve_output, stop_homestar,
+    wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
 };
 use anyhow::Result;
 use homestar_runtime::{db::Database, Db, Settings};
@@ -28,28 +28,9 @@ const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 #[test]
 #[file_serial]
 fn test_libp2p_receipt_gossip_serial() -> Result<()> {
-    const IPFS_EXT: &str = "test_libp2p_receipt_gossip_serial";
     const DB1: &str = "homestar_test_libp2p_receipt_gossip_serial1.db";
     const DB2: &str = "homestar_test_libp2p_receipt_gossip_serial2.db";
-
-    let _ = stop_all_bins();
-
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs(IPFS_EXT);
-
-    let add_wasm_args = vec![
-        "add",
-        "--cid-version",
-        "1",
-        "../homestar-wasm/fixtures/example_add.wasm",
-    ];
-
-    let _ipfs_add_wasm = Command::new(IPFS)
-        .args(add_wasm_args)
-        .stdout(Stdio::piped())
-        .output()
-        .expect("`ipfs add` of wasm mod");
-
+    let _ = stop_homestar();
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
@@ -226,7 +207,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
     remove_db(DB1);
     remove_db(DB2);
 
-    let _ = stop_all_bins();
+    let _ = stop_homestar();
 
     Ok(())
 }

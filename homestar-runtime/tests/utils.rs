@@ -28,30 +28,8 @@ use wait_timeout::ChildExt;
 
 /// Binary name, which is different than the crate name.
 pub(crate) const BIN_NAME: &str = "homestar";
-/// TODO
-pub(crate) const IPFS: &str = "ipfs";
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
-
-/// Start-up IPFS daemon for tests with the feature turned-on.
-#[allow(dead_code)]
-#[cfg(feature = "ipfs")]
-pub(crate) fn startup_ipfs(ext: &str) -> Result<()> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(".ipfs{}", ext));
-    println!("starting ipfs daemon...{}", path.to_str().unwrap());
-    let mut ipfs_daemon = Command::new(IPFS)
-        .args(["--offline", "daemon", "--init"])
-        .stdout(Stdio::piped())
-        .spawn()?;
-
-    // wait for ipfs daemon to start by testing for a connection
-    if wait_for_socket_connection(5001, 1000).is_err() {
-        ipfs_daemon.kill().unwrap();
-        panic!("`ipfs daemon` failed to start");
-    } else {
-        Ok(())
-    }
-}
 
 /// Stop the Homestar server/binary.
 pub(crate) fn stop_homestar() -> Result<()> {
@@ -62,28 +40,6 @@ pub(crate) fn stop_homestar() -> Result<()> {
         .status()
         .context("failed to stop Homestar server")?;
 
-    Ok(())
-}
-
-/// Stop the IPFS binary.
-pub(crate) fn stop_ipfs() -> Result<()> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
-    Command::new(IPFS)
-        .args(["--repo-dir", path.to_str().unwrap(), "shutdown"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .context("failed to stop IPFS daemon")?;
-    rm_rf::ensure_removed(path).unwrap();
-
-    Ok(())
-}
-
-/// Stop all binaries.
-#[allow(dead_code)]
-pub(crate) fn stop_all_bins() -> Result<()> {
-    let _ = stop_ipfs();
-    let _ = stop_homestar();
     Ok(())
 }
 
