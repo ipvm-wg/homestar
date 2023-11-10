@@ -1,6 +1,8 @@
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_daemon;
-use crate::utils::{kill_homestar, startup_ipfs, stop_all_bins, stop_homestar, BIN_NAME, IPFS};
+#[cfg(feature = "ipfs")]
+use crate::utils::startup_ipfs;
+use crate::utils::{kill_homestar, stop_all_bins, stop_homestar, BIN_NAME, IPFS};
 use anyhow::Result;
 use assert_cmd::prelude::*;
 use once_cell::sync::Lazy;

@@ -9,7 +9,7 @@ failure-output = "immediate-final"
 fail-fast = false
 
 [test-groups]
-serial = { max-threads = 1, threads-required = 1 }
+serial = { max-threads = 1 }
 
 [[profile.default.overrides]]
 filter = 'test(/_serial$/)'
@@ -18,3 +18,7 @@ test-group = 'serial'
 [[profile.ci.overrides]]
 filter = 'test(/_serial$/)'
 test-group = 'serial'
+
+[[profile.ci.overrides]]
+platform = 'cfg(target_os = "window")'
+retries = { count = 8, delay = "60s", jitter = true, max-delay = "500s" }
