@@ -9,7 +9,7 @@ use crate::event_handler::notification::{
 use crate::network::IpfsCli;
 use crate::{
     db::Database,
-    event_handler::{Handler, P2PSender, ResponseEvent},
+    event_handler::{channel::AsyncBoundedChannelSender, Handler, P2PSender, ResponseEvent},
     network::{
         pubsub,
         swarm::{CapsuleTag, RequestResponseKey, TopicMessage},
@@ -32,7 +32,6 @@ use maplit::btreemap;
 use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
 #[cfg(feature = "ipfs")]
 use tokio::runtime::Handle;
-use tokio::sync::oneshot;
 use tracing::{error, info, warn};
 
 /// A [Receipt] captured (inner) event.
@@ -96,7 +95,7 @@ pub(crate) enum Event {
     #[cfg(feature = "websocket-notify")]
     ReplayReceipts(Replay),
     /// General shutdown event.
-    Shutdown(oneshot::Sender<()>),
+    Shutdown(AsyncBoundedChannelSender<()>),
     /// Find a [Record] in the DHT, e.g. a [Receipt].
     ///
     /// [Record]: libp2p::kad::Record

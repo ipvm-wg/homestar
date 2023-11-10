@@ -45,7 +45,7 @@ use indexmap::IndexMap;
 use libipld::{Cid, Ipld};
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::{
-    sync::{mpsc, RwLock},
+    sync::RwLock,
     task::JoinSet,
     time::{self, Instant},
 };
@@ -66,7 +66,7 @@ pub(crate) enum WorkerMessage {
 pub(crate) struct Worker<'a, DB: Database> {
     pub(crate) graph: Arc<ExecutionGraph<'a>>,
     pub(crate) event_sender: Arc<AsyncBoundedChannelSender<Event>>,
-    pub(crate) runner_sender: mpsc::Sender<WorkerMessage>,
+    pub(crate) runner_sender: AsyncBoundedChannelSender<WorkerMessage>,
     pub(crate) db: DB,
     pub(crate) workflow_name: FastStr,
     pub(crate) workflow_info: Arc<workflow::Info>,
@@ -88,7 +88,7 @@ where
         // Name would be runner specific, separated from core workflow spec.
         name: Option<S>,
         event_sender: Arc<AsyncBoundedChannelSender<Event>>,
-        runner_sender: mpsc::Sender<WorkerMessage>,
+        runner_sender: AsyncBoundedChannelSender<WorkerMessage>,
         db: DB,
     ) -> Result<Worker<'a, DB>> {
         let p2p_timeout = settings.p2p_timeout;

@@ -14,7 +14,7 @@ use tarpc::{
     context,
     server::{self, incoming::Incoming, Channel},
 };
-use tokio::{runtime::Handle, select, sync::oneshot, time};
+use tokio::{runtime::Handle, select, time};
 use tokio_serde::formats::MessagePack;
 use tracing::{info, warn};
 
@@ -34,7 +34,7 @@ pub(crate) enum ServerMessage {
     /// Message sent by the [Runner] to start a graceful shutdown.
     ///
     /// [Runner]: crate::Runner
-    GracefulShutdown(oneshot::Sender<()>),
+    GracefulShutdown(AsyncBoundedChannelSender<()>),
     /// Message sent to start a [Workflow] run by reading a [Workflow] file.
     ///
     /// [Workflow]: homestar_core::Workflow
@@ -119,15 +119,15 @@ impl Interface for ServerHandler {
         name: Option<FastStr>,
         workflow_file: ReadWorkflow,
     ) -> Result<Box<response::AckWorkflow>, Error> {
-        let (tx, rx) = oneshot::channel();
+        let (tx, rx) = AsyncBoundedChannel::oneshot();
         self.runner_sender
-            .send((ServerMessage::Run((name, workflow_file)), Some(tx)))
+            .send_async((ServerMessage::Run((name, workflow_file)), Some(tx)))
             .await
             .map_err(|e| Error::FailureToSendOnChannel(e.to_string()))?;
 
         let now = time::Instant::now();
         select! {
-            Ok(msg) = rx => {
+            Ok(msg) = rx.recv_async() => {
                 match msg {
                     ServerMessage::RunAck(response) => {
                         Ok(response)
@@ -149,7 +149,7 @@ impl Interface for ServerHandler {
     }
     async fn stop(self, _: context::Context) -> Result<(), Error> {
         self.runner_sender
-            .send((ServerMessage::ShutdownCmd, None))
+            .send_async((ServerMessage::ShutdownCmd, None))
             .await
             .map_err(|e| Error::FailureToSendOnChannel(e.to_string()))
     }

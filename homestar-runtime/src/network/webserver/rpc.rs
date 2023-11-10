@@ -2,7 +2,7 @@
 use super::notifier::{self, Header, Notifier, SubscriptionTyp};
 #[allow(unused_imports)]
 use super::{listener, prom::PrometheusData, Message};
-use crate::runner::WsSender;
+use crate::{channel::AsyncBoundedChannel, runner::WsSender};
 #[cfg(feature = "websocket-notify")]
 use anyhow::anyhow;
 use anyhow::Result;
@@ -139,14 +139,14 @@ impl JsonRpc {
 
         #[cfg(not(test))]
         module.register_async_method(HEALTH_ENDPOINT, |_, ctx| async move {
-            let (tx, rx) = oneshot::channel();
+            let (tx, rx) = AsyncBoundedChannel::oneshot();
             ctx.runner_sender
-                .send((Message::GetNodeInfo, Some(tx)))
+                .send_async((Message::GetNodeInfo, Some(tx)))
                 .await
                 .map_err(|err| internal_err(err.to_string()))?;
 
             if let Ok(Ok(Message::AckNodeInfo(info))) =
-                time::timeout_at(Instant::now() + ctx.receiver_timeout, rx).await
+                time::timeout_at(Instant::now() + ctx.receiver_timeout, rx.recv_async()).await
             {
                 Ok(serde_json::json!({ "healthy": true, "nodeInfo": info}))
             } else {
@@ -211,16 +211,17 @@ impl JsonRpc {
             |params, pending, ctx| async move {
                 match params.one::<listener::Run<'_>>() {
                     Ok(listener::Run { name, workflow }) => {
-                        let (tx, rx) = oneshot::channel();
+                        let (tx, rx) = AsyncBoundedChannel::oneshot();
                         ctx.runner_sender
-                            .send((
+                            .send_async((
                                 Message::RunWorkflow((name.clone(), workflow.clone())),
                                 Some(tx),
                             ))
                             .await?;
 
                         if let Ok(Ok(Message::AckWorkflow((cid, name)))) =
-                            time::timeout_at(Instant::now() + ctx.receiver_timeout, rx).await
+                            time::timeout_at(Instant::now() + ctx.receiver_timeout, rx.recv_async())
+                                .await
                         {
                             let sink = pending.accept().await?;
                             ctx.workflow_listeners
