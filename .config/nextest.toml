@@ -17,8 +17,9 @@ test-group = 'serial'
 
 [[profile.ci.overrides]]
 platform = { host = 'cfg(windows)' }
-retries = { backoff = "exponential", count = 3, delay = "45s", jitter = true, max-delay = "500s" }
+retries = { backoff = "exponential", count = 5, delay = "60s", jitter = true, max-delay = "500s" }
 slow-timeout = { period = "120s", terminate-after = 2 }
+fail-fast = true
 
 [[profile.ci-windows.overrides]]
 filter = 'test(/_serial$/)'
