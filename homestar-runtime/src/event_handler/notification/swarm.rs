@@ -10,6 +10,8 @@ pub(crate) enum SwarmNotification {
     ListeningOn,
     OutgoingConnectionError,
     IncomingConnectionError,
+    PublishedReceiptPubsub,
+    ReceivedReceiptPubsub,
 }
 
 impl fmt::Display for SwarmNotification {
@@ -23,6 +25,12 @@ impl fmt::Display for SwarmNotification {
             }
             SwarmNotification::IncomingConnectionError => {
                 write!(f, "incomingConnectionError")
+            }
+            SwarmNotification::ReceivedReceiptPubsub => {
+                write!(f, "receivedReceiptPubsub")
+            }
+            SwarmNotification::PublishedReceiptPubsub => {
+                write!(f, "publishedReceiptPubsub")
             }
         }
     }
@@ -38,6 +46,8 @@ impl FromStr for SwarmNotification {
             "listeningOn" => Ok(Self::ListeningOn),
             "outgoingConnectionError" => Ok(Self::OutgoingConnectionError),
             "incomingConnectionError" => Ok(Self::IncomingConnectionError),
+            "receivedReceiptPubsub" => Ok(Self::ReceivedReceiptPubsub),
+            "publishedReceiptPubsub" => Ok(Self::PublishedReceiptPubsub),
             _ => Err(anyhow!("Missing swarm notification type: {}", ty)),
         }
     }

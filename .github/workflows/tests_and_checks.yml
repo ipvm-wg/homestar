@@ -246,7 +246,6 @@ jobs:
       - name: Run Doc Tests
         if: ${{ matrix.default-features == 'all' }}
         run: cargo test --doc --workspace
-        continue-on-error: ${{ matrix.rust-toolchain == 'nightly' }}
 
   run-docs:
     needs: changes

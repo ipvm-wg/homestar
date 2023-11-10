@@ -1,14 +1,15 @@
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_daemon;
-use crate::utils::{kill_homestar, stop_homestar, BIN_NAME};
+use crate::utils::{
+    kill_homestar, remove_db, stop_homestar, wait_for_socket_connection,
+    wait_for_socket_connection_v6, BIN_NAME,
+};
 use anyhow::Result;
 use assert_cmd::prelude::*;
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
-use retry::{delay::Exponential, retry};
 use serial_test::file_serial;
 use std::{
-    net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Command, Stdio},
 };
@@ -119,7 +120,7 @@ fn test_server_serial() -> Result<()> {
         .assert()
         .failure();
 
-    let mut homestar_proc = Command::new(BIN.as_os_str())
+    let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
         .arg("tests/fixtures/test_v6.toml")
@@ -129,13 +130,8 @@ fn test_server_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 9837);
-    let result = retry(Exponential::from_millis(1000).take(10), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if result.is_err() {
-        homestar_proc.kill().unwrap();
+    if wait_for_socket_connection_v6(9837, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -174,25 +170,22 @@ fn test_server_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_workflow_run_serial() -> Result<()> {
+    const DB: &str = "homestar_test_cli_test_workflow_run_serial.db";
+
     let _ = stop_homestar();
 
-    let mut homestar_proc = Command::new(BIN.as_os_str())
+    let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
         .arg("tests/fixtures/test_workflow1.toml")
         .arg("--db")
-        .arg("homestar.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
-    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 9840);
-    let result = retry(Exponential::from_millis(1000).take(10), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if result.is_err() {
-        homestar_proc.kill().unwrap();
+    if wait_for_socket_connection_v6(9840, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -205,7 +198,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafkreidgxzucs63ums2yhzs4unin5a3vjemapc373rypon63kdp5xoqlzm",
+            "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
@@ -220,15 +213,15 @@ fn test_workflow_run_serial() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafkreidgxzucs63ums2yhzs4unin5a3vjemapc373rypon63kdp5xoqlzm",
+            "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
-
     let _ = kill_homestar(homestar_proc, None);
     let _ = stop_homestar();
+    remove_db(DB);
 
     Ok(())
 }
@@ -242,19 +235,14 @@ fn test_daemon_serial() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_v4_alt.toml")
+        .arg("tests/fixtures/test_v4.toml")
         .arg("-d")
         .env("DATABASE_URL", "homestar.db")
         .stdout(Stdio::piped())
         .assert()
         .success();
 
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9836);
-    let result = retry(Exponential::from_millis(1000).take(10), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if result.is_err() {
+    if wait_for_socket_connection(9000, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -263,7 +251,7 @@ fn test_daemon_serial() -> Result<()> {
         .arg("--host")
         .arg("127.0.0.1")
         .arg("-p")
-        .arg("9836")
+        .arg("9000")
         .assert()
         .success()
         .stdout(predicate::str::contains("127.0.0.1"))
@@ -277,51 +265,10 @@ fn test_daemon_serial() -> Result<()> {
 
 #[test]
 #[file_serial]
-#[cfg(windows)]
-fn test_signal_kill_serial() -> Result<()> {
-    let _ = stop_homestar();
-
-    let homestar_proc = Command::new(BIN.as_os_str())
-        .arg("start")
-        .arg("--db")
-        .arg("homestar.db")
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-
-    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 3030);
-    let result = retry(Exponential::from_millis(1000).take(10), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if result.is_err() {
-        panic!("Homestar server/runtime failed to start in time");
-    }
-
-    Command::new(BIN.as_os_str())
-        .arg("ping")
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("::1"))
-        .stdout(predicate::str::contains("pong"));
-
-    let _ = Command::new(BIN.as_os_str()).arg("stop").output();
-    let _ = kill_homestar(homestar_proc, None);
-
-    Command::new(BIN.as_os_str()).arg("ping").assert().failure();
-
-    let _ = stop_homestar();
-
-    Ok(())
-}
-
-#[test]
-#[file_serial]
-#[cfg(windows)]
 fn test_server_v4_serial() -> Result<()> {
     let _ = stop_homestar();
 
-    let mut homestar_proc = Command::new(BIN.as_os_str())
+    let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
         .arg("tests/fixtures/test_v4.toml")
@@ -331,13 +278,8 @@ fn test_server_v4_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9835);
-    let result = retry(Exponential::from_millis(1000).take(10), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if result.is_err() {
-        homestar_proc.kill().unwrap();
+    if wait_for_socket_connection(9000, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -346,14 +288,13 @@ fn test_server_v4_serial() -> Result<()> {
         .arg("--host")
         .arg("127.0.0.1")
         .arg("-p")
-        .arg("9835")
+        .arg("9000")
         .assert()
         .success()
         .stdout(predicate::str::contains("127.0.0.1"))
         .stdout(predicate::str::contains("pong"));
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
-
     let _ = kill_homestar(homestar_proc, None);
     let _ = stop_homestar();
 

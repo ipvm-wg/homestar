@@ -1,5 +1,6 @@
 use crate::utils::{
-    check_lines_for, count_lines_where, kill_homestar, retrieve_output, stop_homestar, BIN_NAME,
+    check_lines_for, count_lines_where, kill_homestar, retrieve_output, stop_homestar,
+    wait_for_socket_connection, wait_for_socket_connection_v6, BIN_NAME,
 };
 use anyhow::Result;
 use once_cell::sync::Lazy;
@@ -11,6 +12,8 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "websocket-notify")]
+mod gossip;
 #[cfg(feature = "websocket-notify")]
 mod notification;
 
@@ -31,6 +34,11 @@ fn test_libp2p_generates_peer_id_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9820, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
@@ -61,6 +69,11 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9820, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
@@ -93,6 +106,11 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection_v6(9820, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
     let logs_expected = check_lines_for(stdout, vec!["RPC server listening", "[::1]:9820"]);
@@ -116,6 +134,11 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9820, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
@@ -147,6 +170,11 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection_v6(9820, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     let homestar_proc2 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
@@ -160,6 +188,11 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9821, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc2, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Collect logs for five seconds then kill proceses.
     let dead_proc1 = kill_homestar(homestar_proc1, Some(Duration::from_secs(5)));
@@ -255,6 +288,11 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection_v6(9800, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     let homestar_proc2 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
@@ -268,6 +306,11 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9801, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc2, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Collect logs for seven seconds then kill processes.
     let dead_proc1 = kill_homestar(homestar_proc1, Some(Duration::from_secs(7)));
@@ -362,6 +405,11 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection(8024, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_server, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     // Start a peer that will register with the rendezvous server
     let rendezvous_client1 = Command::new(BIN.as_os_str())
         .env(
@@ -376,6 +424,11 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8026, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Wait for registration to complete
     // TODO When we have websocket push events, listen on a registration event instead of using an arbitrary sleep
@@ -395,6 +448,11 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8027, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client2, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Collect logs for five seconds then kill proceses.
     let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
@@ -481,6 +539,11 @@ fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection(8000, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     let homestar_proc2 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
@@ -494,6 +557,11 @@ fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8001, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc2, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Kill node two after seven seconds.
     let _ = kill_homestar(homestar_proc2, Some(Duration::from_secs(7)));
@@ -549,6 +617,11 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection_v6(9820, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     let homestar_proc2 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
@@ -562,6 +635,11 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9821, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc2, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Kill node two after seven seconds.
     let _ = kill_homestar(homestar_proc2, Some(Duration::from_secs(7)));
@@ -616,6 +694,11 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection(8024, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_server, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     // Start a peer that will register with the rendezvous server
     let rendezvous_client1 = Command::new(BIN.as_os_str())
         .env(
@@ -630,6 +713,11 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8026, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Wait for registration to complete.
     // TODO When we have websocket push events, listen on a registration event instead of using an arbitrary sleep.
@@ -649,6 +737,11 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8027, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Kill server and client one after five seconds
     let _ = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
@@ -704,6 +797,11 @@ fn test_libp2p_rendezvous_renew_registration_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection(8024, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_server, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     // Start a peer that will renew registrations with the rendezvous server once per second
     let rendezvous_client1 = Command::new(BIN.as_os_str())
         .env(
@@ -718,6 +816,11 @@ fn test_libp2p_rendezvous_renew_registration_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8028, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Collect logs for five seconds then kill proceses.
     let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
@@ -771,6 +874,11 @@ fn test_libp2p_rendezvous_rediscovery_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection(8024, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_server, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     // Start a peer that will discover with the rendezvous server once per second
     let rendezvous_client1 = Command::new(BIN.as_os_str())
         .env(
@@ -785,6 +893,11 @@ fn test_libp2p_rendezvous_rediscovery_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9829, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Collect logs for five seconds then kill proceses.
     let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
@@ -838,6 +951,11 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection(8024, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_server, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     // Start a peer that will renew registrations with the rendezvous server every five seconds
     let rendezvous_client1 = Command::new(BIN.as_os_str())
         .env(
@@ -852,6 +970,11 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9830, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Wait for registration to complete.
     // TODO When we have websocket push events, listen on a registration event instead of using an arbitrary sleep.
@@ -874,6 +997,11 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8027, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Collect logs for seven seconds then kill proceses.
     let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(7)));

@@ -31,7 +31,7 @@ impl Default for Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            retries: 3,
+            retries: 0,
             retry_max_delay: Duration::new(1, 0),
             retry_initial_delay: Duration::from_millis(50),
             p2p_timeout: Duration::from_millis(10),

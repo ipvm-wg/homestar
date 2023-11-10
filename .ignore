@@ -17,6 +17,8 @@ LICENSE
 .pre-commit-config.yaml
 
 **/fixtures
+*.ipfs*
+*.db
 
 ## examples
 examples/websocket-relay/relay-app

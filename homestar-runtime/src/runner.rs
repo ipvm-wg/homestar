@@ -4,7 +4,7 @@
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
-    channel::AsyncBoundedChannelSender,
+    channel::{AsyncBoundedChannel, AsyncBoundedChannelReceiver, AsyncBoundedChannelSender},
     db::Database,
     event_handler::{Event, EventHandler},
     network::{rpc, swarm, webserver},
@@ -34,7 +34,6 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::signal::windows;
 use tokio::{
     runtime, select,
-    sync::{mpsc, oneshot},
     task::{AbortHandle, JoinHandle},
     time,
 };
@@ -63,28 +62,28 @@ pub(crate) trait ModifiedSet {
     fn append_or_insert(&self, cid: Cid, handles: Vec<AbortHandle>);
 }
 
-/// [mpsc::Sender] for RPC server messages.
-pub(crate) type RpcSender = mpsc::Sender<(
+/// [AsyncBoundedChannelSender] for RPC server messages.
+pub(crate) type RpcSender = AsyncBoundedChannelSender<(
     rpc::ServerMessage,
-    Option<oneshot::Sender<rpc::ServerMessage>>,
+    Option<AsyncBoundedChannelSender<rpc::ServerMessage>>,
 )>;
 
-/// [mpsc::Receiver] for RPC server messages.
-pub(crate) type RpcReceiver = mpsc::Receiver<(
+/// [AsyncBoundedChannelReceiver] for RPC server messages.
+pub(crate) type RpcReceiver = AsyncBoundedChannelReceiver<(
     rpc::ServerMessage,
-    Option<oneshot::Sender<rpc::ServerMessage>>,
+    Option<AsyncBoundedChannelSender<rpc::ServerMessage>>,
 )>;
 
-/// [mpsc::Sender] for sending messages websocket server clients.
-pub(crate) type WsSender = mpsc::Sender<(
+/// [AsyncBoundedChannelSender] for sending messages websocket server clients.
+pub(crate) type WsSender = AsyncBoundedChannelSender<(
     webserver::Message,
-    Option<oneshot::Sender<webserver::Message>>,
+    Option<AsyncBoundedChannelSender<webserver::Message>>,
 )>;
 
-/// [mpsc::Receiver] for receiving messages from websocket server clients.
-pub(crate) type WsReceiver = mpsc::Receiver<(
+/// [AsyncBoundedChannelReceiver] for receiving messages from websocket server clients.
+pub(crate) type WsReceiver = AsyncBoundedChannelReceiver<(
     webserver::Message,
-    Option<oneshot::Sender<webserver::Message>>,
+    Option<AsyncBoundedChannelSender<webserver::Message>>,
 )>;
 
 impl ModifiedSet for RunningTaskSet {
@@ -116,20 +115,23 @@ pub struct Runner {
 impl Runner {
     /// Setup bounded, MPSC channel for top-level RPC communication.
     pub(crate) fn setup_rpc_channel(capacity: usize) -> (RpcSender, RpcReceiver) {
-        mpsc::channel(capacity)
+        AsyncBoundedChannel::with(capacity)
     }
 
     /// Setup bounded, MPSC channel for top-level Worker communication.
     pub(crate) fn setup_worker_channel(
         capacity: usize,
-    ) -> (mpsc::Sender<WorkerMessage>, mpsc::Receiver<WorkerMessage>) {
-        mpsc::channel(capacity)
+    ) -> (
+        AsyncBoundedChannelSender<WorkerMessage>,
+        AsyncBoundedChannelReceiver<WorkerMessage>,
+    ) {
+        AsyncBoundedChannel::with(capacity)
     }
 
     /// MPSC channel for sending and receiving messages through to/from
     /// websocket server clients.
     pub(crate) fn setup_ws_mpsc_channel(capacity: usize) -> (WsSender, WsReceiver) {
-        mpsc::channel(capacity)
+        AsyncBoundedChannel::with(capacity)
     }
 
     /// Initialize and start the Homestar [Runner] / runtime.
@@ -220,7 +222,7 @@ impl Runner {
             .runtime
             .block_on(crate::metrics::start(self.settings.node.network()))?;
 
-        let (mut ws_receiver, ws_hdl) = {
+        let (ws_receiver, ws_hdl) = {
             let (mpsc_ws_tx, mpsc_ws_rx) = Self::setup_ws_mpsc_channel(message_buffer_len);
             let ws_hdl = self
                 .runtime
@@ -228,9 +230,8 @@ impl Runner {
             (mpsc_ws_rx, ws_hdl)
         };
 
-        let (rpc_tx, mut rpc_rx) = Self::setup_rpc_channel(message_buffer_len);
-        let (runner_worker_tx, mut runner_worker_rx) =
-            Self::setup_worker_channel(message_buffer_len);
+        let (rpc_tx, rpc_rx) = Self::setup_rpc_channel(message_buffer_len);
+        let (runner_worker_tx, runner_worker_rx) = Self::setup_worker_channel(message_buffer_len);
 
         let shutdown_timeout = self.settings.node.shutdown_timeout;
         let rpc_server = rpc::Server::new(self.settings.node.network(), rpc_tx.into());
@@ -241,9 +242,8 @@ impl Runner {
             let mut gc_interval = tokio::time::interval(self.settings.node.gc_interval);
             loop {
                 select! {
-                    biased;
                     // Handle RPC messages.
-                    Some((rpc_message, Some(oneshot_tx))) = rpc_rx.recv() => {
+                    Ok((rpc_message, Some(oneshot_tx))) = rpc_rx.recv_async() => {
                         let now = time::Instant::now();
                         let handle = self.handle_command_message(
                             rpc_message,
@@ -271,7 +271,7 @@ impl Runner {
                              _ => {}
                         }
                     }
-                    Some(msg) = ws_receiver.recv() => {
+                    Ok(msg) = ws_receiver.recv_async() => {
                         println!("ws message: {:?}", msg);
                         match msg {
                             (webserver::Message::RunWorkflow((name, workflow)), Some(oneshot_tx)) => {
@@ -305,7 +305,7 @@ impl Runner {
                     }
 
                     // Handle messages from the worker.
-                    Some(msg) = runner_worker_rx.recv() => {
+                    Ok(msg) = runner_worker_rx.recv_async() => {
                         match msg {
                             WorkerMessage::Dropped(cid) => {
                                 let _ = self.abort_worker(cid);
@@ -358,7 +358,7 @@ impl Runner {
         Ok(())
     }
 
-    /// [mpsc::Sender] of the event-handler.
+    /// [AsyncBoundedChannelSender] of the event-handler.
     ///
     /// [EventHandler]: crate::EventHandler
     pub(crate) fn event_sender(&self) -> Arc<AsyncBoundedChannelSender<Event>> {
@@ -512,20 +512,22 @@ impl Runner {
         rpc_sender: Arc<AsyncBoundedChannelSender<rpc::ServerMessage>>,
         ws_hdl: ServerHandle,
     ) -> Result<()> {
-        let (shutdown_sender, shutdown_receiver) = oneshot::channel();
-        let _ = rpc_sender.try_send(rpc::ServerMessage::GracefulShutdown(shutdown_sender));
-        let _ = shutdown_receiver.await;
+        let (shutdown_sender, shutdown_receiver) = AsyncBoundedChannel::oneshot();
+        let _ = rpc_sender
+            .send_async(rpc::ServerMessage::GracefulShutdown(shutdown_sender))
+            .await;
+        let _ = shutdown_receiver;
 
         info!("shutting down webserver");
         let _ = ws_hdl.stop();
         ws_hdl.clone().stopped().await;
 
-        let (shutdown_sender, shutdown_receiver) = oneshot::channel();
+        let (shutdown_sender, shutdown_receiver) = AsyncBoundedChannel::oneshot();
         let _ = self
             .event_sender
             .send_async(Event::Shutdown(shutdown_sender))
             .await;
-        let _ = shutdown_receiver.await;
+        let _ = shutdown_receiver;
 
         // abort all workers
         self.abort_workers();
@@ -584,7 +586,7 @@ impl Runner {
         workflow: Workflow<'static, Arg>,
         workflow_settings: workflow::Settings,
         name: Option<S>,
-        runner_sender: mpsc::Sender<WorkerMessage>,
+        runner_sender: AsyncBoundedChannelSender<WorkerMessage>,
         db: impl Database + 'static,
     ) -> Result<WorkflowData> {
         let worker = {
@@ -669,7 +671,7 @@ struct WorkflowData {
 #[derive(Debug)]
 struct Channels {
     rpc: Arc<AsyncBoundedChannelSender<rpc::ServerMessage>>,
-    runner: mpsc::Sender<WorkerMessage>,
+    runner: AsyncBoundedChannelSender<WorkerMessage>,
 }
 
 #[cfg(test)]

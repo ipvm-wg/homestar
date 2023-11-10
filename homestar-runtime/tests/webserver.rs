@@ -1,6 +1,6 @@
-#[cfg(feature = "ipfs")]
-use crate::utils::startup_ipfs;
-use crate::utils::{kill_homestar, stop_all_bins, TimeoutFutureExt, BIN_NAME, IPFS};
+use crate::utils::{
+    kill_homestar, remove_db, stop_homestar, wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
+};
 use anyhow::Result;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
@@ -8,60 +8,27 @@ use jsonrpsee::{
     ws_client::WsClientBuilder,
 };
 use once_cell::sync::Lazy;
-use retry::{delay::Exponential, retry};
 use serial_test::file_serial;
 use std::{
     fs,
-    net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
+    net::Ipv4Addr,
     path::PathBuf,
     process::{Command, Stdio},
+    time::Duration,
 };
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const SUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "subscribe_run_workflow";
 const UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "unsubscribe_run_workflow";
 
-#[cfg(feature = "test-utils")]
 #[test]
 #[file_serial]
 fn test_workflow_run_serial() -> Result<()> {
     const DB: &str = "ws_homestar_test_workflow_run.db";
-    const IPFS_EXT: &str = "ws_homestar_test_workflow_run";
-
-    let _ = stop_all_bins();
-
-    #[cfg(feature = "ipfs")]
-    let _ = startup_ipfs(IPFS_EXT);
-
-    let add_image_args = vec![
-        "add",
-        "--cid-version",
-        "1",
-        "../examples/websocket-relay/synthcat.png",
-    ];
-
-    let add_wasm_args = vec![
-        "add",
-        "--cid-version",
-        "1",
-        "../examples/websocket-relay/example_test.wasm",
-    ];
-
+    let _ = stop_homestar();
     let _ = fs::remove_file(DB);
 
-    let _ipfs_add_img = Command::new(IPFS)
-        .args(add_image_args)
-        .stdout(Stdio::piped())
-        .output()
-        .expect("`ipfs add` of synthcat.png");
-
-    let _ipfs_add_wasm = Command::new(IPFS)
-        .args(add_wasm_args)
-        .stdout(Stdio::piped())
-        .output()
-        .expect("`ipfs add` of wasm mod");
-
-    let mut homestar_proc = Command::new(BIN.as_os_str())
+    let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
         .arg("tests/fixtures/test_workflow2.toml")
@@ -72,13 +39,8 @@ fn test_workflow_run_serial() -> Result<()> {
         .unwrap();
 
     let ws_port = 8061;
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), ws_port);
-    let result = retry(Exponential::from_millis(1000).take(10), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if result.is_err() {
-        homestar_proc.kill().unwrap();
+    if wait_for_socket_connection(ws_port, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -107,35 +69,24 @@ fn test_workflow_run_serial() -> Result<()> {
             .unwrap();
 
         // we have 3 operations
-        let one = sub1
-            .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
-            .await
-            .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&one.unwrap().unwrap()).unwrap();
-        let check = json.get("metadata").unwrap();
-        let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
-        assert_eq!(check, &expected);
+        let mut received_cids = 0;
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+                let check = json.get("metadata").unwrap();
+                let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
+                assert_eq!(check, &expected);
+                received_cids += 1;
+            } else {
+                panic!("Node one did not publish receipt in time.")
+            }
 
-        let two = sub1
-            .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
-            .await
-            .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&two.unwrap().unwrap()).unwrap();
-        let check = json.get("metadata").unwrap();
-        let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
-        assert_eq!(check, &expected);
-
-        let three = sub1
-            .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
-            .await
-            .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&three.unwrap().unwrap()).unwrap();
-        let check = json.get("metadata").unwrap();
-        let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
-        assert_eq!(check, &expected);
+            if received_cids == 3 {
+                received_cids = 0;
+                break;
+            }
+        }
 
         // separate subscription, only 3 events too
         let mut sub2: Subscription<Vec<u8>> = client1
@@ -147,28 +98,23 @@ fn test_workflow_run_serial() -> Result<()> {
             .await
             .unwrap();
 
-        let msg = sub2
-            .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
-            .await
-            .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-        let check = json.get("metadata").unwrap();
-        let expected = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
-        assert_eq!(check, &expected);
+        loop {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+                let check = json.get("metadata").unwrap();
+                let expected = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
+                assert_eq!(check, &expected);
+                received_cids += 1;
+            } else {
+                panic!("Node one did not publish receipt in time.")
+            }
 
-        assert!(sub2
-            .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
-            .await
-            .unwrap()
-            .is_some());
-        assert!(sub2
-            .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
-            .await
-            .unwrap()
-            .is_some());
+            if received_cids == 3 {
+                received_cids = 0;
+                break;
+            }
+        }
 
         let client2 = WsClientBuilder::default().build(ws_url).await.unwrap();
         let mut sub3: Subscription<Vec<u8>> = client2
@@ -182,28 +128,33 @@ fn test_workflow_run_serial() -> Result<()> {
 
         let _ = sub2
             .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
+            .with_timeout(Duration::from_secs(30))
             .await
             .is_err();
 
-        assert!(sub3
+        loop {
+            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+                let check = json.get("metadata").unwrap();
+                let expected = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
+                assert_eq!(check, &expected);
+                received_cids += 1;
+            } else {
+                panic!("Node one did not publish receipt in time.")
+            }
+
+            if received_cids == 3 {
+                received_cids = 0;
+                break;
+            }
+        }
+
+        let _ = sub3
             .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
+            .with_timeout(Duration::from_secs(10))
             .await
-            .unwrap()
-            .is_some());
-        assert!(sub2
-            .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
-            .await
-            .unwrap()
-            .is_some());
-        assert!(sub2
-            .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
-            .await
-            .unwrap()
-            .is_some());
+            .is_err();
 
         let another_run_str = format!(r#"{{"name": "another_test","workflow": {}}}"#, json_string);
         let another_run: serde_json::Value = serde_json::from_str(&another_run_str).unwrap();
@@ -216,35 +167,28 @@ fn test_workflow_run_serial() -> Result<()> {
             .await
             .unwrap();
 
-        let _ = sub3
-            .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
-            .await
-            .is_err();
-        assert!(sub4
-            .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
-            .await
-            .unwrap()
-            .is_some());
-        assert!(sub4
-            .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
-            .await
-            .unwrap()
-            .is_some());
-        assert!(sub4
-            .next()
-            .with_timeout(std::time::Duration::from_millis(25000))
-            .await
-            .unwrap()
-            .is_some());
+        loop {
+            if let Ok(msg) = sub4.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+                let check = json.get("metadata").unwrap();
+                let expected = serde_json::json!({"name": "another_test", "replayed": true, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
+                assert_eq!(check, &expected);
+                received_cids += 1;
+            } else {
+                panic!("Node one did not publish receipt in time.")
+            }
+
+            if received_cids == 3 {
+                break;
+            }
+        }
     });
 
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
     let _ = kill_homestar(homestar_proc, None);
-    let _ = stop_all_bins();
-    let _ = fs::remove_file(DB);
+    let _ = stop_homestar();
+    remove_db(DB);
 
     Ok(())
 }
