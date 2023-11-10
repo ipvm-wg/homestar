@@ -4,12 +4,12 @@ test-threads = "num-cpus"
 threads-required = 1
 
 [profile.ci]
-retries = { backoff = "exponential", count = 3, delay = "5s", jitter = true, max-delay = "30s" }
+retries = { backoff = "exponential", count = 5, delay = "5s", jitter = true, max-delay = "30s" }
 failure-output = "immediate-final"
 fail-fast = false
 
 [test-groups]
-serial = { max-threads = 1 }
+serial = { max-threads = 1, threads-required = 1 }
 
 [[profile.default.overrides]]
 filter = 'test(/_serial$/)'

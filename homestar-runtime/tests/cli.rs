@@ -1,6 +1,6 @@
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_daemon;
-use crate::utils::{kill_homestar, stop_homestar, BIN_NAME};
+use crate::utils::{kill_homestar, startup_ipfs, stop_all_bins, stop_homestar, BIN_NAME, IPFS};
 use anyhow::Result;
 use assert_cmd::prelude::*;
 use once_cell::sync::Lazy;
@@ -174,7 +174,25 @@ fn test_server_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_workflow_run_serial() -> Result<()> {
-    let _ = stop_homestar();
+    const IPFS_EXT: &str = "test_libp2p_receipt_gossip_serial";
+
+    let _ = stop_all_bins();
+
+    #[cfg(feature = "ipfs")]
+    let _ = startup_ipfs(IPFS_EXT);
+
+    let add_wasm_args = vec![
+        "add",
+        "--cid-version",
+        "1",
+        "../homestar-wasm/fixtures/example_add.wasm",
+    ];
+
+    let _ipfs_add_wasm = Command::new(IPFS)
+        .args(add_wasm_args)
+        .stdout(Stdio::piped())
+        .output()
+        .expect("`ipfs add` of wasm mod");
 
     let mut homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")

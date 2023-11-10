@@ -65,7 +65,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
         .unwrap();
 
     let ws_port = 7990;
-    if let Err(_) = wait_for_socket_connection(ws_port, 1000) {
+    if wait_for_socket_connection(ws_port, 1000).is_err() {
         let _ = kill_homestar(homestar_proc1, None);
         panic!("Homestar server/runtime failed to start in time");
     }
@@ -100,6 +100,12 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             .spawn()
             .unwrap();
 
+        let ws_port2 = 7991;
+        if wait_for_socket_connection(ws_port2, 1000).is_err() {
+            let _ = kill_homestar(homestar_proc1, None);
+            panic!("Homestar server/runtime failed to start in time");
+        }
+
         // Poll for connection established message
         loop {
             if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(3)).await {
@@ -114,7 +120,6 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             }
         }
 
-        let ws_port2 = 7991;
         let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
         let client2 = WsClientBuilder::default()
             .build(ws_url2.clone())
@@ -209,9 +214,9 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
         let stored_receipts: Vec<_> = received_cids
             .iter()
             .map(|cid| {
-                Db::find_receipt_by_cid(*cid, &mut db.conn().unwrap()).expect(
-                    format!("Failed to find receipt with CID {} in database", *cid).as_str(),
-                )
+                Db::find_receipt_by_cid(*cid, &mut db.conn().unwrap()).unwrap_or_else(|_| {
+                    panic!("Failed to find receipt with CID {} in database", *cid)
+                })
             })
             .collect_vec();
 

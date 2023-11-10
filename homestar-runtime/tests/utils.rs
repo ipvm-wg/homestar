@@ -124,10 +124,9 @@ pub(crate) fn extract_timestamps_where(
     output: String,
     predicates: Vec<&str>,
 ) -> Vec<DateTime<FixedOffset>> {
-    output.split("\n").fold(vec![], |mut timestamps, line| {
+    output.split('\n').fold(vec![], |mut timestamps, line| {
         if line_contains(line, &predicates) {
-            match extract_label(&line, "ts").and_then(|val| DateTime::parse_from_rfc3339(val).ok())
-            {
+            match extract_label(line, "ts").and_then(|val| DateTime::parse_from_rfc3339(val).ok()) {
                 Some(datetime) => {
                     timestamps.push(datetime);
                     timestamps
@@ -144,11 +143,11 @@ pub(crate) fn extract_timestamps_where(
 }
 
 /// Check process output line for all predicates
-fn line_contains(line: &str, predicates: &Vec<&str>) -> bool {
+fn line_contains(line: &str, predicates: &[&str]) -> bool {
     predicates
         .iter()
         .map(|pred| predicate::str::contains(*pred).eval(line))
-        .fold(true, |acc, curr| acc && curr)
+        .all(|curr| curr)
 }
 
 /// Extract label value from process output line
@@ -226,7 +225,7 @@ pub(crate) fn kill_homestar_daemon() -> Result<()> {
 
 /// Remove sqlite database and associated temporary files
 pub(crate) fn remove_db(name: &str) {
-    let _ = fs::remove_file(format!("{name}"));
+    let _ = fs::remove_file(name);
     let _ = fs::remove_file(format!("{name}-shm"));
     let _ = fs::remove_file(format!("{name}-wal"));
 }
