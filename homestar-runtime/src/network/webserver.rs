@@ -254,7 +254,7 @@ mod test {
     use super::*;
     #[cfg(feature = "websocket-notify")]
     use crate::event_handler::notification::ReceiptNotification;
-    use crate::{db::Database, settings::Settings};
+    use crate::{channel::AsyncBoundedChannel, db::Database, settings::Settings};
     #[cfg(feature = "websocket-notify")]
     use homestar_core::{
         ipld::DagJson,
@@ -268,7 +268,6 @@ mod test {
     use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
     #[cfg(feature = "websocket-notify")]
     use notifier::{self, Header};
-    use tokio::sync::mpsc;
 
     async fn metrics_handle(settings: Settings) -> PrometheusHandle {
         #[cfg(feature = "monitoring")]
@@ -290,7 +289,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
-            let (runner_tx, _runner_rx) = mpsc::channel(1);
+            let (runner_tx, _runner_rx) = AsyncBoundedChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
@@ -332,7 +331,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
-            let (runner_tx, _runner_rx) = mpsc::channel(1);
+            let (runner_tx, _runner_rx) = AsyncBoundedChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
@@ -365,7 +364,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
-            let (runner_tx, _runner_rx) = mpsc::channel(1);
+            let (runner_tx, _runner_rx) = AsyncBoundedChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
@@ -442,7 +441,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
-            let (runner_tx, _runner_rx) = mpsc::channel(1);
+            let (runner_tx, _runner_rx) = AsyncBoundedChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
@@ -476,7 +475,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
-            let (runner_tx, _runner_rx) = mpsc::channel(1);
+            let (runner_tx, _runner_rx) = AsyncBoundedChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);

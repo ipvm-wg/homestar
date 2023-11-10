@@ -4,8 +4,10 @@ test-threads = "num-cpus"
 threads-required = 1
 
 [profile.ci]
-retries = { backoff = "exponential", count = 3, delay = "5s", jitter = true, max-delay = "30s" }
+retries = { backoff = "exponential", count = 3, delay = "30s", jitter = true, max-delay = "300s" }
 failure-output = "immediate-final"
+leak-timeout = "800ms"
+slow-timeout = { period = "120s", terminate-after = 2 }
 fail-fast = false
 
 [test-groups]

@@ -32,6 +32,7 @@ bench = false
 [[test]]
 name = "integration"
 path = "tests/main.rs"
+required-features = ["test-utils"]
 
 [dependencies]
 # return to version.workspace = true after the following issue is fixed:

@@ -2,12 +2,14 @@
 
 use super::EventHandler;
 #[cfg(feature = "websocket-notify")]
-use crate::event_handler::notification::emit_receipt;
+use crate::event_handler::notification::{
+    self, emit_receipt, EventNotificationTyp, SwarmNotification,
+};
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
     db::Database,
-    event_handler::{Handler, P2PSender, ResponseEvent},
+    event_handler::{channel::AsyncBoundedChannelSender, Handler, P2PSender, ResponseEvent},
     network::{
         pubsub,
         swarm::{CapsuleTag, RequestResponseKey, TopicMessage},
@@ -25,10 +27,11 @@ use libp2p::{
     rendezvous::Namespace,
     PeerId,
 };
+#[cfg(feature = "websocket-notify")]
+use maplit::btreemap;
 use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
 #[cfg(feature = "ipfs")]
 use tokio::runtime::Handle;
-use tokio::sync::oneshot;
 use tracing::{error, info, warn};
 
 /// A [Receipt] captured (inner) event.
@@ -92,7 +95,7 @@ pub(crate) enum Event {
     #[cfg(feature = "websocket-notify")]
     ReplayReceipts(Replay),
     /// General shutdown event.
-    Shutdown(oneshot::Sender<()>),
+    Shutdown(AsyncBoundedChannelSender<()>),
     /// Find a [Record] in the DHT, e.g. a [Receipt].
     ///
     /// [Record]: libp2p::kad::Record
@@ -255,13 +258,28 @@ impl Captured {
         if event_handler.pubsub_enabled {
             match event_handler.swarm.behaviour_mut().gossip_publish(
                 pubsub::RECEIPTS_TOPIC,
-                TopicMessage::CapturedReceipt(receipt),
+                TopicMessage::CapturedReceipt(receipt.clone()),
             ) {
-                Ok(msg_id) => info!(
-                    cid = receipt_cid.to_string(),
-                    "message {msg_id} published on {} topic for receipt",
-                    pubsub::RECEIPTS_TOPIC
-                ),
+                Ok(msg_id) => {
+                    info!(
+                        cid = receipt_cid.to_string(),
+                        message_id = msg_id.to_string(),
+                        "message published on {} topic for receipt with cid: {receipt_cid}",
+                        pubsub::RECEIPTS_TOPIC
+                    );
+
+                    #[cfg(feature = "websocket-notify")]
+                    notification::emit_event(
+                        event_handler.ws_evt_sender(),
+                        EventNotificationTyp::SwarmNotification(
+                            SwarmNotification::PublishedReceiptPubsub,
+                        ),
+                        btreemap! {
+                            "cid" => receipt.cid().to_string(),
+                            "ran" => receipt.ran().to_string()
+                        },
+                    );
+                }
                 Err(err) => {
                     warn!(
                         err=?err,
@@ -370,11 +388,26 @@ impl Replay {
                     .behaviour_mut()
                     .gossip_publish(
                         pubsub::RECEIPTS_TOPIC,
-                        TopicMessage::CapturedReceipt(receipt),
+                        TopicMessage::CapturedReceipt(receipt.clone()),
                     )
-                    .map(|msg_id|
+                    .map(|msg_id| {
                          info!(cid=receipt_cid,
-                               "message {msg_id} published on {} topic for receipt", pubsub::RECEIPTS_TOPIC))
+                             message_id = msg_id.to_string(),
+                             "message published on {} topic for receipt with cid: {receipt_cid}",
+                              pubsub::RECEIPTS_TOPIC);
+
+                         #[cfg(feature = "websocket-notify")]
+                         notification::emit_event(
+                             event_handler.ws_evt_sender(),
+                             EventNotificationTyp::SwarmNotification(
+                                 SwarmNotification::PublishedReceiptPubsub,
+                             ),
+                             btreemap! {
+                                 "cid" => receipt.cid().to_string(),
+                                 "ran" => receipt.ran().to_string()
+                             },
+                         );
+                    })
                     .map_err(
                         |err|
                         warn!(err=?err, cid=receipt_cid,

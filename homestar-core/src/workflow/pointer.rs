@@ -18,11 +18,7 @@ use diesel::{
     AsExpression, FromSqlRow,
 };
 use enum_assoc::Assoc;
-use libipld::{
-    cid::{multibase::Base, Cid},
-    serde::from_ipld,
-    Ipld, Link,
-};
+use libipld::{cid::Cid, serde::from_ipld, Ipld, Link};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::btree_map::BTreeMap, fmt, str::FromStr};
 
@@ -183,11 +179,7 @@ pub struct Pointer(Cid);
 
 impl fmt::Display for Pointer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let cid_as_string = self
-            .0
-            .to_string_of_base(Base::Base32Lower)
-            .map_err(|_| fmt::Error)?;
-
+        let cid_as_string = self.0.to_string();
         write!(f, "{cid_as_string}")
     }
 }

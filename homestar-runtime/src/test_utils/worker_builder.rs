@@ -24,7 +24,6 @@ use homestar_core::{
 use homestar_wasm::io::Arg;
 use indexmap::IndexMap;
 use libipld::Cid;
-use tokio::sync::mpsc;
 
 /// TODO
 #[cfg(feature = "ipfs")]
@@ -32,7 +31,7 @@ pub(crate) struct WorkerBuilder<'a> {
     db: MemoryDb,
     event_sender: AsyncBoundedChannelSender<Event>,
     ipfs: IpfsCli,
-    runner_sender: mpsc::Sender<WorkerMessage>,
+    runner_sender: AsyncBoundedChannelSender<WorkerMessage>,
     name: Option<String>,
     workflow: Workflow<'a, Arg>,
     workflow_settings: workflow::Settings,
@@ -43,7 +42,7 @@ pub(crate) struct WorkerBuilder<'a> {
 pub(crate) struct WorkerBuilder<'a> {
     db: MemoryDb,
     event_sender: AsyncBoundedChannelSender<Event>,
-    runner_sender: mpsc::Sender<WorkerMessage>,
+    runner_sender: AsyncBoundedChannelSender<WorkerMessage>,
     name: Option<String>,
     workflow: Workflow<'a, Arg>,
     workflow_settings: workflow::Settings,
@@ -174,7 +173,7 @@ impl<'a> WorkerBuilder<'a> {
         self
     }
 
-    /// Build a [Worker] with a specific Event [mpsc::Sender].
+    /// Build a [Worker] with a specific Event [AsyncBoundedChannelSender].
     #[allow(dead_code)]
     pub(crate) fn with_event_sender(
         mut self,

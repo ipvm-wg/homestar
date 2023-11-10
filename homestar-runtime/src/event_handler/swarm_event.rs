@@ -406,16 +406,33 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             } => match Receipt::try_from(message.data) {
                 // TODO: dont fail blindly if we get a non receipt message
                 Ok(receipt) => {
-                    info!("got message: {receipt} from {propagation_source} with message id: {message_id}");
+                    info!(
+                        peer_id = propagation_source.to_string(),
+                        message_id = message_id.to_string(),
+                        "message received on receipts topic: {receipt}"
+                    );
 
                     // Store gossiped receipt.
                     let _ = event_handler
                         .db
                         .conn()
                         .as_mut()
-                        .map(|conn| Db::store_receipt(receipt, conn));
+                        .map(|conn| Db::store_receipt(receipt.clone(), conn));
+
+                    #[cfg(feature = "websocket-notify")]
+                    notification::emit_event(
+                        event_handler.ws_evt_sender(),
+                        EventNotificationTyp::SwarmNotification(
+                            SwarmNotification::ReceivedReceiptPubsub,
+                        ),
+                        btreemap! {
+                            "peerId" => propagation_source.to_string(),
+                            "cid" => receipt.cid().to_string(),
+                            "ran" => receipt.ran().to_string()
+                        },
+                    );
                 }
-                Err(err) => info!(err=?err, "cannot handle incoming event message"),
+                Err(err) => info!(err=?err, "cannot handle incoming gossipsub message"),
             },
             gossipsub::Event::Subscribed { peer_id, topic } => {
                 debug!(
@@ -728,7 +745,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ListeningOn),
                 btreemap! {
-                    "peer_id" => local_peer.to_string(),
+                    "peerId" => local_peer.to_string(),
                     "address" => address.to_string()
                 },
             );
@@ -749,7 +766,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
                 btreemap! {
-                    "peer_id" => peer_id.to_string(),
+                    "peerId" => peer_id.to_string(),
                     "address" => endpoint.get_remote_address().to_string()
                 },
             );
@@ -794,7 +811,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionClosed),
                 btreemap! {
-                    "peer_id" => peer_id.to_string(),
+                    "peerId" => peer_id.to_string(),
                     "address" => endpoint.get_remote_address().to_string()
                 },
             );
@@ -816,7 +833,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::OutgoingConnectionError),
                 btreemap! {
-                    "peer_id" => peer_id.map_or("Unknown peer".into(), |p| p.to_string()),
+                    "peerId" => peer_id.map_or("Unknown peer".into(), |p| p.to_string()),
                     "error" => error.to_string()
                 },
             );
