@@ -9,10 +9,9 @@ use nix::{
 };
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
-use retry::{
-    delay::{Exponential, Fixed},
-    retry,
-};
+#[cfg(not(windows))]
+use retry::delay::Fixed;
+use retry::{delay::Exponential, retry};
 use std::{
     fs,
     future::Future,

@@ -69,7 +69,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .arg("tests/fixtures/test_workflow2.toml")
         .arg("--db")
         .arg(DB)
-        .stdout(Stdio::piped())
+        //.stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
