@@ -2,7 +2,9 @@
 use super::notifier::{self, Header, Notifier, SubscriptionTyp};
 #[allow(unused_imports)]
 use super::{listener, prom::PrometheusData, Message};
-use crate::{channel::AsyncBoundedChannel, runner::WsSender};
+#[cfg(feature = "websocket-notify")]
+use crate::channel::AsyncBoundedChannel;
+use crate::runner::WsSender;
 #[cfg(feature = "websocket-notify")]
 use anyhow::anyhow;
 use anyhow::Result;
@@ -139,7 +141,7 @@ impl JsonRpc {
 
         #[cfg(not(test))]
         module.register_async_method(HEALTH_ENDPOINT, |_, ctx| async move {
-            let (tx, rx) = AsyncBoundedChannel::oneshot();
+            let (tx, rx) = crate::channel::AsyncBoundedChannel::oneshot();
             ctx.runner_sender
                 .send_async((Message::GetNodeInfo, Some(tx)))
                 .await
