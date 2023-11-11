@@ -128,7 +128,7 @@ fn test_workflow_run_serial() -> Result<()> {
 
         let _ = sub2
             .next()
-            .with_timeout(Duration::from_secs(30))
+            .with_timeout(Duration::from_secs(10))
             .await
             .is_err();
 

@@ -30,7 +30,7 @@ use libp2p::{
 #[cfg(feature = "websocket-notify")]
 use maplit::btreemap;
 use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
-#[cfg(feature = "ipfs")]
+#[cfg(all(feature = "ipfs", not(feature = "test-utils")))]
 use tokio::runtime::Handle;
 use tracing::{error, info, warn};
 
@@ -119,12 +119,16 @@ pub(crate) enum Event {
 
 const RENDEZVOUS_NAMESPACE: &str = "homestar";
 
+#[allow(unreachable_patterns)]
 impl Event {
     async fn handle_info<DB>(self, event_handler: &mut EventHandler<DB>) -> Result<()>
     where
         DB: Database,
     {
         match self {
+            Event::CapturedReceipt(captured) => {
+                let _ = captured.store_and_notify(event_handler);
+            }
             Event::Shutdown(tx) => {
                 info!("event_handler server shutting down");
                 event_handler.shutdown().await;
@@ -530,16 +534,17 @@ where
 
     #[cfg(feature = "ipfs")]
     #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
+    #[allow(unused_variables)]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>, ipfs: IpfsCli) {
         match self {
             Event::CapturedReceipt(captured) => {
-                let _ = captured
-                .store_and_notify(event_handler)
-                .map(|(cid, receipt)| {
-                    // Spawn client call in the background, without awaiting.
-                    let handle = Handle::current();
-                    let ipfs = ipfs.clone();
-                    handle.spawn(async move {
+                if let Ok((cid, receipt)) = captured.store_and_notify(event_handler) {
+                    #[cfg(not(feature = "test-utils"))]
+                    {
+                        // Spawn client call in the background, without awaiting.
+                        let handle = Handle::current();
+                        let ipfs = ipfs.clone();
+                        handle.spawn(async move {
                         if let Ok(bytes) = receipt.try_into() {
                             match ipfs.put_receipt_bytes(bytes).await {
                                 Ok(put_cid) => {
@@ -548,14 +553,19 @@ where
                                     debug_assert_eq!(put_cid, cid.to_string());
                                 }
                                 Err(err) => {
-                                    warn!(error=?err, cid=cid.to_string(), "failed to store IPLD DAG node");
+                                error!(error=?err, cid=cid.to_string(), "failed to store IPLD DAG node");
                                 }
                             }
                         } else {
                             warn!(cid=cid.to_string(), "failed to convert receipt to bytes");
                         }
-                    })
-                });
+                    });
+                    }
+                    #[cfg(feature = "test-utils")]
+                    info!(cid = cid.to_string(), "cid stored on the network");
+                } else {
+                    error!("failed to store receipt");
+                }
             }
             #[cfg(feature = "websocket-notify")]
             Event::ReplayReceipts(replay) => {

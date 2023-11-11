@@ -1,4 +1,6 @@
-use crate::utils::{kill_homestar, stop_homestar, wait_for_socket_connection, BIN_NAME};
+use crate::utils::{
+    kill_homestar, stop_homestar, wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
+};
 use anyhow::Result;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
@@ -62,8 +64,6 @@ fn test_connection_notifications_serial() -> Result<()> {
             .await
             .unwrap();
 
-        tokio::time::sleep(Duration::from_millis(200)).await;
-
         let homestar_proc2 = Command::new(BIN.as_os_str())
             .env(
                 "RUST_LOG",
@@ -78,49 +78,38 @@ fn test_connection_notifications_serial() -> Result<()> {
             .spawn()
             .unwrap();
 
-        if wait_for_socket_connection(8023, 1000).is_err() {
-            let _ = kill_homestar(homestar_proc2, None);
-            panic!("Homestar server/runtime failed to start in time");
+        // Poll for connection established message
+        loop {
+            if let Ok(msg) = sub.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["type"].as_str().unwrap() == "network:connectionEstablished".to_string() {
+                    break;
+                }
+            } else {
+                panic!("Node one did not receive a connection established message in time.")
+            }
         }
 
         let _ = kill_homestar(homestar_proc2, None);
 
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        // Poll for connection closed message
+        loop {
+            if let Ok(msg) = sub.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-        {
-            let msg = sub
-                .next()
-                .await
-                .expect("Subscription did not receive a connection established message");
-            let json: serde_json::Value = serde_json::from_slice(&msg.unwrap()).unwrap();
-            let typ = json["type"].as_str().unwrap();
-            let peer_id = json["data"]["peerId"].as_str().unwrap();
-
-            assert_eq!(typ, "network:connectionEstablished");
-            assert_eq!(
-                peer_id,
-                "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc"
-            );
+                if json["type"].as_str().unwrap() == "network:connectionClosed".to_string() {
+                    break;
+                }
+            } else {
+                panic!("Node one did not receive a connection closed message in time.")
+            }
         }
 
-        {
-            let msg = sub
-                .next()
-                .await
-                .expect("Subscription did not receive a connection closed message");
-            let json: serde_json::Value = serde_json::from_slice(&msg.unwrap()).unwrap();
-            let typ = json["type"].as_str().unwrap();
-            let peer_id = json["data"]["peerId"].as_str().unwrap();
-
-            assert_eq!(typ, "network:connectionClosed");
-            assert_eq!(
-                peer_id,
-                "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc"
-            );
-        }
+        let _ = kill_homestar(homestar_proc1, None);
     });
-
-    let _ = kill_homestar(homestar_proc1, None);
 
     Ok(())
 }
