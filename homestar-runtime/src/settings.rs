@@ -330,7 +330,7 @@ impl Settings {
         #[cfg(test)]
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/settings.toml");
         #[cfg(not(test))]
-        let path = PathBuf::from("config/settings.toml");
+        let path = PathBuf::from("./config/settings.toml");
 
         Self::build(path)
     }
