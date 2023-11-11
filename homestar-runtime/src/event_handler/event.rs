@@ -119,6 +119,7 @@ pub(crate) enum Event {
 
 const RENDEZVOUS_NAMESPACE: &str = "homestar";
 
+#[allow(unreachable_patterns)]
 impl Event {
     async fn handle_info<DB>(self, event_handler: &mut EventHandler<DB>) -> Result<()>
     where
