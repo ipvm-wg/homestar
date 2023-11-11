@@ -317,7 +317,13 @@ impl<'a, T> DagCbor for Instruction<'a, T> where Ipld: From<T> {}
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{test_utils, Unit};
+    use crate::{test_utils, Unit, DAG_CBOR};
+    use libipld::{
+        cbor::DagCborCodec,
+        multihash::{Code, MultihashDigest},
+        prelude::Codec,
+        Cid,
+    };
 
     #[test]
     fn ipld_roundtrip() {
@@ -339,6 +345,28 @@ mod test {
             ]))
         );
         assert_eq!(instruction, ipld.try_into().unwrap())
+    }
+
+    #[test]
+    fn ipld_cid_trials() {
+        let a_cid =
+            Cid::try_from("bafyrmiev5j2jzjrqncbfqo6pbraiw7r2p527m4z3bbm6ir3o5kdz2zwcjy").unwrap();
+        let ipld = libipld::ipld!({"input":
+                        {
+                            "args": [{"await/ok": a_cid}, "111111"],
+                            "func": "join-strings"
+                        },
+                        "nnc": "", "op": "wasm/run",
+                        "rsc": "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia"});
+
+        let instruction = Instruction::<Unit>::try_from(ipld.clone()).unwrap();
+        let instr_cid = instruction.to_cid().unwrap();
+
+        let bytes = DagCborCodec.encode(&ipld).unwrap();
+        let hash = Code::Sha3_256.digest(&bytes);
+        let ipld_to_cid = Cid::new_v1(DAG_CBOR, hash);
+
+        assert_eq!(ipld_to_cid, instr_cid);
     }
 
     #[test]
