@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/ipvm-wg/homestar" target="_blank">
-    <img src="https://raw.githubusercontent.com/ipvm-wg/homestar/main/assets/mascot_full_transparent.png" alt="Homestar logo" width="200"></img>
+    <img src="https://raw.githubusercontent.com/ipvm-wg/homestar/main/assets/mascot_full_transparent.png" alt="Homestar logo" width="400"></img>
   </a>
 
   <h1 align="center">Homestar Functions</h1>
