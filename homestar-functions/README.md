@@ -1,9 +1,9 @@
 <div align="center">
   <a href="https://github.com/ipvm-wg/homestar" target="_blank">
-    <img src="https://raw.githubusercontent.com/ipvm-wg/homestar/main/assets/a_logo.png" alt="homestar Logo" width="100"></img>
+    <img src="https://raw.githubusercontent.com/ipvm-wg/homestar/main/assets/mascot_full_transparent.png" alt="Homestar logo" width="200"></img>
   </a>
 
-  <h1 align="center">homestar-functions</h1>
+  <h1 align="center">Homestar Functions</h1>
 
   <p>
     <a href="https://github.com/ipvm-wg/homestar/blob/main/LICENSE">
@@ -32,6 +32,7 @@ default world homestar {
   export transpose: func(matrix: list<list<u8>>) -> list<list<u8>>
 }
 ```
+
 
 We then implement these functions in [lib.rs](./src/lib.rs) using
 [wit-bindgen][wit-bindgen], a guest language bindings generator for
