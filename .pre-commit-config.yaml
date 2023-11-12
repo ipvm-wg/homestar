@@ -75,7 +75,7 @@ repos:
       - id: check-yaml
       - id: check-json
       - id: check-added-large-files
-        args: ['--maxkb=2000']
+        args: ['--maxkb=4000']
       - id: detect-private-key
         exclude: __testkey
       - id: check-executables-have-shebangs
