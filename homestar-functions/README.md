@@ -3,7 +3,7 @@
     <img src="https://raw.githubusercontent.com/ipvm-wg/homestar/main/assets/a_logo.png" alt="homestar Logo" width="100"></img>
   </a>
 
-  <h1 align="center">homestar-functions</h1>
+  <h1 align="center">Homestar Functions</h1>
 
   <p>
     <a href="https://github.com/ipvm-wg/homestar/blob/main/LICENSE">

@@ -3,7 +3,7 @@
     <img src="https://raw.githubusercontent.com/ipvm-wg/homestar/main/assets/a_logo.png" alt="homestar Logo" width="100"></img>
   </a>
 
-  <h1 align="center">homestar</h1>
+  <h1 align="center">Homestar</h1>
 
   <p>
     <a href="https://crates.io/crates/homestar-core">
@@ -61,18 +61,18 @@
 
 ## Quickstart
 
-If you're looking to help develop `homestar`, please dive right into our
+If you're looking to help develop `Homestar`, please dive right into our
 [development](./DEVELOPMENT.md) guide.
 
-Otherwise, the easiest way to get started and see `homestar` in action is to
+Otherwise, the easiest way to get started and see `Homestar` in action is to
 follow-along and run our image-processing
 [websocket relay](./examples/websocket-relay) example, which integrates
-`homestar` with a browser application to run a
+`Homestar` with a browser application to run a
 statically-configured workflow. The associated `README.md` walks through
 what to install (i.e. `rust`, `node/npm`, `ipfs`), what commands
 to run, and embeds a video demonstrating its usage.
 
-Throughout the `homestar` ecosystem and documentation, we'll draw a distinction
+Throughout the `Homestar` ecosystem and documentation, we'll draw a distinction
 between the [host runtime][host-runtime] and the support for different
 [guest languages and bindings][guest].
 
@@ -83,7 +83,7 @@ our examples there.
 
 ## Packages
 
-Each `homestar` release will also build packages for distribution across
+Each `Homestar` release will also build packages for distribution across
 different platforms.
 
 - [homebrew][homebrew]: `brew install fission-codes/fission/homestar`
@@ -95,7 +95,7 @@ All [examples](./examples) contain instructions for running
 them, including what to install and how to run them. Please clone this repo,
 and get started!
 
-Each example showcases something specific and interesting about `homestar`
+Each example showcases something specific and interesting about `Homestar`
 as a system.
 
 Our current list includes:
@@ -108,7 +108,7 @@ Our current list includes:
 ## Workspace
 
 This repository is comprised of a few library packages and a library/binary that
-represents the `homestar` runtime. We recommend diving into each package's own
+represents the `Homestar` runtime. We recommend diving into each package's own
 `README.md` for more information when available.
 
 ### Core Crates
@@ -144,8 +144,8 @@ represents the `homestar` runtime. We recommend diving into each package's own
 
 - [examples/*](./examples)
 
-  `examples` contains examples and demos showcasing `homestar` packages
-  and the `homestar runtime`. Each example is set up as its own crate,
+  `examples` contains examples and demos showcasing `Homestar` packages
+  and the `Homestar` runtime. Each example is set up as its own crate,
   demonstrating the necessary dependencies and setup(s).
 
 ## Contributing
