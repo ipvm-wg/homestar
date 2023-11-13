@@ -583,6 +583,9 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 _ => {}
             }
         }
+        SwarmEvent::Behaviour(ComposedEvent::Kademlia(kad::Event::InboundRequest { request })) => {
+            debug!("kademlia inbound request received {request:?}")
+        }
         SwarmEvent::Behaviour(ComposedEvent::Kademlia(kad::Event::RoutingUpdated {
             peer, ..
         })) => {

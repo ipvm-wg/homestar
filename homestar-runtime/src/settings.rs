@@ -117,6 +117,8 @@ pub struct Network {
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) pubsub_idle_timeout: Duration,
     /// TODO
+    pub(crate) pubsub_max_transmit_size: usize,
+    /// TODO
     pub(crate) pubsub_mesh_n_low: usize,
     /// TODO
     pub(crate) pubsub_mesh_n_high: usize,
@@ -264,6 +266,7 @@ impl Default for Network {
             pubsub_duplication_cache_time: Duration::new(1, 0),
             pubsub_heartbeat: Duration::new(60, 0),
             pubsub_idle_timeout: Duration::new(60 * 60 * 24, 0),
+            pubsub_max_transmit_size: 10 * 1024 * 1024,
             pubsub_mesh_n_low: 1,
             pubsub_mesh_n_high: 10,
             pubsub_mesh_n: 2,
