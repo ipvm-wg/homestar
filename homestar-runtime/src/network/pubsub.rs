@@ -34,6 +34,7 @@ pub(crate) fn new(keypair: Keypair, settings: &settings::Node) -> Result<gossips
         .idle_timeout(settings.network.pubsub_idle_timeout)
         // This sets the kind of message validation. The default is Strict (enforce message signing).
         .validation_mode(ValidationMode::Strict)
+        .max_transmit_size(settings.network.pubsub_max_transmit_size)
         .mesh_n_low(settings.network.pubsub_mesh_n_low)
         .mesh_outbound_min(settings.network.pubsub_mesh_outbound_min)
         .mesh_n(settings.network.pubsub_mesh_n)
