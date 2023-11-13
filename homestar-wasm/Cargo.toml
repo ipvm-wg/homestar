@@ -49,7 +49,7 @@ wasmtime-wasi = { version = "11.0", default-features = false, features = [
   "tokio",
 ] }
 wat = "1.0"
-wit-component = "0.14"
+wit-component = "0.16"
 
 [dev-dependencies]
 criterion = "0.5"
