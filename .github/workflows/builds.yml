@@ -97,23 +97,26 @@ jobs:
 
   build-packages:
     runs-on: ubuntu-latest
-
-    env:
-      LINUX_TARGET: x86_64-unknown-linux-musl
-
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+          - target: x86_64-unknown-linux-musl
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install musl-tools
         run: sudo apt update && sudo apt install -y musl-dev musl-tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
 
       - name: Install Rust toolchain
         id: toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
-          targets: ${{ env.LINUX_TARGET }}
+          targets: ${{ matrix.target }}
 
       - name: Override rust-toolchain.toml
         run: rustup override set ${{steps.toolchain.outputs.name}}
@@ -132,18 +135,18 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          shared-key: check-${{ env.LINUX_TARGET }}-ubuntu-latest
+          shared-key: check-${{ matrix.target }}-ubuntu-latest
 
       - name: Create .deb
-        run: cargo deb -p homestar-runtime --target ${{ env.LINUX_TARGET }} --output homestar.deb
+        run: cargo deb -p homestar-runtime --target ${{ matrix.target }} --output homestar.deb
 
       - name: Create .rpm
-        run: cargo generate-rpm -p homestar-runtime --target ${{ env.LINUX_TARGET }} --output homestar.rpm
+        run: cargo generate-rpm -p homestar-runtime --target ${{ matrix.target }} --output homestar.rpm
 
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ env.LINUX_TARGET }}
+          name: ${{ matrix.target }}
           path: |
             *.deb
             *.rpm
