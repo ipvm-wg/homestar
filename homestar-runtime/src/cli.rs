@@ -19,7 +19,6 @@ pub use error::Error;
 pub(crate) mod show;
 pub(crate) use show::ConsoleTable;
 
-const DEFAULT_SETTINGS_FILE: &str = "./config/settings.toml";
 const DEFAULT_DB_PATH: &str = "homestar.db";
 const TMP_DIR: &str = "/tmp";
 const HELP_TEMPLATE: &str = "{name} {version}
@@ -87,13 +86,12 @@ pub enum Command {
             help = "Database path (SQLite) [optional]"
         )]
         database_url: Option<String>,
-        /// Runtime configuration file (.toml), defaults to ./config/settings.toml.
+        /// Runtime configuration file (.toml).
         #[arg(
             short = 'c',
             long = "config",
             value_hint = clap::ValueHint::FilePath,
             value_name = "CONFIG",
-            default_value = DEFAULT_SETTINGS_FILE,
             help = "Runtime configuration file (.toml) [optional]"
         )]
         runtime_config: Option<PathBuf>,

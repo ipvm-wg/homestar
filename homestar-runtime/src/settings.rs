@@ -7,6 +7,7 @@ use serde_with::{serde_as, DisplayFromStr, DurationMilliSeconds, DurationSeconds
 #[cfg(feature = "ipfs")]
 use std::net::Ipv4Addr;
 use std::{
+    env,
     net::{IpAddr, Ipv6Addr},
     path::PathBuf,
     time::Duration,
@@ -15,11 +16,17 @@ use std::{
 mod pubkey_config;
 pub(crate) use pubkey_config::PubkeyConfig;
 
+#[cfg(target_os = "windows")]
+const HOME_VAR: &str = "USERPROFILE";
+#[cfg(not(target_os = "windows"))]
+const HOME_VAR: &str = "HOME";
+
 /// Application settings.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Settings {
     #[serde(default)]
     pub(crate) monitoring: Monitoring,
+    #[serde(default)]
     pub(crate) node: Node,
 }
 
@@ -38,6 +45,7 @@ impl Settings {
 /// Monitoring settings.
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct Monitoring {
     /// Tokio console port.
     pub console_subscriber_port: u16,
@@ -49,7 +57,8 @@ pub struct Monitoring {
 
 /// Server settings.
 #[serde_as]
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct Node {
     /// Network settings.
     #[serde(default)]
@@ -59,11 +68,9 @@ pub struct Node {
     pub(crate) db: Database,
     /// Garbage collection interval.
     #[serde_as(as = "DurationSeconds<u64>")]
-    #[serde(default = "default_gc_interval")]
     pub(crate) gc_interval: Duration,
     /// Shutdown timeout.
     #[serde_as(as = "DurationSeconds<u64>")]
-    #[serde(default = "default_shutdown_timeout")]
     pub(crate) shutdown_timeout: Duration,
 }
 
@@ -246,6 +253,17 @@ impl Default for Database {
     }
 }
 
+impl Default for Node {
+    fn default() -> Self {
+        Self {
+            gc_interval: Duration::from_secs(1800),
+            shutdown_timeout: Duration::from_secs(20),
+            network: Default::default(),
+            db: Default::default(),
+        }
+    }
+}
+
 impl Default for Network {
     fn default() -> Self {
         Self {
@@ -314,14 +332,6 @@ impl Network {
     }
 }
 
-fn default_shutdown_timeout() -> Duration {
-    Duration::new(20, 0)
-}
-
-fn default_gc_interval() -> Duration {
-    Duration::new(1800, 0)
-}
-
 impl Settings {
     /// Load settings.
     ///
@@ -331,32 +341,50 @@ impl Settings {
     /// Use two underscores as defined by the separator below
     pub fn load() -> Result<Self, ConfigError> {
         #[cfg(test)]
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/settings.toml");
+        {
+            let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/settings.toml");
+            Self::build(Some(path))
+        }
         #[cfg(not(test))]
-        let path = PathBuf::from("./config/settings.toml");
-
-        Self::build(path)
+        Self::build(None)
     }
 
     /// Load settings from file string that must conform to a [PathBuf].
     pub fn load_from_file(file: PathBuf) -> Result<Self, ConfigError> {
-        Self::build(file)
+        Self::build(Some(file))
     }
 
-    fn build(path: PathBuf) -> Result<Self, ConfigError> {
-        let s = Config::builder()
-            .add_source(File::with_name(
-                &path
-                    .canonicalize()
+    fn build(path: Option<PathBuf>) -> Result<Self, ConfigError> {
+        let builder = if let Some(p) = path {
+            Config::builder().add_source(File::with_name(
+                &p.canonicalize()
                     .map_err(|e| ConfigError::NotFound(e.to_string()))?
                     .as_path()
                     .display()
                     .to_string(),
             ))
+        } else {
+            Config::builder()
+        };
+
+        let s = builder
             .add_source(Environment::with_prefix("HOMESTAR").separator("__"))
             .build()?;
         s.try_deserialize()
     }
+}
+
+#[allow(dead_code)]
+fn config_dir() -> PathBuf {
+    let config_dir =
+        env::var("XDG_CONFIG_HOME").map_or_else(|_| home_dir().join(".config"), PathBuf::from);
+    config_dir.join("homestar")
+}
+
+#[allow(dead_code)]
+fn home_dir() -> PathBuf {
+    let home = env::var(HOME_VAR).unwrap_or_else(|_| panic!("{} not found", HOME_VAR));
+    PathBuf::from(home)
 }
 
 #[cfg(test)]
@@ -380,7 +408,7 @@ mod test {
 
     #[test]
     fn defaults_with_modification() {
-        let settings = Settings::build("fixtures/settings.toml".into()).unwrap();
+        let settings = Settings::build(Some("fixtures/settings.toml".into())).unwrap();
 
         let mut default_modded_settings = Node::default();
         default_modded_settings.network.events_buffer_len = 1000;
@@ -396,14 +424,14 @@ mod test {
     fn overriding_env() {
         std::env::set_var("HOMESTAR__NODE__NETWORK__RPC_PORT", "2046");
         std::env::set_var("HOMESTAR__NODE__DB__MAX_POOL_SIZE", "1");
-        let settings = Settings::build("fixtures/settings.toml".into()).unwrap();
+        let settings = Settings::build(Some("fixtures/settings.toml".into())).unwrap();
         assert_eq!(settings.node.network.rpc_port, 2046);
         assert_eq!(settings.node.db.max_pool_size, 1);
     }
 
     #[test]
     fn import_existing_key() {
-        let settings = Settings::build("fixtures/settings-import-ed25519.toml".into())
+        let settings = Settings::build(Some("fixtures/settings-import-ed25519.toml".into()))
             .expect("setting file in test fixtures");
 
         let msg = b"foo bar";
@@ -424,7 +452,7 @@ mod test {
 
     #[test]
     fn import_secp256k1_key() {
-        let settings = Settings::build("fixtures/settings-import-secp256k1.toml".into())
+        let settings = Settings::build(Some("fixtures/settings-import-secp256k1.toml".into()))
             .expect("setting file in test fixtures");
 
         settings
@@ -437,7 +465,7 @@ mod test {
 
     #[test]
     fn seeded_secp256k1_key() {
-        let settings = Settings::build("fixtures/settings-random-secp256k1.toml".into())
+        let settings = Settings::build(Some("fixtures/settings-random-secp256k1.toml".into()))
             .expect("setting file in test fixtures");
 
         settings
@@ -446,5 +474,35 @@ mod test {
             .keypair_config
             .keypair()
             .expect("generate a seeded secp256k1 key");
+    }
+
+    #[test]
+    fn test_config_dir_xdg() {
+        env::remove_var("HOME");
+        env::set_var("XDG_CONFIG_HOME", "/home/user/custom_config");
+        assert_eq!(
+            config_dir(),
+            PathBuf::from("/home/user/custom_config/homestar")
+        );
+        env::remove_var("XDG_CONFIG_HOME");
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_config_dir() {
+        env::set_var("HOME", "/home/user");
+        env::remove_var("XDG_CONFIG_HOME");
+        assert_eq!(config_dir(), PathBuf::from("/home/user/.config/homestar"));
+        env::remove_var("HOME");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_config_dir() {
+        env::remove_var("XDG_CONFIG_HOME");
+        assert_eq!(
+            config_dir(),
+            PathBuf::from(format!(r"{}\.config\homestar", env!("USERPROFILE")))
+        );
     }
 }
