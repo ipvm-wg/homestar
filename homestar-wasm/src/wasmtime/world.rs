@@ -121,7 +121,7 @@ impl<T> Env<T> {
                     },
                     Input::Deferred(await_promise) => {
                         bail!(Error::ResolvePromise(ResolveError::UnresolvedCid(format!(
-                            "deferred task not yet resolved for {}: {}",
+                            "deferred task/instruction not yet resolved or exists for promise: {}: {}",
                             await_promise.result(),
                             await_promise.instruction_cid()
                         ))))

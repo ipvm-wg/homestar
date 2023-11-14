@@ -18,7 +18,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            retries: 10,
+            retries: 3,
             retry_max_delay: Duration::new(60, 0),
             retry_initial_delay: Duration::from_millis(500),
             p2p_timeout: Duration::new(5, 0),

@@ -40,7 +40,7 @@ pub enum Error {
     #[error(transparent)]
     WasmRuntime(#[from] anyhow::Error),
     /// Failure to find Wasm function for execution.
-    #[error("Wasm function {0} not found")]
+    #[error("Wasm function {0} not found in given Wasm component/resource")]
     WasmFunctionNotFound(String),
     /// [Wat] as Wasm component error.
     ///
