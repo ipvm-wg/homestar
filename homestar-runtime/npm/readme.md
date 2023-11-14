@@ -57,3 +57,4 @@ npm publish --access public
 
 - [ ] move this to CI
 - [ ] add windows
+- [ ] --features ansi-logs
