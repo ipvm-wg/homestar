@@ -1,0 +1,26 @@
+{
+  "name": "homestar-runtime",
+  "version": "0.0.8",
+  "description": "",
+  "bin": {
+    "homestar": "index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "optionalDependencies": {
+    "homestar-darwin-arm64": "*",
+    "homestar-darwin-x64": "*",
+    "homestar-linux-arm64": "*",
+    "homestar-linux-x64": "*",
+    "homestar-windows-arm64": "*",
+    "homestar-windows-x64": "*"
+  },
+  "dependencies": {
+    "execa": "^8.0.1"
+  }
+}
