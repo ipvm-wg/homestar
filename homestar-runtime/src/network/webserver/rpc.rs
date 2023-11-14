@@ -28,13 +28,10 @@ use metrics_exporter_prometheus::PrometheusHandle;
 #[cfg(feature = "websocket-notify")]
 use std::sync::Arc;
 use std::time::Duration;
+#[allow(unused_imports)]
+use tokio::sync::oneshot;
 #[cfg(feature = "websocket-notify")]
 use tokio::{runtime::Handle, select};
-#[allow(unused_imports)]
-use tokio::{
-    sync::oneshot,
-    time::{self, Instant},
-};
 #[cfg(feature = "websocket-notify")]
 use tokio_stream::wrappers::BroadcastStream;
 #[allow(unused_imports)]
@@ -147,10 +144,11 @@ impl JsonRpc {
                 .await
                 .map_err(|err| internal_err(err.to_string()))?;
 
-            if let Ok(Ok(Message::AckNodeInfo(info))) =
-                time::timeout_at(Instant::now() + ctx.receiver_timeout, rx.recv_async()).await
+            if let Ok(Message::AckNodeInfo((static_info, dyn_info))) =
+                rx.recv_deadline(std::time::Instant::now() + ctx.receiver_timeout)
             {
-                Ok(serde_json::json!({ "healthy": true, "nodeInfo": info}))
+                Ok(serde_json::json!({ "healthy": true, "nodeInfo": {
+                    "static": static_info, "dynamic": dyn_info}}))
             } else {
                 warn!(sub = HEALTH_ENDPOINT, "did not acknowledge message in time");
                 Err(internal_err("failed to get node information".to_string()))
@@ -159,13 +157,13 @@ impl JsonRpc {
 
         #[cfg(test)]
         module.register_async_method(HEALTH_ENDPOINT, |_, _| async move {
-            use crate::runner::NodeInfo;
+            use crate::runner::{DynamicNodeInfo, StaticNodeInfo};
             use std::str::FromStr;
             let peer_id =
                 libp2p::PeerId::from_str("12D3KooWRNw2pJC9748Fmq4WNV27HoSTcX3r37132FLkQMrbKAiC")
                     .unwrap();
             Ok::<serde_json::Value, ErrorObject<'_>>(serde_json::json!({
-                "healthy": true, "nodeInfo": NodeInfo::new(peer_id)
+                "healthy": true, "nodeInfo": {"static": StaticNodeInfo::new(peer_id), "dynamic": DynamicNodeInfo::new(vec![])},
             }))
         })?;
 
@@ -221,9 +219,8 @@ impl JsonRpc {
                             ))
                             .await?;
 
-                        if let Ok(Ok(Message::AckWorkflow((cid, name)))) =
-                            time::timeout_at(Instant::now() + ctx.receiver_timeout, rx.recv_async())
-                                .await
+                        if let Ok(Message::AckWorkflow((cid, name))) =
+                            rx.recv_deadline(std::time::Instant::now() + ctx.receiver_timeout)
                         {
                             let sink = pending.accept().await?;
                             ctx.workflow_listeners

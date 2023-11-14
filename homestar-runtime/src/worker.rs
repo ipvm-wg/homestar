@@ -43,12 +43,8 @@ use homestar_wasm::{
 };
 use indexmap::IndexMap;
 use libipld::{Cid, Ipld};
-use std::{collections::BTreeMap, sync::Arc};
-use tokio::{
-    sync::RwLock,
-    task::JoinSet,
-    time::{self, Instant},
-};
+use std::{collections::BTreeMap, sync::Arc, time::Instant};
+use tokio::{sync::RwLock, task::JoinSet};
 use tracing::{debug, error, info};
 
 /// [JoinSet] of tasks run by a [Worker].
@@ -215,29 +211,23 @@ where
                             )))
                             .await;
 
-                        let found = match time::timeout_at(
-                            Instant::now() + workflow_settings.p2p_timeout,
-                            rx.recv_async(),
-                        )
-                        .await
+                        let found = match rx
+                            .recv_deadline(Instant::now() + workflow_settings.p2p_timeout)
                         {
-                            Ok(Ok(ResponseEvent::Found(Ok(FoundEvent::Receipt(found))))) => found,
-                            Ok(Ok(ResponseEvent::Found(Err(err)))) => {
+                            Ok(ResponseEvent::Found(Ok(FoundEvent::Receipt(found)))) => found,
+                            Ok(ResponseEvent::Found(Err(err))) => {
                                 bail!(ResolveError::UnresolvedCid(format!(
                                     "failure in attempting to find event: {err}"
                                 )))
                             }
-                            Ok(Ok(ResponseEvent::NoPeersAvailable)) => {
+                            Ok(ResponseEvent::NoPeersAvailable) => {
                                 bail!(ResolveError::UnresolvedCid(
                                     "no peers available to communicate with".to_string()
                                 ))
                             }
-                            Ok(Ok(_)) => bail!(ResolveError::UnresolvedCid(
+                            Ok(_) => bail!(ResolveError::UnresolvedCid(
                                 "wrong or unexpected event message received".to_string(),
                             )),
-                            Ok(Err(err)) => bail!(ResolveError::UnresolvedCid(format!(
-                                "failure in attempting to find receipt: {err}"
-                            ))),
                             Err(err) => bail!(ResolveError::UnresolvedCid(format!(
                                 "timeout deadline reached for invocation receipt @ {cid}: {err}",
                             ))),

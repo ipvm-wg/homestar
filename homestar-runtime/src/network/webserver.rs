@@ -3,7 +3,7 @@
 
 use crate::{
     runner,
-    runner::{NodeInfo, WsSender},
+    runner::{DynamicNodeInfo, StaticNodeInfo, WsSender},
     settings,
 };
 use anyhow::{anyhow, Result};
@@ -63,7 +63,7 @@ pub(crate) enum Message {
     /// TODO
     GetNodeInfo,
     /// TODO
-    AckNodeInfo(NodeInfo),
+    AckNodeInfo((StaticNodeInfo, DynamicNodeInfo)),
 }
 
 /// WebSocket server fields.
@@ -266,6 +266,7 @@ mod test {
     #[cfg(feature = "websocket-notify")]
     use jsonrpsee::types::error::ErrorCode;
     use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
+    use libp2p::Multiaddr;
     #[cfg(feature = "websocket-notify")]
     use notifier::{self, Header};
 
@@ -307,17 +308,17 @@ mod test {
             let peer_id =
                 libp2p::PeerId::from_str("12D3KooWRNw2pJC9748Fmq4WNV27HoSTcX3r37132FLkQMrbKAiC")
                     .unwrap();
-            let nodeinfo = NodeInfo::new(peer_id);
+            let static_info = StaticNodeInfo::new(peer_id);
             assert_eq!(
                 ws_resp,
-                serde_json::json!({"healthy": true, "nodeInfo": nodeinfo})
+                serde_json::json!({"healthy": true, "nodeInfo": {"static": static_info, "dynamic": {"listeners": Vec::<Multiaddr>::new()}}})
             );
             let http_resp = reqwest::get(format!("{}/health", http_url)).await.unwrap();
             assert_eq!(http_resp.status(), 200);
             let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
             assert_eq!(
                 http_resp,
-                serde_json::json!({"healthy": true, "nodeInfo": nodeinfo})
+                serde_json::json!({"healthy": true, "nodeInfo": {"static": static_info, "dynamic": {"listeners": Vec::<Multiaddr>::new()}}})
             );
         });
 

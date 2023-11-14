@@ -17,11 +17,13 @@ use faststr::FastStr;
 use homestar_core::{ipld::DagJson, workflow::Pointer};
 use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Cid, Ipld};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, fmt, sync::Arc, time::Duration};
-use tokio::{
-    runtime::Handle,
-    time::{self, Instant},
+use std::{
+    collections::BTreeMap,
+    fmt,
+    sync::Arc,
+    time::{Duration, Instant},
 };
+use tokio::runtime::Handle;
 use tracing::info;
 
 /// [Workflow] header tag, for sharing workflow information over libp2p.
@@ -356,8 +358,8 @@ impl Info {
             )))
             .await?;
 
-        match time::timeout_at(Instant::now() + p2p_timeout, rx.recv_async()).await {
-            Ok(Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info))))) => {
+        match rx.recv_deadline(Instant::now() + p2p_timeout) {
+            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info)))) => {
                 // store workflow receipts from info, as we've already stored
                 // the static information.
                 if let Some(mut conn) = conn {
@@ -366,13 +368,12 @@ impl Info {
 
                 Ok(workflow_info)
             }
-            Ok(Ok(ResponseEvent::Found(Err(err)))) => {
+            Ok(ResponseEvent::Found(Err(err))) => {
                 bail!("failure in attempting to find event: {err}")
             }
-            Ok(Ok(event)) => {
+            Ok(event) => {
                 bail!("received unexpected event {event:?} for workflow {workflow_cid}")
             }
-            Ok(Err(err)) => bail!("failure in attempting to find workflow: {err}"),
             Err(err) => handle_timeout_fn
                 .map(|f| f(workflow_cid, conn).context(err))
                 .unwrap_or(Err(anyhow!(
