@@ -67,6 +67,7 @@ impl show::ConsoleTable for AckWorkflow {
 
     fn echo_table(&self) -> Result<(), std::io::Error> {
         let table = self.table();
+
         let mut resource_table = Table::new(
             self.resources
                 .iter()

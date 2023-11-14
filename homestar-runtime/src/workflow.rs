@@ -77,6 +77,7 @@ impl fmt::Display for Resource {
 #[derive(Debug, Clone)]
 pub(crate) struct AOTContext<'a> {
     dag: Dag<'a>,
+    //side_effects: Vec<Node<Vertex<'a>, usize>>,
     indexed_resources: IndexedResources,
 }
 
@@ -151,54 +152,69 @@ impl<'a> Builder<'a> {
 
     fn aot(self) -> anyhow::Result<AOTContext<'a>> {
         let lookup_table = self.lookup_table()?;
+        let (mut dag, unawaits, awaited, resources) =
+            self.into_inner().tasks().into_iter().enumerate().try_fold(
+                (Dag::default(), vec![], vec![], IndexMap::new()),
+                |(mut dag, mut unawaits, mut awaited, mut resources), (i, task)| {
+                    let instr_cid = task.instruction_cid()?;
+                    debug!("instruction cid: {}", instr_cid);
 
-        let (dag, resources) = self.into_inner().tasks().into_iter().enumerate().try_fold(
-            (Dag::default(), IndexMap::new()),
-            |(mut dag, mut resources), (i, task)| {
-                let instr_cid = task.instruction_cid()?;
-                debug!("instruction cid: {}", instr_cid);
+                    // Clone as we're owning the struct going backward.
+                    let ptr: Pointer = Invocation::<Arg>::from(task.clone()).try_into()?;
 
-                // Clone as we're owning the struct going backward.
-                let ptr: Pointer = Invocation::<Arg>::from(task.clone()).try_into()?;
+                    let RunInstruction::Expanded(instr) = task.into_instruction() else {
+                        bail!("workflow tasks/instructions must be expanded / inlined")
+                    };
 
-                let RunInstruction::Expanded(instr) = task.into_instruction() else {
-                    bail!("workflow tasks/instructions must be expanded / inlined")
-                };
-
-                resources
-                    .entry(instr_cid)
-                    .or_insert_with(|| vec![Resource::Url(instr.resource().to_owned())]);
-
-                let parsed = instr.input().parse()?;
-                let reads = parsed
-                    .args()
-                    .deferreds()
-                    .fold(vec![], |mut in_flow_reads, cid| {
-                        if let Some(v) = lookup_table.get(&cid) {
-                            in_flow_reads.push(*v)
-                        }
-                        // TODO: else, it's a Promise from another task outside
-                        // of the workflow.
-                        in_flow_reads
-                    });
-
-                parsed.args().links().for_each(|cid| {
                     resources
                         .entry(instr_cid)
-                        .and_modify(|prev_rscs| {
-                            prev_rscs.push(Resource::Cid(cid.to_owned()));
-                        })
-                        .or_insert_with(|| vec![Resource::Cid(cid.to_owned())]);
-                });
+                        .or_insert_with(|| vec![Resource::Url(instr.resource().to_owned())]);
+                    let parsed = instr.input().parse()?;
+                    let reads = parsed
+                        .args()
+                        .deferreds()
+                        .fold(vec![], |mut in_flow_reads, cid| {
+                            if let Some(v) = lookup_table.get(&cid) {
+                                in_flow_reads.push(*v)
+                            }
+                            // TODO: else, it's a Promise from another task outside
+                            // of the workflow.
+                            in_flow_reads
+                        });
 
-                let node = Node::new(Vertex::new(instr.to_owned(), parsed, ptr))
-                    .with_name(instr_cid.to_string())
-                    .with_result(i);
+                    parsed.args().links().for_each(|cid| {
+                        resources
+                            .entry(instr_cid)
+                            .and_modify(|prev_rscs| {
+                                prev_rscs.push(Resource::Cid(cid.to_owned()));
+                            })
+                            .or_insert_with(|| vec![Resource::Cid(cid.to_owned())]);
+                    });
 
-                dag.add_node(node.with_reads(reads));
-                Ok::<_, anyhow::Error>((dag, resources))
-            },
-        )?;
+                    let node = Node::new(Vertex::new(instr.to_owned(), parsed, ptr))
+                        .with_name(instr_cid.to_string())
+                        .with_result(i);
+
+                    if !reads.is_empty() {
+                        dag.add_node(node.with_reads(reads.clone()));
+                        awaited.extend(reads);
+                    } else {
+                        unawaits.push(node);
+                    }
+
+                    Ok::<_, anyhow::Error>((dag, unawaits, awaited, resources))
+                },
+            )?;
+
+        for mut node in unawaits.clone().into_iter() {
+            if node.get_results().any(|r| awaited.contains(r)) {
+                dag.add_node(node);
+            } else {
+                // set barrier for non-awaited nodes
+                node.set_barrier(1);
+                dag.add_node(node);
+            }
+        }
 
         Ok(AOTContext {
             dag,
@@ -268,13 +284,13 @@ impl IndexedResources {
     /// Iterate over all [Resource]s as references.
     #[allow(dead_code)]
     pub(crate) fn iter(&self) -> impl Iterator<Item = &Resource> {
-        self.0.values().flatten().dedup()
+        self.0.values().flatten().unique()
     }
 
     /// Iterate over all [Resource]s.
     #[allow(dead_code)]
     pub(crate) fn into_iter(self) -> impl Iterator<Item = Resource> {
-        self.0.into_values().flatten().dedup()
+        self.0.into_values().flatten().unique()
     }
 }
 
@@ -367,8 +383,15 @@ where
 mod test {
     use super::*;
     use homestar_core::{
+        ipld::DagCbor,
         test_utils,
-        workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
+        workflow::{
+            config::Resources,
+            instruction::RunInstruction,
+            pointer::{Await, AwaitResult},
+            prf::UcanPrf,
+            Ability, Input, Task,
+        },
     };
     use std::path::Path;
 
@@ -459,7 +482,7 @@ mod test {
         let (instruction1, instruction2, instruction3) =
             test_utils::workflow::related_wasm_instructions::<Arg>();
         let task1 = Task::new(
-            RunInstruction::Expanded(instruction1),
+            RunInstruction::Expanded(instruction1.clone()),
             config.clone().into(),
             UcanPrf::default(),
         );
@@ -477,17 +500,56 @@ mod test {
         let (instruction4, _) = test_utils::workflow::wasm_instruction_with_nonce::<Arg>();
         let task4 = Task::new(
             RunInstruction::Expanded(instruction4),
+            config.clone().into(),
+            UcanPrf::default(),
+        );
+
+        let (instruction5, _) = test_utils::workflow::wasm_instruction_with_nonce::<Arg>();
+        let task5 = Task::new(
+            RunInstruction::Expanded(instruction5),
+            config.clone().into(),
+            UcanPrf::default(),
+        );
+
+        let promise1 = Await::new(
+            Pointer::new(instruction1.clone().to_cid().unwrap()),
+            AwaitResult::Ok,
+        );
+
+        let dep_instr = Instruction::new(
+            instruction1.resource().to_owned(),
+            Ability::from("wasm/run"),
+            Input::<Arg>::Ipld(Ipld::Map(BTreeMap::from([
+                ("func".into(), Ipld::String("add_two".to_string())),
+                (
+                    "args".into(),
+                    Ipld::List(vec![Ipld::try_from(promise1.clone()).unwrap()]),
+                ),
+            ]))),
+        );
+
+        let task6 = Task::new(
+            RunInstruction::Expanded(dep_instr),
             config.into(),
             UcanPrf::default(),
         );
 
-        let tasks = vec![task1.clone(), task2.clone(), task3.clone(), task4.clone()];
+        let tasks = vec![
+            task6.clone(),
+            task1.clone(),
+            task2.clone(),
+            task3.clone(),
+            task4.clone(),
+            task5.clone(),
+        ];
         let workflow = Workflow::new(tasks);
 
         let instr1 = task1.instruction_cid().unwrap().to_string();
         let instr2 = task2.instruction_cid().unwrap().to_string();
         let instr3 = task3.instruction_cid().unwrap().to_string();
         let instr4 = task4.instruction_cid().unwrap().to_string();
+        let instr5 = task5.instruction_cid().unwrap().to_string();
+        let instr6 = task6.instruction_cid().unwrap().to_string();
 
         let builder = Builder::new(workflow);
         let schedule = builder.graph().unwrap().schedule;
@@ -510,11 +572,32 @@ mod test {
         assert!(
             nodes
                 == vec![
-                    format!("{instr1}, {instr4}"),
-                    instr2.clone(),
-                    instr3.clone()
+                    format!("{instr1}"),
+                    format!("{instr6}, {instr2}"),
+                    format!("{instr3}"),
+                    format!("{instr4}, {instr5}")
                 ]
-                || nodes == vec![format!("{instr4}, {instr1}"), instr2, instr3]
+                || nodes
+                    == vec![
+                        format!("{instr1}"),
+                        format!("{instr6}, {instr2}"),
+                        format!("{instr3}"),
+                        format!("{instr5}, {instr4}")
+                    ]
+                || nodes
+                    == vec![
+                        format!("{instr1}"),
+                        format!("{instr2}, {instr6}"),
+                        format!("{instr3}"),
+                        format!("{instr4}, {instr5}")
+                    ]
+                || nodes
+                    == vec![
+                        format!("{instr1}"),
+                        format!("{instr2}, {instr6}"),
+                        format!("{instr3}"),
+                        format!("{instr5}, {instr4}")
+                    ]
         );
     }
 }
