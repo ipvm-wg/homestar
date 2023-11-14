@@ -171,6 +171,7 @@ impl<'a> TaskScheduler<'a> {
             .into_iter()
             .map(|(_, rsc)| rsc.to_owned())
             .collect();
+
         let fetched = fetch_fn(resources_to_fetch).await?;
 
         match resume {

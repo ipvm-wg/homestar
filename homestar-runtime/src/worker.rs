@@ -147,14 +147,19 @@ where
     where
         F: FnOnce(FnvHashSet<Resource>) -> BoxFuture<'a, Result<IndexMap<Resource, Vec<u8>>>>,
     {
-        let scheduler_ctx = TaskScheduler::init(
+        match TaskScheduler::init(
             self.graph.clone(), // Arc'ed
             &mut self.db.conn()?,
             fetch_fn,
         )
-        .await?;
-
-        self.run_queue(scheduler_ctx.scheduler, running_tasks).await
+        .await
+        {
+            Ok(ctx) => self.run_queue(ctx.scheduler, running_tasks).await,
+            Err(err) => {
+                error!(err=?err, "error initializing scheduler");
+                Err(anyhow!("error initializing scheduler"))
+            }
+        }
     }
 
     #[allow(unused_mut)]
@@ -185,7 +190,7 @@ where
             info!(
                 workflow_cid = workflow_cid.to_string(),
                 cid = cid.to_string(),
-                "resolving cid"
+                "attempting to resolve cid in workflow"
             );
 
             if let Some(result) = linkmap.read().await.get(&cid) {
@@ -369,7 +374,11 @@ where
                                     receipt_meta,
                                     additional_meta,
                                 )),
-                                Err(e) => Err(anyhow!("cannot execute wasm module: {e}")),
+                                Err(err) => Err(
+                                    anyhow!("cannot execute wasm module: {err}"))
+                                    .with_context(|| {
+                                        format!("not able to run fn {fun} for promised cid: {instruction_ptr}, in workflow {workflow_cid}")
+                                }),
                             }
                         });
                         handles.push(handle);
