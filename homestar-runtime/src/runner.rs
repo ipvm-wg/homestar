@@ -27,7 +27,7 @@ use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
 #[cfg(not(test))]
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{ops::ControlFlow, rc::Rc, sync::Arc, task::Poll};
+use std::{ops::ControlFlow, rc::Rc, sync::Arc, task::Poll, time::Instant};
 #[cfg(not(windows))]
 use tokio::signal::unix::{signal, SignalKind};
 #[cfg(windows)]
@@ -45,7 +45,7 @@ pub(crate) mod file;
 mod nodeinfo;
 pub(crate) mod response;
 pub(crate) use error::Error;
-pub(crate) use nodeinfo::NodeInfo;
+pub(crate) use nodeinfo::{DynamicNodeInfo, StaticNodeInfo};
 
 #[cfg(not(test))]
 const HOMESTAR_THREAD: &str = "homestar-runtime";
@@ -104,7 +104,7 @@ impl ModifiedSet for RunningTaskSet {
 pub struct Runner {
     event_sender: Arc<AsyncBoundedChannelSender<Event>>,
     expiration_queue: Rc<AtomicRefCell<DelayQueue<Cid>>>,
-    node_info: NodeInfo,
+    node_info: StaticNodeInfo,
     running_tasks: Arc<RunningTaskSet>,
     running_workers: RunningWorkerSet,
     pub(crate) runtime: tokio::runtime::Runtime,
@@ -197,7 +197,7 @@ impl Runner {
         Ok(Self {
             event_sender,
             expiration_queue: Rc::new(AtomicRefCell::new(DelayQueue::new())),
-            node_info: NodeInfo::new(peer_id),
+            node_info: StaticNodeInfo::new(peer_id),
             running_tasks: DashMap::new().into(),
             running_workers: DashMap::new(),
             runtime,
@@ -298,7 +298,14 @@ impl Runner {
                             }
                             (webserver::Message::GetNodeInfo, Some(oneshot_tx)) => {
                                 info!("getting node info");
-                                let _ = oneshot_tx.send(webserver::Message::AckNodeInfo(self.node_info.clone()));
+                                let (tx, rx) = AsyncBoundedChannel::oneshot();
+                                let _ = self.event_sender.send_async(Event::GetListeners(tx)).await;
+                                let dyn_node_info = if let Ok(listeners) = rx.recv_deadline(Instant::now() + self.settings.node.network.webserver_timeout) {
+                                    DynamicNodeInfo::new(listeners)
+                                } else {
+                                    DynamicNodeInfo::new(vec![])
+                                };
+                                let _ = oneshot_tx.send(webserver::Message::AckNodeInfo((self.node_info.clone(), dyn_node_info)));
                             }
                             _ => ()
                         }
