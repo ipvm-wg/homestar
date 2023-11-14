@@ -238,6 +238,7 @@ impl Captured {
     }
 
     #[allow(dead_code)]
+    // TODO rename publish_and_notify
     fn store_and_notify<DB>(
         mut self,
         event_handler: &mut EventHandler<DB>,
@@ -262,7 +263,8 @@ impl Captured {
         if event_handler.pubsub_enabled {
             match event_handler.swarm.behaviour_mut().gossip_publish(
                 pubsub::RECEIPTS_TOPIC,
-                TopicMessage::CapturedReceipt(receipt.clone()),
+                // TopicMessage::CapturedReceipt(receipt.clone()),
+                TopicMessage::CapturedReceipt(pubsub::Message::new(receipt.clone())),
             ) {
                 Ok(msg_id) => {
                     info!(
@@ -392,7 +394,8 @@ impl Replay {
                     .behaviour_mut()
                     .gossip_publish(
                         pubsub::RECEIPTS_TOPIC,
-                        TopicMessage::CapturedReceipt(receipt.clone()),
+                        // TopicMessage::CapturedReceipt(receipt.clone()),
+                        TopicMessage::CapturedReceipt(pubsub::Message::new(receipt.clone())),
                     )
                     .map(|msg_id| {
                          info!(cid=receipt_cid,
