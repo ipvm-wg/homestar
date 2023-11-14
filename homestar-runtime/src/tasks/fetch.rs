@@ -10,7 +10,6 @@ use anyhow::Result;
 use fnv::FnvHashSet;
 use indexmap::IndexMap;
 use std::sync::Arc;
-use tracing::{info, warn};
 
 pub(crate) struct Fetch;
 
@@ -34,7 +33,7 @@ impl Fetch {
         let tasks = FuturesUnordered::new();
         for rsc in resources.iter() {
             let task = tryhard::retry_fn(|| async {
-                info!(
+                tracing::info!(
                     rsc = rsc.to_string(),
                     "attempting to fetch resource from IPFS"
                 );
@@ -47,21 +46,21 @@ impl Fetch {
                 let err = error.to_string();
                 async move {
                     if attempts < retries {
-                        warn!(
+                        tracing::warn!(
                             err = err,
                             attempts = attempts,
                             "retrying fetch after error @ {}ms",
                             next_delay.map(|d| d.as_millis()).unwrap_or(0)
                         );
                     } else {
-                        warn!(err = err, attempts = attempts, "maxed out # of retries");
+                        tracing::warn!(err = err, attempts = attempts, "maxed out # of retries");
                     }
                 }
             });
             tasks.push(task);
         }
 
-        info!("fetching necessary resources from IPFS");
+        tracing::info!("fetching necessary resources from IPFS");
         if let Ok(vec) = tasks.try_collect::<Vec<_>>().await {
             vec.into_iter()
                 .try_fold(IndexMap::default(), |mut acc, res| {
