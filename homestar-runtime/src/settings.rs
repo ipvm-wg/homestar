@@ -294,7 +294,7 @@ impl Default for Network {
             rpc_max_connections: 10,
             rpc_port: 3030,
             rpc_server_timeout: Duration::new(120, 0),
-            transport_connection_timeout: Duration::new(20, 0),
+            transport_connection_timeout: Duration::new(60, 0),
             webserver_host: Uri::from_static("127.0.0.1"),
             webserver_port: 1337,
             webserver_timeout: Duration::new(120, 0),

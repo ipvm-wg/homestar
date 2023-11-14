@@ -10,6 +10,7 @@ use anyhow::Result;
 use fnv::FnvHashSet;
 use indexmap::IndexMap;
 use std::sync::Arc;
+use tracing::{info, warn};
 
 pub(crate) struct Fetch;
 
@@ -29,27 +30,49 @@ impl Fetch {
     ) -> Result<IndexMap<Resource, Vec<u8>>> {
         use futures::{stream::FuturesUnordered, TryStreamExt};
         let settings = settings.as_ref();
+        let retries = settings.retries;
         let tasks = FuturesUnordered::new();
         for rsc in resources.iter() {
-            tracing::info!(rsc = rsc.to_string(), "Fetching resource");
-            let task = tryhard::retry_fn(|| async { Self::fetch(rsc.clone(), ipfs.clone()).await })
-                .with_config(
-                    tryhard::RetryFutureConfig::new(settings.retries)
-                        .exponential_backoff(settings.retry_initial_delay)
-                        .max_delay(settings.retry_max_delay),
+            let task = tryhard::retry_fn(|| async {
+                info!(
+                    rsc = rsc.to_string(),
+                    "attempting to fetch resource from IPFS"
                 );
+                Self::fetch(rsc.clone(), ipfs.clone()).await
+            })
+            .retries(retries)
+            .exponential_backoff(settings.retry_initial_delay)
+            .max_delay(settings.retry_max_delay)
+            .on_retry(|attempts, next_delay, error| {
+                let err = error.to_string();
+                async move {
+                    if attempts < retries {
+                        warn!(
+                            err = err,
+                            attempts = attempts,
+                            "retrying fetch after error @ {}ms",
+                            next_delay.map(|d| d.as_millis()).unwrap_or(0)
+                        );
+                    } else {
+                        warn!(err = err, attempts = attempts, "maxed out # of retries");
+                    }
+                }
+            });
             tasks.push(task);
         }
 
-        tasks.try_collect::<Vec<_>>().await?.into_iter().try_fold(
-            IndexMap::default(),
-            |mut acc, res| {
-                let answer = res.1?;
-                acc.insert(res.0, answer);
+        info!("fetching necessary resources from IPFS");
+        if let Ok(vec) = tasks.try_collect::<Vec<_>>().await {
+            vec.into_iter()
+                .try_fold(IndexMap::default(), |mut acc, res| {
+                    let answer = res.1?;
+                    acc.insert(res.0, answer);
 
-                Ok::<_, anyhow::Error>(acc)
-            },
-        )
+                    Ok::<_, anyhow::Error>(acc)
+                })
+        } else {
+            Err(anyhow::anyhow!("Failed to fetch resources from IPFS"))
+        }
     }
 
     /// Gather resources via URLs, leveraging an exponential backoff.
