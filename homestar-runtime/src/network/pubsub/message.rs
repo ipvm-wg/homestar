@@ -85,28 +85,6 @@ where
     }
 }
 
-// impl TryFrom<Ipld> for Message<crate::Receipt> {
-//     type Error = anyhow::Error;
-
-//     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-//         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
-
-//         let header = map
-//             .get(HEADER_KEY)
-//             .ok_or_else(|| anyhow!("missing {HEADER_KEY}"))?
-//             .to_owned()
-//             .try_into()?;
-
-//         let payload = map
-//             .get(PAYLOAD_KEY)
-//             .ok_or_else(|| anyhow!("missing {PAYLOAD_KEY}"))?
-//             .to_owned()
-//             .try_into()?;
-
-//         Ok(Message { header, payload })
-//     }
-// }
-
 #[derive(Clone, Debug)]
 pub(crate) struct Header {
     nonce: Nonce,
@@ -151,5 +129,25 @@ impl TryFrom<Vec<u8>> for Header {
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
         let ipld: Ipld = DagCborCodec.decode(&bytes)?;
         ipld.try_into()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::{test_utils, Receipt};
+
+    #[test]
+    fn pubsub_message_rountrip() {
+        let (_, receipt) = test_utils::receipt::receipts();
+        let message = Message::new(receipt.clone());
+        let bytes: Vec<u8> = message
+            .try_into()
+            .expect("Could not serialize message into bytes");
+
+        let parsed =
+            Message::<Receipt>::try_from(bytes).expect("Could not deserialize message from bytes");
+
+        assert_eq!(receipt, parsed.payload);
     }
 }
