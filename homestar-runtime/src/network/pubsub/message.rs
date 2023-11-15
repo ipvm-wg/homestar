@@ -49,6 +49,16 @@ where
     }
 }
 
+// impl TryFrom<Vec<u8>> for Message<crate::Receipt> {
+//     type Error = anyhow::Error;
+
+//     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+//         let ipld: Ipld = DagCborCodec.decode(&bytes)?;
+//         ipld.try_into()
+//             .map_err(|_| anyhow!("Could not convert IPLD to pubsub message."))
+//     }
+// }
+
 impl<T> From<Message<T>> for Ipld
 where
     Ipld: From<T>,
@@ -65,6 +75,28 @@ impl<T> TryFrom<Ipld> for Message<T>
 where
     T: From<Ipld>,
 {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let header = map
+            .get(HEADER_KEY)
+            .ok_or_else(|| anyhow!("missing {HEADER_KEY}"))?
+            .to_owned()
+            .try_into()?;
+
+        let payload = map
+            .get(PAYLOAD_KEY)
+            .ok_or_else(|| anyhow!("missing {PAYLOAD_KEY}"))?
+            .to_owned()
+            .try_into()?;
+
+        Ok(Message { header, payload })
+    }
+}
+
+impl TryFrom<Ipld> for Message<crate::Receipt> {
     type Error = anyhow::Error;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {

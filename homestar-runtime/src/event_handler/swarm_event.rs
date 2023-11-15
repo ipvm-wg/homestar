@@ -48,6 +48,7 @@ use libp2p::{
 use maplit::btreemap;
 use std::{
     collections::{HashMap, HashSet},
+    convert::Infallible,
     fmt,
 };
 use tracing::{debug, error, info, warn};
@@ -413,13 +414,13 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 // let data: Result<pubsub::Message<Receipt>, _> =
                 //     pubsub::Message::try_from(message.data);
                 let foo: Vec<u8> = message.data;
-                let bar: pubsub::Message<Receipt> = foo.try_into().unwrap();
+                //let bar: pubsub::Message<Receipt> = foo.try_into().unwrap();
+                let bar: Result<pubsub::Message<Receipt>, anyhow::Error> = foo.try_into();
 
-                match pubsub::Message::try_from(message.data) {
+                match bar {
                     // TODO: dont fail blindly if we get a non receipt message
                     Ok(msg) => {
-                        let receipt: Result<Receipt, anyhow::Error> =
-                            Receipt::try_from(msg.payload);
+                        let receipt: Result<Receipt, Infallible> = Receipt::try_from(msg.payload);
 
                         if let Ok(receipt) = receipt {
                             info!(
