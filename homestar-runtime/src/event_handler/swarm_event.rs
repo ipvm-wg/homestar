@@ -48,7 +48,6 @@ use libp2p::{
 use maplit::btreemap;
 use std::{
     collections::{HashMap, HashSet},
-    convert::Infallible,
     fmt,
 };
 use tracing::{debug, error, info, warn};
@@ -407,52 +406,37 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 message,
                 propagation_source,
                 message_id,
-                // } => match Receipt::try_from(message.data) {
             } => {
-                // match pubsub::Message::try_from(message.data) {
-
-                // let data: Result<pubsub::Message<Receipt>, _> =
-                //     pubsub::Message::try_from(message.data);
-                let foo: Vec<u8> = message.data;
-                //let bar: pubsub::Message<Receipt> = foo.try_into().unwrap();
-                let bar: Result<pubsub::Message<Receipt>, anyhow::Error> = foo.try_into();
-
-                match bar {
+                let bytes: Vec<u8> = message.data;
+                match pubsub::Message::<Receipt>::try_from(bytes) {
                     // TODO: dont fail blindly if we get a non receipt message
                     Ok(msg) => {
-                        let receipt: Result<Receipt, Infallible> = Receipt::try_from(msg.payload);
+                        let receipt = msg.payload;
+                        info!(
+                            peer_id = propagation_source.to_string(),
+                            message_id = message_id.to_string(),
+                            "message received on receipts topic: {receipt}"
+                        );
 
-                        if let Ok(receipt) = receipt {
-                            info!(
-                                peer_id = propagation_source.to_string(),
-                                message_id = message_id.to_string(),
-                                "message received on receipts topic: {receipt}"
-                            );
+                        // Store gossiped receipt.
+                        let _ = event_handler
+                            .db
+                            .conn()
+                            .as_mut()
+                            .map(|conn| Db::store_receipt(receipt.clone(), conn));
 
-                            println!("RECEIPT");
-
-                            // Store gossiped receipt.
-                            let _ = event_handler
-                                .db
-                                .conn()
-                                .as_mut()
-                                .map(|conn| Db::store_receipt(receipt.clone(), conn));
-
-                            #[cfg(feature = "websocket-notify")]
-                            notification::emit_event(
-                                event_handler.ws_evt_sender(),
-                                EventNotificationTyp::SwarmNotification(
-                                    SwarmNotification::ReceivedReceiptPubsub,
-                                ),
-                                btreemap! {
-                                    "peerId" => propagation_source.to_string(),
-                                    "cid" => receipt.cid().to_string(),
-                                    "ran" => receipt.ran().to_string()
-                                },
-                            );
-                        } else {
-                            //
-                        }
+                        #[cfg(feature = "websocket-notify")]
+                        notification::emit_event(
+                            event_handler.ws_evt_sender(),
+                            EventNotificationTyp::SwarmNotification(
+                                SwarmNotification::ReceivedReceiptPubsub,
+                            ),
+                            btreemap! {
+                                "peerId" => propagation_source.to_string(),
+                                "cid" => receipt.cid().to_string(),
+                                "ran" => receipt.ran().to_string()
+                            },
+                        );
                     }
                     Err(err) => info!(err=?err, "cannot handle incoming gossipsub message"),
                 }
