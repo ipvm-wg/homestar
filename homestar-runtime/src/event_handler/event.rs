@@ -127,7 +127,7 @@ impl Event {
     {
         match self {
             Event::CapturedReceipt(captured) => {
-                let _ = captured.store_and_notify(event_handler);
+                let _ = captured.publish_and_notify(event_handler);
             }
             Event::Shutdown(tx) => {
                 info!("event_handler server shutting down");
@@ -238,8 +238,7 @@ impl Captured {
     }
 
     #[allow(dead_code)]
-    // TODO rename publish_and_notify
-    fn store_and_notify<DB>(
+    fn publish_and_notify<DB>(
         mut self,
         event_handler: &mut EventHandler<DB>,
     ) -> Result<(Cid, InvocationReceipt<Ipld>)>
@@ -393,7 +392,6 @@ impl Replay {
                     .behaviour_mut()
                     .gossip_publish(
                         pubsub::RECEIPTS_TOPIC,
-                        // TopicMessage::CapturedReceipt(receipt.clone()),
                         TopicMessage::CapturedReceipt(pubsub::Message::new(receipt.clone())),
                     )
                     .map(|msg_id| {
@@ -540,7 +538,7 @@ where
     async fn handle_event(self, event_handler: &mut EventHandler<DB>, ipfs: IpfsCli) {
         match self {
             Event::CapturedReceipt(captured) => {
-                if let Ok((cid, receipt)) = captured.store_and_notify(event_handler) {
+                if let Ok((cid, receipt)) = captured.publish_and_notify(event_handler) {
                     #[cfg(not(feature = "test-utils"))]
                     {
                         // Spawn client call in the background, without awaiting.
