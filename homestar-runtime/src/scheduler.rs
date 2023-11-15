@@ -107,6 +107,7 @@ impl<'a> TaskScheduler<'a> {
         let schedule: &mut Schedule<'a> = mut_graph.schedule.as_mut();
         let schedule_length = schedule.len();
         let mut resources_to_fetch = vec![];
+        let linkmap = LinkMap::<InstructionResult<Arg>>::new();
 
         let resume = 'resume: {
             for (idx, vec) in schedule.iter().enumerate().rev() {
@@ -128,29 +129,22 @@ impl<'a> TaskScheduler<'a> {
                 if let Ok(pointers) = folded_pointers {
                     match Db::find_instruction_pointers(&pointers, conn) {
                         Ok(found) => {
-                            let linkmap = found.iter().fold(
-                                LinkMap::<InstructionResult<Arg>>::new(),
-                                |mut map, receipt| {
-                                    if let Some(idx) = resources_to_fetch
-                                        .iter()
-                                        .position(|(cid, _rsc)| cid == &receipt.instruction().cid())
-                                    {
-                                        resources_to_fetch.swap_remove(idx);
-                                    }
+                            let linkmap = found.iter().fold(linkmap.clone(), |mut map, receipt| {
+                                if let Some(idx) = resources_to_fetch
+                                    .iter()
+                                    .position(|(cid, _rsc)| cid == &receipt.instruction().cid())
+                                {
+                                    resources_to_fetch.swap_remove(idx);
+                                }
 
-                                    let _ = map.insert(
-                                        receipt.instruction().cid(),
-                                        receipt.output_as_arg(),
-                                    );
+                                let _ = map
+                                    .insert(receipt.instruction().cid(), receipt.output_as_arg());
 
-                                    map
-                                },
-                            );
+                                map
+                            });
 
                             if found.len() == vec.len() {
                                 break 'resume ControlFlow::Break((idx + 1, linkmap));
-                            } else if !found.is_empty() && found.len() < vec.len() {
-                                break 'resume ControlFlow::Break((idx, linkmap));
                             } else {
                                 continue;
                             }
@@ -195,7 +189,7 @@ impl<'a> TaskScheduler<'a> {
             }
             _ => Ok(SchedulerContext {
                 scheduler: Self {
-                    linkmap: Arc::new(LinkMap::<InstructionResult<Arg>>::new().into()),
+                    linkmap: Arc::new(linkmap.into()),
                     ran: None,
                     run: schedule.to_vec(),
                     resume_step: None,
@@ -203,6 +197,21 @@ impl<'a> TaskScheduler<'a> {
                 },
             }),
         }
+    }
+
+    /// TODO
+    #[allow(dead_code)]
+    pub(crate) fn ran_length(&self) -> usize {
+        self.ran
+            .as_ref()
+            .map(|ran| ran.iter().flatten().collect::<Vec<_>>().len())
+            .unwrap_or_default()
+    }
+
+    /// TODO
+    #[allow(dead_code)]
+    pub(crate) fn run_length(&self) -> usize {
+        self.run.iter().flatten().collect::<Vec<_>>().len()
     }
 }
 
@@ -304,7 +313,7 @@ mod test {
         let mut conn = db.conn().unwrap();
         let stored_receipt = MemoryDb::store_receipt(receipt.clone(), &mut conn).unwrap();
 
-        assert_eq!(receipt, stored_receipt);
+        assert_eq!(receipt, stored_receipt.unwrap());
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let fetch_fn = |_rscs: FnvHashSet<Resource>| {

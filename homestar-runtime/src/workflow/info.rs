@@ -279,17 +279,15 @@ impl Info {
                     "workflow information not available in the database"
                 );
 
-                let result = Db::store_workflow(
-                    Stored::new(
-                        Pointer::new(workflow_cid),
-                        Some(name.into_string()),
-                        workflow_len as i32,
-                        resources,
-                        timestamp,
-                    ),
-                    &mut conn,
-                )?;
+                let stored = Stored::new(
+                    Pointer::new(workflow_cid),
+                    Some(name.into_string()),
+                    workflow_len as i32,
+                    resources,
+                    timestamp,
+                );
 
+                let result = Db::store_workflow(stored.clone(), &mut conn)?;
                 let workflow_info = Self::default(result);
 
                 // spawn a task to retrieve the workflow info from the

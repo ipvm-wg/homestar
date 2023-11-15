@@ -119,13 +119,15 @@ pub trait Database: Send + Sync + Clone {
         receipt: Receipt,
         conn: &mut Connection,
     ) -> Result<Receipt, diesel::result::Error> {
-        let receipt = conn.transaction::<_, diesel::result::Error, _>(|conn| {
-            let returned = Self::store_receipt(receipt, conn)?;
-            Self::store_workflow_receipt(workflow_cid, returned.cid(), conn)?;
-            Ok(returned)
-        })?;
-
-        Ok(receipt)
+        conn.transaction::<_, diesel::result::Error, _>(|conn| {
+            if let Some(returned) = Self::store_receipt(receipt.clone(), conn)? {
+                Self::store_workflow_receipt(workflow_cid, returned.cid(), conn)?;
+                Ok(returned)
+            } else {
+                Self::store_workflow_receipt(workflow_cid, receipt.cid(), conn)?;
+                Ok(receipt)
+            }
+        })
     }
 
     /// Store receipt given a connection to the database pool.
@@ -134,12 +136,13 @@ pub trait Database: Send + Sync + Clone {
     fn store_receipt(
         receipt: Receipt,
         conn: &mut Connection,
-    ) -> Result<Receipt, diesel::result::Error> {
+    ) -> Result<Option<Receipt>, diesel::result::Error> {
         diesel::insert_into(schema::receipts::table)
             .values(&receipt)
             .on_conflict(schema::receipts::cid)
             .do_nothing()
             .get_result(conn)
+            .optional()
     }
 
     /// Store receipts given a connection to the Database pool.
@@ -148,13 +151,17 @@ pub trait Database: Send + Sync + Clone {
         conn: &mut Connection,
     ) -> Result<usize, diesel::result::Error> {
         receipts.iter().try_fold(0, |acc, receipt| {
-            let res = diesel::insert_into(schema::receipts::table)
+            if let Some(res) = diesel::insert_into(schema::receipts::table)
                 .values(receipt)
                 .on_conflict(schema::receipts::cid)
                 .do_nothing()
-                .execute(conn)?;
-
-            Ok::<_, diesel::result::Error>(acc + res)
+                .execute(conn)
+                .optional()?
+            {
+                Ok::<_, diesel::result::Error>(acc + res)
+            } else {
+                Ok(acc)
+            }
         })
     }
 
@@ -208,11 +215,17 @@ pub trait Database: Send + Sync + Clone {
         workflow: workflow::Stored,
         conn: &mut Connection,
     ) -> Result<workflow::Stored, diesel::result::Error> {
-        diesel::insert_into(schema::workflows::table)
+        if let Some(stored) = diesel::insert_into(schema::workflows::table)
             .values(&workflow)
             .on_conflict(schema::workflows::cid)
             .do_nothing()
             .get_result(conn)
+            .optional()?
+        {
+            Ok(stored)
+        } else {
+            Ok(workflow)
+        }
     }
 
     /// Store workflow [Cid] and [Receipt] [Cid] in the database for inner join.
@@ -220,7 +233,7 @@ pub trait Database: Send + Sync + Clone {
         workflow_cid: Cid,
         receipt_cid: Cid,
         conn: &mut Connection,
-    ) -> Result<usize, diesel::result::Error> {
+    ) -> Result<Option<usize>, diesel::result::Error> {
         let value = StoredReceipt::new(Pointer::new(workflow_cid), Pointer::new(receipt_cid));
         diesel::insert_into(schema::workflows_receipts::table)
             .values(&value)
@@ -230,6 +243,7 @@ pub trait Database: Send + Sync + Clone {
             ))
             .do_nothing()
             .execute(conn)
+            .optional()
     }
 
     /// Store series of receipts for a workflow [Cid] in the
@@ -244,8 +258,11 @@ pub trait Database: Send + Sync + Clone {
         conn: &mut Connection,
     ) -> Result<usize, diesel::result::Error> {
         receipts.iter().try_fold(0, |acc, receipt| {
-            let res = Self::store_workflow_receipt(workflow_cid, *receipt, conn)?;
-            Ok::<_, diesel::result::Error>(acc + res)
+            if let Some(res) = Self::store_workflow_receipt(workflow_cid, *receipt, conn)? {
+                Ok::<_, diesel::result::Error>(acc + res)
+            } else {
+                Ok(acc)
+            }
         })
     }
 
