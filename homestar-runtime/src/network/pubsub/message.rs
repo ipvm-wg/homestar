@@ -1,5 +1,4 @@
-use anyhow::anyhow;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use homestar_core::workflow::Nonce;
 use libipld::{self, cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld};
 use std::collections::BTreeMap;
@@ -26,7 +25,7 @@ impl<T> Message<T> {
 
 impl<T> TryFrom<Message<T>> for Vec<u8>
 where
-    Ipld: From<Message<T>>,
+    Ipld: From<Message<T>> + From<T>,
 {
     type Error = anyhow::Error;
 
@@ -50,25 +49,21 @@ where
     }
 }
 
-impl From<Message<Ipld>> for Ipld {
-    fn from(message: Message<Ipld>) -> Self {
-        From::from(&message)
-    }
-}
-
-impl From<&Message<Ipld>> for Ipld {
-    fn from(message: &Message<Ipld>) -> Self {
+impl<T> From<Message<T>> for Ipld
+where
+    Ipld: From<T>,
+{
+    fn from(message: Message<T>) -> Self {
         Ipld::Map(BTreeMap::from([
-            (HEADER_KEY.into(), message.header.to_owned().into()),
-            (PAYLOAD_KEY.into(), message.payload.to_owned().into()),
+            (HEADER_KEY.into(), message.header.into()),
+            (PAYLOAD_KEY.into(), message.payload.into()),
         ]))
     }
 }
 
-impl<'a, T> TryFrom<Ipld> for Message<T>
+impl<T> TryFrom<Ipld> for Message<T>
 where
-    T: From<&'a Ipld>,
-    Ipld: From<T>,
+    T: From<Ipld>,
 {
     type Error = anyhow::Error;
 
@@ -78,11 +73,13 @@ where
         let header = map
             .get(HEADER_KEY)
             .ok_or_else(|| anyhow!("missing {HEADER_KEY}"))?
+            .to_owned()
             .try_into()?;
 
         let payload = map
             .get(PAYLOAD_KEY)
             .ok_or_else(|| anyhow!("missing {PAYLOAD_KEY}"))?
+            .to_owned()
             .try_into()?;
 
         Ok(Message { header, payload })
@@ -94,26 +91,12 @@ pub(crate) struct Header {
     nonce: Nonce,
 }
 
-impl From<&Header> for Ipld {
-    fn from(header: &Header) -> Self {
+impl From<Header> for Ipld {
+    fn from(header: Header) -> Self {
         Ipld::Map(BTreeMap::from([(
             NONCE_KEY.into(),
             header.nonce.to_owned().into(),
         )]))
-    }
-}
-
-impl From<Header> for Ipld {
-    fn from(header: Header) -> Self {
-        From::from(&header)
-    }
-}
-
-impl TryFrom<&Ipld> for Header {
-    type Error = anyhow::Error;
-
-    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
-        TryFrom::try_from(ipld.to_owned())
     }
 }
 
