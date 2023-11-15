@@ -13,8 +13,11 @@ use crate::{
         Event, Handler, RequestResponseError,
     },
     libp2p::multiaddr::MultiaddrExt,
-    network::swarm::{
-        CapsuleTag, ComposedEvent, PeerDiscoveryInfo, RequestResponseKey, HOMESTAR_PROTOCOL_VER,
+    network::{
+        pubsub,
+        swarm::{
+            CapsuleTag, ComposedEvent, PeerDiscoveryInfo, RequestResponseKey, HOMESTAR_PROTOCOL_VER,
+        },
     },
     receipt::{RECEIPT_TAG, VERSION_KEY},
     workflow,
@@ -403,38 +406,41 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 message,
                 propagation_source,
                 message_id,
-            } => match Receipt::try_from(message.data) {
-                // TODO: dont fail blindly if we get a non receipt message
-                Ok(receipt) => {
-                    info!(
-                        peer_id = propagation_source.to_string(),
-                        message_id = message_id.to_string(),
-                        "message received on receipts topic: {}",
-                        receipt.cid()
-                    );
+            } => {
+                let bytes: Vec<u8> = message.data;
+                match pubsub::Message::<Receipt>::try_from(bytes) {
+                    // TODO: dont fail blindly if we get a non receipt message
+                    Ok(msg) => {
+                        let receipt = msg.payload;
+                        info!(
+                            peer_id = propagation_source.to_string(),
+                            message_id = message_id.to_string(),
+                            "message received on receipts topic: {receipt}"
+                        );
 
-                    // Store gossiped receipt.
-                    let _ = event_handler
-                        .db
-                        .conn()
-                        .as_mut()
-                        .map(|conn| Db::store_receipt(receipt.clone(), conn));
+                        // Store gossiped receipt.
+                        let _ = event_handler
+                            .db
+                            .conn()
+                            .as_mut()
+                            .map(|conn| Db::store_receipt(receipt.clone(), conn));
 
-                    #[cfg(feature = "websocket-notify")]
-                    notification::emit_event(
-                        event_handler.ws_evt_sender(),
-                        EventNotificationTyp::SwarmNotification(
-                            SwarmNotification::ReceivedReceiptPubsub,
-                        ),
-                        btreemap! {
-                            "peerId" => propagation_source.to_string(),
-                            "cid" => receipt.cid().to_string(),
-                            "ran" => receipt.ran().to_string()
-                        },
-                    );
+                        #[cfg(feature = "websocket-notify")]
+                        notification::emit_event(
+                            event_handler.ws_evt_sender(),
+                            EventNotificationTyp::SwarmNotification(
+                                SwarmNotification::ReceivedReceiptPubsub,
+                            ),
+                            btreemap! {
+                                "peerId" => propagation_source.to_string(),
+                                "cid" => receipt.cid().to_string(),
+                                "ran" => receipt.ran().to_string()
+                            },
+                        );
+                    }
+                    Err(err) => info!(err=?err, "cannot handle incoming gossipsub message"),
                 }
-                Err(err) => info!(err=?err, "cannot handle incoming gossipsub message"),
-            },
+            }
             gossipsub::Event::Subscribed { peer_id, topic } => {
                 debug!(
                     peer_id = peer_id.to_string(),

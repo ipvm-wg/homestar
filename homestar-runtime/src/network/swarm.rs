@@ -270,7 +270,7 @@ pub(crate) enum ComposedEvent {
 #[derive(Debug)]
 pub(crate) enum TopicMessage {
     /// Receipt topic, wrapping [Receipt].
-    CapturedReceipt(Receipt),
+    CapturedReceipt(pubsub::Message<Receipt>),
 }
 
 /// Custom behaviours for [Swarm].
@@ -316,8 +316,9 @@ impl ComposedBehaviour {
         if let Some(gossipsub) = self.gossipsub.as_mut() {
             let id_topic = gossipsub::IdentTopic::new(topic);
             // Make this a match once we have other topics.
-            let TopicMessage::CapturedReceipt(receipt) = msg;
-            let msg_bytes: Vec<u8> = receipt.try_into()?;
+            let TopicMessage::CapturedReceipt(message) = msg;
+            let msg_bytes: Vec<u8> = message.try_into()?;
+
             if gossipsub
                 .mesh_peers(&TopicHash::from_raw(topic))
                 .peekable()

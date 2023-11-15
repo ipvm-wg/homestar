@@ -5,13 +5,16 @@
 use crate::settings;
 use anyhow::Result;
 use libp2p::{
-    gossipsub::{self, ConfigBuilder, Message, MessageAuthenticity, MessageId, ValidationMode},
+    gossipsub::{self, ConfigBuilder, MessageAuthenticity, MessageId, ValidationMode},
     identity::Keypair,
 };
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
 };
+
+pub(crate) mod message;
+pub(crate) use message::Message;
 
 /// [Receipt]-related topic for pub(gossip)sub.
 ///
@@ -23,7 +26,7 @@ pub(crate) const RECEIPTS_TOPIC: &str = "receipts";
 /// [gossipsub]: libp2p::gossipsub
 pub(crate) fn new(keypair: Keypair, settings: &settings::Node) -> Result<gossipsub::Behaviour> {
     // To content-address message, we can take the hash of message and use it as an ID.
-    let message_id_fn = |message: &Message| {
+    let message_id_fn = |message: &gossipsub::Message| {
         let mut s = DefaultHasher::new();
         message.data.hash(&mut s);
         MessageId::from(s.finish().to_string())
