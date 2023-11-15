@@ -4,7 +4,7 @@
 
 ```bash
 
-rustup target add aarch64-unknown-linux-gnu
+rustup target add aarch64-unknown-linux-musl
 rustup target add x86_64-unknown-linux-musl
 
 
@@ -31,13 +31,13 @@ envsubst < package.json.tmpl > "binaries/${node_pkg}/package.json"
 cp "../../target/x86_64-apple-darwin/release/${bin}" "binaries/${node_pkg}/bin"
 
 ## linux arm64
-cross build -p homestar-runtime --features ansi-logs --locked --release --target aarch64-unknown-linux-gnu
+cross build -p homestar-runtime --features ansi-logs --locked --release --target aarch64-unknown-linux-musl
 export node_os=linux
 export node_arch=arm64
 export node_pkg="${bin}-${node_os}-${node_arch}"
 mkdir -p "binaries/${node_pkg}/bin"
 envsubst < package.json.tmpl > "binaries/${node_pkg}/package.json"
-cp "../../target/aarch64-unknown-linux-gnu/release/${bin}" "binaries/${node_pkg}/bin"
+cp "../../target/aarch64-unknown-linux-musl/release/${bin}" "binaries/${node_pkg}/bin"
 
 ## linux x64
 cross build -p homestar-runtime --features ansi-logs --locked --release --target x86_64-unknown-linux-musl
@@ -57,4 +57,3 @@ npm publish --access public
 
 - [ ] move this to CI
 - [ ] add windows
-- [ ] --features ansi-logs
