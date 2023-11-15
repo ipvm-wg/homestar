@@ -263,7 +263,6 @@ impl Captured {
         if event_handler.pubsub_enabled {
             match event_handler.swarm.behaviour_mut().gossip_publish(
                 pubsub::RECEIPTS_TOPIC,
-                // TopicMessage::CapturedReceipt(receipt.clone()),
                 TopicMessage::CapturedReceipt(pubsub::Message::new(receipt.clone())),
             ) {
                 Ok(msg_id) => {

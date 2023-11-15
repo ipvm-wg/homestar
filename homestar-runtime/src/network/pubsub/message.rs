@@ -3,15 +3,15 @@ use homestar_core::workflow::Nonce;
 use libipld::{self, cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld};
 use std::collections::BTreeMap;
 
-#[derive(Debug)]
-pub(crate) struct Message<T> {
-    header: Header,
-    payload: T,
-}
-
 const HEADER_KEY: &str = "header";
 const PAYLOAD_KEY: &str = "payload";
 const NONCE_KEY: &str = "nonce";
+
+#[derive(Debug)]
+pub(crate) struct Message<T> {
+    pub(crate) header: Header,
+    pub(crate) payload: T,
+}
 
 impl<T> Message<T> {
     pub(crate) fn new(payload: T) -> Self {
