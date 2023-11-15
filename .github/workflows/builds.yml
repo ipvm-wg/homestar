@@ -30,14 +30,19 @@ jobs:
         include:
           - target: aarch64-unknown-linux-gnu
           - target: aarch64-unknown-linux-musl
+            npm: linux-arm64
           - target: aarch64-apple-darwin
             os: macos-latest
+            npm: darwin-arm64
           - target: x86_64-unknown-linux-gnu
           - target: x86_64-unknown-linux-musl
+            npm: linux-x64
           - target: x86_64-apple-darwin
             os: macos-latest
+            npm: darwin-x64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
+            npm: windows-x64
           - target: x86_64-unknown-freebsd
 
     permissions:
@@ -94,6 +99,28 @@ jobs:
           zip: windows
           include: LICENSE,README.md
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: NPM prerelease
+        if: matrix.npm
+        shell: bash
+        run: |
+          cd homestar-runtime/npm
+          bin="homestar"
+          if [[ ${{ matrix.npm }} == "windows-x64" ]]; then
+            bin="homestar.exe"
+          fi
+          node_os=$(echo "${{ matrix.npm }}" | cut -d '-' -f1)
+          export node_os
+          node_arch=$(echo "${{ matrix.npm }}" | cut -d '-' -f2)
+          export node_arch
+          export node_version=$(cat version)
+          export node_pkg="${bin}-${node_os}-${node_arch}"
+          mkdir -p "${node_pkg}/bin"
+          envsubst < package.json.tmpl > "${node_pkg}/package.json"
+          cp "../target/${{ matrix.target }}/release/${bin}" "${node_pkg}/bin"
+          cd "${node_pkg}"
+          npm version prerelease --preid rc --no-git-tag-version
+          cat "package.json"
+          ls .
 
   build-packages:
     runs-on: ubuntu-latest
