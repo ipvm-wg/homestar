@@ -193,6 +193,7 @@ where
                 debug!(cid = cid.to_string(), "found in in-memory linkmap");
                 Ok(result.to_owned())
             } else if let Some(bytes) = resources.read().await.get(&Resource::Cid(cid)) {
+                debug!(cid = cid.to_string(), "found in resources");
                 Ok(InstructionResult::Ok(Arg::Ipld(Ipld::Bytes(
                     bytes.to_vec(),
                 ))))
@@ -248,11 +249,11 @@ where
         // Replay previous receipts if subscriptions are on.
         #[cfg(feature = "websocket-notify")]
         {
-            if scheduler.ran.as_ref().is_some_and(|ran| !ran.is_empty()) {
+            if scheduler.ran_length() > 0 {
                 info!(
                     workflow_cid = self.workflow_info.cid.to_string(),
                     "{} tasks left to run, sending last batch for workflow",
-                    scheduler.ran.as_ref().unwrap().len()
+                    scheduler.run_length()
                 );
                 let mut pointers = Vec::new();
                 for batch in scheduler
@@ -362,8 +363,7 @@ where
                                     instruction_ptr,
                                     invocation_ptr,
                                     receipt_meta,
-                                    additional_meta,
-                                )),
+                                    additional_meta)),
                                 Err(err) => Err(
                                     anyhow!("cannot execute wasm module: {err}"))
                                     .with_context(|| {
@@ -382,7 +382,6 @@ where
 
             // Concurrently add handles to Runner's running set.
             running_tasks.append_or_insert(self.workflow_info.cid(), handles);
-
             while let Some(res) = task_set.join_next().await {
                 let (executed, instruction_ptr, invocation_ptr, receipt_meta, add_meta) = match res
                 {
@@ -396,8 +395,8 @@ where
                         break;
                     }
                 };
-                let output_to_store = Ipld::try_from(executed)?;
 
+                let output_to_store = Ipld::try_from(executed)?;
                 let invocation_receipt = InvocationReceipt::new(
                     invocation_ptr,
                     InstructionResult::Ok(output_to_store),
@@ -425,6 +424,7 @@ where
 
                 let stored_receipt =
                     Db::commit_receipt(self.workflow_info.cid, receipt, &mut self.db.conn()?)?;
+
                 debug!(
                     cid = self.workflow_info.cid.to_string(),
                     "commited to database"

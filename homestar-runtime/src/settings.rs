@@ -220,7 +220,7 @@ impl Default for Monitoring {
     fn default() -> Self {
         Self {
             process_collector_interval: Duration::from_millis(5000),
-            console_subscriber_port: 5555,
+            console_subscriber_port: 6669,
         }
     }
 }
@@ -229,7 +229,7 @@ impl Default for Monitoring {
 impl Default for Monitoring {
     fn default() -> Self {
         Self {
-            console_subscriber_port: 5555,
+            console_subscriber_port: 6669,
         }
     }
 }

@@ -218,7 +218,7 @@ wait-timeout = "0.2"
 
 [features]
 default = ["wasmtime-default", "ipfs", "monitoring", "websocket-notify"]
-dev = ["ansi-logs", "ipfs", "monitoring", "websocket-notify"]
+dev = ["ansi-logs", "console", "ipfs", "monitoring", "websocket-notify"]
 ansi-logs = ["tracing-logfmt/ansi_logs"]
 console = ["dep:console-subscriber"]
 ipfs = ["dep:ipfs-api", "dep:ipfs-api-backend-hyper"]

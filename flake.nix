@@ -62,6 +62,7 @@
           cargo-udeps
           cargo-watch
           rustup
+          tokio-console
           twiggy
           wasm-tools
         ];
