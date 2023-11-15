@@ -77,7 +77,6 @@ impl fmt::Display for Resource {
 #[derive(Debug, Clone)]
 pub(crate) struct AOTContext<'a> {
     dag: Dag<'a>,
-    //side_effects: Vec<Node<Vertex<'a>, usize>>,
     indexed_resources: IndexedResources,
 }
 
