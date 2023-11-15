@@ -115,6 +115,8 @@ pub(crate) enum Event {
     RegisterPeer(PeerId),
     /// Discover peers from a rendezvous node.
     DiscoverPeers(PeerId),
+    /// TODO
+    GetListeners(AsyncBoundedChannelSender<Vec<libp2p::core::Multiaddr>>),
 }
 
 const RENDEZVOUS_NAMESPACE: &str = "homestar";
@@ -133,6 +135,9 @@ impl Event {
                 info!("event_handler server shutting down");
                 event_handler.shutdown().await;
                 let _ = tx.send(());
+            }
+            Event::GetListeners(tx) => {
+                let _ = tx.send(event_handler.swarm.listeners().cloned().collect());
             }
             Event::FindRecord(record) => record.find(event_handler).await,
             Event::RemoveRecord(record) => record.remove(event_handler).await,
