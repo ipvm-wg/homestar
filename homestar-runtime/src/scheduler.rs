@@ -200,6 +200,7 @@ impl<'a> TaskScheduler<'a> {
     }
 
     /// TODO
+    #[allow(dead_code)]
     pub(crate) fn ran_length(&self) -> usize {
         self.ran
             .as_ref()
@@ -208,7 +209,6 @@ impl<'a> TaskScheduler<'a> {
     }
 
     /// TODO
-    #[allow(dead_code)]
     pub(crate) fn run_length(&self) -> usize {
         self.run.iter().flatten().collect::<Vec<_>>().len()
     }
