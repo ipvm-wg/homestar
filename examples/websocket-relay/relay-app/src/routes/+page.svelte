@@ -2,8 +2,7 @@
   import { onDestroy } from "svelte";
   import { Svelvet } from "svelvet";
 
-  import { connect } from "$lib/channel";
-  import { base64CatStore, nodeStore, taskStore } from "../stores";
+  import { base64CatStore, nodeStore } from "../stores";
   import Controls from "$components/Controls.svelte";
   import Header from "$components/Header.svelte";
   import WorkflowDetail from "$components/WorkflowDetail.svelte";
@@ -36,9 +35,6 @@
 
   // Set spacecat unmodified image
   const fetchCat = initializeSpaceCat();
-
-  // Connect to websocket server
-  connect();
 
   onDestroy(() => {
     unsubscribeNodeStore();

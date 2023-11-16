@@ -1,16 +1,18 @@
+import { CID } from "multiformats";
+import { base64 } from "iso-base/rfc4648";
 import { get as getStore } from "svelte/store";
+import type { MaybeResult } from "@fission-codes/homestar/codecs/types";
+import * as WorkflowBuilder from "@fission-codes/homestar/workflow";
 
-import { base64CatStore, firstWorkflowToRunStore } from "../stores";
 import type { Receipt, TaskOperation, TaskStatus, Meta } from "$lib/task";
 
 import {
   activeWorkflowStore,
-  channelStore,
+  firstWorkflowToRunStore,
+  homestarStore,
   taskStore,
   workflowStore,
 } from "../stores";
-import { connect, type Channel } from "$lib/channel";
-import type { Maybe } from "$lib";
 
 export type Workflow = {
   id: WorkflowId;
@@ -28,14 +30,9 @@ export type WorkflowId = "one" | "two";
 
 // RUN
 export async function run(workflowId: WorkflowId) {
-  let channel = getStore(channelStore);
   const firstWorkflowToRun = getStore(firstWorkflowToRunStore);
+  const homestar = getStore(homestarStore);
   const tasks = getStore(taskStore);
-
-  if (!channel) {
-    await connect();
-    channel = getStore(channelStore);
-  }
 
   // Reset workflow UI and state
   reset(workflowId);
@@ -61,27 +58,56 @@ export async function run(workflowId: WorkflowId) {
 
   // Send run command to server
   if (workflowId === "one") {
-    channel?.send(
-      JSON.stringify({
-        action: "run",
-        name: workflowId,
-        workflow: workflowOneJson,
-      })
-    );
+    const workflowOne = await workflowOnePromised;
+    homestar.runWorkflow(workflowOne, handleMessage);
   } else if (workflowId === "two") {
-    channel?.send(
-      JSON.stringify({
-        action: "run",
-        name: workflowId,
-        workflow: workflowTwoJson,
-      })
-    );
+    const workflowTwo = await workflowTwoPromised;
+    homestar.runWorkflow(workflowTwo, handleMessage);
   }
 
-  if (import.meta.env.VITE_EMULATION_MODE === "true") {
-    // Emulate with an echo server
-    emulate(workflowId, channel);
-  }
+  checkHealth();
+}
+
+/**
+ * Check health and fail workflow when the Homestar node does not respond in time.
+ */
+function checkHealth() {
+  const homestar = getStore(homestarStore);
+
+  let interval = setInterval(async () => {
+    const activeWorkflow = getStore(activeWorkflowStore);
+
+    if (activeWorkflow) {
+      if (activeWorkflow.step === activeWorkflow.tasks.length - 1) {
+        // Workflow completed
+        clearInterval(interval);
+      }
+
+      if (
+        activeWorkflow.failedPingCount >= import.meta.env.VITE_MAX_PING_RETRIES
+      ) {
+        // Fail the workflow
+        fail(activeWorkflow.id);
+        clearInterval(interval);
+      }
+
+      const health = (await homestar.health()).result;
+      if (health?.healthy) {
+        activeWorkflowStore.update((store) =>
+          store ? { ...store, failedPingCount: 0 } : null
+        );
+      } else {
+        activeWorkflowStore.update((store) =>
+          store
+            ? { ...store, failedPingCount: activeWorkflow.failedPingCount + 1 }
+            : null
+        );
+      }
+    } else {
+      // No workflow active
+      clearInterval(interval);
+    }
+  }, import.meta.env.VITE_PING_INTERVAL);
 }
 
 /**
@@ -132,90 +158,83 @@ export function fail(workflowId: WorkflowId) {
 
 // HANDLER
 
-export async function handleMessage(event: MessageEvent) {
-  const data = await event.data.text();
-
+export async function handleMessage(data: MaybeResult) {
   console.log("Received message from server: ", data);
 
-  // Reset ping count on echoed ping or pong from server
-  if (data === "ping" || data === "pong") {
-    activeWorkflowStore.update((store) =>
-      store ? { ...store, failedPingCount: 0 } : null
-    );
+  if (data.error) {
+    // @ts-ignore-next-line
+    throw new Error(data.error);
+  }
 
+  const activeWorkflow = getStore(activeWorkflowStore);
+
+  if (!activeWorkflow) {
+    console.error("Received a receipt but workflow was not initiated");
     return;
   }
 
-  const message = JSON.parse(data);
-  if (message.receipt !== undefined && message.receipt.meta !== undefined) {
-    const activeWorkflow = getStore(activeWorkflowStore);
+  const taskId = activeWorkflow.step + 1;
+  // @ts-ignore-next-line
+  const status = data.result.metadata.replayed ? "replayed" : "executed";
+  // @ts-ignore-next-line
+  const receipt = parseReceipt(data.result.receipt);
 
-    if (!activeWorkflow) {
-      console.error("Received a receipt but workflow was not initiated");
-      return;
-    }
+  // Update task in UI
+  taskStore.update((store) => {
+    const updatedTasks = store[activeWorkflow.id].map((t) =>
+      t.id === taskId
+        ? {
+            ...t,
+            status,
+            message: getTaskMessage(status),
+            receipt,
+          }
+        : t
+    );
 
-    const taskId = activeWorkflow.step + 1;
-    const status = message.metadata.replayed ? "replayed" : "executed";
-    const receipt = parseReceipt(message.receipt);
+    return { ...store, [activeWorkflow.id]: updatedTasks };
+  });
 
-    // Update task in UI
-    taskStore.update((store) => {
-      const updatedTasks = store[activeWorkflow.id].map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              status,
-              message: getTaskMessage(status),
-              receipt,
-            }
-          : t
-      );
+  // Log receipt
+  console.table(receipt);
 
-      return { ...store, [activeWorkflow.id]: updatedTasks };
-    });
+  if (activeWorkflow.step === activeWorkflow.tasks.length - 1) {
+    // Workflow is done. Reset workflow status to waiting.
+    workflowStore.update((workflows) => ({
+      ...workflows,
+      [activeWorkflow.id]: {
+        ...workflows[activeWorkflow.id],
+        status: "waiting",
+      },
+    }));
 
-    // Log receipt
-    console.table(receipt);
-
-    if (activeWorkflow.step === activeWorkflow.tasks.length - 1) {
-      // Workflow is done. Reset workflow status to waiting.
-      workflowStore.update((workflows) => ({
-        ...workflows,
-        [activeWorkflow.id]: {
-          ...workflows[activeWorkflow.id],
-          status: "waiting",
-        },
-      }));
-
-      // Deactivate workflow
-      activeWorkflowStore.set(null);
-    } else {
-      // Increment workflow step
-      activeWorkflowStore.update((store) =>
-        store ? { ...store, step: store.step + 1 } : null
-      );
-    }
+    // Deactivate workflow
+    activeWorkflowStore.set(null);
   } else {
-    console.warn("Received an unexpected message", message);
+    // Increment workflow step
+    activeWorkflowStore.update((store) =>
+      store ? { ...store, step: store.step + 1 } : null
+    );
   }
 }
 
-function parseReceipt(raw: {
+type RawReceipt = {
   iss: string | null;
   meta: Meta | null;
-  out: ["ok" | "error", Record<"/", Record<"bytes", string>>];
+  out: ["ok" | "error", Uint8Array];
   prf: string[];
   ran: Record<"/", string>;
-}): Receipt {
+};
+
+const parseReceipt = (raw: RawReceipt): Receipt => {
   return {
     iss: raw.iss,
     meta: raw.meta,
-    out: [raw.out[0], raw.out[1]["/"].bytes],
+    out: [raw.out[0], base64.encode(raw.out[1])],
     prf: raw.prf,
     ran: raw.ran["/"],
   };
-}
+};
 
 function getTaskMessage(status: TaskStatus) {
   switch (status) {
@@ -233,226 +252,75 @@ function getTaskMessage(status: TaskStatus) {
   }
 }
 
-// JSON WORKFLOWS
+// WORKFLOWS
 
-export const workflowOneJson = {
-  tasks: [
-    {
-      cause: null,
-      meta: {
-        memory: 4294967296,
-        time: 100000,
-      },
-      prf: [],
-      run: {
-        input: {
-          args: [
-            {
-              "/": "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm",
-            },
-            150,
-            350,
-            500,
-            500,
-          ],
-          func: "crop",
+export const workflowOnePromised = WorkflowBuilder.workflow({
+  name: "one",
+  workflow: {
+    tasks: [
+      WorkflowBuilder.crop({
+        name: "crop",
+        resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+        args: {
+          data: CID.parse(
+            "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm"
+          ),
+          x: 150,
+          y: 350,
+          height: 500,
+          width: 500,
         },
-        nnc: "",
-        op: "wasm/run",
-        rsc: "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
-      },
-    },
-    {
-      cause: null,
-      meta: {
-        memory: 4294967296,
-        time: 100000,
-      },
-      prf: [],
-      run: {
-        input: {
-          args: [
-            {
-              "await/ok": {
-                "/": "bafyrmigev36skyfjnslfswcez24rnrorzeaxkrpb3wci2arfkly5zcrepy",
-              },
-            },
-          ],
-          func: "rotate90",
+      }),
+      WorkflowBuilder.rotate90({
+        name: "rotate90",
+        resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+        args: {
+          data: "{{needs.crop.output}}",
         },
-        nnc: "",
-        op: "wasm/run",
-        rsc: "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
-      },
-    },
-    {
-      cause: null,
-      meta: {
-        memory: 4294967296,
-        time: 100000,
-      },
-      prf: [],
-      run: {
-        input: {
-          args: [
-            {
-              "await/ok": {
-                "/": "bafyrmiegkif6ofatmowjjmw7yttm7mi5pjjituoxtp5qqsmc3fw65ypbm4",
-              },
-            },
-            20.2,
-          ],
-          func: "blur",
+      }),
+      WorkflowBuilder.blur({
+        name: "blur",
+        resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+        args: {
+          data: "{{needs.rotate90.output}}",
+          sigma: 20.2,
         },
-        nnc: "",
-        op: "wasm/run",
-        rsc: "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
-      },
-    },
-  ],
-};
+      }),
+    ],
+  },
+});
 
-export const workflowTwoJson = {
-  tasks: [
-    {
-      cause: null,
-      meta: {
-        memory: 4294967296,
-        time: 100000,
-      },
-      prf: [],
-      run: {
-        input: {
-          args: [
-            {
-              "/": "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm",
-            },
-            150,
-            350,
-            500,
-            500,
-          ],
-          func: "crop",
+export const workflowTwoPromised = WorkflowBuilder.workflow({
+  name: "two",
+  workflow: {
+    tasks: [
+      WorkflowBuilder.crop({
+        name: "crop",
+        resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+        args: {
+          data: CID.parse(
+            "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm"
+          ),
+          x: 150,
+          y: 350,
+          height: 500,
+          width: 500,
         },
-        nnc: "",
-        op: "wasm/run",
-        rsc: "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
-      },
-    },
-    {
-      cause: null,
-      meta: {
-        memory: 4294967296,
-        time: 100000,
-      },
-      prf: [],
-      run: {
-        input: {
-          args: [
-            {
-              "await/ok": {
-                "/": "bafyrmigev36skyfjnslfswcez24rnrorzeaxkrpb3wci2arfkly5zcrepy",
-              },
-            },
-          ],
-          func: "rotate90",
+      }),
+      WorkflowBuilder.rotate90({
+        name: "rotate90",
+        resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+        args: {
+          data: "{{needs.crop.output}}",
         },
-        nnc: "",
-        op: "wasm/run",
-        rsc: "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
-      },
-    },
-    {
-      cause: null,
-      meta: {
-        memory: 4294967296,
-        time: 100000,
-      },
-      prf: [],
-      run: {
-        input: {
-          args: [
-            {
-              "await/ok": {
-                "/": "bafyrmiegkif6ofatmowjjmw7yttm7mi5pjjituoxtp5qqsmc3fw65ypbm4",
-              },
-            },
-          ],
-          func: "grayscale",
+      }),
+      WorkflowBuilder.grayscale({
+        name: "grayscale",
+        resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+        args: {
+          data: "{{needs.rotate90.output}}",
         },
-        nnc: "",
-        op: "wasm/run",
-        rsc: "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
-      },
-    },
-  ],
-};
-
-// EMULATION
-
-function emulate(workflowId: string, channel: Maybe<Channel>) {
-  if (!channel) {
-    console.error("Cannot emulate. Channel has not been set.");
-    return;
-  }
-
-  if (workflowId === "one") {
-    Promise.resolve()
-      .then(() => sendEmulated("executed", "one", "crop", channel, 500))
-      .then(() => sendEmulated("executed", "one", "rotate90", channel, 1500))
-      .then(() => sendEmulated("executed", "one", "blur", channel, 20000));
-  } else if (workflowId === "two") {
-    Promise.resolve()
-      .then(() => sendEmulated("replayed", "two", "crop", channel, 200))
-      .then(() => sendEmulated("replayed", "two", "rotate90", channel, 200))
-      .then(() => sendEmulated("executed", "two", "grayscale", channel, 1500));
-  }
-}
-
-function sendEmulated(
-  status: TaskStatus,
-  workflowId: string,
-  op: TaskOperation,
-  channel: Channel,
-  delay: number
-) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const message = JSON.stringify(sampleReceipt(status, workflowId, op));
-
-      channel.send(message);
-
-      resolve(null);
-    }, delay);
-  });
-}
-
-function sampleReceipt(
-  status: TaskStatus,
-  workflowId: string,
-  op: TaskOperation
-) {
-  const base64Cat = getStore(base64CatStore);
-
-  return {
-    metadata: {
-      name: workflowId,
-      replayed: status == "executed" ? false : true,
-      receipt_cid: {
-        "/": "bafyrmiczrugtx6jj42qbwd2ctlmj766th2nwzfsqmvathjdxk63rwkkvpi",
-      },
-    },
-    receipt: {
-      iss: null,
-      meta: {
-        op: op,
-        workflow: "bafyrmiczrugtx6jj42qbwd2ctlmj766th2nwzfsqmvathjdxk63rwkkvpd",
-      },
-      out: ["ok", { "/": { bytes: `${base64Cat}` } }],
-      prf: [],
-      ran: {
-        "/": "bafkr4ickinozehpaz72vtgpbhhqpf6v2fi67rvr6uis52bwsesoss6vinq",
-      },
-    },
-  };
-}
+      }),
+    ],
+  },
+});
