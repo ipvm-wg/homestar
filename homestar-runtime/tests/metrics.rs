@@ -16,6 +16,8 @@ const METRICS_URL: &str = "http://localhost:4020";
 #[test]
 #[file_serial]
 fn test_metrics_serial() -> Result<()> {
+    use crate::utils::remove_db;
+
     fn sample_metrics() -> Option<prometheus_parse::Value> {
         let body = retry(
             Exponential::from_millis(500).take(20),
@@ -41,6 +43,7 @@ fn test_metrics_serial() -> Result<()> {
             .map(|sample| sample.value.to_owned())
     }
 
+    const DB: &str = "test_metrics_serial.db";
     let _ = stop_homestar();
 
     let mut homestar_proc = Command::new(BIN.as_os_str())
@@ -48,7 +51,7 @@ fn test_metrics_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_metrics.toml")
         .arg("--db")
-        .arg("homestar.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -86,6 +89,7 @@ fn test_metrics_serial() -> Result<()> {
 
     let _ = kill_homestar(homestar_proc, None);
     let _ = stop_homestar();
+    remove_db(DB);
 
     Ok(())
 }

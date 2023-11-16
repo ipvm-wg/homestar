@@ -1,5 +1,5 @@
 use crate::utils::{
-    check_lines_for, count_lines_where, kill_homestar, retrieve_output, stop_homestar,
+    check_lines_for, count_lines_where, kill_homestar, remove_db, retrieve_output, stop_homestar,
     wait_for_socket_connection, wait_for_socket_connection_v6, BIN_NAME,
 };
 use anyhow::Result;
@@ -23,6 +23,7 @@ static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME))
 #[test]
 #[file_serial]
 fn test_libp2p_generates_peer_id_serial() -> Result<()> {
+    const DB: &str = "test_libp2p_generates_peer_id_serial.db";
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -30,7 +31,7 @@ fn test_libp2p_generates_peer_id_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -52,12 +53,15 @@ fn test_libp2p_generates_peer_id_serial() -> Result<()> {
 
     assert!(logs_expected);
 
+    remove_db(DB);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_listens_on_address_serial() -> Result<()> {
+    const DB: &str = "test_libp2p_listens_on_address_serial.db";
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -65,7 +69,7 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -88,12 +92,15 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
 
     assert!(logs_expected);
 
+    remove_db(DB);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_rpc_listens_on_address_serial() -> Result<()> {
+    const DB: &str = "test_rpc_listens_on_address_serial.db";
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -101,7 +108,7 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -117,12 +124,15 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
 
     assert!(logs_expected);
 
+    remove_db(DB);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_websocket_listens_on_address_serial() -> Result<()> {
+    const DB: &str = "test_websocket_listens_on_address_serial.db";
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -130,7 +140,7 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -146,12 +156,16 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
 
     assert!(logs_expected);
 
+    remove_db(DB);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_connect_known_peers_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_connect_known_peers_serial1.db";
+    const DB2: &str = "test_libp2p_connect_known_peers_serial2.db";
     let _ = stop_homestar();
 
     // Start two nodes configured to listen at 127.0.0.1 each with their own port.
@@ -165,7 +179,7 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -184,7 +198,7 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network2.toml")
         .arg("--db")
-        .arg("homestar2.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -264,12 +278,17 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     assert!(one_in_dht_routing_table);
     assert!(two_connected_to_one);
 
+    remove_db(DB1);
+    remove_db(DB2);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_connect_after_mdns_discovery_serial1.db";
+    const DB2: &str = "test_libp2p_connect_after_mdns_discovery_serial2.db";
     let _ = stop_homestar();
 
     // Start two nodes each configured to listen at 0.0.0.0 with no known peers.
@@ -283,7 +302,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_mdns1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -302,7 +321,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_mdns2.toml")
         .arg("--db")
-        .arg("homestar2.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -382,12 +401,18 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     assert!(one_addded_to_dht);
     assert!(one_in_dht_routing_table);
 
+    remove_db(DB1);
+    remove_db(DB2);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_connect_rendezvous_discovery_serial1.db";
+    const DB2: &str = "test_libp2p_connect_rendezvous_discovery_serial2.db";
+    const DB3: &str = "test_libp2p_connect_rendezvous_discovery_serial3.db";
     let _ = stop_homestar();
 
     // Start a rendezvous server
@@ -400,7 +425,7 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -420,7 +445,7 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous2.toml")
         .arg("--db")
-        .arg("homestar2.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -444,7 +469,7 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous3.toml")
         .arg("--db")
-        .arg("homestar3.db")
+        .arg(DB3)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -515,12 +540,18 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
     assert!(one_in_dht_routing_table);
     assert!(two_connected_to_one);
 
+    remove_db(DB1);
+    remove_db(DB2);
+    remove_db(DB3);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_disconnect_mdns_discovery_serial1.db";
+    const DB2: &str = "test_libp2p_disconnect_mdns_discovery_serial2.db";
     let _ = stop_homestar();
 
     // Start two nodes each configured to listen at 0.0.0.0 with no known peers.
@@ -534,7 +565,7 @@ fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_mdns1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -553,7 +584,7 @@ fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_mdns2.toml")
         .arg("--db")
-        .arg("homestar2.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -593,12 +624,17 @@ fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
     assert!(two_disconnected_from_one);
     assert!(two_removed_from_dht_table);
 
+    remove_db(DB1);
+    remove_db(DB2);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_disconnect_known_peers_serial1.db";
+    const DB2: &str = "test_libp2p_disconnect_known_peers_serial2.db";
     let _ = stop_homestar();
 
     // Start two nodes configured to listen at 127.0.0.1 each with their own port.
@@ -612,7 +648,7 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -631,7 +667,7 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network2.toml")
         .arg("--db")
-        .arg("homestar2.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -671,12 +707,18 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
     assert!(two_disconnected_from_one);
     assert!(!two_removed_from_dht_table);
 
+    remove_db(DB1);
+    remove_db(DB2);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_disconnect_rendezvous_discovery_serial1.db";
+    const DB2: &str = "test_libp2p_disconnect_rendezvous_discovery_serial2.db";
+    const DB3: &str = "test_libp2p_disconnect_rendezvous_discovery_serial3.db";
     let _ = stop_homestar();
 
     // Start a rendezvous server
@@ -689,7 +731,7 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -709,7 +751,7 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous2.toml")
         .arg("--db")
-        .arg("homestar2.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -733,7 +775,7 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous3.toml")
         .arg("--db")
-        .arg("homestar3.db")
+        .arg(DB3)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -774,12 +816,18 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
     assert!(two_disconnected_from_one);
     assert!(two_removed_from_dht_table);
 
+    remove_db(DB1);
+    remove_db(DB2);
+    remove_db(DB3);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_rendezvous_renew_registration_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_rendezvous_renew_registration_serial1.db";
+    const DB2: &str = "test_libp2p_rendezvous_renew_registration_serial2.db";
     let _ = stop_homestar();
 
     // Start a rendezvous server
@@ -792,7 +840,7 @@ fn test_libp2p_rendezvous_renew_registration_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -812,7 +860,7 @@ fn test_libp2p_rendezvous_renew_registration_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous4.toml")
         .arg("--db")
-        .arg("homestar4.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -851,12 +899,17 @@ fn test_libp2p_rendezvous_renew_registration_serial() -> Result<()> {
     assert!(server_registration_count > 1);
     assert!(client_registration_count > 1);
 
+    remove_db(DB1);
+    remove_db(DB2);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_rendezvous_rediscovery_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_rendezvous_rediscovery_serial1.db";
+    const DB2: &str = "test_libp2p_rendezvous_rediscovery_serial2.db";
     let _ = stop_homestar();
 
     // Start a rendezvous server
@@ -869,7 +922,7 @@ fn test_libp2p_rendezvous_rediscovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -889,7 +942,7 @@ fn test_libp2p_rendezvous_rediscovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous5.toml")
         .arg("--db")
-        .arg("homestar5.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -928,12 +981,18 @@ fn test_libp2p_rendezvous_rediscovery_serial() -> Result<()> {
     assert!(server_discovery_count > 1);
     assert!(client_discovery_count > 1);
 
+    remove_db(DB1);
+    remove_db(DB2);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_rendezvous_rediscover_on_expiration_serial1.db";
+    const DB2: &str = "test_libp2p_rendezvous_rediscover_on_expiration_serial2.db";
+    const DB3: &str = "test_libp2p_rendezvous_rediscover_on_expiration_serial3.db";
     let _ = stop_homestar();
 
     // Start a rendezvous server
@@ -946,7 +1005,7 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -966,7 +1025,7 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous6.toml")
         .arg("--db")
-        .arg("homestar6.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -993,7 +1052,7 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous3.toml")
         .arg("--db")
-        .arg("homestar3.db")
+        .arg(DB3)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -1032,6 +1091,10 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
 
     assert!(server_discovery_count > 1);
     assert!(client_discovery_count > 1);
+
+    remove_db(DB1);
+    remove_db(DB2);
+    remove_db(DB3);
 
     Ok(())
 }
