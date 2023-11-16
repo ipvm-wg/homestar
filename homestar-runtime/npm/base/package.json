@@ -1,7 +1,8 @@
 {
   "name": "homestar-runtime",
   "version": "0.0.8",
-  "description": "",
+  "description": "Homestar Runtime",
+  "author": "Hugo Dias <hugomrdias@gmail.com> (hugodias.me)",
   "bin": {
     "homestar": "index.js"
   },
@@ -10,7 +11,6 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
   "license": "MIT",
   "optionalDependencies": {
     "homestar-darwin-arm64": "*",
