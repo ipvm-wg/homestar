@@ -39,7 +39,7 @@ once_cell = { version = "1.18", default-features = false, optional = true }
 proptest = { version = "1.2", optional = true }
 rand = { workspace = true }
 serde = { workspace = true }
-signature = "2.0"
+signature = "2.2"
 thiserror = { workspace = true }
 tracing = { workspace = true }
 ucan = { workspace = true }
