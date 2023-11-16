@@ -1,6 +1,6 @@
 use super::IndexedResources;
 use crate::{
-    channel::{AsyncBoundedChannel, AsyncBoundedChannelSender},
+    channel::{AsyncChannel, AsyncChannelSender},
     db::{Connection, Database},
     event_handler::{
         event::QueryRecord,
@@ -263,7 +263,7 @@ impl Info {
         name: FastStr,
         resources: IndexedResources,
         p2p_timeout: Duration,
-        event_sender: Arc<AsyncBoundedChannelSender<Event>>,
+        event_sender: Arc<AsyncChannelSender<Event>>,
         mut conn: Connection,
     ) -> Result<(Self, NaiveDateTime)> {
         let timestamp = Utc::now().naive_utc();
@@ -311,7 +311,7 @@ impl Info {
     pub(crate) async fn gather<'a>(
         workflow_cid: Cid,
         p2p_timeout: Duration,
-        event_sender: Arc<AsyncBoundedChannelSender<Event>>,
+        event_sender: Arc<AsyncChannelSender<Event>>,
         mut conn: Option<Connection>,
         handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> Result<Self>>,
     ) -> Result<Self> {
@@ -343,11 +343,11 @@ impl Info {
     async fn retrieve_from_query<'a>(
         workflow_cid: Cid,
         p2p_timeout: Duration,
-        event_sender: Arc<AsyncBoundedChannelSender<Event>>,
+        event_sender: Arc<AsyncChannelSender<Event>>,
         conn: Option<Connection>,
         handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> Result<Info>>,
     ) -> Result<Info> {
-        let (tx, rx) = AsyncBoundedChannel::oneshot();
+        let (tx, rx) = AsyncChannel::oneshot();
         event_sender
             .send_async(Event::FindRecord(QueryRecord::with(
                 workflow_cid,
