@@ -1,24 +1,21 @@
 {
-  "name": "componentize",
-  "workflow": {
-    "tasks": [
-      {
-        "cause": null,
-        "meta": {
-          "memory": 4294967296,
-          "time": 100000
-        },
-        "prf": [],
-        "run": {
-          "input": {
-            "args": ["hello", 10],
-            "func": "sum"
-          },
-          "nnc": "",
-          "op": "wasm/run",
-          "rsc": "ipfs://"
-        }
+  "tasks": [
+    {
+      "cause": null,
+      "meta": {
+      "memory": 4294967296,
+      "time": 100000
+    },
+    "prf": [],
+    "run": {
+      "input": {
+        "args": ["hello", 10],
+        "func": "sum"
+      },
+      "nnc": "",
+      "op": "wasm/run",
+      "rsc": "ipfs://bafybeibawnb3pytqmky4ph37hj7y7qosqcneofjextqq55zhxfniiletfu"
       }
-    ]
-  }
+    }
+  ]
 }

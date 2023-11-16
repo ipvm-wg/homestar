@@ -12,11 +12,7 @@ use crate::error::{InterpreterError, TagsError};
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 use itertools::{FoldWhile::Done, Itertools};
 use libipld::{
-    cid::{
-        self,
-        multibase::{self, Base},
-        Cid,
-    },
+    cid::{self, multibase::Base, Cid},
     Ipld,
 };
 use rust_decimal::{
@@ -345,9 +341,6 @@ impl TryFrom<RuntimeVal> for Ipld {
     type Error = InterpreterError;
 
     fn try_from(val: RuntimeVal) -> Result<Self, Self::Error> {
-        fn base_64_bytes(s: &str) -> Result<Vec<u8>, multibase::Error> {
-            Base::Base64.decode(s)
-        }
         fn cid(s: &str) -> Result<Cid, cid::Error> {
             Cid::try_from(s)
         }
@@ -360,8 +353,6 @@ impl TryFrom<RuntimeVal> for Ipld {
                     s => {
                         if let Ok(cid) = cid(&s) {
                             Ipld::Link(cid)
-                        } else if let Ok(decoded) = base_64_bytes(&s) {
-                            Ipld::Bytes(decoded)
                         } else {
                             Ipld::String(s)
                         }
