@@ -262,11 +262,11 @@ impl Runner {
                             Ok(ControlFlow::Continue(rpc::ServerMessage::Skip)) => {},
                             Ok(ControlFlow::Continue(msg @ rpc::ServerMessage::RunAck(_))) => {
                                 info!("sending message to rpc server");
-                                let _ = oneshot_tx.send(msg);
+                                let _ = oneshot_tx.send_async(msg).await;
                             },
                             Err(err) => {
                                 error!(err=?err, "error handling rpc message");
-                                let _ = oneshot_tx.send(rpc::ServerMessage::RunErr(err.into()));
+                                let _ = oneshot_tx.send_async(rpc::ServerMessage::RunErr(err.into())).await;
                             },
                              _ => {}
                         }
@@ -291,7 +291,7 @@ impl Runner {
                                     }
                                     Err(err) => {
                                         error!(err=?err, "error handling ws message");
-                                        let _ = oneshot_tx.send(webserver::Message::RunErr(err.into()));
+                                        let _ = oneshot_tx.send_async(webserver::Message::RunErr(err.into())).await;
                                     }
                                 }
 
@@ -305,7 +305,7 @@ impl Runner {
                                 } else {
                                     DynamicNodeInfo::new(vec![])
                                 };
-                                let _ = oneshot_tx.send(webserver::Message::AckNodeInfo((self.node_info.clone(), dyn_node_info)));
+                                let _ = oneshot_tx.send_async(webserver::Message::AckNodeInfo((self.node_info.clone(), dyn_node_info))).await;
                             }
                             _ => ()
                         }
@@ -550,7 +550,6 @@ impl Runner {
         db: impl Database + 'static,
         now: time::Instant,
     ) -> Result<ControlFlow<(), rpc::ServerMessage>> {
-        info!("received message: {:?}", msg);
         match msg {
             rpc::ServerMessage::ShutdownCmd => {
                 info!("RPC shutdown signal received, shutting down runner");
