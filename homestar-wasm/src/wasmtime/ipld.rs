@@ -695,11 +695,22 @@ mod test {
     fn try_bytes_roundtrip() {
         let bytes = b"hell0".to_vec();
         let ipld = Ipld::Bytes(bytes.clone());
-        let encoded_cid = Base::Base64.encode(bytes);
-        let runtime = RuntimeVal::new(Val::String(Box::from(encoded_cid)));
+
+        let ty = test_utils::component::setup_component("(list u8)".to_string(), 8);
+        let val_list = ty
+            .unwrap_list()
+            .new_val(Box::new([
+                Val::U8(104),
+                Val::U8(101),
+                Val::U8(108),
+                Val::U8(108),
+                Val::U8(48),
+            ]))
+            .unwrap();
+        let runtime = RuntimeVal::new(val_list);
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
             runtime
         );
 
