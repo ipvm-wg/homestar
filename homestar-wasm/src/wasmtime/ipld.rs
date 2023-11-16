@@ -12,11 +12,7 @@ use crate::error::{InterpreterError, TagsError};
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 use itertools::{FoldWhile::Done, Itertools};
 use libipld::{
-    cid::{
-        self,
-        multibase::{self, Base},
-        Cid,
-    },
+    cid::{self, multibase::Base, Cid},
     Ipld,
 };
 use rust_decimal::{
@@ -345,9 +341,6 @@ impl TryFrom<RuntimeVal> for Ipld {
     type Error = InterpreterError;
 
     fn try_from(val: RuntimeVal) -> Result<Self, Self::Error> {
-        fn base_64_bytes(s: &str) -> Result<Vec<u8>, multibase::Error> {
-            Base::Base64.decode(s)
-        }
         fn cid(s: &str) -> Result<Cid, cid::Error> {
             Cid::try_from(s)
         }
@@ -360,8 +353,6 @@ impl TryFrom<RuntimeVal> for Ipld {
                     s => {
                         if let Ok(cid) = cid(&s) {
                             Ipld::Link(cid)
-                        } else if let Ok(decoded) = base_64_bytes(&s) {
-                            Ipld::Bytes(decoded)
                         } else {
                             Ipld::String(s)
                         }
@@ -704,11 +695,22 @@ mod test {
     fn try_bytes_roundtrip() {
         let bytes = b"hell0".to_vec();
         let ipld = Ipld::Bytes(bytes.clone());
-        let encoded_cid = Base::Base64.encode(bytes);
-        let runtime = RuntimeVal::new(Val::String(Box::from(encoded_cid)));
+
+        let ty = test_utils::component::setup_component("(list u8)".to_string(), 8);
+        let val_list = ty
+            .unwrap_list()
+            .new_val(Box::new([
+                Val::U8(104),
+                Val::U8(101),
+                Val::U8(108),
+                Val::U8(108),
+                Val::U8(48),
+            ]))
+            .unwrap();
+        let runtime = RuntimeVal::new(val_list);
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
             runtime
         );
 
