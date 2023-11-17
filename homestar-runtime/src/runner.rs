@@ -4,7 +4,7 @@
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
-    channel::{AsyncBoundedChannel, AsyncBoundedChannelReceiver, AsyncBoundedChannelSender},
+    channel::{AsyncChannel, AsyncChannelReceiver, AsyncChannelSender},
     db::Database,
     event_handler::{Event, EventHandler},
     network::{rpc, swarm, webserver},
@@ -62,28 +62,28 @@ pub(crate) trait ModifiedSet {
     fn append_or_insert(&self, cid: Cid, handles: Vec<AbortHandle>);
 }
 
-/// [AsyncBoundedChannelSender] for RPC server messages.
-pub(crate) type RpcSender = AsyncBoundedChannelSender<(
+/// [AsyncChannelSender] for RPC server messages.
+pub(crate) type RpcSender = AsyncChannelSender<(
     rpc::ServerMessage,
-    Option<AsyncBoundedChannelSender<rpc::ServerMessage>>,
+    Option<AsyncChannelSender<rpc::ServerMessage>>,
 )>;
 
-/// [AsyncBoundedChannelReceiver] for RPC server messages.
-pub(crate) type RpcReceiver = AsyncBoundedChannelReceiver<(
+/// [AsyncChannelReceiver] for RPC server messages.
+pub(crate) type RpcReceiver = AsyncChannelReceiver<(
     rpc::ServerMessage,
-    Option<AsyncBoundedChannelSender<rpc::ServerMessage>>,
+    Option<AsyncChannelSender<rpc::ServerMessage>>,
 )>;
 
-/// [AsyncBoundedChannelSender] for sending messages websocket server clients.
-pub(crate) type WsSender = AsyncBoundedChannelSender<(
+/// [AsyncChannelSender] for sending messages websocket server clients.
+pub(crate) type WsSender = AsyncChannelSender<(
     webserver::Message,
-    Option<AsyncBoundedChannelSender<webserver::Message>>,
+    Option<AsyncChannelSender<webserver::Message>>,
 )>;
 
-/// [AsyncBoundedChannelReceiver] for receiving messages from websocket server clients.
-pub(crate) type WsReceiver = AsyncBoundedChannelReceiver<(
+/// [AsyncChannelReceiver] for receiving messages from websocket server clients.
+pub(crate) type WsReceiver = AsyncChannelReceiver<(
     webserver::Message,
-    Option<AsyncBoundedChannelSender<webserver::Message>>,
+    Option<AsyncChannelSender<webserver::Message>>,
 )>;
 
 impl ModifiedSet for RunningTaskSet {
@@ -102,7 +102,7 @@ impl ModifiedSet for RunningTaskSet {
 /// [Workflows]: homestar_core::Workflow
 #[derive(Debug)]
 pub struct Runner {
-    event_sender: Arc<AsyncBoundedChannelSender<Event>>,
+    event_sender: Arc<AsyncChannelSender<Event>>,
     expiration_queue: Rc<AtomicRefCell<DelayQueue<Cid>>>,
     node_info: StaticNodeInfo,
     running_tasks: Arc<RunningTaskSet>,
@@ -115,23 +115,23 @@ pub struct Runner {
 impl Runner {
     /// Setup bounded, MPSC channel for top-level RPC communication.
     pub(crate) fn setup_rpc_channel(capacity: usize) -> (RpcSender, RpcReceiver) {
-        AsyncBoundedChannel::with(capacity)
+        AsyncChannel::with(capacity)
     }
 
     /// Setup bounded, MPSC channel for top-level Worker communication.
     pub(crate) fn setup_worker_channel(
         capacity: usize,
     ) -> (
-        AsyncBoundedChannelSender<WorkerMessage>,
-        AsyncBoundedChannelReceiver<WorkerMessage>,
+        AsyncChannelSender<WorkerMessage>,
+        AsyncChannelReceiver<WorkerMessage>,
     ) {
-        AsyncBoundedChannel::with(capacity)
+        AsyncChannel::with(capacity)
     }
 
     /// MPSC channel for sending and receiving messages through to/from
     /// websocket server clients.
     pub(crate) fn setup_ws_mpsc_channel(capacity: usize) -> (WsSender, WsReceiver) {
-        AsyncBoundedChannel::with(capacity)
+        AsyncChannel::with(capacity)
     }
 
     /// Initialize and start the Homestar [Runner] / runtime.
@@ -262,11 +262,11 @@ impl Runner {
                             Ok(ControlFlow::Continue(rpc::ServerMessage::Skip)) => {},
                             Ok(ControlFlow::Continue(msg @ rpc::ServerMessage::RunAck(_))) => {
                                 info!("sending message to rpc server");
-                                let _ = oneshot_tx.send(msg);
+                                let _ = oneshot_tx.send_async(msg).await;
                             },
                             Err(err) => {
                                 error!(err=?err, "error handling rpc message");
-                                let _ = oneshot_tx.send(rpc::ServerMessage::RunErr(err.into()));
+                                let _ = oneshot_tx.send_async(rpc::ServerMessage::RunErr(err.into())).await;
                             },
                              _ => {}
                         }
@@ -287,25 +287,25 @@ impl Runner {
                                 ).await {
                                     Ok(data) => {
                                         info!("sending message to rpc server");
-                                        let _ = oneshot_tx.send(webserver::Message::AckWorkflow((data.info.cid, data.name)));
+                                        let _ = oneshot_tx.send_async(webserver::Message::AckWorkflow((data.info.cid, data.name))).await;
                                     }
                                     Err(err) => {
                                         error!(err=?err, "error handling ws message");
-                                        let _ = oneshot_tx.send(webserver::Message::RunErr(err.into()));
+                                        let _ = oneshot_tx.send_async(webserver::Message::RunErr(err.into())).await;
                                     }
                                 }
 
                             }
                             (webserver::Message::GetNodeInfo, Some(oneshot_tx)) => {
                                 info!("getting node info");
-                                let (tx, rx) = AsyncBoundedChannel::oneshot();
+                                let (tx, rx) = AsyncChannel::oneshot();
                                 let _ = self.event_sender.send_async(Event::GetListeners(tx)).await;
                                 let dyn_node_info = if let Ok(listeners) = rx.recv_deadline(Instant::now() + self.settings.node.network.webserver_timeout) {
                                     DynamicNodeInfo::new(listeners)
                                 } else {
                                     DynamicNodeInfo::new(vec![])
                                 };
-                                let _ = oneshot_tx.send(webserver::Message::AckNodeInfo((self.node_info.clone(), dyn_node_info)));
+                                let _ = oneshot_tx.send_async(webserver::Message::AckNodeInfo((self.node_info.clone(), dyn_node_info))).await;
                             }
                             _ => ()
                         }
@@ -365,10 +365,10 @@ impl Runner {
         Ok(())
     }
 
-    /// [AsyncBoundedChannelSender] of the event-handler.
+    /// [AsyncChannelSender] of the event-handler.
     ///
     /// [EventHandler]: crate::EventHandler
-    pub(crate) fn event_sender(&self) -> Arc<AsyncBoundedChannelSender<Event>> {
+    pub(crate) fn event_sender(&self) -> Arc<AsyncChannelSender<Event>> {
         self.event_sender.clone()
     }
 
@@ -516,10 +516,10 @@ impl Runner {
     /// c) Running workers
     async fn shutdown(
         &self,
-        rpc_sender: Arc<AsyncBoundedChannelSender<rpc::ServerMessage>>,
+        rpc_sender: Arc<AsyncChannelSender<rpc::ServerMessage>>,
         ws_hdl: ServerHandle,
     ) -> Result<()> {
-        let (shutdown_sender, shutdown_receiver) = AsyncBoundedChannel::oneshot();
+        let (shutdown_sender, shutdown_receiver) = AsyncChannel::oneshot();
         let _ = rpc_sender
             .send_async(rpc::ServerMessage::GracefulShutdown(shutdown_sender))
             .await;
@@ -529,7 +529,7 @@ impl Runner {
         let _ = ws_hdl.stop();
         ws_hdl.clone().stopped().await;
 
-        let (shutdown_sender, shutdown_receiver) = AsyncBoundedChannel::oneshot();
+        let (shutdown_sender, shutdown_receiver) = AsyncChannel::oneshot();
         let _ = self
             .event_sender
             .send_async(Event::Shutdown(shutdown_sender))
@@ -550,7 +550,6 @@ impl Runner {
         db: impl Database + 'static,
         now: time::Instant,
     ) -> Result<ControlFlow<(), rpc::ServerMessage>> {
-        info!("received message: {:?}", msg);
         match msg {
             rpc::ServerMessage::ShutdownCmd => {
                 info!("RPC shutdown signal received, shutting down runner");
@@ -593,7 +592,7 @@ impl Runner {
         workflow: Workflow<'static, Arg>,
         workflow_settings: workflow::Settings,
         name: Option<S>,
-        runner_sender: AsyncBoundedChannelSender<WorkerMessage>,
+        runner_sender: AsyncChannelSender<WorkerMessage>,
         db: impl Database + 'static,
     ) -> Result<WorkflowData> {
         let worker = {
@@ -677,8 +676,8 @@ struct WorkflowData {
 
 #[derive(Debug)]
 struct Channels {
-    rpc: Arc<AsyncBoundedChannelSender<rpc::ServerMessage>>,
-    runner: AsyncBoundedChannelSender<WorkerMessage>,
+    rpc: Arc<AsyncChannelSender<rpc::ServerMessage>>,
+    runner: AsyncChannelSender<WorkerMessage>,
 }
 
 #[cfg(test)]

@@ -298,7 +298,7 @@ impl Default for Network {
             webserver_host: Uri::from_static("127.0.0.1"),
             webserver_port: 1337,
             webserver_timeout: Duration::new(120, 0),
-            websocket_capacity: 1024,
+            websocket_capacity: 2048,
             websocket_receiver_timeout: Duration::from_millis(30_000),
             workflow_quorum: 3,
             keypair_config: PubkeyConfig::Random,

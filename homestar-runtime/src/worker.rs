@@ -7,7 +7,7 @@
 #[cfg(feature = "websocket-notify")]
 use crate::event_handler::event::Replay;
 use crate::{
-    channel::{AsyncBoundedChannel, AsyncBoundedChannelSender},
+    channel::{AsyncChannel, AsyncChannelSender},
     db::Database,
     event_handler::{
         event::{Captured, QueryRecord},
@@ -61,8 +61,8 @@ pub(crate) enum WorkerMessage {
 #[allow(missing_debug_implementations)]
 pub(crate) struct Worker<'a, DB: Database> {
     pub(crate) graph: Arc<ExecutionGraph<'a>>,
-    pub(crate) event_sender: Arc<AsyncBoundedChannelSender<Event>>,
-    pub(crate) runner_sender: AsyncBoundedChannelSender<WorkerMessage>,
+    pub(crate) event_sender: Arc<AsyncChannelSender<Event>>,
+    pub(crate) runner_sender: AsyncChannelSender<WorkerMessage>,
     pub(crate) db: DB,
     pub(crate) workflow_name: FastStr,
     pub(crate) workflow_info: Arc<workflow::Info>,
@@ -83,8 +83,8 @@ where
         settings: workflow::Settings,
         // Name would be runner specific, separated from core workflow spec.
         name: Option<S>,
-        event_sender: Arc<AsyncBoundedChannelSender<Event>>,
-        runner_sender: AsyncBoundedChannelSender<WorkerMessage>,
+        event_sender: Arc<AsyncChannelSender<Event>>,
+        runner_sender: AsyncChannelSender<WorkerMessage>,
         db: DB,
     ) -> Result<Worker<'a, DB>> {
         let p2p_timeout = settings.p2p_timeout;
@@ -181,7 +181,7 @@ where
             linkmap: Arc<RwLock<IndexMap<Cid, InstructionResult<Arg>>>>,
             resources: Arc<RwLock<IndexMap<Resource, Vec<u8>>>>,
             db: impl Database,
-            event_sender: Arc<AsyncBoundedChannelSender<Event>>,
+            event_sender: Arc<AsyncChannelSender<Event>>,
         ) -> Result<InstructionResult<Arg>, ResolveError> {
             info!(
                 workflow_cid = workflow_cid.to_string(),
@@ -203,7 +203,7 @@ where
                     Ok(found) => Ok(found.output_as_arg()),
                     Err(_) => {
                         debug!("no related instruction receipt found in the DB");
-                        let (tx, rx) = AsyncBoundedChannel::oneshot();
+                        let (tx, rx) = AsyncChannel::oneshot();
                         let _ = event_sender
                             .send_async(Event::FindRecord(QueryRecord::with(
                                 cid,

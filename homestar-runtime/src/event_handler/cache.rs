@@ -49,7 +49,7 @@ pub(crate) enum DispatchEvent {
 }
 
 pub(crate) fn setup_cache(
-    sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
+    sender: Arc<channel::AsyncChannelSender<Event>>,
 ) -> Cache<String, CacheValue> {
     let eviction_listener = move |_key: Arc<String>, val: CacheValue, cause: RemovalCause| {
         let tx = Arc::clone(&sender);

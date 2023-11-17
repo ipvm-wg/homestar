@@ -32,7 +32,7 @@ pub(crate) use cache::{setup_cache, CacheValue};
 pub(crate) use error::RequestResponseError;
 pub(crate) use event::Event;
 
-type P2PSender = channel::AsyncBoundedChannelSender<ResponseEvent>;
+type P2PSender = channel::AsyncChannelSender<ResponseEvent>;
 
 /// Handler trait for [EventHandler] events.
 #[async_trait]
@@ -57,8 +57,8 @@ pub(crate) struct EventHandler<DB: Database> {
     db: DB,
     swarm: Swarm<ComposedBehaviour>,
     cache: Arc<Cache<String, CacheValue>>,
-    sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
-    receiver: channel::AsyncBoundedChannelReceiver<Event>,
+    sender: Arc<channel::AsyncChannelSender<Event>>,
+    receiver: channel::AsyncChannelReceiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
     connections: Connections,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
@@ -82,8 +82,8 @@ pub(crate) struct EventHandler<DB: Database> {
     db: DB,
     swarm: Swarm<ComposedBehaviour>,
     cache: Arc<Cache<String, CacheValue>>,
-    sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
-    receiver: channel::AsyncBoundedChannelReceiver<Event>,
+    sender: Arc<channel::AsyncChannelSender<Event>>,
+    receiver: channel::AsyncChannelReceiver<Event>,
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
     connections: Connections,
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
@@ -116,10 +116,10 @@ where
     fn setup_channel(
         settings: &settings::Node,
     ) -> (
-        channel::AsyncBoundedChannelSender<Event>,
-        channel::AsyncBoundedChannelReceiver<Event>,
+        channel::AsyncChannelSender<Event>,
+        channel::AsyncChannelReceiver<Event>,
     ) {
-        channel::AsyncBoundedChannel::with(settings.network.events_buffer_len)
+        channel::AsyncChannel::with(settings.network.events_buffer_len)
     }
 
     /// Create an [EventHandler] with channel sender/receiver defaults.
@@ -202,7 +202,7 @@ where
     pub(crate) async fn shutdown(&mut self) {}
 
     /// Get a [Arc]'ed copy of the [EventHandler] channel sender.
-    pub(crate) fn sender(&self) -> Arc<channel::AsyncBoundedChannelSender<Event>> {
+    pub(crate) fn sender(&self) -> Arc<channel::AsyncChannelSender<Event>> {
         self.sender.clone()
     }
 

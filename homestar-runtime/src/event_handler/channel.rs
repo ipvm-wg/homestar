@@ -12,21 +12,21 @@ pub type BoundedChannelReceiver<T> = channel::Receiver<T>;
 /// A bounded [crossbeam::channel] with a sender and receiver.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct BoundedChannel<T> {
+pub struct Channel<T> {
     /// Sender for the channel.
     tx: channel::Sender<T>,
     /// REceiver for the channel.
     rx: channel::Receiver<T>,
 }
 
-impl<T> BoundedChannel<T> {
-    /// Create a new [BoundedChannel] with a given capacity.
+impl<T> Channel<T> {
+    /// Create a new [Channel] with a given capacity.
     pub fn with(capacity: usize) -> (BoundedChannelSender<T>, BoundedChannelReceiver<T>) {
         let (tx, rx) = channel::bounded(capacity);
         (tx, rx)
     }
 
-    /// Create a oneshot (1) [BoundedChannel].
+    /// Create a oneshot (1) [Channel].
     pub fn oneshot() -> (BoundedChannelSender<T>, BoundedChannelReceiver<T>) {
         let (tx, rx) = channel::bounded(1);
         (tx, rx)
@@ -34,30 +34,36 @@ impl<T> BoundedChannel<T> {
 }
 
 /// [flume::Sender] for a bounded [flume::bounded] channel.
-pub type AsyncBoundedChannelSender<T> = flume::Sender<T>;
+pub type AsyncChannelSender<T> = flume::Sender<T>;
 
 /// [flume::Receiver] for a bounded [flume::bounded] channel.
-pub type AsyncBoundedChannelReceiver<T> = flume::Receiver<T>;
+pub type AsyncChannelReceiver<T> = flume::Receiver<T>;
 
 /// A bounded [flume] channel with sender and receiver.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct AsyncBoundedChannel<T> {
+pub struct AsyncChannel<T> {
     /// Sender for the channel.
     tx: flume::Sender<T>,
     /// REceiver for the channel.
     rx: flume::Receiver<T>,
 }
 
-impl<T> AsyncBoundedChannel<T> {
-    /// Create a new [AsyncBoundedChannel] with a given capacity.
-    pub fn with(capacity: usize) -> (AsyncBoundedChannelSender<T>, AsyncBoundedChannelReceiver<T>) {
+impl<T> AsyncChannel<T> {
+    /// Create a new [AsyncChannel] with a given capacity.
+    pub fn with(capacity: usize) -> (AsyncChannelSender<T>, AsyncChannelReceiver<T>) {
         let (tx, rx) = flume::bounded(capacity);
         (tx, rx)
     }
 
-    /// Create a oneshot (1) [BoundedChannel].
-    pub fn oneshot() -> (AsyncBoundedChannelSender<T>, AsyncBoundedChannelReceiver<T>) {
+    /// Create an unbounded [AsyncChannel].
+    pub fn unbounded() -> (AsyncChannelSender<T>, AsyncChannelReceiver<T>) {
+        let (tx, rx) = flume::unbounded();
+        (tx, rx)
+    }
+
+    /// Create a oneshot (1) [Channel].
+    pub fn oneshot() -> (AsyncChannelSender<T>, AsyncChannelReceiver<T>) {
         let (tx, rx) = flume::bounded(1);
         (tx, rx)
     }

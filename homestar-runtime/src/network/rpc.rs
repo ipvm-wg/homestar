@@ -1,7 +1,7 @@
 //! RPC server implementation.
 
 use crate::{
-    channel::{AsyncBoundedChannel, AsyncBoundedChannelReceiver, AsyncBoundedChannelSender},
+    channel::{AsyncChannel, AsyncChannelReceiver, AsyncChannelSender},
     runner::{self, file::ReadWorkflow, response, RpcSender},
     settings,
 };
@@ -34,7 +34,7 @@ pub(crate) enum ServerMessage {
     /// Message sent by the [Runner] to start a graceful shutdown.
     ///
     /// [Runner]: crate::Runner
-    GracefulShutdown(AsyncBoundedChannelSender<()>),
+    GracefulShutdown(AsyncChannelSender<()>),
     /// Message sent to start a [Workflow] run by reading a [Workflow] file.
     ///
     /// [Workflow]: homestar_core::Workflow
@@ -71,9 +71,9 @@ pub(crate) struct Server {
     /// [SocketAddr] of the RPC server.
     pub(crate) addr: SocketAddr,
     /// Sender for messages to be sent to the RPC server.
-    pub(crate) sender: Arc<AsyncBoundedChannelSender<ServerMessage>>,
+    pub(crate) sender: Arc<AsyncChannelSender<ServerMessage>>,
     /// Receiver for messages sent to the RPC server.
-    pub(crate) receiver: AsyncBoundedChannelReceiver<ServerMessage>,
+    pub(crate) receiver: AsyncChannelReceiver<ServerMessage>,
     /// Sender for messages to be sent to the [Runner].
     ///
     /// [Runner]: crate::Runner
@@ -119,7 +119,7 @@ impl Interface for ServerHandler {
         name: Option<FastStr>,
         workflow_file: ReadWorkflow,
     ) -> Result<Box<response::AckWorkflow>, Error> {
-        let (tx, rx) = AsyncBoundedChannel::oneshot();
+        let (tx, rx) = AsyncChannel::oneshot();
         self.runner_sender
             .send_async((ServerMessage::Run((name, workflow_file)), Some(tx)))
             .await
@@ -158,7 +158,7 @@ impl Interface for ServerHandler {
 impl Server {
     /// Create a new instance of the RPC server.
     pub(crate) fn new(settings: &settings::Network, runner_sender: Arc<RpcSender>) -> Self {
-        let (tx, rx) = AsyncBoundedChannel::oneshot();
+        let (tx, rx) = AsyncChannel::oneshot();
         Self {
             addr: SocketAddr::new(settings.rpc_host, settings.rpc_port),
             sender: tx.into(),
@@ -170,7 +170,7 @@ impl Server {
     }
 
     /// Return a RPC server channel sender.
-    pub(crate) fn sender(&self) -> Arc<AsyncBoundedChannelSender<ServerMessage>> {
+    pub(crate) fn sender(&self) -> Arc<AsyncChannelSender<ServerMessage>> {
         self.sender.clone()
     }
 
@@ -205,7 +205,7 @@ impl Server {
                 Ok(ServerMessage::GracefulShutdown(tx)) = self.receiver.recv_async() => {
                     info!("RPC server shutting down");
                     drop(exit);
-                    let _ = tx.send(());
+                    let _ = tx.send_async(()).await;
                 }
                 _ = fut => warn!("RPC server exited unexpectedly"),
             }
