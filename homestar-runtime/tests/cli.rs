@@ -111,12 +111,13 @@ fn test_server_not_running_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_server_serial() -> Result<()> {
+    const DB: &str = "test_server_serial.db";
     let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-db")
-        .arg("homestar.db")
+        .arg(DB)
         .assert()
         .failure();
 
@@ -125,7 +126,7 @@ fn test_server_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_v6.toml")
         .arg("--db")
-        .arg("homestar.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -163,6 +164,7 @@ fn test_server_serial() -> Result<()> {
 
     let _ = kill_homestar(homestar_proc, None);
     let _ = stop_homestar();
+    remove_db(DB);
 
     Ok(())
 }
@@ -170,7 +172,7 @@ fn test_server_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_workflow_run_serial() -> Result<()> {
-    const DB: &str = "homestar_test_cli_test_workflow_run_serial.db";
+    const DB: &str = "test_workflow_run_serial.db";
 
     let _ = stop_homestar();
 
@@ -230,6 +232,7 @@ fn test_workflow_run_serial() -> Result<()> {
 #[file_serial]
 #[cfg(not(windows))]
 fn test_daemon_serial() -> Result<()> {
+    const DB: &str = "test_daemon_serial.db";
     let _ = stop_homestar();
 
     Command::new(BIN.as_os_str())
@@ -237,7 +240,7 @@ fn test_daemon_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_v4.toml")
         .arg("-d")
-        .env("DATABASE_URL", "homestar.db")
+        .env("DATABASE_URL", DB)
         .stdout(Stdio::piped())
         .assert()
         .success();
@@ -259,6 +262,7 @@ fn test_daemon_serial() -> Result<()> {
 
     let _ = stop_homestar();
     let _ = kill_homestar_daemon();
+    remove_db(DB);
 
     Ok(())
 }
@@ -266,6 +270,7 @@ fn test_daemon_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_server_v4_serial() -> Result<()> {
+    const DB: &str = "test_server_v4_serial.db";
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -273,7 +278,7 @@ fn test_server_v4_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_v4.toml")
         .arg("--db")
-        .arg("homestar.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -297,6 +302,7 @@ fn test_server_v4_serial() -> Result<()> {
     let _ = Command::new(BIN.as_os_str()).arg("stop").output();
     let _ = kill_homestar(homestar_proc, None);
     let _ = stop_homestar();
+    remove_db(DB);
 
     Ok(())
 }
