@@ -1,5 +1,5 @@
 use crate::utils::{
-    kill_homestar, stop_homestar, wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
+    kill_homestar, remove_db, stop_homestar, wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
 };
 use anyhow::Result;
 use jsonrpsee::{
@@ -23,6 +23,8 @@ const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 #[test]
 #[file_serial]
 fn test_connection_notifications_serial() -> Result<()> {
+    const DB1: &str = "test_connection_notifications_serial1.db";
+    const DB2: &str = "test_connection_notifications_serial2.db";
     let _ = stop_homestar();
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
@@ -34,7 +36,7 @@ fn test_connection_notifications_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_notification1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -73,7 +75,7 @@ fn test_connection_notifications_serial() -> Result<()> {
             .arg("-c")
             .arg("tests/fixtures/test_notification2.toml")
             .arg("--db")
-            .arg("homestar2.db")
+            .arg(DB2)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
@@ -109,6 +111,8 @@ fn test_connection_notifications_serial() -> Result<()> {
         }
 
         let _ = kill_homestar(homestar_proc1, None);
+        remove_db(DB1);
+        remove_db(DB2);
     });
 
     Ok(())
