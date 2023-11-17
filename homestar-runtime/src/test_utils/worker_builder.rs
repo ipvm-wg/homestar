@@ -4,7 +4,7 @@ use super::{db::MemoryDb, event};
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
-    channel::AsyncBoundedChannelSender,
+    channel::AsyncChannelSender,
     db::Database,
     event_handler::Event,
     settings,
@@ -29,9 +29,9 @@ use libipld::Cid;
 #[cfg(feature = "ipfs")]
 pub(crate) struct WorkerBuilder<'a> {
     db: MemoryDb,
-    event_sender: AsyncBoundedChannelSender<Event>,
+    event_sender: AsyncChannelSender<Event>,
     ipfs: IpfsCli,
-    runner_sender: AsyncBoundedChannelSender<WorkerMessage>,
+    runner_sender: AsyncChannelSender<WorkerMessage>,
     name: Option<String>,
     workflow: Workflow<'a, Arg>,
     workflow_settings: workflow::Settings,
@@ -41,8 +41,8 @@ pub(crate) struct WorkerBuilder<'a> {
 #[cfg(not(feature = "ipfs"))]
 pub(crate) struct WorkerBuilder<'a> {
     db: MemoryDb,
-    event_sender: AsyncBoundedChannelSender<Event>,
-    runner_sender: AsyncBoundedChannelSender<WorkerMessage>,
+    event_sender: AsyncChannelSender<Event>,
+    runner_sender: AsyncChannelSender<WorkerMessage>,
     name: Option<String>,
     workflow: Workflow<'a, Arg>,
     workflow_settings: workflow::Settings,
@@ -173,13 +173,10 @@ impl<'a> WorkerBuilder<'a> {
         self
     }
 
-    /// Build a [Worker] with a specific Event [AsyncBoundedChannelSender].
+    /// Build a [Worker] with a specific Event [AsyncChannelSender].
     #[allow(dead_code)]
-    pub(crate) fn with_event_sender(
-        mut self,
-        event_sender: AsyncBoundedChannelSender<Event>,
-    ) -> Self {
-        self.event_sender = event_sender.into();
+    pub(crate) fn with_event_sender(mut self, event_sender: AsyncChannelSender<Event>) -> Self {
+        self.event_sender = event_sender;
         self
     }
 

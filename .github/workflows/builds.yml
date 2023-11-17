@@ -15,8 +15,8 @@ on:
     types: [published]
 
   # for debugging
-  pull_request:
-    branches: [ '**' ]
+  # pull_request:
+  #   branches: [ '**' ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

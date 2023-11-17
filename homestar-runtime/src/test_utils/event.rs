@@ -1,26 +1,23 @@
 use crate::{
-    channel::{AsyncBoundedChannel, AsyncBoundedChannelReceiver, AsyncBoundedChannelSender},
+    channel::{AsyncChannel, AsyncChannelReceiver, AsyncChannelSender},
     event_handler::Event,
     settings,
     worker::WorkerMessage,
 };
 
-/// Create an [AsynBoundedChannelSender], [AsyncBoundedChannelReceiver] pair for [Event]s.
+/// Create an [AsynBoundedChannelSender], [AsyncChannelReceiver] pair for [Event]s.
 pub(crate) fn setup_event_channel(
     settings: settings::Node,
-) -> (
-    AsyncBoundedChannelSender<Event>,
-    AsyncBoundedChannelReceiver<Event>,
-) {
-    AsyncBoundedChannel::with(settings.network.events_buffer_len)
+) -> (AsyncChannelSender<Event>, AsyncChannelReceiver<Event>) {
+    AsyncChannel::with(settings.network.events_buffer_len)
 }
 
-/// Create an [AsyncBoundedChannelSender], [AsyncBoundedChannelReceiver] pair for worker messages.
+/// Create an [AsyncChannelSender], [AsyncChannelReceiver] pair for worker messages.
 pub(crate) fn setup_worker_channel(
     settings: settings::Node,
 ) -> (
-    AsyncBoundedChannelSender<WorkerMessage>,
-    AsyncBoundedChannelReceiver<WorkerMessage>,
+    AsyncChannelSender<WorkerMessage>,
+    AsyncChannelReceiver<WorkerMessage>,
 ) {
-    AsyncBoundedChannel::with(settings.network.events_buffer_len)
+    AsyncChannel::with(settings.network.events_buffer_len)
 }

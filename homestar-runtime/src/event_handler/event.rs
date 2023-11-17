@@ -9,7 +9,7 @@ use crate::event_handler::notification::{
 use crate::network::IpfsCli;
 use crate::{
     db::Database,
-    event_handler::{channel::AsyncBoundedChannelSender, Handler, P2PSender, ResponseEvent},
+    event_handler::{channel::AsyncChannelSender, Handler, P2PSender, ResponseEvent},
     network::{
         pubsub,
         swarm::{CapsuleTag, RequestResponseKey, TopicMessage},
@@ -95,7 +95,7 @@ pub(crate) enum Event {
     #[cfg(feature = "websocket-notify")]
     ReplayReceipts(Replay),
     /// General shutdown event.
-    Shutdown(AsyncBoundedChannelSender<()>),
+    Shutdown(AsyncChannelSender<()>),
     /// Find a [Record] in the DHT, e.g. a [Receipt].
     ///
     /// [Record]: libp2p::kad::Record
@@ -116,7 +116,7 @@ pub(crate) enum Event {
     /// Discover peers from a rendezvous node.
     DiscoverPeers(PeerId),
     /// TODO
-    GetListeners(AsyncBoundedChannelSender<Vec<libp2p::core::Multiaddr>>),
+    GetListeners(AsyncChannelSender<Vec<libp2p::core::Multiaddr>>),
 }
 
 const RENDEZVOUS_NAMESPACE: &str = "homestar";
@@ -134,10 +134,11 @@ impl Event {
             Event::Shutdown(tx) => {
                 info!("event_handler server shutting down");
                 event_handler.shutdown().await;
-                let _ = tx.send(());
+                let _ = tx.send_async(()).await;
             }
             Event::GetListeners(tx) => {
-                let _ = tx.send(event_handler.swarm.listeners().cloned().collect());
+                let listeners = event_handler.swarm.listeners().cloned().collect();
+                let _ = tx.send_async(listeners).await;
             }
             Event::FindRecord(record) => record.find(event_handler).await,
             Event::RemoveRecord(record) => record.remove(event_handler).await,

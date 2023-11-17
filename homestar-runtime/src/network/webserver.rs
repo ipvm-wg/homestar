@@ -254,7 +254,7 @@ mod test {
     use super::*;
     #[cfg(feature = "websocket-notify")]
     use crate::event_handler::notification::ReceiptNotification;
-    use crate::{channel::AsyncBoundedChannel, db::Database, settings::Settings};
+    use crate::{channel::AsyncChannel, db::Database, settings::Settings};
     #[cfg(feature = "websocket-notify")]
     use homestar_core::{
         ipld::DagJson,
@@ -290,7 +290,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
-            let (runner_tx, _runner_rx) = AsyncBoundedChannel::oneshot();
+            let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
@@ -332,7 +332,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
-            let (runner_tx, _runner_rx) = AsyncBoundedChannel::oneshot();
+            let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
@@ -365,7 +365,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
-            let (runner_tx, _runner_rx) = AsyncBoundedChannel::oneshot();
+            let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
@@ -442,7 +442,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
-            let (runner_tx, _runner_rx) = AsyncBoundedChannel::oneshot();
+            let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
@@ -476,7 +476,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
-            let (runner_tx, _runner_rx) = AsyncBoundedChannel::oneshot();
+            let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
