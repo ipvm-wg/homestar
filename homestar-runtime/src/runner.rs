@@ -213,7 +213,7 @@ impl Runner {
 
         #[cfg(feature = "monitoring")]
         let metrics_hdl: PrometheusHandle = self.runtime.block_on(crate::metrics::start(
-            self.settings.monitoring(),
+            self.settings.node.monitoring(),
             self.settings.node.network(),
         ))?;
 
@@ -706,9 +706,10 @@ mod test {
         let ws_hdl = runner.runtime.block_on(async {
             rpc_server.spawn().await.unwrap();
             #[cfg(feature = "monitoring")]
-            let metrics_hdl = crate::metrics::start(settings.monitoring(), settings.node.network())
-                .await
-                .unwrap();
+            let metrics_hdl =
+                crate::metrics::start(settings.node.monitoring(), settings.node.network())
+                    .await
+                    .unwrap();
             #[cfg(not(feature = "monitoring"))]
             let metrics_hdl = crate::metrics::start(settings.node.network())
                 .await

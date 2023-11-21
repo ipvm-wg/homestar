@@ -272,9 +272,10 @@ mod test {
 
     async fn metrics_handle(settings: Settings) -> PrometheusHandle {
         #[cfg(feature = "monitoring")]
-        let metrics_hdl = crate::metrics::start(settings.monitoring(), settings.node.network())
-            .await
-            .unwrap();
+        let metrics_hdl =
+            crate::metrics::start(settings.node.monitoring(), settings.node.network())
+                .await
+                .unwrap();
 
         #[cfg(not(feature = "monitoring"))]
         let metrics_hdl = crate::metrics::start(settings.node.network())

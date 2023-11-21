@@ -1,8 +1,8 @@
-[monitoring]
+[node]
+
+[node.monitoring]
 process_collector_interval = 500
 console_subscriber_port = 5570
-
-[node]
 
 [node.network]
 metrics_port = 4020

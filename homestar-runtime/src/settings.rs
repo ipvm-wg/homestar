@@ -25,17 +25,10 @@ const HOME_VAR: &str = "HOME";
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Settings {
     #[serde(default)]
-    pub(crate) monitoring: Monitoring,
-    #[serde(default)]
     pub(crate) node: Node,
 }
 
 impl Settings {
-    /// Monitoring settings getter.
-    pub fn monitoring(&self) -> &Monitoring {
-        &self.monitoring
-    }
-
     /// Node settings getter.
     pub fn node(&self) -> &Node {
         &self.node
@@ -60,6 +53,9 @@ pub struct Monitoring {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Node {
+    /// Monitoring settings.
+    #[serde(default)]
+    pub(crate) monitoring: Monitoring,
     /// Network settings.
     #[serde(default)]
     pub(crate) network: Network,
@@ -258,6 +254,7 @@ impl Default for Node {
         Self {
             gc_interval: Duration::from_secs(1800),
             shutdown_timeout: Duration::from_secs(20),
+            monitoring: Default::default(),
             network: Default::default(),
             db: Default::default(),
         }
@@ -314,10 +311,16 @@ impl Default for Network {
 }
 
 impl Node {
+    /// Monitoring settings getter.
+    pub fn monitoring(&self) -> &Monitoring {
+        &self.monitoring
+    }
+
     /// Network settings.
     pub fn network(&self) -> &Network {
         &self.network
     }
+
     /// Node shutdown timeout.
     pub fn shutdown_timeout(&self) -> Duration {
         self.shutdown_timeout
