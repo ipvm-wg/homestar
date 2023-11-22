@@ -16,7 +16,7 @@ rendezvous_discovery_interval = 1
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519_4.pem" }
 
-[node.network.mdns]
+[node.network.libp2p.mdns]
 enable = false
 
 [node.network.metrics]

@@ -18,7 +18,7 @@ node_addresses = [
 [node.network.keypair_config]
 existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }
 
-[node.network.mdns]
+[node.network.libp2p.mdns]
 enable = false
 
 [node.network.metrics]

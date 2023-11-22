@@ -95,10 +95,8 @@ pub struct Monitoring {
 pub struct Network {
     /// Metrics Settings.
     pub(crate) metrics: Metrics,
-    /// mDNS Settings.
-    pub(crate) mdns: Mdns,
-    /// Pubsub Settings.
-    pub(crate) pubsub: Pubsub,
+    /// libp2p Settings.
+    pub(crate) libp2p: Libp2p,
     /// Buffer-length for event(s) / command(s) channels.
     pub(crate) events_buffer_len: usize,
     /// Address for [Swarm] to listen on.
@@ -174,6 +172,17 @@ pub(crate) struct Ipfs {
     pub(crate) host: String,
     /// TODO
     pub(crate) port: u16,
+}
+
+/// libp2p settings.
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub(crate) struct Libp2p {
+    /// mDNS Settings.
+    pub(crate) mdns: Mdns,
+    /// Pubsub Settings.
+    pub(crate) pubsub: Pubsub,
 }
 
 /// Metrics settings.
@@ -285,6 +294,15 @@ impl Default for Database {
     }
 }
 
+impl Default for Libp2p {
+    fn default() -> Self {
+        Self {
+            mdns: Mdns::default(),
+            pubsub: Pubsub::default(),
+        }
+    }
+}
+
 impl Default for Mdns {
     fn default() -> Self {
         Self {
@@ -344,9 +362,8 @@ impl Default for Node {
 impl Default for Network {
     fn default() -> Self {
         Self {
-            mdns: Mdns::default(),
+            libp2p: Libp2p::default(),
             metrics: Metrics::default(),
-            pubsub: Pubsub::default(),
             events_buffer_len: 1024,
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             enable_rendezvous_client: true,

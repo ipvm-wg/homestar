@@ -55,7 +55,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
     let mut swarm = Swarm::new(
         transport,
         ComposedBehaviour {
-            gossipsub: Toggle::from(if settings.network.pubsub.enable {
+            gossipsub: Toggle::from(if settings.network.libp2p.pubsub.enable {
                 Some(pubsub::new(keypair.clone(), settings)?)
             } else {
                 None
@@ -85,12 +85,12 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
                 )],
                 request_response::Config::default(),
             ),
-            mdns: Toggle::from(if settings.network.mdns.enable {
+            mdns: Toggle::from(if settings.network.libp2p.mdns.enable {
                 Some(mdns::Behaviour::new(
                     mdns::Config {
-                        ttl: settings.network.mdns.ttl,
-                        query_interval: settings.network.mdns.query_interval,
-                        enable_ipv6: settings.network.mdns.enable_ipv6,
+                        ttl: settings.network.libp2p.mdns.ttl,
+                        query_interval: settings.network.libp2p.mdns.query_interval,
+                        enable_ipv6: settings.network.libp2p.mdns.enable_ipv6,
                     },
                     peer_id,
                 )?)
@@ -184,7 +184,7 @@ pub(crate) fn init(
         }
     }
 
-    if settings.pubsub.enable {
+    if settings.libp2p.pubsub.enable {
         // join `receipts` topic
         swarm
             .behaviour_mut()

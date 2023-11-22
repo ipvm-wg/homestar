@@ -33,18 +33,18 @@ pub(crate) fn new(keypair: Keypair, settings: &settings::Node) -> Result<gossips
     };
 
     let gossipsub_config = ConfigBuilder::default()
-        .heartbeat_interval(settings.network.pubsub.heartbeat)
-        .idle_timeout(settings.network.pubsub.idle_timeout)
+        .heartbeat_interval(settings.network.libp2p.pubsub.heartbeat)
+        .idle_timeout(settings.network.libp2p.pubsub.idle_timeout)
         // This sets the kind of message validation. The default is Strict (enforce message signing).
         .validation_mode(ValidationMode::Strict)
-        .max_transmit_size(settings.network.pubsub.max_transmit_size)
-        .mesh_n_low(settings.network.pubsub.mesh_n_low)
-        .mesh_outbound_min(settings.network.pubsub.mesh_outbound_min)
-        .mesh_n(settings.network.pubsub.mesh_n)
-        .mesh_n_high(settings.network.pubsub.mesh_n_high)
+        .max_transmit_size(settings.network.libp2p.pubsub.max_transmit_size)
+        .mesh_n_low(settings.network.libp2p.pubsub.mesh_n_low)
+        .mesh_outbound_min(settings.network.libp2p.pubsub.mesh_outbound_min)
+        .mesh_n(settings.network.libp2p.pubsub.mesh_n)
+        .mesh_n_high(settings.network.libp2p.pubsub.mesh_n_high)
         // Content-address messages. No two messages of the same content will be propagated.
         .message_id_fn(message_id_fn)
-        .duplicate_cache_time(settings.network.pubsub.duplication_cache_time)
+        .duplicate_cache_time(settings.network.libp2p.pubsub.duplication_cache_time)
         .support_floodsub()
         .build()
         .map_err(anyhow::Error::msg)?;

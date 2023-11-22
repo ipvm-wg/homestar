@@ -13,7 +13,7 @@ enable_rendezvous_server = true
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }
 
-[node.network.mdns]
+[node.network.libp2p.mdns]
 enable = false
 
 [node.network.metrics]
