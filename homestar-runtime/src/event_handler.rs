@@ -146,7 +146,7 @@ where
             request_response_senders: FnvHashMap::default(),
             connections: Connections {
                 peers: FnvHashMap::default(),
-                max_peers: settings.network.max_connected_peers,
+                max_peers: settings.network.libp2p.max_connected_peers,
             },
             rendezvous: Rendezvous {
                 registration_ttl: settings.network.rendezvous_registration_ttl,
@@ -157,9 +157,9 @@ where
             pubsub_enabled: settings.network.libp2p.pubsub.enable,
             ws_evt_sender,
             ws_workflow_sender,
-            node_addresses: settings.network.node_addresses.clone(),
-            announce_addresses: settings.network.announce_addresses.clone(),
-            external_address_limit: settings.network.max_announce_addresses,
+            node_addresses: settings.network.libp2p.node_addresses.clone(),
+            announce_addresses: settings.network.libp2p.announce_addresses.clone(),
+            external_address_limit: settings.network.libp2p.max_announce_addresses,
             poll_cache_interval: settings.network.poll_cache_interval,
         }
     }

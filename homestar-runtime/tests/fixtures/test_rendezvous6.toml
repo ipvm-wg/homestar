@@ -6,6 +6,13 @@ console_subscriber_port = 5588
 
 [node.network]
 webserver_port = 8030
+rendezvous_registration_ttl = 5
+
+# Peer ID 12D3KooWPT98FXMfDQYavZm66EeVjTqP9Nnehn1gyaydqV8L8BQw
+[node.network.keypair_config]
+existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519_5.pem" }
+
+[node.network.libp2p]
 listen_address = "/ip4/127.0.0.1/tcp/7005"
 announce_addresses = [
   "/ip4/127.0.0.1/tcp/7005/p2p/12D3KooWPT98FXMfDQYavZm66EeVjTqP9Nnehn1gyaydqV8L8BQw",
@@ -13,11 +20,6 @@ announce_addresses = [
 node_addresses = [
   "/ip4/127.0.0.1/tcp/7000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
 ]
-rendezvous_registration_ttl = 5
-
-# Peer ID 12D3KooWPT98FXMfDQYavZm66EeVjTqP9Nnehn1gyaydqV8L8BQw
-[node.network.keypair_config]
-existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519_5.pem" }
 
 [node.network.libp2p.mdns]
 enable = false

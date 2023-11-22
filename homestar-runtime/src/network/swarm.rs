@@ -49,7 +49,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         .upgrade(upgrade::Version::V1Lazy)
         .authenticate(noise::Config::new(&keypair)?)
         .multiplex(yamux::Config::default())
-        .timeout(settings.network.transport_connection_timeout)
+        .timeout(settings.network.libp2p.transport_connection_timeout)
         .boxed();
 
     let mut swarm = Swarm::new(
@@ -139,7 +139,7 @@ pub(crate) fn init(
     settings: &settings::Network,
 ) -> Result<()> {
     // Listen-on given address
-    swarm.listen_on(settings.listen_address.to_string().parse()?)?;
+    swarm.listen_on(settings.libp2p.listen_address.to_string().parse()?)?;
 
     // Set Kademlia server mode
     swarm
@@ -148,8 +148,8 @@ pub(crate) fn init(
         .set_mode(Some(kad::Mode::Server));
 
     // add external addresses from settings
-    if !settings.announce_addresses.is_empty() {
-        for addr in settings.announce_addresses.iter() {
+    if !settings.libp2p.announce_addresses.is_empty() {
+        for addr in settings.libp2p.announce_addresses.iter() {
             swarm.add_external_address(addr.clone());
         }
     } else {
@@ -160,8 +160,8 @@ pub(crate) fn init(
     }
 
     // Dial nodes specified in settings. Failure here shouldn't halt node startup.
-    for (index, addr) in settings.node_addresses.iter().enumerate() {
-        if index < settings.max_connected_peers as usize {
+    for (index, addr) in settings.libp2p.node_addresses.iter().enumerate() {
+        if index < settings.libp2p.max_connected_peers as usize {
             let _ = swarm
                 .dial(addr.clone())
                 // log dial failure and continue

@@ -6,15 +6,17 @@ console_subscriber_port = 5583
 
 [node.network]
 webserver_port = 8023
-listen_address = "/ip4/127.0.0.1/tcp/7011"
-node_addresses = [
-  "/ip4/127.0.0.1/tcp/7010/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
-]
 enable_rendezvous_client = false
 
 # Peer ID 16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc
 [node.network.keypair_config]
 existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }
+
+[node.network.libp2p]
+listen_address = "/ip4/127.0.0.1/tcp/7011"
+node_addresses = [
+  "/ip4/127.0.0.1/tcp/7010/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+]
 
 [node.network.libp2p.mdns]
 enable = false

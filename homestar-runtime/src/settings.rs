@@ -99,11 +99,6 @@ pub struct Network {
     pub(crate) libp2p: Libp2p,
     /// Buffer-length for event(s) / command(s) channels.
     pub(crate) events_buffer_len: usize,
-    /// Address for [Swarm] to listen on.
-    ///
-    /// [Swarm]: libp2p::swarm::Swarm
-    #[serde(with = "http_serde::uri")]
-    pub(crate) listen_address: Uri,
     /// Enable Rendezvous protocol client.
     pub(crate) enable_rendezvous_client: bool,
     /// Enable Rendezvous protocol server.
@@ -121,9 +116,6 @@ pub struct Network {
     pub(crate) receipt_quorum: usize,
     /// RPC-server settings.
     pub(crate) rpc: Rpc,
-    /// Transport connection timeout.
-    #[serde_as(as = "DurationSeconds<u64>")]
-    pub(crate) transport_connection_timeout: Duration,
     /// Webserver host address.
     #[serde(with = "http_serde::uri")]
     pub(crate) webserver_host: Uri,
@@ -144,21 +136,10 @@ pub struct Network {
     pub(crate) workflow_quorum: usize,
     /// Pubkey setup configuration.
     pub(crate) keypair_config: PubkeyConfig,
-    /// Multiaddrs of the trusted nodes to connect to on startup.
-    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
-    pub(crate) node_addresses: Vec<libp2p::Multiaddr>,
-    /// Multiaddrs of the external addresses this node will announce to the
-    /// network.
-    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
-    pub(crate) announce_addresses: Vec<libp2p::Multiaddr>,
-    /// Maximum number of peers we will dial.
-    pub(crate) max_connected_peers: u32,
-    /// Limit on the number of external addresses we announce to other peers.
-    pub(crate) max_announce_addresses: u32,
     /// Event handler poll cache interval in milliseconds.
     #[serde_as(as = "DurationMilliSeconds<u64>")]
     pub(crate) poll_cache_interval: Duration,
-    /// TODO
+    /// IPFS settings.
     #[cfg(feature = "ipfs")]
     pub(crate) ipfs: Ipfs,
 }
@@ -179,10 +160,29 @@ pub(crate) struct Ipfs {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub(crate) struct Libp2p {
+    /// Multiaddrs of the external addresses this node will announce to the
+    /// network.
+    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+    pub(crate) announce_addresses: Vec<libp2p::Multiaddr>,
+    /// Address for [Swarm] to listen on.
+    ///
+    /// [Swarm]: libp2p::swarm::Swarm
+    #[serde(with = "http_serde::uri")]
+    pub(crate) listen_address: Uri,
+    /// Maximum number of peers we will dial.
+    pub(crate) max_connected_peers: u32,
+    /// Limit on the number of external addresses we announce to other peers.
+    pub(crate) max_announce_addresses: u32,
+    /// Multiaddrs of the trusted nodes to connect to on startup.
+    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+    pub(crate) node_addresses: Vec<libp2p::Multiaddr>,
     /// mDNS Settings.
     pub(crate) mdns: Mdns,
     /// Pubsub Settings.
     pub(crate) pubsub: Pubsub,
+    /// Transport connection timeout.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) transport_connection_timeout: Duration,
 }
 
 /// Metrics settings.
@@ -297,8 +297,14 @@ impl Default for Database {
 impl Default for Libp2p {
     fn default() -> Self {
         Self {
+            announce_addresses: Vec::new(),
+            listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
+            max_connected_peers: 32,
+            max_announce_addresses: 10,
             mdns: Mdns::default(),
+            node_addresses: Vec::new(),
             pubsub: Pubsub::default(),
+            transport_connection_timeout: Duration::new(60, 0),
         }
     }
 }
@@ -365,7 +371,6 @@ impl Default for Network {
             libp2p: Libp2p::default(),
             metrics: Metrics::default(),
             events_buffer_len: 1024,
-            listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             enable_rendezvous_client: true,
             enable_rendezvous_server: false,
             rendezvous_registration_ttl: Duration::from_secs(2 * 60 * 60),
@@ -373,7 +378,6 @@ impl Default for Network {
             p2p_provider_timeout: Duration::new(30, 0),
             receipt_quorum: 2,
             rpc: Rpc::default(),
-            transport_connection_timeout: Duration::new(60, 0),
             webserver_host: Uri::from_static("127.0.0.1"),
             webserver_port: 1337,
             webserver_timeout: Duration::new(120, 0),
@@ -381,10 +385,6 @@ impl Default for Network {
             websocket_receiver_timeout: Duration::from_millis(30_000),
             workflow_quorum: 3,
             keypair_config: PubkeyConfig::Random,
-            node_addresses: Vec::new(),
-            announce_addresses: Vec::new(),
-            max_connected_peers: 32,
-            max_announce_addresses: 10,
             poll_cache_interval: Duration::from_millis(1000),
             #[cfg(feature = "ipfs")]
             ipfs: Default::default(),
@@ -500,7 +500,7 @@ mod test {
         default_modded_settings.network.webserver_port = 9999;
         default_modded_settings.gc_interval = Duration::from_secs(1800);
         default_modded_settings.shutdown_timeout = Duration::from_secs(20);
-        default_modded_settings.network.node_addresses =
+        default_modded_settings.network.libp2p.node_addresses =
             vec!["/ip4/127.0.0.1/tcp/9998/ws".to_string().try_into().unwrap()];
         assert_eq!(settings.node(), &default_modded_settings);
     }

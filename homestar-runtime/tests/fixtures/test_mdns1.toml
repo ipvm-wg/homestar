@@ -6,12 +6,14 @@ console_subscriber_port = 5560
 
 [node.network]
 webserver_port = 8000
-listen_address = "/ip4/0.0.0.0/tcp/0"
 enable_rendezvous_client = false
 
 # Peer ID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }
+
+[node.network.libp2p]
+listen_address = "/ip4/0.0.0.0/tcp/0"
 
 [node.network.metrics]
 port = 4001
