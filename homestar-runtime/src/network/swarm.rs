@@ -85,12 +85,12 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
                 )],
                 request_response::Config::default(),
             ),
-            mdns: Toggle::from(if settings.network.enable_mdns {
+            mdns: Toggle::from(if settings.network.mdns.enable {
                 Some(mdns::Behaviour::new(
                     mdns::Config {
-                        ttl: settings.network.mdns_ttl,
-                        query_interval: settings.network.mdns_query_interval,
-                        enable_ipv6: settings.network.mdns_enable_ipv6,
+                        ttl: settings.network.mdns.ttl,
+                        query_interval: settings.network.mdns.query_interval,
+                        enable_ipv6: settings.network.mdns.enable_ipv6,
                     },
                     peer_id,
                 )?)

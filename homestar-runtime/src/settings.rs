@@ -95,6 +95,8 @@ pub struct Monitoring {
 pub struct Network {
     /// Metrics Settings.
     pub(crate) metrics: Metrics,
+    /// mDNS Settings.
+    pub(crate) mdns: Mdns,
     /// Pubsub Settings.
     pub(crate) pubsub: Pubsub,
     /// Buffer-length for event(s) / command(s) channels.
@@ -114,20 +116,9 @@ pub struct Network {
     /// Rendezvous discovery interval.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) rendezvous_discovery_interval: Duration,
-    /// Enable mDNS.
-    pub(crate) enable_mdns: bool,
-    /// mDNS IPv6 enable flag
-    pub(crate) mdns_enable_ipv6: bool,
-    /// mDNS query interval.
-    #[serde_as(as = "DurationSeconds<u64>")]
-    pub(crate) mdns_query_interval: Duration,
-    /// mDNS TTL.
-    #[serde_as(as = "DurationSeconds<u64>")]
-    pub(crate) mdns_ttl: Duration,
     /// Timeout for p2p requests for a provided record.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) p2p_provider_timeout: Duration,
-
     /// Quorum for receipt records on the DHT.
     pub(crate) receipt_quorum: usize,
     /// RPC-server settings.
@@ -192,6 +183,23 @@ pub(crate) struct Ipfs {
 pub(crate) struct Metrics {
     /// Metrics port for prometheus scraping.
     pub(crate) port: u16,
+}
+
+/// mDNS settings.
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub(crate) struct Mdns {
+    /// Enable mDNS.
+    pub(crate) enable: bool,
+    /// mDNS IPv6 enable flag
+    pub(crate) enable_ipv6: bool,
+    /// mDNS query interval.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) query_interval: Duration,
+    /// mDNS TTL.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) ttl: Duration,
 }
 
 /// Pubsub settings.
@@ -277,6 +285,17 @@ impl Default for Database {
     }
 }
 
+impl Default for Mdns {
+    fn default() -> Self {
+        Self {
+            enable: true,
+            enable_ipv6: false,
+            query_interval: Duration::from_secs(5 * 60),
+            ttl: Duration::from_secs(60 * 9),
+        }
+    }
+}
+
 impl Default for Metrics {
     fn default() -> Self {
         Self { port: 4000 }
@@ -325,6 +344,7 @@ impl Default for Node {
 impl Default for Network {
     fn default() -> Self {
         Self {
+            mdns: Mdns::default(),
             metrics: Metrics::default(),
             pubsub: Pubsub::default(),
             events_buffer_len: 1024,
@@ -333,13 +353,7 @@ impl Default for Network {
             enable_rendezvous_server: false,
             rendezvous_registration_ttl: Duration::from_secs(2 * 60 * 60),
             rendezvous_discovery_interval: Duration::from_secs(10 * 60),
-            // TODO: we would like to enable this by default, however this breaks mdns on at least some linux distros. Requires further investigation.
-            enable_mdns: true,
-            mdns_enable_ipv6: false,
-            mdns_query_interval: Duration::from_secs(5 * 60),
-            mdns_ttl: Duration::from_secs(60 * 9),
             p2p_provider_timeout: Duration::new(30, 0),
-
             receipt_quorum: 2,
             rpc: Rpc::default(),
             transport_connection_timeout: Duration::new(60, 0),
