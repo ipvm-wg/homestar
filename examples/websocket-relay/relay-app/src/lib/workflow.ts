@@ -1,4 +1,3 @@
-import { CID } from "multiformats/cid";
 import { base64 } from "iso-base/rfc4648";
 import { get as getStore } from "svelte/store";
 import type { MaybeResult } from "@fission-codes/homestar/codecs/types";
@@ -162,7 +161,7 @@ export async function handleMessage(data: MaybeResult) {
   console.log("Received message from server: ", data);
 
   if (data.error) {
-    // @ts-ignore-next-line
+    // @ts-expect-error received WorkflowNotificationError from Homestar node
     throw new Error(data.error);
   }
 
@@ -262,8 +261,7 @@ export const workflowOnePromised = WorkflowBuilder.workflow({
         name: "crop",
         resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         args: {
-          data: "{{ cid:bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm }}"
-          ),
+          data: "{{ cid:bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm }}",
           x: 150,
           y: 350,
           height: 500,
@@ -297,9 +295,7 @@ export const workflowTwoPromised = WorkflowBuilder.workflow({
         name: "crop",
         resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         args: {
-          data: CID.parse(
-            "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm"
-          ),
+          data: "{{ cid:bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm }}",
           x: 150,
           y: 350,
           height: 500,
