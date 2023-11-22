@@ -6,7 +6,6 @@ console_subscriber_port = 5581
 
 [node.network]
 webserver_port = 8021
-enable_rendezvous_client = false
 
 # Peer ID 16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc
 [node.network.keypair_config]
@@ -20,6 +19,9 @@ node_addresses = [
 
 [node.network.libp2p.mdns]
 enable = false
+
+[node.network.libp2p.rendezvous]
+enable_client = false
 
 [node.network.metrics]
 port = 4031

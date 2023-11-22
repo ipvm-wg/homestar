@@ -149,8 +149,8 @@ where
                 max_peers: settings.network.libp2p.max_connected_peers,
             },
             rendezvous: Rendezvous {
-                registration_ttl: settings.network.rendezvous_registration_ttl,
-                discovery_interval: settings.network.rendezvous_discovery_interval,
+                registration_ttl: settings.network.libp2p.rendezvous.registration_ttl,
+                discovery_interval: settings.network.libp2p.rendezvous.discovery_interval,
                 discovered_peers: FnvHashMap::default(),
                 cookies: FnvHashMap::default(),
             },
@@ -185,8 +185,8 @@ where
                 max_peers: settings.network.max_connected_peers,
             },
             rendezvous: Rendezvous {
-                registration_ttl: settings.network.rendezvous_registration_ttl,
-                discovery_interval: settings.network.rendezvous_discovery_interval,
+                registration_ttl: settings.network.libp2p.rendezvous.registration_ttl,
+                discovery_interval: settings.network.libp2p.rendezvous.discovery_interval,
                 discovered_peers: FnvHashMap::default(),
                 cookies: FnvHashMap::default(),
             },

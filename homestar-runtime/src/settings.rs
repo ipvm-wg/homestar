@@ -87,8 +87,7 @@ pub struct Monitoring {
     pub process_collector_interval: Duration,
 }
 
-/// Network-related settings for a homestar node.
-/// TODO: Split-up and re-arrange.
+/// Network settings for a homestar node.
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -99,16 +98,6 @@ pub struct Network {
     pub(crate) libp2p: Libp2p,
     /// Buffer-length for event(s) / command(s) channels.
     pub(crate) events_buffer_len: usize,
-    /// Enable Rendezvous protocol client.
-    pub(crate) enable_rendezvous_client: bool,
-    /// Enable Rendezvous protocol server.
-    pub(crate) enable_rendezvous_server: bool,
-    /// Rendezvous registration TTL.
-    #[serde_as(as = "DurationSeconds<u64>")]
-    pub(crate) rendezvous_registration_ttl: Duration,
-    /// Rendezvous discovery interval.
-    #[serde_as(as = "DurationSeconds<u64>")]
-    pub(crate) rendezvous_discovery_interval: Duration,
     /// Timeout for p2p requests for a provided record.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) p2p_provider_timeout: Duration,
@@ -180,18 +169,11 @@ pub(crate) struct Libp2p {
     pub(crate) mdns: Mdns,
     /// Pubsub Settings.
     pub(crate) pubsub: Pubsub,
+    /// Rendezvous Settings.
+    pub(crate) rendezvous: Rendezvous,
     /// Transport connection timeout.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) transport_connection_timeout: Duration,
-}
-
-/// Metrics settings.
-#[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(default)]
-pub(crate) struct Metrics {
-    /// Metrics port for prometheus scraping.
-    pub(crate) port: u16,
 }
 
 /// mDNS settings.
@@ -237,6 +219,32 @@ pub(crate) struct Pubsub {
     pub(crate) mesh_n: usize,
     /// Minimum outbound pub/sub peers before adding more peers.
     pub(crate) mesh_outbound_min: usize,
+}
+
+/// Rendezvous settings.
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub(crate) struct Rendezvous {
+    /// Enable Rendezvous protocol client.
+    pub(crate) enable_client: bool,
+    /// Enable Rendezvous protocol server.
+    pub(crate) enable_server: bool,
+    /// Rendezvous registration TTL.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) registration_ttl: Duration,
+    /// Rendezvous discovery interval.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) discovery_interval: Duration,
+}
+
+/// Metrics settings.
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub(crate) struct Metrics {
+    /// Metrics port for prometheus scraping.
+    pub(crate) port: u16,
 }
 
 /// RPC server settings.
@@ -304,6 +312,7 @@ impl Default for Libp2p {
             mdns: Mdns::default(),
             node_addresses: Vec::new(),
             pubsub: Pubsub::default(),
+            rendezvous: Rendezvous::default(),
             transport_connection_timeout: Duration::new(60, 0),
         }
     }
@@ -342,6 +351,17 @@ impl Default for Pubsub {
     }
 }
 
+impl Default for Rendezvous {
+    fn default() -> Self {
+        Self {
+            enable_client: true,
+            enable_server: false,
+            registration_ttl: Duration::from_secs(2 * 60 * 60),
+            discovery_interval: Duration::from_secs(10 * 60),
+        }
+    }
+}
+
 impl Default for Rpc {
     fn default() -> Self {
         Self {
@@ -371,10 +391,6 @@ impl Default for Network {
             libp2p: Libp2p::default(),
             metrics: Metrics::default(),
             events_buffer_len: 1024,
-            enable_rendezvous_client: true,
-            enable_rendezvous_server: false,
-            rendezvous_registration_ttl: Duration::from_secs(2 * 60 * 60),
-            rendezvous_discovery_interval: Duration::from_secs(10 * 60),
             p2p_provider_timeout: Duration::new(30, 0),
             receipt_quorum: 2,
             rpc: Rpc::default(),

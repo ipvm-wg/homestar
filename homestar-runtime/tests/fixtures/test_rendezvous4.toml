@@ -6,7 +6,6 @@ console_subscriber_port = 5588
 
 [node.network]
 webserver_port = 8028
-rendezvous_registration_ttl = 1
 
 # Peer ID 12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq
 [node.network.keypair_config]
@@ -23,6 +22,9 @@ node_addresses = [
 
 [node.network.libp2p.mdns]
 enable = false
+
+[node.network.libp2p.rendezvous]
+registration_ttl = 1
 
 [node.network.metrics]
 port = 4038

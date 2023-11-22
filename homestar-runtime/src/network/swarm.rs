@@ -97,12 +97,12 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
             } else {
                 None
             }),
-            rendezvous_client: Toggle::from(if settings.network.enable_rendezvous_client {
+            rendezvous_client: Toggle::from(if settings.network.libp2p.rendezvous.enable_client {
                 Some(rendezvous::client::Behaviour::new(keypair.clone()))
             } else {
                 None
             }),
-            rendezvous_server: Toggle::from(if settings.network.enable_rendezvous_server {
+            rendezvous_server: Toggle::from(if settings.network.libp2p.rendezvous.enable_server {
                 Some(rendezvous::server::Behaviour::new(
                     rendezvous::server::Config::with_min_ttl(
                         rendezvous::server::Config::default(),

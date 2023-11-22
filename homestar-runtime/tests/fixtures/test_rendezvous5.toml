@@ -6,7 +6,6 @@ console_subscriber_port = 5589
 
 [node.network]
 websocket_port = 8029
-rendezvous_discovery_interval = 1
 
 # Peer ID 12D3KooWRndVhVZPCiQwHBBBdg769GyrPUW13zxwqQyf9r3ANaba
 [node.network.keypair_config]
@@ -20,6 +19,9 @@ node_addresses = [
 
 [node.network.libp2p.mdns]
 enable = false
+
+[node.network.libp2p.rendezvous]
+discovery_interval = 1
 
 [node.network.metrics]
 port = 4039
