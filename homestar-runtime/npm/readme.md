@@ -8,7 +8,7 @@ rustup target add aarch64-unknown-linux-gnu
 rustup target add x86_64-unknown-linux-musl
 
 
-export node_version=0.0.4
+export node_version=0.0.5
 export bin="homestar"
 
 
