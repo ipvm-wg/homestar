@@ -134,9 +134,9 @@ where
         let (sender, receiver) = Self::setup_channel(settings);
         let sender = Arc::new(sender);
         Self {
-            receipt_quorum: settings.network.receipt_quorum,
-            workflow_quorum: settings.network.workflow_quorum,
-            p2p_provider_timeout: settings.network.p2p_provider_timeout,
+            receipt_quorum: settings.network.libp2p.dht.receipt_quorum,
+            workflow_quorum: settings.network.libp2p.dht.workflow_quorum,
+            p2p_provider_timeout: settings.network.libp2p.dht.p2p_provider_timeout,
             db,
             swarm,
             cache: Arc::new(setup_cache(sender.clone())),

@@ -92,17 +92,12 @@ pub struct Monitoring {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Network {
-    /// Metrics Settings.
-    pub(crate) metrics: Metrics,
     /// libp2p Settings.
     pub(crate) libp2p: Libp2p,
+    /// Metrics Settings.
+    pub(crate) metrics: Metrics,
     /// Buffer-length for event(s) / command(s) channels.
     pub(crate) events_buffer_len: usize,
-    /// Timeout for p2p requests for a provided record.
-    #[serde_as(as = "DurationSeconds<u64>")]
-    pub(crate) p2p_provider_timeout: Duration,
-    /// Quorum for receipt records on the DHT.
-    pub(crate) receipt_quorum: usize,
     /// RPC-server settings.
     pub(crate) rpc: Rpc,
     /// Webserver host address.
@@ -119,10 +114,6 @@ pub struct Network {
     /// Websocket-server timeout for receiving messages from the runner.
     #[serde_as(as = "DurationMilliSeconds<u64>")]
     pub(crate) websocket_receiver_timeout: Duration,
-    /// Quorum for [workflow::Info] records on the DHT.
-    ///
-    /// [workflow::Info]: crate::workflow::Info
-    pub(crate) workflow_quorum: usize,
     /// Pubkey setup configuration.
     pub(crate) keypair_config: PubkeyConfig,
     /// Event handler poll cache interval in milliseconds.
@@ -153,6 +144,8 @@ pub(crate) struct Libp2p {
     /// network.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
     pub(crate) announce_addresses: Vec<libp2p::Multiaddr>,
+    /// Kademlia DHT Settings
+    pub(crate) dht: Dht,
     /// Address for [Swarm] to listen on.
     ///
     /// [Swarm]: libp2p::swarm::Swarm
@@ -174,6 +167,22 @@ pub(crate) struct Libp2p {
     /// Transport connection timeout.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) transport_connection_timeout: Duration,
+}
+
+/// DHT settings.
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub(crate) struct Dht {
+    /// Timeout for p2p requests for a provided record.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) p2p_provider_timeout: Duration,
+    /// Quorum for receipt records on the DHT.
+    pub(crate) receipt_quorum: usize,
+    /// Quorum for [workflow::Info] records on the DHT.
+    ///
+    /// [workflow::Info]: crate::workflow::Info
+    pub(crate) workflow_quorum: usize,
 }
 
 /// mDNS settings.
@@ -306,6 +315,7 @@ impl Default for Libp2p {
     fn default() -> Self {
         Self {
             announce_addresses: Vec::new(),
+            dht: Dht::default(),
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             max_connected_peers: 32,
             max_announce_addresses: 10,
@@ -314,6 +324,16 @@ impl Default for Libp2p {
             pubsub: Pubsub::default(),
             rendezvous: Rendezvous::default(),
             transport_connection_timeout: Duration::new(60, 0),
+        }
+    }
+}
+
+impl Default for Dht {
+    fn default() -> Self {
+        Self {
+            p2p_provider_timeout: Duration::new(30, 0),
+            receipt_quorum: 2,
+            workflow_quorum: 3,
         }
     }
 }
@@ -391,15 +411,12 @@ impl Default for Network {
             libp2p: Libp2p::default(),
             metrics: Metrics::default(),
             events_buffer_len: 1024,
-            p2p_provider_timeout: Duration::new(30, 0),
-            receipt_quorum: 2,
             rpc: Rpc::default(),
             webserver_host: Uri::from_static("127.0.0.1"),
             webserver_port: 1337,
             webserver_timeout: Duration::new(120, 0),
             websocket_capacity: 2048,
             websocket_receiver_timeout: Duration::from_millis(30_000),
-            workflow_quorum: 3,
             keypair_config: PubkeyConfig::Random,
             poll_cache_interval: Duration::from_millis(1000),
             #[cfg(feature = "ipfs")]
