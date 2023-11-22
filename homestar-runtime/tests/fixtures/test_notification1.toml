@@ -5,7 +5,6 @@ process_collector_interval = 500
 console_subscriber_port = 5582
 
 [node.network]
-rpc_port = 9822
 webserver_port = 8022
 listen_address = "/ip4/127.0.0.1/tcp/7010"
 node_addresses = [
@@ -20,3 +19,6 @@ existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }
 
 [node.network.metrics]
 port = 4032
+
+[node.network.rpc]
+port = 9822

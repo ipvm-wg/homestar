@@ -5,7 +5,6 @@ process_collector_interval = 500
 console_subscriber_port = 5561
 
 [node.network]
-rpc_port = 9801
 webserver_port = 8001
 listen_address = "/ip4/0.0.0.0/tcp/0"
 enable_rendezvous_client = false
@@ -16,3 +15,6 @@ existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der"
 
 [node.network.metrics]
 port = 4002
+
+[node.network.rpc]
+port = 9801

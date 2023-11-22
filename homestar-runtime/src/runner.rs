@@ -699,8 +699,8 @@ mod test {
         let rpc_sender = rpc_server.sender();
 
         let addr = SocketAddr::new(
-            settings.node.network.rpc_host,
-            settings.node.network.rpc_port,
+            settings.node.network.rpc.host,
+            settings.node.network.rpc.port,
         );
 
         let ws_hdl = runner.runtime.block_on(async {
@@ -759,8 +759,8 @@ mod test {
 
         runner.runtime.spawn(async move {
             let addr = SocketAddr::new(
-                settings.node.network.rpc_host,
-                settings.node.network.rpc_port,
+                settings.node.network.rpc.host,
+                settings.node.network.rpc.port,
             );
 
             let client = Client::new(addr, context::current()).await.unwrap();

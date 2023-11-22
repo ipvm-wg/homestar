@@ -35,19 +35,6 @@ impl Settings {
     }
 }
 
-/// Monitoring settings.
-#[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(default)]
-pub struct Monitoring {
-    /// Tokio console port.
-    pub console_subscriber_port: u16,
-    /// Monitoring collection interval in milliseconds.
-    #[cfg(feature = "monitoring")]
-    #[serde_as(as = "DurationMilliSeconds<u64>")]
-    pub process_collector_interval: Duration,
-}
-
 /// Server settings.
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -68,6 +55,36 @@ pub struct Node {
     /// Shutdown timeout.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) shutdown_timeout: Duration,
+}
+
+/// Database-related settings for a homestar node.
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub(crate) struct Database {
+    /// Database Url provided within the configuration file.
+    ///
+    /// Note: This is not used if the `DATABASE_URL` environment variable
+    /// is set.
+    #[serde_as(as = "Option<DisplayFromStr>")]
+    pub(crate) url: Option<String>,
+    /// Maximum number of connections managed by the [pool].
+    ///
+    /// [pool]: crate::db::Pool
+    pub(crate) max_pool_size: u32,
+}
+
+/// Monitoring settings.
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Monitoring {
+    /// Tokio console port.
+    pub console_subscriber_port: u16,
+    /// Monitoring collection interval in milliseconds.
+    #[cfg(feature = "monitoring")]
+    #[serde_as(as = "DurationMilliSeconds<u64>")]
+    pub process_collector_interval: Duration,
 }
 
 /// Network-related settings for a homestar node.
@@ -131,16 +148,8 @@ pub struct Network {
     pub(crate) pubsub_mesh_outbound_min: usize,
     /// Quorum for receipt records on the DHT.
     pub(crate) receipt_quorum: usize,
-    /// RPC-server port.
-    #[serde_as(as = "DisplayFromStr")]
-    pub(crate) rpc_host: IpAddr,
-    /// RPC-server max-concurrent connections.
-    pub(crate) rpc_max_connections: usize,
-    /// RPC-server port.
-    pub(crate) rpc_port: u16,
-    #[serde_as(as = "DurationSeconds<u64>")]
-    /// RPC-server timeout.
-    pub(crate) rpc_server_timeout: Duration,
+    /// RPC-server settings.
+    pub(crate) rpc: Rpc,
     /// Transport connection timeout.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) transport_connection_timeout: Duration,
@@ -194,23 +203,6 @@ pub(crate) struct Ipfs {
     pub(crate) port: u16,
 }
 
-/// Database-related settings for a homestar node.
-#[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(default)]
-pub(crate) struct Database {
-    /// Database Url provided within the configuration file.
-    ///
-    /// Note: This is not used if the `DATABASE_URL` environment variable
-    /// is set.
-    #[serde_as(as = "Option<DisplayFromStr>")]
-    pub(crate) url: Option<String>,
-    /// Maximum number of connections managed by the [pool].
-    ///
-    /// [pool]: crate::db::Pool
-    pub(crate) max_pool_size: u32,
-}
-
 /// Metrics settings.
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -218,6 +210,23 @@ pub(crate) struct Database {
 pub(crate) struct Metrics {
     /// Metrics port for prometheus scraping.
     pub(crate) port: u16,
+}
+
+/// RPC server settings.
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub(crate) struct Rpc {
+    /// RPC-server port.
+    #[serde_as(as = "DisplayFromStr")]
+    pub(crate) host: IpAddr,
+    /// RPC-server max-concurrent connections.
+    pub(crate) max_connections: usize,
+    /// RPC-server port.
+    pub(crate) port: u16,
+    #[serde_as(as = "DurationSeconds<u64>")]
+    /// RPC-server timeout.
+    pub(crate) server_timeout: Duration,
 }
 
 #[cfg(feature = "monitoring")]
@@ -264,6 +273,17 @@ impl Default for Metrics {
     }
 }
 
+impl Default for Rpc {
+    fn default() -> Self {
+        Self {
+            host: IpAddr::V6(Ipv6Addr::LOCALHOST),
+            max_connections: 10,
+            port: 3030,
+            server_timeout: Duration::new(120, 0),
+        }
+    }
+}
+
 impl Default for Node {
     fn default() -> Self {
         Self {
@@ -302,10 +322,7 @@ impl Default for Network {
             pubsub_mesh_n: 2,
             pubsub_mesh_outbound_min: 1,
             receipt_quorum: 2,
-            rpc_host: IpAddr::V6(Ipv6Addr::LOCALHOST),
-            rpc_max_connections: 10,
-            rpc_port: 3030,
-            rpc_server_timeout: Duration::new(120, 0),
+            rpc: Rpc::default(),
             transport_connection_timeout: Duration::new(60, 0),
             webserver_host: Uri::from_static("127.0.0.1"),
             webserver_port: 1337,
@@ -440,10 +457,10 @@ mod test {
 
     #[test]
     fn overriding_env() {
-        std::env::set_var("HOMESTAR__NODE__NETWORK__RPC_PORT", "2046");
+        std::env::set_var("HOMESTAR__NODE__NETWORK__RPC__PORT", "2046");
         std::env::set_var("HOMESTAR__NODE__DB__MAX_POOL_SIZE", "1");
         let settings = Settings::build(Some("fixtures/settings.toml".into())).unwrap();
-        assert_eq!(settings.node.network.rpc_port, 2046);
+        assert_eq!(settings.node.network.rpc.port, 2046);
         assert_eq!(settings.node.db.max_pool_size, 1);
     }
 

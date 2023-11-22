@@ -5,7 +5,6 @@ process_collector_interval = 500
 console_subscriber_port = 5551
 
 [node.network]
-rpc_port = 9791
 webserver_port = 7991
 listen_address = "/ip4/127.0.0.1/tcp/7021"
 node_addresses = [
@@ -20,3 +19,6 @@ existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der"
 
 [node.network.metrics]
 port = 3991
+
+[node.network.rpc]
+port = 9791
