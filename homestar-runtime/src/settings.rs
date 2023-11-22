@@ -95,6 +95,8 @@ pub struct Monitoring {
 pub struct Network {
     /// Metrics Settings.
     pub(crate) metrics: Metrics,
+    /// Pubsub Settings.
+    pub(crate) pubsub: Pubsub,
     /// Buffer-length for event(s) / command(s) channels.
     pub(crate) events_buffer_len: usize,
     /// Address for [Swarm] to listen on.
@@ -125,27 +127,7 @@ pub struct Network {
     /// Timeout for p2p requests for a provided record.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) p2p_provider_timeout: Duration,
-    /// Enable pub/sub.
-    pub(crate) enable_pubsub: bool,
-    /// Pub/sub duplicate cache time.
-    #[serde_as(as = "DurationSeconds<u64>")]
-    pub(crate) pubsub_duplication_cache_time: Duration,
-    /// Pub/sub hearbeat interval for mesh configuration.
-    #[serde_as(as = "DurationSeconds<u64>")]
-    pub(crate) pubsub_heartbeat: Duration,
-    /// Pub/sub idle timeout
-    #[serde_as(as = "DurationSeconds<u64>")]
-    pub(crate) pubsub_idle_timeout: Duration,
-    /// TODO
-    pub(crate) pubsub_max_transmit_size: usize,
-    /// TODO
-    pub(crate) pubsub_mesh_n_low: usize,
-    /// TODO
-    pub(crate) pubsub_mesh_n_high: usize,
-    /// TODO
-    pub(crate) pubsub_mesh_n: usize,
-    /// TODO
-    pub(crate) pubsub_mesh_outbound_min: usize,
+
     /// Quorum for receipt records on the DHT.
     pub(crate) receipt_quorum: usize,
     /// RPC-server settings.
@@ -212,6 +194,34 @@ pub(crate) struct Metrics {
     pub(crate) port: u16,
 }
 
+/// Pubsub settings.
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub(crate) struct Pubsub {
+    /// Enable pub/sub.
+    pub(crate) enable: bool,
+    /// Pub/sub duplicate cache time.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) duplication_cache_time: Duration,
+    /// Pub/sub hearbeat interval for mesh configuration.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) heartbeat: Duration,
+    /// Pub/sub idle timeout
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) idle_timeout: Duration,
+    /// Maximum byte size of pub/sub messages.
+    pub(crate) max_transmit_size: usize,
+    /// Minimum number of pub/sub peers.
+    pub(crate) mesh_n_low: usize,
+    /// Maximum number of pub/sub peers.
+    pub(crate) mesh_n_high: usize,
+    /// Target number of pub/sub peers.
+    pub(crate) mesh_n: usize,
+    /// Minimum outbound pub/sub peers before adding more peers.
+    pub(crate) mesh_outbound_min: usize,
+}
+
 /// RPC server settings.
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -273,6 +283,22 @@ impl Default for Metrics {
     }
 }
 
+impl Default for Pubsub {
+    fn default() -> Self {
+        Self {
+            enable: true,
+            duplication_cache_time: Duration::new(1, 0),
+            heartbeat: Duration::new(60, 0),
+            idle_timeout: Duration::new(60 * 60 * 24, 0),
+            max_transmit_size: 10 * 1024 * 1024,
+            mesh_n_low: 1,
+            mesh_n_high: 10,
+            mesh_n: 2,
+            mesh_outbound_min: 1,
+        }
+    }
+}
+
 impl Default for Rpc {
     fn default() -> Self {
         Self {
@@ -300,6 +326,7 @@ impl Default for Network {
     fn default() -> Self {
         Self {
             metrics: Metrics::default(),
+            pubsub: Pubsub::default(),
             events_buffer_len: 1024,
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             enable_rendezvous_client: true,
@@ -312,15 +339,7 @@ impl Default for Network {
             mdns_query_interval: Duration::from_secs(5 * 60),
             mdns_ttl: Duration::from_secs(60 * 9),
             p2p_provider_timeout: Duration::new(30, 0),
-            enable_pubsub: true,
-            pubsub_duplication_cache_time: Duration::new(1, 0),
-            pubsub_heartbeat: Duration::new(60, 0),
-            pubsub_idle_timeout: Duration::new(60 * 60 * 24, 0),
-            pubsub_max_transmit_size: 10 * 1024 * 1024,
-            pubsub_mesh_n_low: 1,
-            pubsub_mesh_n_high: 10,
-            pubsub_mesh_n: 2,
-            pubsub_mesh_outbound_min: 1,
+
             receipt_quorum: 2,
             rpc: Rpc::default(),
             transport_connection_timeout: Duration::new(60, 0),

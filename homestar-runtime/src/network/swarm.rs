@@ -55,7 +55,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
     let mut swarm = Swarm::new(
         transport,
         ComposedBehaviour {
-            gossipsub: Toggle::from(if settings.network.enable_pubsub {
+            gossipsub: Toggle::from(if settings.network.pubsub.enable {
                 Some(pubsub::new(keypair.clone(), settings)?)
             } else {
                 None
@@ -184,7 +184,7 @@ pub(crate) fn init(
         }
     }
 
-    if settings.enable_pubsub {
+    if settings.pubsub.enable {
         // join `receipts` topic
         swarm
             .behaviour_mut()
