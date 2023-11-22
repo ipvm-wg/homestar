@@ -100,7 +100,7 @@ pub fn runner_test(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     let mut settings = crate::Settings::load().unwrap();
                     settings.node.network.webserver_port = ::homestar_core::test_utils::ports::get_port() as u16;
                     settings.node.network.rpc_port = ::homestar_core::test_utils::ports::get_port() as u16;
-                    settings.node.network.metrics_port = ::homestar_core::test_utils::ports::get_port() as u16;
+                    settings.node.network.metrics.port = ::homestar_core::test_utils::ports::get_port() as u16;
                     settings.node.db.url = Some(format!("{}.db", #func_name_as_string));
                     settings.node.network.websocket_receiver_timeout = std::time::Duration::from_millis(500);
                     let db = crate::test_utils::db::MemoryDb::setup_connection_pool(&settings.node, None).unwrap();

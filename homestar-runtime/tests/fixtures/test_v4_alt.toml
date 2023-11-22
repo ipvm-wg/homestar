@@ -5,8 +5,10 @@ process_collector_interval = 500
 console_subscriber_port = 5596
 
 [node.network]
-metrics_port = 4041
 events_buffer_len = 1000
 rpc_port = 9836
 rpc_host = "127.0.0.1"
 webserver_port = 8040
+
+[node.network.metrics]
+port = 4041

@@ -16,7 +16,7 @@ pub(crate) fn setup_metrics_recorder(
         0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
     ];
 
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), settings.metrics_port);
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), settings.metrics.port);
 
     let (recorder, exporter) = PrometheusBuilder::new()
         .set_buckets_for_metric(

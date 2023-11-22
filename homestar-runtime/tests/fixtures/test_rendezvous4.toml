@@ -5,7 +5,6 @@ process_collector_interval = 500
 console_subscriber_port = 5588
 
 [node.network]
-metrics_port = 4038
 rpc_port = 9828
 webserver_port = 8028
 listen_address = "/ip4/127.0.0.1/tcp/7003"
@@ -21,3 +20,6 @@ enable_mdns = false
 # Peer ID 12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519_3.pem" }
+
+[node.network.metrics]
+port = 4038

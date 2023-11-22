@@ -76,8 +76,8 @@ pub struct Node {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Network {
-    /// Metrics port for prometheus scraping.
-    pub metrics_port: u16,
+    /// Metrics Settings.
+    pub(crate) metrics: Metrics,
     /// Buffer-length for event(s) / command(s) channels.
     pub(crate) events_buffer_len: usize,
     /// Address for [Swarm] to listen on.
@@ -211,6 +211,15 @@ pub(crate) struct Database {
     pub(crate) max_pool_size: u32,
 }
 
+/// Metrics settings.
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub(crate) struct Metrics {
+    /// Metrics port for prometheus scraping.
+    pub(crate) port: u16,
+}
+
 #[cfg(feature = "monitoring")]
 impl Default for Monitoring {
     fn default() -> Self {
@@ -249,6 +258,12 @@ impl Default for Database {
     }
 }
 
+impl Default for Metrics {
+    fn default() -> Self {
+        Self { port: 4000 }
+    }
+}
+
 impl Default for Node {
     fn default() -> Self {
         Self {
@@ -264,7 +279,7 @@ impl Default for Node {
 impl Default for Network {
     fn default() -> Self {
         Self {
-            metrics_port: 4000,
+            metrics: Metrics::default(),
             events_buffer_len: 1024,
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             enable_rendezvous_client: true,
