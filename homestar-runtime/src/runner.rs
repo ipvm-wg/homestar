@@ -168,7 +168,7 @@ impl Runner {
         let swarm = runtime.block_on(swarm::new(settings.node()))?;
         let peer_id = *swarm.local_peer_id();
 
-        let webserver = webserver::Server::new(settings.node().network())?;
+        let webserver = webserver::Server::new(settings.node().network().webserver())?;
 
         #[cfg(feature = "websocket-notify")]
         let (ws_msg_tx, ws_evt_tx) = {
@@ -300,7 +300,7 @@ impl Runner {
                                 info!("getting node info");
                                 let (tx, rx) = AsyncChannel::oneshot();
                                 let _ = self.event_sender.send_async(Event::GetListeners(tx)).await;
-                                let dyn_node_info = if let Ok(listeners) = rx.recv_deadline(Instant::now() + self.settings.node.network.webserver_timeout) {
+                                let dyn_node_info = if let Ok(listeners) = rx.recv_deadline(Instant::now() + self.settings.node.network.webserver.timeout) {
                                     DynamicNodeInfo::new(listeners)
                                 } else {
                                     DynamicNodeInfo::new(vec![])

@@ -4,9 +4,6 @@
 process_collector_interval = 500
 console_subscriber_port = 5587
 
-[node.network]
-webserver_port = 8027
-
 # Peer ID 12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }
@@ -25,3 +22,6 @@ port = 4037
 
 [node.network.rpc]
 port = 9827
+
+[node.network.webserver]
+port = 8027

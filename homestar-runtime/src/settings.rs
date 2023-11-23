@@ -98,22 +98,8 @@ pub struct Network {
     pub(crate) metrics: Metrics,
     /// Buffer-length for event(s) / command(s) channels.
     pub(crate) events_buffer_len: usize,
-    /// RPC-server settings.
+    /// RPC server settings.
     pub(crate) rpc: Rpc,
-    /// Webserver host address.
-    #[serde(with = "http_serde::uri")]
-    pub(crate) webserver_host: Uri,
-    /// Webserver-server port.
-    pub(crate) webserver_port: u16,
-    /// TODO
-    #[serde_as(as = "DurationSeconds<u64>")]
-    pub(crate) webserver_timeout: Duration,
-    /// Number of *bounded* clients to send messages to, used for a
-    /// [tokio::sync::broadcast::channel]
-    pub(crate) websocket_capacity: usize,
-    /// Websocket-server timeout for receiving messages from the runner.
-    #[serde_as(as = "DurationMilliSeconds<u64>")]
-    pub(crate) websocket_receiver_timeout: Duration,
     /// Pubkey setup configuration.
     pub(crate) keypair_config: PubkeyConfig,
     /// Event handler poll cache interval in milliseconds.
@@ -122,8 +108,11 @@ pub struct Network {
     /// IPFS settings.
     #[cfg(feature = "ipfs")]
     pub(crate) ipfs: Ipfs,
+    /// Webserver settings
+    pub(crate) webserver: Webserver,
 }
 
+/// IPFS Settings
 #[cfg(feature = "ipfs")]
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -273,6 +262,27 @@ pub(crate) struct Rpc {
     pub(crate) server_timeout: Duration,
 }
 
+/// Webserver settings
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub(crate) struct Webserver {
+    /// Webserver host address.
+    #[serde(with = "http_serde::uri")]
+    pub(crate) host: Uri,
+    /// Webserver-server port.
+    pub(crate) port: u16,
+    /// TODO
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) timeout: Duration,
+    /// Number of *bounded* clients to send messages to, used for a
+    /// [tokio::sync::broadcast::channel]
+    pub(crate) websocket_capacity: usize,
+    /// Websocket-server timeout for receiving messages from the runner.
+    #[serde_as(as = "DurationMilliSeconds<u64>")]
+    pub(crate) websocket_receiver_timeout: Duration,
+}
+
 #[cfg(feature = "monitoring")]
 impl Default for Monitoring {
     fn default() -> Self {
@@ -393,6 +403,18 @@ impl Default for Rpc {
     }
 }
 
+impl Default for Webserver {
+    fn default() -> Self {
+        Self {
+            host: Uri::from_static("127.0.0.1"),
+            port: 1337,
+            timeout: Duration::new(120, 0),
+            websocket_capacity: 2048,
+            websocket_receiver_timeout: Duration::from_millis(30_000),
+        }
+    }
+}
+
 impl Default for Node {
     fn default() -> Self {
         Self {
@@ -412,15 +434,11 @@ impl Default for Network {
             metrics: Metrics::default(),
             events_buffer_len: 1024,
             rpc: Rpc::default(),
-            webserver_host: Uri::from_static("127.0.0.1"),
-            webserver_port: 1337,
-            webserver_timeout: Duration::new(120, 0),
-            websocket_capacity: 2048,
-            websocket_receiver_timeout: Duration::from_millis(30_000),
             keypair_config: PubkeyConfig::Random,
             poll_cache_interval: Duration::from_millis(1000),
             #[cfg(feature = "ipfs")]
             ipfs: Default::default(),
+            webserver: Webserver::default(),
         }
     }
 }
@@ -447,6 +465,10 @@ impl Network {
     #[cfg(feature = "ipfs")]
     pub(crate) fn ipfs(&self) -> &Ipfs {
         &self.ipfs
+    }
+
+    pub(crate) fn webserver(&self) -> &Webserver {
+        &self.webserver
     }
 }
 
@@ -530,7 +552,7 @@ mod test {
 
         let mut default_modded_settings = Node::default();
         default_modded_settings.network.events_buffer_len = 1000;
-        default_modded_settings.network.webserver_port = 9999;
+        default_modded_settings.network.webserver.port = 9999;
         default_modded_settings.gc_interval = Duration::from_secs(1800);
         default_modded_settings.shutdown_timeout = Duration::from_secs(20);
         default_modded_settings.network.libp2p.node_addresses =

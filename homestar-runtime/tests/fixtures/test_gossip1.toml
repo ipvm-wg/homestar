@@ -4,9 +4,6 @@
 process_collector_interval = 500
 console_subscriber_port = 5550
 
-[node.network]
-webserver_port = 7990
-
 # Peer ID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }
@@ -28,3 +25,6 @@ port = 3990
 
 [node.network.rpc]
 port = 9790
+
+[node.network.webserver]
+port = 7990

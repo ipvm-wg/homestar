@@ -4,9 +4,6 @@
 process_collector_interval = 500
 console_subscriber_port = 5581
 
-[node.network]
-webserver_port = 8021
-
 # Peer ID 16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc
 [node.network.keypair_config]
 existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }
@@ -28,3 +25,6 @@ port = 4031
 
 [node.network.rpc]
 port = 9821
+
+[node.network.webserver]
+port = 8021

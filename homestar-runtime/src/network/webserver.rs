@@ -112,11 +112,11 @@ impl Server {
     }
 
     #[cfg(feature = "websocket-notify")]
-    pub(crate) fn new(settings: &settings::Network) -> Result<Self> {
+    pub(crate) fn new(settings: &settings::Webserver) -> Result<Self> {
         let (evt_sender, _receiver) = Self::setup_channel(settings.websocket_capacity);
         let (msg_sender, _receiver) = Self::setup_channel(settings.websocket_capacity);
-        let host = IpAddr::from_str(&settings.webserver_host.to_string())?;
-        let port_setting = settings.webserver_port;
+        let host = IpAddr::from_str(&settings.host.to_string())?;
+        let port_setting = settings.port;
         let addr = if port_available(host, port_setting) {
             SocketAddr::from((host, port_setting))
         } else {
@@ -132,14 +132,14 @@ impl Server {
             evt_notifier: Notifier::new(evt_sender),
             workflow_msg_notifier: Notifier::new(msg_sender),
             receiver_timeout: settings.websocket_receiver_timeout,
-            webserver_timeout: settings.webserver_timeout,
+            webserver_timeout: settings.timeout,
         })
     }
 
     #[cfg(not(feature = "websocket-notify"))]
     pub(crate) fn new(settings: &settings::Network) -> Result<Self> {
-        let host = IpAddr::from_str(&settings.webserver_host.to_string())?;
-        let port_setting = settings.webserver_port;
+        let host = IpAddr::from_str(&settings.host.to_string())?;
+        let port_setting = settings.port;
         let addr = if port_available(host, port_setting) {
             SocketAddr::from((host, port_setting))
         } else {
@@ -289,7 +289,7 @@ mod test {
     fn ws_connect() {
         let TestRunner { runner, settings } = TestRunner::start();
         runner.runtime.block_on(async {
-            let server = Server::new(settings.node().network()).unwrap();
+            let server = Server::new(settings.node().network().webserver()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
@@ -331,7 +331,7 @@ mod test {
     async fn ws_metrics_no_prefix() {
         let TestRunner { runner, settings } = TestRunner::start();
         runner.runtime.block_on(async {
-            let server = Server::new(settings.node().network()).unwrap();
+            let server = Server::new(settings.node().network().webserver()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
@@ -364,7 +364,7 @@ mod test {
     async fn ws_subscribe_unsubscribe_network_events() {
         let TestRunner { runner, settings } = TestRunner::start();
         runner.runtime.block_on(async {
-            let server = Server::new(settings.node().network()).unwrap();
+            let server = Server::new(settings.node().network().webserver()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
@@ -441,7 +441,7 @@ mod test {
     async fn ws_subscribe_workflow_incorrect_params() {
         let TestRunner { runner, settings } = TestRunner::start();
         runner.runtime.block_on(async {
-            let server = Server::new(settings.node().network()).unwrap();
+            let server = Server::new(settings.node().network().webserver()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
@@ -475,7 +475,7 @@ mod test {
     async fn ws_subscribe_workflow_runner_timeout() {
         let TestRunner { runner, settings } = TestRunner::start();
         runner.runtime.block_on(async {
-            let server = Server::new(settings.node().network()).unwrap();
+            let server = Server::new(settings.node().network().webserver()).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl).await.unwrap();
