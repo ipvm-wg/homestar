@@ -9,13 +9,15 @@ processing workflows that chain inputs and outputs using
 
 This application demonstrates:
 
+  * workflows built using the
+    [@fission-codes/homestar][@fission-codes/homestar] client library
   * websocket notifications of [UCAN Invocation Receipts][spec-receipts] sent
-    between a web client and a `homestar` runner
+    between a web client and a `homestar` runner using [@fission-codes/homestar][@fission-codes/homestar]
   * instantaneous replay of previously run, cached executions
   * fetching content (the original static image) over [IPFS][ipfs]
     through a local blockstore
   * the [WIT][wit] + [IPLD][ipld] interpreter for
-    [Wasm(time)][wasmtime] embedded execution within a `homestar` runner.
+    [Wasm(time)][wasmtime] embedded execution within a `homestar` runner
 
 ## Install
 
@@ -84,6 +86,7 @@ If you're already running an IPFS instance however, e.g. [IPFS Desktop][ipfs-des
 the example will check for an already running instance and not start a new,
 local one.
 
+[@fission-codes/homestar]: https://www.npmjs.com/package/@fission-codes/homestar
 [install-ipfs]: https://docs.ipfs.tech/install/
 [install-npm]: https://docs.npmjs.com/downloading-and-installing-node-js-and-npm
 [install-rust]: https://www.rust-lang.org/tools/install
