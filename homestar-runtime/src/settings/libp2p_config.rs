@@ -134,6 +134,13 @@ impl Default for Libp2p {
     }
 }
 
+impl Libp2p {
+    /// Pub/sub settings getter.
+    pub(crate) fn pubsub(&self) -> &Pubsub {
+        &self.pubsub
+    }
+}
+
 impl Default for Dht {
     fn default() -> Self {
         Self {

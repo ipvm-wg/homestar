@@ -15,7 +15,7 @@ use std::{
 
 mod libp2p_config;
 mod pubkey_config;
-pub(crate) use libp2p_config::Libp2p;
+pub(crate) use libp2p_config::{Libp2p, Pubsub};
 pub(crate) use pubkey_config::PubkeyConfig;
 
 #[cfg(target_os = "windows")]
@@ -290,6 +290,11 @@ impl Network {
     #[cfg(feature = "ipfs")]
     pub(crate) fn ipfs(&self) -> &Ipfs {
         &self.ipfs
+    }
+
+    /// libp2p settings.
+    pub(crate) fn libp2p(&self) -> &Libp2p {
+        &self.libp2p
     }
 
     /// Webserver settings.

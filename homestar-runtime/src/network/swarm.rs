@@ -56,7 +56,10 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         transport,
         ComposedBehaviour {
             gossipsub: Toggle::from(if settings.network.libp2p.pubsub.enable {
-                Some(pubsub::new(keypair.clone(), settings)?)
+                Some(pubsub::new(
+                    keypair.clone(),
+                    settings.network().libp2p().pubsub(),
+                )?)
             } else {
                 None
             }),
