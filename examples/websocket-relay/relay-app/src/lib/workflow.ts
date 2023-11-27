@@ -168,8 +168,7 @@ export async function handleMessage(
   console.log("Received message from server: ", data);
 
   if (data.error) {
-    // @ts-expect-error received WorkflowNotificationError from Homestar node
-    throw new Error(data.error);
+    throw data.error;
   }
 
   const activeWorkflow = getStore(activeWorkflowStore);
