@@ -1,6 +1,11 @@
 import { base64 } from "iso-base/rfc4648";
 import { get as getStore } from "svelte/store";
 import type { MaybeResult } from "@fission-codes/homestar/codecs/types";
+import type {
+  Receipt as RawReceipt,
+  WorkflowNotification,
+  WorkflowNotificationError,
+} from "@fission-codes/homestar";
 import * as WorkflowBuilder from "@fission-codes/homestar/workflow";
 
 import type { Receipt, TaskOperation, TaskStatus, Meta } from "$lib/task";
@@ -157,7 +162,9 @@ export function fail(workflowId: WorkflowId) {
 
 // HANDLER
 
-export async function handleMessage(data: MaybeResult) {
+export async function handleMessage(
+  data: MaybeResult<WorkflowNotification, WorkflowNotificationError>
+) {
   console.log("Received message from server: ", data);
 
   if (data.error) {
@@ -173,9 +180,7 @@ export async function handleMessage(data: MaybeResult) {
   }
 
   const taskId = activeWorkflow.step + 1;
-  // @ts-ignore-next-line
   const status = data.result.metadata.replayed ? "replayed" : "executed";
-  // @ts-ignore-next-line
   const receipt = parseReceipt(data.result.receipt);
 
   // Update task in UI
@@ -217,21 +222,13 @@ export async function handleMessage(data: MaybeResult) {
   }
 }
 
-type RawReceipt = {
-  iss: string | null;
-  meta: Meta | null;
-  out: ["ok" | "error", Uint8Array];
-  prf: string[];
-  ran: Record<"/", string>;
-};
-
-const parseReceipt = (raw: RawReceipt): Receipt => {
+const parseReceipt = (raw: RawReceipt<Uint8Array>): Receipt => {
   return {
-    iss: raw.iss,
-    meta: raw.meta,
+    iss: raw.iss ?? null,
+    meta: raw.meta as Meta,
     out: [raw.out[0], base64.encode(raw.out[1])],
-    prf: raw.prf,
-    ran: raw.ran["/"],
+    prf: raw.prf.map(toString),
+    ran: raw.ran.toString(),
   };
 };
 
@@ -259,7 +256,8 @@ export const workflowOnePromised = WorkflowBuilder.workflow({
     tasks: [
       WorkflowBuilder.crop({
         name: "crop",
-        resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+        resource:
+          "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         args: {
           data: "{{ cid:bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm }}",
           x: 150,
@@ -270,14 +268,16 @@ export const workflowOnePromised = WorkflowBuilder.workflow({
       }),
       WorkflowBuilder.rotate90({
         name: "rotate90",
-        resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+        resource:
+          "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         args: {
           data: "{{needs.crop.output}}",
         },
       }),
       WorkflowBuilder.blur({
         name: "blur",
-        resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+        resource:
+          "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         args: {
           data: "{{needs.rotate90.output}}",
           sigma: 20.2,
@@ -293,7 +293,8 @@ export const workflowTwoPromised = WorkflowBuilder.workflow({
     tasks: [
       WorkflowBuilder.crop({
         name: "crop",
-        resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+        resource:
+          "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         args: {
           data: "{{ cid:bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm }}",
           x: 150,
@@ -304,14 +305,16 @@ export const workflowTwoPromised = WorkflowBuilder.workflow({
       }),
       WorkflowBuilder.rotate90({
         name: "rotate90",
-        resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+        resource:
+          "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         args: {
           data: "{{needs.crop.output}}",
         },
       }),
       WorkflowBuilder.grayscale({
         name: "grayscale",
-        resource: "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+        resource:
+          "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
         args: {
           data: "{{needs.rotate90.output}}",
         },
