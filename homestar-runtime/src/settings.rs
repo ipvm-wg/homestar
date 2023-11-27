@@ -173,6 +173,44 @@ pub(crate) struct Webserver {
     pub(crate) websocket_receiver_timeout: Duration,
 }
 
+impl Default for Node {
+    fn default() -> Self {
+        Self {
+            gc_interval: Duration::from_secs(1800),
+            shutdown_timeout: Duration::from_secs(20),
+            monitoring: Default::default(),
+            network: Default::default(),
+            db: Default::default(),
+        }
+    }
+}
+
+impl Node {
+    /// Monitoring settings getter.
+    pub fn monitoring(&self) -> &Monitoring {
+        &self.monitoring
+    }
+
+    /// Network settings.
+    pub fn network(&self) -> &Network {
+        &self.network
+    }
+
+    /// Node shutdown timeout.
+    pub fn shutdown_timeout(&self) -> Duration {
+        self.shutdown_timeout
+    }
+}
+
+impl Default for Database {
+    fn default() -> Self {
+        Self {
+            max_pool_size: 100,
+            url: None,
+        }
+    }
+}
+
 #[cfg(feature = "monitoring")]
 impl Default for Monitoring {
     fn default() -> Self {
@@ -192,21 +230,46 @@ impl Default for Monitoring {
     }
 }
 
+impl Default for Network {
+    fn default() -> Self {
+        Self {
+            libp2p: Libp2p::default(),
+            metrics: Metrics::default(),
+            events_buffer_len: 1024,
+            rpc: Rpc::default(),
+            keypair_config: PubkeyConfig::Random,
+            poll_cache_interval: Duration::from_millis(1000),
+            #[cfg(feature = "ipfs")]
+            ipfs: Default::default(),
+            webserver: Webserver::default(),
+        }
+    }
+}
+
+impl Network {
+    /// IPFS settings.
+    #[cfg(feature = "ipfs")]
+    pub(crate) fn ipfs(&self) -> &Ipfs {
+        &self.ipfs
+    }
+
+    /// libp2p settings.
+    pub(crate) fn libp2p(&self) -> &Libp2p {
+        &self.libp2p
+    }
+
+    /// Webserver settings.
+    pub(crate) fn webserver(&self) -> &Webserver {
+        &self.webserver
+    }
+}
+
 #[cfg(feature = "ipfs")]
 impl Default for Ipfs {
     fn default() -> Self {
         Self {
             host: Ipv4Addr::LOCALHOST.to_string(),
             port: 5001,
-        }
-    }
-}
-
-impl Default for Database {
-    fn default() -> Self {
-        Self {
-            max_pool_size: 100,
-            url: None,
         }
     }
 }
@@ -237,69 +300,6 @@ impl Default for Webserver {
             websocket_capacity: 2048,
             websocket_receiver_timeout: Duration::from_millis(30_000),
         }
-    }
-}
-
-impl Default for Node {
-    fn default() -> Self {
-        Self {
-            gc_interval: Duration::from_secs(1800),
-            shutdown_timeout: Duration::from_secs(20),
-            monitoring: Default::default(),
-            network: Default::default(),
-            db: Default::default(),
-        }
-    }
-}
-
-impl Default for Network {
-    fn default() -> Self {
-        Self {
-            libp2p: Libp2p::default(),
-            metrics: Metrics::default(),
-            events_buffer_len: 1024,
-            rpc: Rpc::default(),
-            keypair_config: PubkeyConfig::Random,
-            poll_cache_interval: Duration::from_millis(1000),
-            #[cfg(feature = "ipfs")]
-            ipfs: Default::default(),
-            webserver: Webserver::default(),
-        }
-    }
-}
-
-impl Node {
-    /// Monitoring settings getter.
-    pub fn monitoring(&self) -> &Monitoring {
-        &self.monitoring
-    }
-
-    /// Network settings.
-    pub fn network(&self) -> &Network {
-        &self.network
-    }
-
-    /// Node shutdown timeout.
-    pub fn shutdown_timeout(&self) -> Duration {
-        self.shutdown_timeout
-    }
-}
-
-impl Network {
-    /// IPFS settings.
-    #[cfg(feature = "ipfs")]
-    pub(crate) fn ipfs(&self) -> &Ipfs {
-        &self.ipfs
-    }
-
-    /// libp2p settings.
-    pub(crate) fn libp2p(&self) -> &Libp2p {
-        &self.libp2p
-    }
-
-    /// Webserver settings.
-    pub(crate) fn webserver(&self) -> &Webserver {
-        &self.webserver
     }
 }
 
