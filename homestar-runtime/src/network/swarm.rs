@@ -35,9 +35,8 @@ use tracing::{info, warn};
 pub(crate) const HOMESTAR_PROTOCOL_VER: &str = "homestar/0.0.1";
 
 /// Build a new [Swarm] with a given transport and a tokio executor.
-pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> {
+pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBehaviour>> {
     let keypair = settings
-        .network
         .keypair_config
         .keypair()
         .with_context(|| "failed to generate/import keypair for libp2p".to_string())?;
@@ -49,17 +48,14 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         .upgrade(upgrade::Version::V1Lazy)
         .authenticate(noise::Config::new(&keypair)?)
         .multiplex(yamux::Config::default())
-        .timeout(settings.network.libp2p.transport_connection_timeout)
+        .timeout(settings.libp2p.transport_connection_timeout)
         .boxed();
 
     let mut swarm = Swarm::new(
         transport,
         ComposedBehaviour {
-            gossipsub: Toggle::from(if settings.network.libp2p.pubsub.enable {
-                Some(pubsub::new(
-                    keypair.clone(),
-                    settings.network().libp2p().pubsub(),
-                )?)
+            gossipsub: Toggle::from(if settings.libp2p.pubsub.enable {
+                Some(pubsub::new(keypair.clone(), settings.libp2p().pubsub())?)
             } else {
                 None
             }),
@@ -88,24 +84,24 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
                 )],
                 request_response::Config::default(),
             ),
-            mdns: Toggle::from(if settings.network.libp2p.mdns.enable {
+            mdns: Toggle::from(if settings.libp2p.mdns.enable {
                 Some(mdns::Behaviour::new(
                     mdns::Config {
-                        ttl: settings.network.libp2p.mdns.ttl,
-                        query_interval: settings.network.libp2p.mdns.query_interval,
-                        enable_ipv6: settings.network.libp2p.mdns.enable_ipv6,
+                        ttl: settings.libp2p.mdns.ttl,
+                        query_interval: settings.libp2p.mdns.query_interval,
+                        enable_ipv6: settings.libp2p.mdns.enable_ipv6,
                     },
                     peer_id,
                 )?)
             } else {
                 None
             }),
-            rendezvous_client: Toggle::from(if settings.network.libp2p.rendezvous.enable_client {
+            rendezvous_client: Toggle::from(if settings.libp2p.rendezvous.enable_client {
                 Some(rendezvous::client::Behaviour::new(keypair.clone()))
             } else {
                 None
             }),
-            rendezvous_server: Toggle::from(if settings.network.libp2p.rendezvous.enable_server {
+            rendezvous_server: Toggle::from(if settings.libp2p.rendezvous.enable_server {
                 Some(rendezvous::server::Behaviour::new(
                     rendezvous::server::Config::with_min_ttl(
                         rendezvous::server::Config::default(),
@@ -124,7 +120,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         swarm::Config::with_tokio_executor(),
     );
 
-    init(&mut swarm, &settings.network)?;
+    init(&mut swarm, settings)?;
 
     Ok(swarm)
 }

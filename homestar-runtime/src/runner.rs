@@ -165,7 +165,7 @@ impl Runner {
         db: impl Database + 'static,
         runtime: tokio::runtime::Runtime,
     ) -> Result<Self> {
-        let swarm = runtime.block_on(swarm::new(settings.node()))?;
+        let swarm = runtime.block_on(swarm::new(settings.node().network()))?;
         let peer_id = *swarm.local_peer_id();
 
         let webserver = webserver::Server::new(settings.node().network().webserver())?;
