@@ -179,9 +179,10 @@ impl Runner {
         };
 
         #[cfg(feature = "websocket-notify")]
-        let event_handler = EventHandler::new(swarm, db, settings.node(), ws_evt_tx, ws_msg_tx);
+        let event_handler =
+            EventHandler::new(swarm, db, settings.node().network(), ws_evt_tx, ws_msg_tx);
         #[cfg(not(feature = "websocket-notify"))]
-        let event_handler = EventHandler::new(swarm, db, settings.node());
+        let event_handler = EventHandler::new(swarm, db, settings.node().network());
 
         let event_sender = event_handler.sender();
 
