@@ -170,9 +170,9 @@ where
         let (sender, receiver) = Self::setup_channel(settings);
         let sender = Arc::new(sender);
         Self {
-            receipt_quorum: settings.network.receipt_quorum,
-            workflow_quorum: settings.network.workflow_quorum,
-            p2p_provider_timeout: settings.network.p2p_provider_timeout,
+            receipt_quorum: settings.network.libp2p.dht.receipt_quorum,
+            workflow_quorum: settings.network.libp2p.dht.workflow_quorum,
+            p2p_provider_timeout: settings.network.libp2p.dht.p2p_provider_timeout,
             db,
             swarm,
             cache: Arc::new(setup_cache(sender.clone())),
@@ -182,7 +182,7 @@ where
             request_response_senders: FnvHashMap::default(),
             connections: Connections {
                 peers: FnvHashMap::default(),
-                max_peers: settings.network.max_connected_peers,
+                max_peers: settings.network.libp2p.max_connected_peers,
             },
             rendezvous: Rendezvous {
                 registration_ttl: settings.network.libp2p.rendezvous.registration_ttl,
@@ -191,9 +191,9 @@ where
                 cookies: FnvHashMap::default(),
             },
             pubsub_enabled: settings.network.libp2p.pubsub.enable,
-            node_addresses: settings.network.node_addresses.clone(),
-            announce_addresses: settings.network.announce_addresses.clone(),
-            external_address_limit: settings.network.max_announce_addresses,
+            node_addresses: settings.network.libp2p.node_addresses.clone(),
+            announce_addresses: settings.network.libp2p.announce_addresses.clone(),
+            external_address_limit: settings.network.libp2p.max_announce_addresses,
             poll_cache_interval: settings.network.poll_cache_interval,
         }
     }

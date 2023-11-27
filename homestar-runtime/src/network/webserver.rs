@@ -137,7 +137,7 @@ impl Server {
     }
 
     #[cfg(not(feature = "websocket-notify"))]
-    pub(crate) fn new(settings: &settings::Network) -> Result<Self> {
+    pub(crate) fn new(settings: &settings::Webserver) -> Result<Self> {
         let host = IpAddr::from_str(&settings.host.to_string())?;
         let port_setting = settings.port;
         let addr = if port_available(host, port_setting) {
@@ -153,7 +153,7 @@ impl Server {
             addr,
             capacity: settings.websocket_capacity,
             receiver_timeout: settings.websocket_receiver_timeout,
-            webserver_timeout: settings.webserver_timeout,
+            webserver_timeout: settings.timeout,
         })
     }
 
