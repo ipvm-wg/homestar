@@ -137,10 +137,6 @@ jobs:
           shared-key: check-${{ matrix.target }}-${{ matrix.os }}
       - name: cargo get
         run: cargo install cargo-get
-      - uses: actions/setup-go@v4
-        with:
-          go-version: 'stable'
-      - run: go install github.com/a8m/envsubst/cmd/envsubst@latest
       - name: prerelease
         shell: bash
         env:
@@ -159,10 +155,10 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: ${{ matrix.target }}
-          path: "homestar-runtime/npm/$node_pkg/bin"
+          path: "homestar-runtime/npm/${{ env.node_pkg }}/bin"
       - name: Display structure of downloaded files
         run: |
-          cd "homestar-runtime/npm/$node_pkg"
+          cd "homestar-runtime/npm/${{ env.node_pkg }}"
           ls -R
 
 
