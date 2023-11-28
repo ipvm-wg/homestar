@@ -2,6 +2,7 @@
 
 ## Outline
 
+- [Building and Running the Project](#building-and-running-the-project)
 - [Testing the Project](#testing-the-project)
 - [Running the Runtime on Docker](#running-the-runtime-on-docker)
 - [Nix](#nix)
@@ -10,18 +11,51 @@
 - [Recommended Development Flow](#recommended-development-flow)
 - [Conventional Commits](#conventional-commits)
 
+## Building and Running the Project
+
+- Building `homestar`:
+
+  For the fastest compile-times and prettiest logs while developing `homestar`,
+  build with:
+
+  ``` console
+  cargo build --no-default-features --features dev
+  ```
+
+  This removes underlying `wasmtime` `zstd` compression while also turning on
+  ANSI color-coded logs. If you bulid with default features, `zstd` compression
+  and other `wasmtime` defaults will be included in the build.
+
+- Running the `homestar` server/runtime:
+
+  ``` console
+  cargo run --no-default-features --features dev -- start
+  ```
+
+- Running alongside [`tokio-console`][tokio-console] for diagnosis and debugging:
+
+  ``` console
+  cargo run --no-default-features --features dev,console -- start
+  ```
+
+  Then, in another window:
+
+  ```console
+  tokio-console --retain-for 60sec
+  ```
+
 ## Testing the Project
 
 - Running the tests:
 
-We recommend using [cargo nextest][cargo-nextest], which is installed by default
-in our [Nix flake](#nix) or can be [installed separately][cargo-nextest-install].
+  We recommend using [cargo nextest][cargo-nextest], which is installed by default
+  in our [Nix flake](#nix) or can be [installed separately][cargo-nextest-install].
 
   ```console
   cargo nextest run --all-features --no-capture
   ```
 
-The above command translates to this using the default `cargo test`:
+  The above command translates to this using the default `cargo test`:
 
   ```console
   cargo test --all-features -- --nocapture
@@ -139,4 +173,5 @@ a type of `fix`, `feat`, `docs`, `ci`, `refactor`, etc..., structured like so:
 [nix]:https://nixos.org/download.html
 [nix-flake]: https://nixos.wiki/wiki/Flakes
 [pre-commit]: https://pre-commit.com/
+[tokio-console]: https://github.com/tokio-rs/console
 [wit-bindgen]: https://github.com/bytecodealliance/wit-bindgen

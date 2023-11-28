@@ -2,7 +2,7 @@
 //! sends [Event]'s to the [EventHandler].
 //!
 //! [Workflow]: homestar_core::Workflow
-//! [EventHandler]: crate::event_handler::EventHandler
+//! [EventHandler]: crate::EventHandler
 
 #[cfg(feature = "websocket-notify")]
 use crate::event_handler::event::Replay;
@@ -16,10 +16,10 @@ use crate::{
     },
     network::swarm::CapsuleTag,
     runner::{ModifiedSet, RunningTaskSet},
-    scheduler::{ExecutionGraph, TaskScheduler},
+    scheduler::ExecutionGraph,
     tasks::{RegisteredTasks, WasmContext},
     workflow::{self, Resource},
-    Db, Receipt,
+    Db, Receipt, TaskScheduler,
 };
 use anyhow::{anyhow, Context, Result};
 use chrono::NaiveDateTime;
@@ -51,8 +51,12 @@ use tracing::{debug, error, info};
 #[allow(dead_code)]
 pub(crate) type TaskSet = JoinSet<anyhow::Result<(Output, Pointer, Pointer, Ipld, Ipld)>>;
 
+/// Messages sent to [Worker] from [Runner].
+///
+/// [Runner]: crate::Runner
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum WorkerMessage {
+    /// Signal that the [Worker] has been dropped for a workflow run.
     Dropped(Cid),
 }
 
@@ -60,13 +64,25 @@ pub(crate) enum WorkerMessage {
 #[allow(dead_code)]
 #[allow(missing_debug_implementations)]
 pub(crate) struct Worker<'a, DB: Database> {
+    /// [ExecutionGraph] of the [Workflow] to run.
     pub(crate) graph: Arc<ExecutionGraph<'a>>,
+    /// [EventHandler] channel to send [Event]s to.
+    ///
+    /// [EventHandler]: crate::EventHandler
     pub(crate) event_sender: Arc<AsyncChannelSender<Event>>,
+    /// [Runner] channel to send [WorkerMessage]s to.
+    ///
+    /// [Runner]: crate::Runner
     pub(crate) runner_sender: AsyncChannelSender<WorkerMessage>,
+    /// [Database] pool to pull connections from for the [Worker] run.
     pub(crate) db: DB,
+    /// Local name of the [Workflow] being run.
     pub(crate) workflow_name: FastStr,
+    /// [Workflow] information.
     pub(crate) workflow_info: Arc<workflow::Info>,
+    /// [Workflow] settings.
     pub(crate) workflow_settings: Arc<workflow::Settings>,
+    /// [NaiveDateTime] of when the [Workflow] was started.
     pub(crate) workflow_started: NaiveDateTime,
 }
 
@@ -152,7 +168,10 @@ where
         {
             Ok(ctx) => self.run_queue(ctx.scheduler, running_tasks).await,
             Err(err) => {
-                error!(err=?err, "error initializing scheduler");
+                error!(subject = "worker.init",
+                       category = "worker.run",
+                       err=?err,
+                       "error initializing scheduler");
                 Err(anyhow!("error initializing scheduler"))
             }
         }
@@ -184,16 +203,28 @@ where
             event_sender: Arc<AsyncChannelSender<Event>>,
         ) -> Result<InstructionResult<Arg>, ResolveError> {
             info!(
+                subject = "worker.resolve_cid",
+                category = "worker.run",
                 workflow_cid = workflow_cid.to_string(),
                 cid = cid.to_string(),
                 "attempting to resolve cid in workflow"
             );
 
             if let Some(result) = linkmap.read().await.get(&cid) {
-                debug!(cid = cid.to_string(), "found in in-memory linkmap");
+                debug!(
+                    subject = "worker.resolve_cid",
+                    category = "worker.run",
+                    cid = cid.to_string(),
+                    "found CID in in-memory linkmap"
+                );
                 Ok(result.to_owned())
             } else if let Some(bytes) = resources.read().await.get(&Resource::Cid(cid)) {
-                debug!(cid = cid.to_string(), "found in resources");
+                debug!(
+                    subject = "worker.resolve_cid",
+                    category = "worker.run",
+                    cid = cid.to_string(),
+                    "found CID in map of resources"
+                );
                 Ok(InstructionResult::Ok(Arg::Ipld(Ipld::Bytes(
                     bytes.to_vec(),
                 ))))
@@ -202,7 +233,11 @@ where
                 match Db::find_instruction_by_cid(cid, conn) {
                     Ok(found) => Ok(found.output_as_arg()),
                     Err(_) => {
-                        debug!("no related instruction receipt found in the DB");
+                        debug!(
+                            subject = "worker.resolve_cid",
+                            category = "worker.run",
+                            "no related instruction receipt found in the DB"
+                        );
                         let (tx, rx) = AsyncChannel::oneshot();
                         let _ = event_sender
                             .send_async(Event::FindRecord(QueryRecord::with(
@@ -251,6 +286,8 @@ where
         {
             if scheduler.ran_length() > 0 {
                 info!(
+                    subject = "worker.replay",
+                    category = "worker.run",
                     workflow_cid = self.workflow_info.cid.to_string(),
                     "{} tasks left to run, sending last batch for workflow",
                     scheduler.run_length()
@@ -350,7 +387,10 @@ where
                             let resolved = match resolved.await {
                                 Ok(inst_result) => inst_result,
                                 Err(err) => {
-                                    error!(err=?err, "error resolving cid");
+                                    error!(subject = "worker.resolve_cid",
+                                           category = "worker.run",
+                                           err=?err,
+                                           "error resolving cid");
                                     return Err(anyhow!("error resolving cid: {err}"))
                                         .with_context(|| {
                                             format!("could not spawn task for cid: {workflow_cid}")
@@ -367,13 +407,15 @@ where
                                 Err(err) => Err(
                                     anyhow!("cannot execute wasm module: {err}"))
                                     .with_context(|| {
-                                        format!("not able to run fn {fun} for promised cid: {instruction_ptr}, in workflow {workflow_cid}")
+                                        format!("not able to run fn {fun} for cid: {instruction_ptr}, in workflow {workflow_cid}")
                                 }),
                             }
                         });
                         handles.push(handle);
                     }
                     None => error!(
+                        subject = "worker.run.task.err",
+                        category = "worker.run",
                         "no valid task/instruction-type referenced by operation: {}",
                         instruction.op()
                     ),
@@ -387,11 +429,17 @@ where
                 {
                     Ok(Ok(data)) => data,
                     Ok(Err(err)) => {
-                        error!(err=?err, "error in running task");
+                        error!(subject = "worker.run.task.err",
+                               category = "worker.run",
+                               err=?err,
+                               "error in running task");
                         break;
                     }
                     Err(err) => {
-                        error!(err=?err, "error in running task");
+                        error!(subject = "worker.run.task.err",
+                               category = "worker.run",
+                               err=?err,
+                               "error in running task");
                         break;
                     }
                 };
@@ -426,6 +474,8 @@ where
                     Db::commit_receipt(self.workflow_info.cid, receipt, &mut self.db.conn()?)?;
 
                 debug!(
+                    subject = "db.commit_receipt",
+                    category = "worker.run",
                     cid = self.workflow_info.cid.to_string(),
                     "commited to database"
                 );

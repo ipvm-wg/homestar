@@ -1,3 +1,5 @@
+//! Styled, output response for console table.
+
 use std::{
     fmt,
     io::{self, Write},

@@ -1,4 +1,4 @@
-//! RPC server implementation.
+//! CLI-focused RPC server implementation.
 
 use crate::{
     channel::{AsyncChannel, AsyncChannelReceiver, AsyncChannelSender},
@@ -138,7 +138,9 @@ impl Interface for ServerHandler {
             },
             _ = time::sleep_until(now + self.timeout) => {
                 let s = format!("server timeout of {} ms reached", self.timeout.as_millis());
-                info!("{s}");
+                info!(subject = "rpc.timeout",
+                      category = "rpc",
+                      "{s}");
                 Err(Error::FailureToReceiveOnChannel(s))
             }
 
@@ -180,7 +182,12 @@ impl Server {
             tarpc::serde_transport::tcp::listen(self.addr, MessagePack::default).await?;
         listener.config_mut().max_frame_length(usize::MAX);
 
-        info!("RPC server listening on {}", self.addr);
+        info!(
+            subject = "rpc.spawn",
+            category = "rpc",
+            "RPC server listening on {}",
+            self.addr
+        );
 
         // setup valved listener for cancellation
         let (exit, incoming) = Valved::new(listener);
@@ -203,11 +210,16 @@ impl Server {
 
             select! {
                 Ok(ServerMessage::GracefulShutdown(tx)) = self.receiver.recv_async() => {
-                    info!("RPC server shutting down");
+                    info!(subject = "shutdown",
+                          category = "homestar.shutdown",
+                          "RPC server shutting down");
                     drop(exit);
                     let _ = tx.send_async(()).await;
                 }
-                _ = fut => warn!("RPC server exited unexpectedly"),
+                _ = fut =>
+                    warn!(subject = "rpc.spawn.err",
+                          category = "rpc",
+                          "RPC server exited unexpectedly"),
             }
         });
 

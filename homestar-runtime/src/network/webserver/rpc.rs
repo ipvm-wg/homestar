@@ -1,3 +1,5 @@
+//! JSON-RPC module for registering methods and subscriptions.
+
 #[cfg(feature = "websocket-notify")]
 use super::notifier::{self, Header, Notifier, SubscriptionTyp};
 #[allow(unused_imports)]
@@ -37,7 +39,7 @@ use tokio_stream::wrappers::BroadcastStream;
 #[allow(unused_imports)]
 use tracing::warn;
 #[cfg(feature = "websocket-notify")]
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 /// Health endpoint.
 pub(crate) const HEALTH_ENDPOINT: &str = "health";
@@ -56,7 +58,7 @@ pub(crate) const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_ev
 #[cfg(feature = "websocket-notify")]
 pub(crate) const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
-/// TODO
+/// Context needed for RPC methods.
 #[cfg(feature = "websocket-notify")]
 pub(crate) struct Context {
     metrics_hdl: PrometheusHandle,
@@ -67,7 +69,7 @@ pub(crate) struct Context {
     workflow_listeners: Arc<DashMap<SubscriptionId<'static>, (Cid, FastStr)>>,
 }
 
-/// TODO
+/// Context needed for RPC methods.
 #[allow(dead_code)]
 #[cfg(not(feature = "websocket-notify"))]
 pub(crate) struct Context {
@@ -77,7 +79,7 @@ pub(crate) struct Context {
 }
 
 impl Context {
-    /// TODO
+    /// Create a new [Context] instance.
     #[cfg(feature = "websocket-notify")]
     #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
     pub(crate) fn new(
@@ -97,7 +99,7 @@ impl Context {
         }
     }
 
-    /// TODO
+    /// Create a new [Context] instance.
     #[cfg(not(feature = "websocket-notify"))]
     pub(crate) fn new(
         metrics_hdl: PrometheusHandle,
@@ -150,7 +152,12 @@ impl JsonRpc {
                 Ok(serde_json::json!({ "healthy": true, "nodeInfo": {
                     "static": static_info, "dynamic": dyn_info}}))
             } else {
-                warn!(sub = HEALTH_ENDPOINT, "did not acknowledge message in time");
+                error!(
+                    subject = "call.health",
+                    category = "jsonrpc.call",
+                    sub = HEALTH_ENDPOINT,
+                    "did not acknowledge message in time"
+                );
                 Err(internal_err("failed to get node information".to_string()))
             }
         })?;
@@ -229,7 +236,9 @@ impl JsonRpc {
                             let stream = BroadcastStream::new(rx);
                             Self::handle_workflow_subscription(sink, stream, ctx).await?;
                         } else {
-                            warn!(
+                            error!(
+                                subject = "subscription.workflow.err",
+                                category = "jsonrpc.subscription",
                                 sub = SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
                                 workflow_name = name.to_string(),
                                 "did not acknowledge message in time"
@@ -243,7 +252,10 @@ impl JsonRpc {
                         }
                     }
                     Err(err) => {
-                        warn!("failed to parse run workflow params: {}", err);
+                        warn!(subject = "subscription.workflow.err",
+                              category = "jsonrpc.subscription",
+                              err=?err,
+                              "failed to parse run workflow params");
                         let _ = pending.reject(err).await;
                     }
                 }
@@ -278,7 +290,10 @@ impl JsonRpc {
                             })) if evt == subscription_type => payload,
                             Some(Ok(_)) => continue,
                             Some(Err(err)) => {
-                                error!("subscription stream error: {}", err);
+                                error!(subject = "subscription.event.err",
+                                       category = "jsonrpc.subscription",
+                                       err=?err,
+                                       "subscription stream error");
                                 break Err(err.into());
                             }
                             None => break Ok(()),
@@ -290,7 +305,9 @@ impl JsonRpc {
                                 break Err(anyhow!("subscription sink closed"));
                             }
                             Err(TrySendError::Full(_)) => {
-                                info!("subscription sink full");
+                                error!(subject = "subscription.event.err",
+                                      category = "jsonrpc.subscription",
+                                      "subscription sink full");
                             }
                         }
                     }
@@ -326,9 +343,11 @@ impl JsonRpc {
                                 .and_then(|v| {
                                     let (v_cid, v_name) = v.value();
                                     if v_cid == &cid && (Some(v_name) == ident.as_ref() || ident.is_none()) {
-                                        debug!(cid = cid.to_string(),
-                                               ident = ident.clone().unwrap_or(
-                                                   "undefined".into()).to_string(), "received message");
+                                        debug!(
+                                            subject = "subscription.workflow",
+                                            category = "jsonrpc.subscription",
+                                            cid = cid.to_string(),
+                                            ident = ident.clone().unwrap_or("undefined".into()).to_string(), "received message");
                                         Some(payload)
                                     } else {
                                         None
@@ -359,7 +378,9 @@ impl JsonRpc {
                                 break Err(anyhow!("subscription sink closed"));
                             }
                             Err(TrySendError::Full(_)) => {
-                                info!("subscription sink full");
+                                error!(subject = "subscription.workflow.err",
+                                      category = "jsonrpc.subscription",
+                                      "subscription sink full");
                             }
                         }
                     }

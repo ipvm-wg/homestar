@@ -102,7 +102,7 @@ Our current list includes:
 
 - [websocket relay](./examples/websocket-relay/README.md) - An example
   (browser-based) application that connects to the `homestar-runtime` over a
-  websocket connection in order to run a couple static Wasm-based, image
+  WebSocket connection in order to run a couple static Wasm-based, image
   processing workflows that chain inputs and outputs.
 
 ## Workspace
@@ -176,7 +176,6 @@ We would be happy to try to answer your question or try opening a new issue on G
 - [IPVM - IPFS and WASM][ipfs-thing-ipvm] by Brooklyn Zelenka
 - [Breaking Down the Interplanetary Virtual Machine][blog-1]
 - [Ucan Invocation Spec][ucan-invocation]
-- [Wasm/Wit Demo - Februrary 2023][demo-1] by Zeeshan Lakhani
 
 ## License
 

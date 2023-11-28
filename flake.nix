@@ -57,7 +57,6 @@
           cargo-expand
           cargo-nextest
           cargo-sort
-          cargo-spellcheck
           cargo-unused-features
           cargo-udeps
           cargo-watch
@@ -101,7 +100,7 @@
 
         devRunServer = pkgs.writeScriptBin "cargo-run-dev" ''
           #!${pkgs.stdenv.shell}
-          cargo run --no-default-features --features dev -- start -c homestar-runtime/config/settings.toml
+          cargo run --no-default-features --features dev -- start
         '';
 
         doc = pkgs.writeScriptBin "doc" ''

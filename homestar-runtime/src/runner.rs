@@ -38,7 +38,7 @@ use tokio::{
     time,
 };
 use tokio_util::time::{delay_queue, DelayQueue};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 mod error;
 pub(crate) mod file;
@@ -74,13 +74,13 @@ pub(crate) type RpcReceiver = AsyncChannelReceiver<(
     Option<AsyncChannelSender<rpc::ServerMessage>>,
 )>;
 
-/// [AsyncChannelSender] for sending messages websocket server clients.
+/// [AsyncChannelSender] for sending messages WebSocket server clients.
 pub(crate) type WsSender = AsyncChannelSender<(
     webserver::Message,
     Option<AsyncChannelSender<webserver::Message>>,
 )>;
 
-/// [AsyncChannelReceiver] for receiving messages from websocket server clients.
+/// [AsyncChannelReceiver] for receiving messages from WebSocket server clients.
 pub(crate) type WsReceiver = AsyncChannelReceiver<(
     webserver::Message,
     Option<AsyncChannelSender<webserver::Message>>,
@@ -129,7 +129,7 @@ impl Runner {
     }
 
     /// MPSC channel for sending and receiving messages through to/from
-    /// websocket server clients.
+    /// WebSocket server clients.
     pub(crate) fn setup_ws_mpsc_channel(capacity: usize) -> (WsSender, WsReceiver) {
         AsyncChannel::with(capacity)
     }
@@ -262,21 +262,27 @@ impl Runner {
                             Ok(ControlFlow::Break(())) => break now.elapsed(),
                             Ok(ControlFlow::Continue(rpc::ServerMessage::Skip)) => {},
                             Ok(ControlFlow::Continue(msg @ rpc::ServerMessage::RunAck(_))) => {
-                                info!("sending message to rpc server");
+                                debug!(subject = "rpc.ack",
+                                       category = "rpc",
+                                       "sending message to rpc server");
                                 let _ = oneshot_tx.send_async(msg).await;
                             },
                             Err(err) => {
-                                error!(err=?err, "error handling rpc message");
+                                error!(subject = "rpc.err",
+                                       category = "rpc",
+                                       err=?err,
+                                       "error handling rpc message");
                                 let _ = oneshot_tx.send_async(rpc::ServerMessage::RunErr(err.into())).await;
                             },
                              _ => {}
                         }
                     }
                     Ok(msg) = ws_receiver.recv_async() => {
-                        println!("ws message: {:?}", msg);
                         match msg {
                             (webserver::Message::RunWorkflow((name, workflow)), Some(oneshot_tx)) => {
-                                info!("running workflow: {}", name);
+                                info!(subject = "workflow",
+                                      category = "workflow.run",
+                                      "running workflow: {}", name);
                                 // TODO: Parse this from the workflow data itself.
                                 let workflow_settings = workflow::Settings::default();
                                 match self.run_worker(
@@ -287,18 +293,25 @@ impl Runner {
                                     db.clone(),
                                 ).await {
                                     Ok(data) => {
-                                        info!("sending message to rpc server");
+                                        debug!(subject = "jsonrpc.ack",
+                                               category = "jsonrpc",
+                                               "sending message to jsonrpc server");
                                         let _ = oneshot_tx.send_async(webserver::Message::AckWorkflow((data.info.cid, data.name))).await;
                                     }
                                     Err(err) => {
-                                        error!(err=?err, "error handling ws message");
+                                        error!(subject = "jsonrpc.err",
+                                               category = "jsonrpc",
+                                               err=?err,
+                                               "error handling ws message");
                                         let _ = oneshot_tx.send_async(webserver::Message::RunErr(err.into())).await;
                                     }
                                 }
 
                             }
                             (webserver::Message::GetNodeInfo, Some(oneshot_tx)) => {
-                                info!("getting node info");
+                                debug!(subject = "jsonrpc.nodeinfo",
+                                       category = "jsonrpc",
+                                       "getting node info");
                                 let (tx, rx) = AsyncChannel::oneshot();
                                 let _ = self.event_sender.send_async(Event::GetListeners(tx)).await;
                                 let dyn_node_info = if let Ok(listeners) = rx.recv_deadline(Instant::now() + self.settings.node.network.webserver.timeout) {
@@ -331,12 +344,16 @@ impl Runner {
                             Err(_) => Poll::Pending,
                         }
                     ) => {
-                        info!("worker expired, aborting");
+                        info!(subject = "worker.expired",
+                              category = "worker",
+                              "worker expired, aborting");
                         let _ = self.abort_worker(*expired.get_ref());
                     },
                     // Handle shutdown signal.
                     _ = Self::shutdown_signal() => {
-                        info!("gracefully shutting down runner");
+                        info!(subject = "shutdown",
+                              category = "homestar.shutdown",
+                              "gracefully shutting down runner");
 
                         let now = time::Instant::now();
                         let drain_timeout = now + shutdown_timeout;
@@ -347,7 +364,9 @@ impl Runner {
                             },
                             // Force shutdown upon drain timeout.
                             _ = time::sleep_until(drain_timeout) => {
-                                info!("shutdown timeout reached, shutting down runner anyway");
+                                info!(subject = "shutdown",
+                                      category = "homestar.shutdown",
+                                      "shutdown timeout reached, shutting down runner anyway");
                                 break now.elapsed();
                             }
                         }
@@ -360,7 +379,11 @@ impl Runner {
         if shutdown_time_left < shutdown_timeout {
             self.runtime
                 .shutdown_timeout(shutdown_timeout - shutdown_time_left);
-            info!("runner shutdown complete");
+            info!(
+                subject = "shutdown",
+                category = "homestar.shutdown",
+                "runner shutdown complete"
+            );
         }
 
         Ok(())
@@ -488,9 +511,18 @@ impl Runner {
         let mut sigterm = signal(SignalKind::terminate())?;
 
         select! {
-            _ = tokio::signal::ctrl_c() => info!("CTRL-C received, shutting down"),
-            _ = sigint.recv() => info!("SIGINT received, shutting down"),
-            _ = sigterm.recv() => info!("SIGTERM received, shutting down"),
+            _ = tokio::signal::ctrl_c() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "CTRL-C received, shutting down"),
+            _ = sigint.recv() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "SIGINT received, shutting down"),
+            _ = sigterm.recv() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "SIGTERM received, shutting down"),
         }
         Ok(())
     }
@@ -503,10 +535,22 @@ impl Runner {
         let mut sighup = windows::ctrl_break()?;
 
         select! {
-            _ = tokio::signal::ctrl_c() => info!("CTRL-C received, shutting down"),
-            _ = sigint.recv() => info!("SIGINT received, shutting down"),
-            _ = sigterm.recv() => info!("SIGTERM received, shutting down"),
-            _ = sighup.recv() => info!("SIGHUP received, shutting down")
+            _ = tokio::signal::ctrl_c() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "CTRL-C received, shutting down"),
+            _ = sigint.recv() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "SIGINT received, shutting down"),
+            _ = sigterm.recv() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "SIGTERM received, shutting down"),
+            _ = sighup.recv() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "SIGHUP received, shutting down")
         }
         Ok(())
     }
@@ -526,7 +570,11 @@ impl Runner {
             .await;
         let _ = shutdown_receiver;
 
-        info!("shutting down webserver");
+        info!(
+            subject = "shutdown",
+            category = "homestar.shutdown",
+            "shutting down webserver"
+        );
         let _ = ws_hdl.stop();
         ws_hdl.clone().stopped().await;
 
@@ -553,7 +601,11 @@ impl Runner {
     ) -> Result<ControlFlow<(), rpc::ServerMessage>> {
         match msg {
             rpc::ServerMessage::ShutdownCmd => {
-                info!("RPC shutdown signal received, shutting down runner");
+                info!(
+                    subject = "rpc.command",
+                    category = "rpc",
+                    "RPC shutdown signal received, shutting down runner"
+                );
                 let drain_timeout = now + self.settings.node.shutdown_timeout;
                 select! {
                     // we can unwrap here b/c we know we have a sender based
@@ -562,7 +614,9 @@ impl Runner {
                         Ok(ControlFlow::Break(()))
                     },
                     _ = time::sleep_until(drain_timeout) => {
-                        info!("shutdown timeout reached, shutting down runner anyway");
+                        info!(subject = "shutdown",
+                              category = "homestar.shutdown",
+                              "shutdown timeout reached, shutting down runner anyway");
                         Ok(ControlFlow::Break(()))
                     }
                 }
@@ -582,7 +636,12 @@ impl Runner {
                 ))))
             }
             msg => {
-                warn!("received unexpected message: {:?}", msg);
+                warn!(
+                    subject = "rpc.command",
+                    category = "rpc",
+                    "received unexpected message: {:?}",
+                    msg
+                );
                 Ok(ControlFlow::Continue(rpc::ServerMessage::Skip))
             }
         }
@@ -619,8 +678,11 @@ impl Runner {
         // Spawn worker, which initializees the scheduler and runs
         // the workflow.
         info!(
+            subject = "workflow.run",
+            category = "workflow",
             cid = worker.workflow_info.cid.to_string(),
-            "running workflow with settings: {:#?}", worker.workflow_settings
+            "running workflow with settings: {:#?}",
+            worker.workflow_settings
         );
 
         // Provide workflow to network.

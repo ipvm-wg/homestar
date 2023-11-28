@@ -25,26 +25,45 @@ use homestar_wasm::io::Arg;
 use indexmap::IndexMap;
 use libipld::Cid;
 
-/// TODO
+/// Utility structure for building out [Worker]s for testing purposes.
+///
+/// [Worker]: crate::Worker
 #[cfg(feature = "ipfs")]
 pub(crate) struct WorkerBuilder<'a> {
+    /// In-memory database for testing.
     db: MemoryDb,
+    /// Event channel sender.
     event_sender: AsyncChannelSender<Event>,
+    /// [IPFS client].
+    ///
+    /// [IPFS client]: crate::network::IpfsCli
     ipfs: IpfsCli,
+    /// Runner channel sender.
     runner_sender: AsyncChannelSender<WorkerMessage>,
+    /// Name of the workflow.
     name: Option<String>,
+    /// [Workflow] to run.
     workflow: Workflow<'a, Arg>,
+    /// [Workflow] settings.
     workflow_settings: workflow::Settings,
 }
 
-/// TODO
+/// Utility structure for building out [Worker]s for testing purposes.
+///
+/// [Worker]: crate::Worker
 #[cfg(not(feature = "ipfs"))]
 pub(crate) struct WorkerBuilder<'a> {
+    /// In-memory database for testing.
     db: MemoryDb,
+    /// Event channel sender.
     event_sender: AsyncChannelSender<Event>,
+    /// Runner channel sender.
     runner_sender: AsyncChannelSender<WorkerMessage>,
+    /// Name of the workflow.
     name: Option<String>,
+    /// [Workflow] to run.
     workflow: Workflow<'a, Arg>,
+    /// [Workflow] settings.
     workflow_settings: workflow::Settings,
 }
 
@@ -113,7 +132,10 @@ impl<'a> WorkerBuilder<'a> {
         .unwrap()
     }
 
-    /// TODO
+    /// Fetch-function closure for the [Worker]/[Scheduler] to use.
+    ///
+    /// [Worker]: crate::Worker
+    /// [Scheduler]: crate::TaskScheduler
     #[cfg(feature = "ipfs")]
     #[allow(dead_code)]
     pub(crate) fn fetch_fn(
@@ -129,7 +151,10 @@ impl<'a> WorkerBuilder<'a> {
         fetch_fn
     }
 
-    /// TODO
+    /// Fetch-function closure for the [Worker]/[Scheduler] to use.
+    ///
+    /// [Worker]: crate::Worker
+    /// [Scheduler]: crate::TaskScheduler
     #[cfg(not(feature = "ipfs"))]
     #[allow(dead_code)]
     pub(crate) fn fetch_fn(

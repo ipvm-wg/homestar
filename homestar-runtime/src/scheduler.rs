@@ -19,7 +19,7 @@ use indexmap::IndexMap;
 use libipld::Cid;
 use std::{ops::ControlFlow, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
-use tracing::info;
+use tracing::debug;
 
 /// Type alias for a [Dag] set of batched nodes.
 ///
@@ -150,7 +150,11 @@ impl<'a> TaskScheduler<'a> {
                             }
                         }
                         Err(_) => {
-                            info!("receipt not available in the database");
+                            debug!(
+                                subject = "receipt.db.check",
+                                category = "scheduler.run",
+                                "receipt not available in the database"
+                            );
                             continue;
                         }
                     }
@@ -199,7 +203,9 @@ impl<'a> TaskScheduler<'a> {
         }
     }
 
-    /// TODO
+    /// Get the number of tasks that have already ran in the [Workflow].
+    ///
+    /// [Workflow]: homestar_core::Workflow
     #[allow(dead_code)]
     pub(crate) fn ran_length(&self) -> usize {
         self.ran
@@ -208,7 +214,9 @@ impl<'a> TaskScheduler<'a> {
             .unwrap_or_default()
     }
 
-    /// TODO
+    /// Get the number of tasks left to run in the [Workflow].
+    ///
+    /// [Workflow]: homestar_core::Workflow
     #[allow(dead_code)]
     pub(crate) fn run_length(&self) -> usize {
         self.run.iter().flatten().collect::<Vec<_>>().len()

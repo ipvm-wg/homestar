@@ -1,4 +1,4 @@
-//! Settings / Configuration.
+//! General runtime settings / configuration.
 
 use config::{Config, ConfigError, Environment, File};
 use http::Uri;
@@ -162,7 +162,7 @@ pub(crate) struct Webserver {
     pub(crate) host: Uri,
     /// Webserver-server port.
     pub(crate) port: u16,
-    /// TODO
+    /// Webserver timeout.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) timeout: Duration,
     /// Number of *bounded* clients to send messages to, used for a

@@ -76,6 +76,7 @@ lto = true
 debug-assertions = false
 
 [profile.release.package.homestar-runtime]
+# Will slow-down compile, but improve perf on generated code.
 codegen-units = 1
 debug-assertions = false
 
@@ -87,6 +88,7 @@ debug-assertions = false
 # Example: `cargo build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn`
 [profile.release-wasm-fn]
 inherits = "release"
+# Will slow-down compile, but improve perf on generated code.
 codegen-units = 1
 # Tell `rustc` to optimize for small code size.
 opt-level = "z" # 'z' to optimize "aggressively" for size

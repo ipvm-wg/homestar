@@ -17,6 +17,7 @@
 //! [homestar-core]: homestar_core
 //! [homestar-wasm]: homestar_wasm
 
+pub mod channel;
 pub mod cli;
 pub mod daemon;
 pub mod db;
@@ -37,12 +38,14 @@ pub mod workflow;
 pub mod test_utils;
 
 pub use db::Db;
-pub use event_handler::channel;
 pub(crate) mod libp2p;
 pub use logger::*;
 pub(crate) mod metrics;
+#[allow(unused_imports)]
+pub(crate) use event_handler::EventHandler;
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};
 pub use runner::Runner;
+pub(crate) use scheduler::TaskScheduler;
 pub use settings::Settings;
 pub(crate) use worker::Worker;
 pub use workflow::WORKFLOW_TAG;

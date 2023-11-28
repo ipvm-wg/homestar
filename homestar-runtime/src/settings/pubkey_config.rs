@@ -1,3 +1,5 @@
+//! Pubkey configuration.
+
 use anyhow::{anyhow, Context};
 use libp2p::{identity, identity::secp256k1};
 use rand::{Rng, SeedableRng};
@@ -54,7 +56,11 @@ impl PubkeyConfig {
     pub(crate) fn keypair(&self) -> anyhow::Result<identity::Keypair> {
         match self {
             PubkeyConfig::Random => {
-                info!("generating random ed25519 key");
+                info!(
+                    subject = "pubkey_config.random",
+                    category = "pubkey_config",
+                    "generating random ed25519 key"
+                );
                 Ok(identity::Keypair::generate_ed25519())
             }
             PubkeyConfig::GenerateFromSeed(RNGSeed { key_type, seed }) => {
@@ -64,14 +70,22 @@ impl PubkeyConfig {
 
                 match key_type {
                     KeyType::Ed25519 => {
-                        info!("generating random ed25519 key from seed");
+                        info!(
+                            subject = "pubkey_config.random_seed.ed25519",
+                            category = "pubkey_config",
+                            "generating random ed25519 key from seed"
+                        );
 
                         identity::Keypair::ed25519_from_bytes(new_key).map_err(|e| {
                             anyhow!("failed to generate ed25519 key from random: {:?}", e)
                         })
                     }
                     KeyType::Secp256k1 => {
-                        info!("generating random secp256k1 key from seed");
+                        info!(
+                            subject = "pubkey_config.random_seed.secp256k1",
+                            category = "pubkey_config",
+                            "generating random secp256k1 key from seed"
+                        );
 
                         let sk =
                             secp256k1::SecretKey::try_from_bytes(&mut new_key).map_err(|e| {
@@ -94,7 +108,12 @@ impl PubkeyConfig {
                     KeyType::Ed25519 => {
                         const PEM_HEADER: &str = "PRIVATE KEY";
 
-                        info!("importing ed25519 key from: {}", path.display());
+                        info!(
+                            subject = "pubkey_config.path.ed25519",
+                            category = "pubkey_config",
+                            "importing ed25519 key from: {}",
+                            path.display()
+                        );
 
                         let (tag, mut key) = sec1::der::pem::decode_vec(&buf)
                             .map_err(|e| anyhow!("key file must be PEM formatted: {:#?}", e))?;
@@ -107,7 +126,12 @@ impl PubkeyConfig {
                             .with_context(|| "imported key material was invalid for ed25519")
                     }
                     KeyType::Secp256k1 => {
-                        info!("importing secp256k1 key from: {}", path.display());
+                        info!(
+                            subject = "pubkey_config.path.secp256k1",
+                            category = "pubkey_config",
+                            "importing secp256k1 key from: {}",
+                            path.display()
+                        );
 
                         let sk = match path.extension().and_then(|ext| ext.to_str()) {
                             Some("der") => sec1::EcPrivateKey::from_der(buf.as_slice()).map_err(|e| anyhow!("failed to parse DER encoded secp256k1 key: {e:#?}")),

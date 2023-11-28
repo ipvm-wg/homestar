@@ -1,3 +1,7 @@
+//! [Message] type for messages transmitted over [gossipsub].
+//!
+//! [gossipsub]: libp2p::gossipsub
+
 use anyhow::{anyhow, Result};
 use homestar_core::workflow::Nonce;
 use libipld::{self, cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld};

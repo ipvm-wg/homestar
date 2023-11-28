@@ -7,10 +7,15 @@ use std::time::Duration;
 /// Workflow settings.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Settings {
+    /// Number of retries for a given workflow.
     pub(crate) retries: u32,
+    /// Maximum delay between retries.
     pub(crate) retry_max_delay: Duration,
+    /// Initial delay between retries.
     pub(crate) retry_initial_delay: Duration,
+    /// Timeout for P2P/DHT operations.
     pub(crate) p2p_timeout: Duration,
+    /// Timeout for a given workflow.
     pub(crate) timeout: Duration,
 }
 

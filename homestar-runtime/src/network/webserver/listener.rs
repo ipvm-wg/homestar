@@ -1,3 +1,5 @@
+//! Listener for incoming requests types.
+
 use faststr::FastStr;
 use homestar_core::{ipld::DagJson, Workflow};
 use homestar_wasm::io::Arg;
@@ -5,7 +7,7 @@ use names::{Generator, Name};
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::value::RawValue;
 
-/// A [Workflow] run command via a websocket channel.
+/// A [Workflow] run command via a WebSocket channel.
 ///
 /// Note: We leverage the [RawValue] type in order to use our [DagJson]
 /// implementation, which is not a direct [Deserialize] implementation.

@@ -1,3 +1,5 @@
+//! Evented notifications emitted to clients.
+
 use crate::{
     network::webserver::{
         notifier::{self, Header, Message, Notifier, SubscriptionTyp},
@@ -16,8 +18,8 @@ use homestar_core::{
 };
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, str::FromStr};
-use tracing::{info, warn};
+use std::{collections::BTreeMap, fmt, str::FromStr};
+use tracing::{debug, warn};
 
 pub(crate) mod receipt;
 pub(crate) mod swarm;
@@ -39,9 +41,11 @@ pub(crate) fn emit_receipt(
     let notification = ReceiptNotification::with(invocation_receipt, receipt_cid, metadata.clone());
 
     if let Ok(json) = notification.to_json() {
-        info!(
+        debug!(
+            subject = "notification.receipt",
+            category = "notification",
             cid = receipt_cid.to_string(),
-            "Sending receipt to websocket"
+            "emitting receipt to WebSocket"
         );
         if let Some(ipld) = metadata {
             match (ipld.get(WORKFLOW_KEY), ipld.get(WORKFLOW_NAME_KEY)) {
@@ -58,7 +62,12 @@ pub(crate) fn emit_receipt(
             }
         }
     } else {
-        warn!("Unable to serialize receipt as bytes: {receipt:?}");
+        warn!(
+            subject = "notification.err",
+            category = "notification",
+            cid = receipt_cid.to_string(),
+            "unable to serialize receipt notification as bytes"
+        );
     }
 }
 
@@ -77,7 +86,12 @@ pub(crate) fn emit_event(
     if let Ok(json) = notification.to_json() {
         let _ = notifier.notify(Message::new(header, json));
     } else {
-        warn!("Unable to serialize notification as bytes: {notification:?}");
+        warn!(
+            subject = "notification.err",
+            category = "notification",
+            "unable to serialize event notification as bytes: {}",
+            notification.typ
+        );
     }
 }
 
@@ -151,6 +165,16 @@ impl TryFrom<Ipld> for EventNotification {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum EventNotificationTyp {
     SwarmNotification(SwarmNotification),
+}
+
+impl fmt::Display for EventNotificationTyp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EventNotificationTyp::SwarmNotification(subtype) => {
+                write!(f, "swarm notification: {}", subtype)
+            }
+        }
+    }
 }
 
 impl DagJson for EventNotificationTyp where Ipld: From<EventNotificationTyp> {}

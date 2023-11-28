@@ -1,9 +1,8 @@
-//! [libp2p], multi-use [http] and [websocket] server, and [ipfs] networking
+//! [libp2p], multi-use [HTTP] and [WebSocket] server, and [ipfs] networking
 //! interfaces.
 //!
-//! [libp2p]: libp2p
-//! [http]: jsonrpsee::server
-//! [websocket]: jsonrpsee::server
+//! [HTTP]: jsonrpsee::server
+//! [WebSocket]: jsonrpsee::server
 //! [ipfs]: ipfs_api
 
 pub(crate) mod error;
