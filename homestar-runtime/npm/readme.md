@@ -6,9 +6,11 @@
 
 rustup target add aarch64-unknown-linux-gnu
 rustup target add x86_64-unknown-linux-musl
+cargo install cargo-get
+cargo get workspace.package.version
 
 
-export node_version=0.0.5
+export node_version=$(cargo get package.version)
 export bin="homestar"
 
 
@@ -50,7 +52,8 @@ cp "../../target/x86_64-unknown-linux-musl/release/${bin}" "binaries/${node_pkg}
 
 # publish the package
 cd "${node_pkg}"
-npm publish --access public
+npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
+npm publish --access public --tag rc
 ```
 
 ## TODO
