@@ -35,9 +35,8 @@ To get started, please install:
 
 ## Usage
 
-1. Run `cargo run -- start -c config/settings.toml` to start the runtime and
-   an IPFS daemon as a background process. This runtime includes
-   ANSI-coded logging by default.
+1. Run `cargo run -- start` to start the runtime and an IPFS daemon as a
+   background process. This runtime includes ANSI-coded logging by default.
 
 2. In a separate terminal window, run `npm install --prefix relay-app` to
    install dependencies and `npm run --prefix relay-app dev` to start the
@@ -67,18 +66,17 @@ need: `brew install rust npm ipfs`
 
 We have packaged homestar binaries using brew, so
 `brew install fission-codes/fission/homestar` will install everything you need,
-including `ipfs`. You will still need `npm` to run this example. From this folder,
-you can then run the example like this:
+including `ipfs`. You will still need `npm` to run this example. From this folder, you can then run the example like this:
 
 ```
-homestar start --config ./config/settings.toml --db homestar.db`
+homestar start --db homestar.db`
 ```
 
 Running `homestar` via `cargo run` requires a minimum Rust version of
 `1.70.0`. If you've got an older install of rust, update it with
 `rustup update`.
 
-You do not have to start-up Kubo (IPFS) on your own. The example will do this
+You do not have to start Kubo (IPFS) on your own. The example will do this
 for you, and use `examples/websocket-relay/tmp/.ipfs` as a local blockstore.
 Feel free to discard it when you don't need it.
 
