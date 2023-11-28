@@ -18,9 +18,9 @@ on:
   pull_request:
     branches: [ '**' ]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# concurrency:
+#   group: ${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: true
 
 jobs:
   binary-builds:
@@ -156,7 +156,7 @@ jobs:
         with:
           name: ${{ matrix.target }}
           path: "homestar-runtime/npm/${{ env.node_pkg }}/bin"
-      - name: Display structure of downloaded files
+      - name: ls
         run: |
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
           ls -R
