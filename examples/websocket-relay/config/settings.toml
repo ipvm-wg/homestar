@@ -1,5 +1,0 @@
-[node]
-
-[node.network.keypair_config]
-# generate key using a seed
-random_seed = { key_type = "secp256k1", seed = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" }

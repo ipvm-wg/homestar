@@ -37,8 +37,10 @@
   },
   "type": "module",
   "dependencies": {
+    "@fission-codes/homestar": "^1.0.0",
     "@zerodevx/svelte-json-view": "^1.0.3",
     "clipboard-copy": "^4.0.1",
+    "iso-base": "^2.0.1",
     "svelvet": "8.1.0"
   }
 }

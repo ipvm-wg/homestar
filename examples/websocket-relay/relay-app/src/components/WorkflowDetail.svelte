@@ -3,7 +3,7 @@
   import { slide } from "svelte/transition";
   import { quartOut } from "svelte/easing";
 
-  import { workflowOneJson, workflowTwoJson } from "$lib/workflow";
+  import { workflowOnePromised, workflowTwoPromised } from "$lib/workflow";
 </script>
 
 <div
@@ -14,13 +14,17 @@
     <div class="p-4 overflow-y-auto scrollbar-hide">
       <div class="text-lg uppercase font-medium">Workflow One</div>
       <div class="jsonview">
-        <JsonView json={workflowOneJson} />
+        {#await workflowOnePromised then workflowOne}
+          <JsonView json={workflowOne} />
+        {/await}
       </div>
     </div>
     <div class="p-4 overflow-y-auto scrollbar-hide">
       <div class="text-lg uppercase font-medium">Workflow Two</div>
       <div class="jsonview">
-        <JsonView json={workflowTwoJson} />
+        {#await workflowTwoPromised then workflowTwo}
+          <JsonView json={workflowTwo} />
+        {/await}
       </div>
     </div>
   </div>
