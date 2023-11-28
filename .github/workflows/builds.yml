@@ -127,14 +127,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Rust Toolchain
-        id: toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Cache Project
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          shared-key: check-${{ matrix.target }}-${{ matrix.os }}
       - name: cargo get
         run: cargo install cargo-get
       - name: prerelease
@@ -146,9 +138,8 @@ jobs:
           node_pkg: ${{ matrix.bin }}-${{ matrix.os }}-${{ matrix.arch }}
         run: |
           export node_version=$(cargo get workspace.package.version)
-          cd homestar-runtime/npm
-          echo "node_bin=${bin}" >> "$GITHUB_ENV"
           echo "node_pkg=${node_pkg}" >> "$GITHUB_ENV"
+          cd homestar-runtime/npm
           mkdir -p "${node_pkg}/bin"
           envsubst < package.json.tmpl > "${node_pkg}/package.json"
       - name: donwload artifact
@@ -159,6 +150,8 @@ jobs:
       - name: ls
         run: |
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
+          npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
+          cat package.json
           ls -R
 
 
