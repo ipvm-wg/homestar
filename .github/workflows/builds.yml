@@ -155,16 +155,15 @@ jobs:
           echo "node_pkg=${node_pkg}" >> "$GITHUB_ENV"
           mkdir -p "${node_pkg}/bin"
           envsubst < package.json.tmpl > "${node_pkg}/package.json"
-          cd "${node_pkg}"
-      - name: test
-        run: echo "$node_pkg"
       - name: donwload artifact
         uses: actions/download-artifact@v2
         with:
           name: ${{ matrix.target }}
-          path: homestar-runtime/npm/$node_pkg/bin
+          path: "homestar-runtime/npm/$node_pkg/bin"
       - name: Display structure of downloaded files
-        run: ls -R
+        run: |
+          cd "homestar-runtime/npm/$node_pkg"
+          ls -R
 
 
 
