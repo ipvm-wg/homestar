@@ -160,12 +160,12 @@ impl Server {
     pub(crate) fn new(settings: &settings::Network, runner_sender: Arc<RpcSender>) -> Self {
         let (tx, rx) = AsyncChannel::oneshot();
         Self {
-            addr: SocketAddr::new(settings.rpc_host, settings.rpc_port),
+            addr: SocketAddr::new(settings.rpc.host, settings.rpc.port),
             sender: tx.into(),
             receiver: rx,
             runner_sender,
-            max_connections: settings.rpc_max_connections,
-            timeout: settings.rpc_server_timeout,
+            max_connections: settings.rpc.max_connections,
+            timeout: settings.rpc.server_timeout,
         }
     }
 

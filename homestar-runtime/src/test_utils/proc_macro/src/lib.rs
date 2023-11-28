@@ -70,8 +70,8 @@ pub fn db_async_test(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     runner.runtime.block_on(rpc_server.spawn()).unwrap();
 ///     runner.runtime.spawn(async move {
 ///         let addr = SocketAddr::new(
-///             settings.node.network.rpc_host,
-///             settings.node.network.rpc_port,
+///             settings.node.network.rpc.host,
+///             settings.node.network.rpc.port,
 ///         );
 ///         let client = Client::new(addr, context::current()).await.unwrap();
 ///         let response = client.ping().await.unwrap();
@@ -98,11 +98,11 @@ pub fn runner_test(_attr: TokenStream, item: TokenStream) -> TokenStream {
             impl TestRunner {
                 fn start() -> TestRunner {
                     let mut settings = crate::Settings::load().unwrap();
-                    settings.node.network.webserver_port = ::homestar_core::test_utils::ports::get_port() as u16;
-                    settings.node.network.rpc_port = ::homestar_core::test_utils::ports::get_port() as u16;
-                    settings.node.network.metrics_port = ::homestar_core::test_utils::ports::get_port() as u16;
+                    settings.node.network.webserver.port = ::homestar_core::test_utils::ports::get_port() as u16;
+                    settings.node.network.rpc.port = ::homestar_core::test_utils::ports::get_port() as u16;
+                    settings.node.network.metrics.port = ::homestar_core::test_utils::ports::get_port() as u16;
                     settings.node.db.url = Some(format!("{}.db", #func_name_as_string));
-                    settings.node.network.websocket_receiver_timeout = std::time::Duration::from_millis(500);
+                    settings.node.network.webserver.websocket_receiver_timeout = std::time::Duration::from_millis(500);
                     let db = crate::test_utils::db::MemoryDb::setup_connection_pool(&settings.node, None).unwrap();
                     let runner = crate::Runner::start(settings.clone(), db).unwrap();
                     TestRunner { runner, settings }

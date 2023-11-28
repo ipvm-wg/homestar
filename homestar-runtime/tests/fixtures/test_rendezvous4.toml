@@ -1,13 +1,14 @@
-[monitoring]
+[node]
+
+[node.monitoring]
 process_collector_interval = 500
 console_subscriber_port = 5588
 
-[node]
+# Peer ID 12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq
+[node.network.keypair_config]
+existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519_3.pem" }
 
-[node.network]
-metrics_port = 4038
-rpc_port = 9828
-webserver_port = 8028
+[node.network.libp2p]
 listen_address = "/ip4/127.0.0.1/tcp/7003"
 announce_addresses = [
   "/ip4/127.0.0.1/tcp/7003/p2p/12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq",
@@ -15,9 +16,18 @@ announce_addresses = [
 node_addresses = [
   "/ip4/127.0.0.1/tcp/7000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
 ]
-rendezvous_registration_ttl = 1
-enable_mdns = false
 
-# Peer ID 12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq
-[node.network.keypair_config]
-existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519_3.pem" }
+[node.network.libp2p.mdns]
+enable = false
+
+[node.network.libp2p.rendezvous]
+registration_ttl = 1
+
+[node.network.metrics]
+port = 4038
+
+[node.network.rpc]
+port = 9828
+
+[node.network.webserver]
+port = 8028

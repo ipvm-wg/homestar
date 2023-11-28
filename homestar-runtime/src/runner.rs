@@ -165,10 +165,10 @@ impl Runner {
         db: impl Database + 'static,
         runtime: tokio::runtime::Runtime,
     ) -> Result<Self> {
-        let swarm = runtime.block_on(swarm::new(settings.node()))?;
+        let swarm = runtime.block_on(swarm::new(settings.node().network()))?;
         let peer_id = *swarm.local_peer_id();
 
-        let webserver = webserver::Server::new(settings.node().network())?;
+        let webserver = webserver::Server::new(settings.node().network().webserver())?;
 
         #[cfg(feature = "websocket-notify")]
         let (ws_msg_tx, ws_evt_tx) = {
@@ -179,9 +179,10 @@ impl Runner {
         };
 
         #[cfg(feature = "websocket-notify")]
-        let event_handler = EventHandler::new(swarm, db, settings.node(), ws_evt_tx, ws_msg_tx);
+        let event_handler =
+            EventHandler::new(swarm, db, settings.node().network(), ws_evt_tx, ws_msg_tx);
         #[cfg(not(feature = "websocket-notify"))]
-        let event_handler = EventHandler::new(swarm, db, settings.node());
+        let event_handler = EventHandler::new(swarm, db, settings.node().network());
 
         let event_sender = event_handler.sender();
 
@@ -213,7 +214,7 @@ impl Runner {
 
         #[cfg(feature = "monitoring")]
         let metrics_hdl: PrometheusHandle = self.runtime.block_on(crate::metrics::start(
-            self.settings.monitoring(),
+            self.settings.node.monitoring(),
             self.settings.node.network(),
         ))?;
 
@@ -300,7 +301,7 @@ impl Runner {
                                 info!("getting node info");
                                 let (tx, rx) = AsyncChannel::oneshot();
                                 let _ = self.event_sender.send_async(Event::GetListeners(tx)).await;
-                                let dyn_node_info = if let Ok(listeners) = rx.recv_deadline(Instant::now() + self.settings.node.network.webserver_timeout) {
+                                let dyn_node_info = if let Ok(listeners) = rx.recv_deadline(Instant::now() + self.settings.node.network.webserver.timeout) {
                                     DynamicNodeInfo::new(listeners)
                                 } else {
                                     DynamicNodeInfo::new(vec![])
@@ -699,16 +700,17 @@ mod test {
         let rpc_sender = rpc_server.sender();
 
         let addr = SocketAddr::new(
-            settings.node.network.rpc_host,
-            settings.node.network.rpc_port,
+            settings.node.network.rpc.host,
+            settings.node.network.rpc.port,
         );
 
         let ws_hdl = runner.runtime.block_on(async {
             rpc_server.spawn().await.unwrap();
             #[cfg(feature = "monitoring")]
-            let metrics_hdl = crate::metrics::start(settings.monitoring(), settings.node.network())
-                .await
-                .unwrap();
+            let metrics_hdl =
+                crate::metrics::start(settings.node.monitoring(), settings.node.network())
+                    .await
+                    .unwrap();
             #[cfg(not(feature = "monitoring"))]
             let metrics_hdl = crate::metrics::start(settings.node.network())
                 .await
@@ -758,8 +760,8 @@ mod test {
 
         runner.runtime.spawn(async move {
             let addr = SocketAddr::new(
-                settings.node.network.rpc_host,
-                settings.node.network.rpc_port,
+                settings.node.network.rpc.host,
+                settings.node.network.rpc.port,
             );
 
             let client = Client::new(addr, context::current()).await.unwrap();
