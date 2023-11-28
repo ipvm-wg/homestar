@@ -1,20 +1,30 @@
-[monitoring]
-process_collector_interval = 500
-console_subscriber_port = 5582
-
 [node]
 
-[node.network]
-metrics_port = 4032
-rpc_port = 9822
-webserver_port = 8022
-listen_address = "/ip4/127.0.0.1/tcp/7010"
-node_addresses = [
-  "/ip4/127.0.0.1/tcp/7011/p2p/16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
-]
-enable_mdns = false
-enable_rendezvous_client = false
+[node.monitoring]
+process_collector_interval = 500
+console_subscriber_port = 5582
 
 # Peer ID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }
+
+[node.network.libp2p]
+listen_address = "/ip4/127.0.0.1/tcp/7010"
+node_addresses = [
+  "/ip4/127.0.0.1/tcp/7011/p2p/16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+]
+
+[node.network.libp2p.mdns]
+enable = false
+
+[node.network.rendezvous]
+enable_client = false
+
+[node.network.metrics]
+port = 4032
+
+[node.network.rpc]
+port = 9822
+
+[node.network.webserver]
+port = 8022

@@ -35,9 +35,8 @@ use tracing::{info, warn};
 pub(crate) const HOMESTAR_PROTOCOL_VER: &str = "homestar/0.0.1";
 
 /// Build a new [Swarm] with a given transport and a tokio executor.
-pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> {
+pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBehaviour>> {
     let keypair = settings
-        .network
         .keypair_config
         .keypair()
         .with_context(|| "failed to generate/import keypair for libp2p".to_string())?;
@@ -49,14 +48,14 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         .upgrade(upgrade::Version::V1Lazy)
         .authenticate(noise::Config::new(&keypair)?)
         .multiplex(yamux::Config::default())
-        .timeout(settings.network.transport_connection_timeout)
+        .timeout(settings.libp2p.transport_connection_timeout)
         .boxed();
 
     let mut swarm = Swarm::new(
         transport,
         ComposedBehaviour {
-            gossipsub: Toggle::from(if settings.network.enable_pubsub {
-                Some(pubsub::new(keypair.clone(), settings)?)
+            gossipsub: Toggle::from(if settings.libp2p.pubsub.enable {
+                Some(pubsub::new(keypair.clone(), settings.libp2p().pubsub())?)
             } else {
                 None
             }),
@@ -85,24 +84,24 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
                 )],
                 request_response::Config::default(),
             ),
-            mdns: Toggle::from(if settings.network.enable_mdns {
+            mdns: Toggle::from(if settings.libp2p.mdns.enable {
                 Some(mdns::Behaviour::new(
                     mdns::Config {
-                        ttl: settings.network.mdns_ttl,
-                        query_interval: settings.network.mdns_query_interval,
-                        enable_ipv6: settings.network.mdns_enable_ipv6,
+                        ttl: settings.libp2p.mdns.ttl,
+                        query_interval: settings.libp2p.mdns.query_interval,
+                        enable_ipv6: settings.libp2p.mdns.enable_ipv6,
                     },
                     peer_id,
                 )?)
             } else {
                 None
             }),
-            rendezvous_client: Toggle::from(if settings.network.enable_rendezvous_client {
+            rendezvous_client: Toggle::from(if settings.libp2p.rendezvous.enable_client {
                 Some(rendezvous::client::Behaviour::new(keypair.clone()))
             } else {
                 None
             }),
-            rendezvous_server: Toggle::from(if settings.network.enable_rendezvous_server {
+            rendezvous_server: Toggle::from(if settings.libp2p.rendezvous.enable_server {
                 Some(rendezvous::server::Behaviour::new(
                     rendezvous::server::Config::with_min_ttl(
                         rendezvous::server::Config::default(),
@@ -121,7 +120,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         swarm::Config::with_tokio_executor(),
     );
 
-    init(&mut swarm, &settings.network)?;
+    init(&mut swarm, settings)?;
 
     Ok(swarm)
 }
@@ -139,7 +138,7 @@ pub(crate) fn init(
     settings: &settings::Network,
 ) -> Result<()> {
     // Listen-on given address
-    swarm.listen_on(settings.listen_address.to_string().parse()?)?;
+    swarm.listen_on(settings.libp2p.listen_address.to_string().parse()?)?;
 
     // Set Kademlia server mode
     swarm
@@ -148,8 +147,8 @@ pub(crate) fn init(
         .set_mode(Some(kad::Mode::Server));
 
     // add external addresses from settings
-    if !settings.announce_addresses.is_empty() {
-        for addr in settings.announce_addresses.iter() {
+    if !settings.libp2p.announce_addresses.is_empty() {
+        for addr in settings.libp2p.announce_addresses.iter() {
             swarm.add_external_address(addr.clone());
         }
     } else {
@@ -160,8 +159,8 @@ pub(crate) fn init(
     }
 
     // Dial nodes specified in settings. Failure here shouldn't halt node startup.
-    for (index, addr) in settings.node_addresses.iter().enumerate() {
-        if index < settings.max_connected_peers as usize {
+    for (index, addr) in settings.libp2p.node_addresses.iter().enumerate() {
+        if index < settings.libp2p.max_connected_peers as usize {
             let _ = swarm
                 .dial(addr.clone())
                 // log dial failure and continue
@@ -184,7 +183,7 @@ pub(crate) fn init(
         }
     }
 
-    if settings.enable_pubsub {
+    if settings.libp2p.pubsub.enable {
         // join `receipts` topic
         swarm
             .behaviour_mut()

@@ -91,8 +91,8 @@ ARG rpc_port=3030
 ARG ws_port=1337
 
 ENV DATABASE_URL=${database_url} \
-    HOMESTAR__NODE__NETWORK__RPC_HOST=${rpc_host} \
-    HOMESTAR__NODE__NETWORK__RPC_PORT=${rpc_port} \
+    HOMESTAR__NODE__NETWORK__RPC__HOST=${rpc_host} \
+    HOMESTAR__NODE__NETWORK__RPC__PORT=${rpc_port} \
     HOMESTAR__NODE__NETWORK__WS_PORT=${ws_port}
 
 EXPOSE ${rpc_port} ${ws_port}
