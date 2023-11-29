@@ -23,7 +23,7 @@
   ```
 
   This removes underlying `wasmtime` `zstd` compression while also turning on
-  ANSI color-coded logs. If you bulid with default features, `zstd` compression
+  ANSI color-coded logs. If you build with default features, `zstd` compression
   and other `wasmtime` defaults will be included in the build.
 
 - Running the `homestar` server/runtime:
