@@ -229,7 +229,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 } => {
                     if cookie.namespace() == Some(&Namespace::from_static(RENDEZVOUS_NAMESPACE)) {
                         debug!(
-                            subject = "libp2p.rendezvous.cli.discovered",
+                            subject = "libp2p.rendezvous.client.discovered",
                             category = "handle_swarm_event",
                             peer_id = rendezvous_node.to_string(),
                             "received discovery from rendezvous server"
