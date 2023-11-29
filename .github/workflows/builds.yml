@@ -110,48 +110,41 @@ jobs:
           - target: aarch64-unknown-linux-musl
             os: linux
             arch: arm64
-            bin: homestar
           - target: x86_64-unknown-linux-musl
             os: linux
             arch: x64
-            bin: homestar
           - target: aarch64-apple-darwin
             os: darwin
             arch: arm64
-            bin: homestar
           - target: x86_64-apple-darwin
-            npm: darwin-x64
             os: darwin
             arch: x64
-            bin: homestar
           - target: x86_64-pc-windows-msvc
             os: windows
             arch: x64
-            bin: homestar.exe
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: cargo get
+      - name: Install cargo get
         run: cargo install cargo-get
-      - name: prepare os/arch packages
+      - name: Prepare os/arch packages
         shell: bash
         env:
           node_os: ${{ matrix.os }}
           node_arch: ${{ matrix.arch }}
-          node_bin: ${{ matrix.bin }}
-          node_pkg: ${{ matrix.bin }}-${{ matrix.os }}-${{ matrix.arch }}
+          node_pkg: homestar-${{ matrix.os }}-${{ matrix.arch }}
         run: |
           export node_version=$(cargo get workspace.package.version)
           echo "node_pkg=${node_pkg}" >> "$GITHUB_ENV"
           cd homestar-runtime/npm
           mkdir -p "${node_pkg}/bin"
           envsubst < package.json.tmpl > "${node_pkg}/package.json"
-      - name: download build artifacts
+      - name: Download build artifacts
         uses: actions/download-artifact@v2
         with:
           name: ${{ matrix.target }}
           path: "homestar-runtime/npm/${{ env.node_pkg }}/bin"
-      - name: publish rc or production
+      - name: Publish rc or production
         run: |
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
           npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
