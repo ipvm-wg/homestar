@@ -125,7 +125,7 @@ pub(crate) struct EventHandler<DB: Database> {
     pubsub_enabled: bool,
     /// [libp2p::Multiaddr] addresses to dial.
     node_addresses: Vec<libp2p::Multiaddr>,
-    /// [libp2p::Multiaddr] addresses to announce to the network.
+    /// [libp2p::Multiaddr] externally reachable addresses to announce to the network.
     announce_addresses: Vec<libp2p::Multiaddr>,
     /// Maximum number of external-facing addresses to announce to the network.
     external_address_limit: u32,
