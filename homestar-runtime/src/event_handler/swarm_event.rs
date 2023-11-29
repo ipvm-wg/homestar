@@ -246,7 +246,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         // Skip dialing peers if at connected peers limit
                         if connected_peers_count >= event_handler.connections.max_peers as usize {
                             debug!(
-                                subject = "libp2p.rendezvous.cli.discovered",
+                                subject = "libp2p.rendezvous.client.discovered.err",
                                 category = "handle_swarm_event",
                                 "peers discovered not dialed b/c max connected peers limit reached"
                             );
