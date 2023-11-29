@@ -156,7 +156,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
       - name: Publish RC
-        if: github.event_name == 'workflow_dispatch' || github.event.action == 'pull_request'
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
         run: |
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
           npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
