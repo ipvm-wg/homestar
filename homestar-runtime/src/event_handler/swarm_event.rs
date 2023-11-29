@@ -646,7 +646,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             }
                         }
                         None => debug!(
-                            subject = "libp2p.kad.req_resp",
+                            subject = "libp2p.kad.req_resp.err",
                             category = "handle_swarm_event",
                             "No provider found for outbound query {id:?}"
                         ),
