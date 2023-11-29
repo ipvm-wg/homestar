@@ -89,7 +89,7 @@ pub(crate) struct EventHandler<DB: Database> {
     announce_addresses: Vec<libp2p::Multiaddr>,
     /// Maximum number of externally reachable addresses to announce to the network.
     external_address_limit: u32,
-    /// Interval for polling cache for expired entries.
+    /// Interval for polling the cache for expired entries.
     poll_cache_interval: Duration,
 }
 
