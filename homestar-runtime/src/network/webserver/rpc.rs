@@ -36,10 +36,10 @@ use tokio::sync::oneshot;
 use tokio::{runtime::Handle, select};
 #[cfg(feature = "websocket-notify")]
 use tokio_stream::wrappers::BroadcastStream;
-#[allow(unused_imports)]
-use tracing::warn;
 #[cfg(feature = "websocket-notify")]
-use tracing::{debug, error};
+use tracing::debug;
+#[allow(unused_imports)]
+use tracing::{error, warn};
 
 /// Health endpoint.
 pub(crate) const HEALTH_ENDPOINT: &str = "health";
