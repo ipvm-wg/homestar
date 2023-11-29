@@ -15,12 +15,12 @@ on:
     types: [published]
 
   # for debugging
-  pull_request:
-    branches: [ '**' ]
+  # pull_request:
+  #   branches: ['**']
 
-# concurrency:
-#   group: ${{ github.workflow }}-${{ github.ref }}
-#   cancel-in-progress: true
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   binary-builds:
@@ -146,25 +146,22 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ${{ matrix.target }}
-          path: "homestar-runtime/npm/${{ env.node_pkg }}/bin"
+          path: 'homestar-runtime/npm/${{ env.node_pkg }}/bin'
       - name: Publish production
         if: github.event_name == 'release' && github.event.action == 'published'
         run: |
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
-          pnpm -r publish --access=public
+          npm publish --access=public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
       - name: Publish RC
-        if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+        if: github.event_name == 'workflow_dispatch'
         run: |
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
-          ls -R
           npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
           npm publish --access public --tag rc
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-
-
 
   build-packages:
     runs-on: ubuntu-latest

@@ -1,16 +1,34 @@
 # Homestar NPM packages
 
+## Packages
+
+- [homestar-runtime](https://www.npmjs.com/package/homestar-runtime) - This is the main package that installs the os specific binary package and runs it.
+- [homestar-darwin-arm64](https://www.npmjs.com/package/homestar-darwin-arm64)
+- [homestar-darwin-x64](https://www.npmjs.com/package/homestar-darwin-x64)
+- [homestar-linux-arm64](https://www.npmjs.com/package/homestar-linux-arm64)
+- [homestar-linux-x64](https://www.npmjs.com/package/homestar-linux-x64)
+- [homestar-windows-x64](https://www.npmjs.com/package/homestar-windows-x64)
+
 ## Usage
+
+```bash
+npx homestar-runtime --help
+
+# Global install
+npm install -g homestar-runtime
+homestar start -c config.toml
+```
+
+## Manual publishing
 
 ```bash
 
 rustup target add aarch64-unknown-linux-gnu
 rustup target add x86_64-unknown-linux-musl
 cargo install cargo-get
-cargo get workspace.package.version
 
 
-export node_version=$(cargo get package.version)
+export node_version=$(cargo get workspace.package.version)
 export bin="homestar"
 
 
@@ -50,13 +68,8 @@ mkdir -p "binaries/${node_pkg}/bin"
 envsubst < package.json.tmpl > "binaries/${node_pkg}/package.json"
 cp "../../target/x86_64-unknown-linux-musl/release/${bin}" "binaries/${node_pkg}/bin"
 
-# publish the package
+# publish the RC package
 cd "${node_pkg}"
 npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
 npm publish --access public --tag rc
 ```
-
-## TODO
-
-- [ ] move this to CI
-- [ ] add windows
