@@ -278,7 +278,7 @@ impl Captured {
 
         // short-circuit if no peers
         //
-        // - don't send over gossip
+        // - don't gossip receipt
         // - don't store receipt or workflow info on DHT
         if event_handler.connections.peers.is_empty() {
             return Ok((self.receipt, invocation_receipt));
