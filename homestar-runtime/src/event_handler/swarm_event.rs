@@ -290,7 +290,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                         );
                                     }
                                     Err(err) => {
-                                        warn!(subject = "libp2p.rendezvous.cli.discovered.err",
+                                        warn!(subject = "libp2p.rendezvous.client.discovered.err",
                                               category = "handle_swarm_event",
                                               peer_id=peer_id.to_string(),
                                               err=?err,
