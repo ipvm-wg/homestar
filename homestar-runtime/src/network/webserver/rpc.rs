@@ -58,7 +58,7 @@ pub(crate) const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_ev
 #[cfg(feature = "websocket-notify")]
 pub(crate) const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
-/// Context needed for RPC methods.
+/// Context for RPC methods.
 #[cfg(feature = "websocket-notify")]
 pub(crate) struct Context {
     metrics_hdl: PrometheusHandle,
