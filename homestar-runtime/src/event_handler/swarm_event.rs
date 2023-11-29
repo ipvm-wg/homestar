@@ -352,7 +352,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     ..
                 } => {
                     debug!(
-                        subject = "libp2p.rendezvous.cli.registered",
+                        subject = "libp2p.rendezvous.client.registered",
                         category = "handle_swarm_event",
                         peer_id = rendezvous_node.to_string(),
                         ttl = ttl,
