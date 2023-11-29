@@ -55,3 +55,6 @@ examples/**/tmp/*
 
 # nix build results
 /result
+
+# npm packages
+homestar-runtime/npm/binaries
