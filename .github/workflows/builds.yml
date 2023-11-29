@@ -147,7 +147,6 @@ jobs:
         with:
           name: ${{ matrix.target }}
           path: "homestar-runtime/npm/${{ env.node_pkg }}/bin"
-      - run: echo ${{  github.event_name }}
       - name: Publish production
         if: github.event_name == 'release' && github.event.action == 'published'
         run: |
@@ -160,6 +159,7 @@ jobs:
         run: |
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
           npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
+          cat package.json
           npm publish --access public --tag rc
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
