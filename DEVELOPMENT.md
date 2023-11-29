@@ -55,7 +55,7 @@
   cargo nextest run --all-features --no-capture
   ```
 
-  The above command translates to this using the default `cargo test`:
+  This command translates to the default `cargo test` command:
 
   ```console
   cargo test --all-features -- --nocapture
