@@ -85,7 +85,7 @@ pub(crate) struct EventHandler<DB: Database> {
     ws_workflow_sender: webserver::Notifier<notifier::Message>,
     /// [libp2p::Multiaddr] addresses to dial.
     node_addresses: Vec<libp2p::Multiaddr>,
-    /// [libp2p::Multiaddr] addresses to announce to the network.
+    /// [libp2p::Multiaddr] externally reachable addresses to announce to the network.
     announce_addresses: Vec<libp2p::Multiaddr>,
     /// Maximum number of external-facing addresses to announce to the network.
     external_address_limit: u32,
