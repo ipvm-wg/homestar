@@ -1,5 +1,4 @@
-//! Sets up a webserver for websocket and HTTP interaction with external
-//! clients.
+//! Sets up a webserver for WebSocket and HTTP interaction with clients.
 
 use crate::{
     runner,

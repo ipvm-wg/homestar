@@ -298,7 +298,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                     }
                                 };
                             } else if !self_registration {
-                                debug!(subject = "libp2p.rendezvous.cli.discovered",
+                                debug!(subject = "libp2p.rendezvous.client.discovered.err",
                                        category = "handle_swarm_event",
                                        peer_id=registration.record.peer_id().to_string(),
                                        "peer discovered not dialed because the max connected peers limit was reached")
@@ -329,7 +329,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             .await;
                     } else {
                         // Do not dial peers that are not using our namespace
-                        debug!(subject = "libp2p.rendezvous.cli.discovered",
+                        debug!(subject = "libp2p.rendezvous.client.discovered.err",
                                category = "handle_swarm_event",
                                peer_id=rendezvous_node.to_string(),
                                namespace=?cookie.namespace(),
@@ -384,7 +384,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     error,
                     ..
                 } => {
-                    warn!(subject = "libp2p.rendezvous.cli.registered.err",
+                    warn!(subject = "libp2p.rendezvous.client.registered.err",
                           category = "handle_swarm_event",
                           peer_id=rendezvous_node.to_string(),
                           err=?error,
@@ -824,7 +824,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             .build(),
                     );
                 } else {
-                    debug!(subject = "libp2p.mdns.discovered",
+                    debug!(subject = "libp2p.mdns.discovered.err",
                            category = "handle_swarm_event",
                            peer_id = peer_id.to_string(),
                            "peer discovered by mDNS not dialed because max connected peers limit reached"
