@@ -387,7 +387,7 @@ where
                             let resolved = match resolved.await {
                                 Ok(inst_result) => inst_result,
                                 Err(err) => {
-                                    error!(subject = "worker.resolve_cid",
+                                    error!(subject = "worker.resolve_cid.err",
                                            category = "worker.run",
                                            err=?err,
                                            "error resolving cid");
