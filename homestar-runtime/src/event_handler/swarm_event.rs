@@ -792,7 +792,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 let _ = sender.send_async(ResponseEvent::Found(Ok(event))).await;
                             }
                             Err(err) => {
-                                warn!(subject = "libp2p.req_resp.resp",
+                                warn!(subject = "libp2p.req_resp.resp.err",
                                       category = "handle_swarm_event",
                                       err=?err,
                                       cid = key_cid.as_str(),
