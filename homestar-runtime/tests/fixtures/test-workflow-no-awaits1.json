@@ -1,0 +1,29 @@
+{
+  "tasks": [
+    {
+      "cause": null,
+      "meta": {
+      "memory": 4294967296,
+      "time": 100000
+    },
+    "prf": [],
+    "run": {
+      "input": {
+         "args": [
+               {
+                 "/": "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm"
+               },
+               150,
+               150,
+               100,
+               100
+          ],
+          "func": "crop"
+        },
+        "nnc": "",
+        "op": "wasm/run",
+        "rsc": "ipfs://bafybeig6u35v6t3f4j3zgz2jvj4erd45fbkeolioaddu3lmu6uxm3ilb7a"
+      }
+    }
+  ]
+}

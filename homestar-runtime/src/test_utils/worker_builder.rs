@@ -1,10 +1,20 @@
 //! Module for building out [Worker]s for testing purposes.
 
 use super::{db::MemoryDb, event};
+#[cfg(feature = "ipfs")]
+use crate::network::IpfsCli;
 use crate::{
-    channel::AsyncBoundedChannelSender, db::Database, event_handler::Event, settings,
-    worker::WorkerMessage, workflow, Settings, Worker,
+    channel::AsyncChannelSender,
+    db::Database,
+    event_handler::Event,
+    settings,
+    tasks::Fetch,
+    worker::WorkerMessage,
+    workflow::{self, Resource},
+    Settings, Worker,
 };
+use fnv::FnvHashSet;
+use futures::{future::BoxFuture, FutureExt};
 use homestar_core::{
     ipld::DagCbor,
     test_utils::workflow as workflow_test_utils,
@@ -12,15 +22,48 @@ use homestar_core::{
     Workflow,
 };
 use homestar_wasm::io::Arg;
+use indexmap::IndexMap;
 use libipld::Cid;
-use tokio::sync::mpsc;
 
+/// Utility structure for building out [Worker]s for testing purposes.
+///
+/// [Worker]: crate::Worker
+#[cfg(feature = "ipfs")]
 pub(crate) struct WorkerBuilder<'a> {
+    /// In-memory database for testing.
     db: MemoryDb,
-    event_sender: AsyncBoundedChannelSender<Event>,
-    runner_sender: mpsc::Sender<WorkerMessage>,
+    /// Event channel sender.
+    event_sender: AsyncChannelSender<Event>,
+    /// [IPFS client].
+    ///
+    /// [IPFS client]: crate::network::IpfsCli
+    ipfs: IpfsCli,
+    /// Runner channel sender.
+    runner_sender: AsyncChannelSender<WorkerMessage>,
+    /// Name of the workflow.
     name: Option<String>,
+    /// [Workflow] to run.
     workflow: Workflow<'a, Arg>,
+    /// [Workflow] settings.
+    workflow_settings: workflow::Settings,
+}
+
+/// Utility structure for building out [Worker]s for testing purposes.
+///
+/// [Worker]: crate::Worker
+#[cfg(not(feature = "ipfs"))]
+pub(crate) struct WorkerBuilder<'a> {
+    /// In-memory database for testing.
+    db: MemoryDb,
+    /// Event channel sender.
+    event_sender: AsyncChannelSender<Event>,
+    /// Runner channel sender.
+    runner_sender: AsyncChannelSender<WorkerMessage>,
+    /// Name of the workflow.
+    name: Option<String>,
+    /// [Workflow] to run.
+    workflow: Workflow<'a, Arg>,
+    /// [Workflow] settings.
     workflow_settings: workflow::Settings,
 }
 
@@ -31,12 +74,12 @@ impl<'a> WorkerBuilder<'a> {
         let (instruction1, instruction2, _) =
             workflow_test_utils::related_wasm_instructions::<Arg>();
         let task1 = Task::new(
-            RunInstruction::Expanded(instruction1),
+            RunInstruction::Expanded(instruction1.clone()),
             config.clone().into(),
             UcanPrf::default(),
         );
         let task2 = Task::new(
-            RunInstruction::Expanded(instruction2),
+            RunInstruction::Expanded(instruction2.clone()),
             config.into(),
             UcanPrf::default(),
         );
@@ -46,13 +89,31 @@ impl<'a> WorkerBuilder<'a> {
 
         let workflow = Workflow::new(vec![task1, task2]);
         let workflow_cid = workflow.clone().to_cid().unwrap();
-        Self {
-            db: MemoryDb::setup_connection_pool(&settings, None).unwrap(),
-            event_sender: evt_tx,
-            runner_sender: wk_tx,
-            name: Some(workflow_cid.to_string()),
-            workflow,
-            workflow_settings: workflow::Settings::default(),
+
+        #[cfg(feature = "ipfs")]
+        {
+            let ipfs = IpfsCli::new(settings.network.ipfs()).unwrap();
+            Self {
+                db: MemoryDb::setup_connection_pool(&settings, None).unwrap(),
+                event_sender: evt_tx,
+                ipfs: ipfs.clone(),
+                runner_sender: wk_tx,
+                name: Some(workflow_cid.to_string()),
+                workflow,
+                workflow_settings: workflow::Settings::default(),
+            }
+        }
+
+        #[cfg(not(feature = "ipfs"))]
+        {
+            Self {
+                db: MemoryDb::setup_connection_pool(&settings, None).unwrap(),
+                event_sender: evt_tx,
+                runner_sender: wk_tx,
+                name: Some(workflow_cid.to_string()),
+                workflow,
+                workflow_settings: workflow::Settings::default(),
+            }
         }
     }
 
@@ -69,6 +130,43 @@ impl<'a> WorkerBuilder<'a> {
         )
         .await
         .unwrap()
+    }
+
+    /// Fetch-function closure for the [Worker]/[Scheduler] to use.
+    ///
+    /// [Worker]: crate::Worker
+    /// [Scheduler]: crate::TaskScheduler
+    #[cfg(feature = "ipfs")]
+    #[allow(dead_code)]
+    pub(crate) fn fetch_fn(
+        &self,
+    ) -> impl FnOnce(FnvHashSet<Resource>) -> BoxFuture<'a, anyhow::Result<IndexMap<Resource, Vec<u8>>>>
+    {
+        let fetch_settings = self.workflow_settings.clone().into();
+        let ipfs = self.ipfs.clone();
+        let fetch_fn = move |rscs: FnvHashSet<Resource>| {
+            async move { Fetch::get_resources(rscs, fetch_settings, ipfs).await }.boxed()
+        };
+
+        fetch_fn
+    }
+
+    /// Fetch-function closure for the [Worker]/[Scheduler] to use.
+    ///
+    /// [Worker]: crate::Worker
+    /// [Scheduler]: crate::TaskScheduler
+    #[cfg(not(feature = "ipfs"))]
+    #[allow(dead_code)]
+    pub(crate) fn fetch_fn(
+        &self,
+    ) -> impl FnOnce(FnvHashSet<Resource>) -> BoxFuture<'a, anyhow::Result<IndexMap<Resource, Vec<u8>>>>
+    {
+        let fetch_settings = self.workflow_settings.clone().into();
+        let fetch_fn = |rscs: FnvHashSet<Resource>| {
+            async move { Fetch::get_resources(rscs, fetch_settings).await }.boxed()
+        };
+
+        fetch_fn
     }
 
     /// Get the [Cid] of the workflow from the builder state.
@@ -100,13 +198,10 @@ impl<'a> WorkerBuilder<'a> {
         self
     }
 
-    /// Build a [Worker] with a specific Event [mpsc::Sender].
+    /// Build a [Worker] with a specific Event [AsyncChannelSender].
     #[allow(dead_code)]
-    pub(crate) fn with_event_sender(
-        mut self,
-        event_sender: AsyncBoundedChannelSender<Event>,
-    ) -> Self {
-        self.event_sender = event_sender.into();
+    pub(crate) fn with_event_sender(mut self, event_sender: AsyncChannelSender<Event>) -> Self {
+        self.event_sender = event_sender;
         self
     }
 

@@ -1,3 +1,5 @@
+//! # Error types centered around the networking.
+
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
     #[error("pubsub error: {0}")]

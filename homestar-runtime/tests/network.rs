@@ -1,5 +1,6 @@
 use crate::utils::{
-    check_lines_for, count_lines_where, kill_homestar, retrieve_output, stop_homestar, BIN_NAME,
+    check_lines_for, count_lines_where, kill_homestar, remove_db, retrieve_output, stop_homestar,
+    wait_for_socket_connection, wait_for_socket_connection_v6, BIN_NAME,
 };
 use anyhow::Result;
 use once_cell::sync::Lazy;
@@ -11,12 +12,18 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "websocket-notify")]
+mod gossip;
+#[cfg(feature = "websocket-notify")]
+mod notification;
+
 #[allow(dead_code)]
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
 #[test]
 #[file_serial]
 fn test_libp2p_generates_peer_id_serial() -> Result<()> {
+    const DB: &str = "test_libp2p_generates_peer_id_serial.db";
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -24,10 +31,15 @@ fn test_libp2p_generates_peer_id_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9820, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
@@ -41,12 +53,15 @@ fn test_libp2p_generates_peer_id_serial() -> Result<()> {
 
     assert!(logs_expected);
 
+    remove_db(DB);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_listens_on_address_serial() -> Result<()> {
+    const DB: &str = "test_libp2p_listens_on_address_serial.db";
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -54,10 +69,15 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9820, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
@@ -65,11 +85,14 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
         stdout,
         vec![
             "local node is listening",
-            "/ip4/127.0.0.1/tcp/7000/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+            "/ip4/127.0.0.1/tcp/7000",
+            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
         ],
     );
 
     assert!(logs_expected);
+
+    remove_db(DB);
 
     Ok(())
 }
@@ -77,6 +100,7 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_rpc_listens_on_address_serial() -> Result<()> {
+    const DB: &str = "test_rpc_listens_on_address_serial.db";
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -84,10 +108,15 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9820, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
@@ -95,13 +124,15 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
 
     assert!(logs_expected);
 
+    remove_db(DB);
+
     Ok(())
 }
 
-#[cfg(feature = "websocket-server")]
 #[test]
 #[file_serial]
 fn test_websocket_listens_on_address_serial() -> Result<()> {
+    const DB: &str = "test_websocket_listens_on_address_serial.db";
     let _ = stop_homestar();
 
     let homestar_proc = Command::new(BIN.as_os_str())
@@ -109,17 +140,23 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection_v6(9820, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
-    let logs_expected =
-        check_lines_for(stdout, vec!["websocket server listening", "127.0.0.1:8020"]);
+    let logs_expected = check_lines_for(stdout, vec!["webserver listening", "127.0.0.1:8020"]);
 
     assert!(logs_expected);
+
+    remove_db(DB);
 
     Ok(())
 }
@@ -127,6 +164,8 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_libp2p_connect_known_peers_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_connect_known_peers_serial1.db";
+    const DB2: &str = "test_libp2p_connect_known_peers_serial2.db";
     let _ = stop_homestar();
 
     // Start two nodes configured to listen at 127.0.0.1 each with their own port.
@@ -140,10 +179,15 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9820, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     let homestar_proc2 = Command::new(BIN.as_os_str())
         .env(
@@ -154,10 +198,15 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network2.toml")
         .arg("--db")
-        .arg("homestar2.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9821, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc2, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Collect logs for five seconds then kill proceses.
     let dead_proc1 = kill_homestar(homestar_proc1, Some(Duration::from_secs(5)));
@@ -229,12 +278,17 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     assert!(one_in_dht_routing_table);
     assert!(two_connected_to_one);
 
+    remove_db(DB1);
+    remove_db(DB2);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_connect_after_mdns_discovery_serial1.db";
+    const DB2: &str = "test_libp2p_connect_after_mdns_discovery_serial2.db";
     let _ = stop_homestar();
 
     // Start two nodes each configured to listen at 0.0.0.0 with no known peers.
@@ -248,10 +302,15 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_mdns1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9800, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     let homestar_proc2 = Command::new(BIN.as_os_str())
         .env(
@@ -262,10 +321,15 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_mdns2.toml")
         .arg("--db")
-        .arg("homestar2.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9801, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc2, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Collect logs for seven seconds then kill processes.
     let dead_proc1 = kill_homestar(homestar_proc1, Some(Duration::from_secs(7)));
@@ -337,12 +401,18 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     assert!(one_addded_to_dht);
     assert!(one_in_dht_routing_table);
 
+    remove_db(DB1);
+    remove_db(DB2);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_connect_rendezvous_discovery_serial1.db";
+    const DB2: &str = "test_libp2p_connect_rendezvous_discovery_serial2.db";
+    const DB3: &str = "test_libp2p_connect_rendezvous_discovery_serial3.db";
     let _ = stop_homestar();
 
     // Start a rendezvous server
@@ -355,10 +425,15 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8024, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_server, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Start a peer that will register with the rendezvous server
     let rendezvous_client1 = Command::new(BIN.as_os_str())
@@ -370,13 +445,18 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous2.toml")
         .arg("--db")
-        .arg("homestar2.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection(8026, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     // Wait for registration to complete
-    // TODO When we have websocket push events, listen on a registration event instead of using an arbitrary sleep
+    // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep
     thread::sleep(Duration::from_secs(2));
 
     // Start a peer that will discover the registrant through the rendezvous server
@@ -389,10 +469,15 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous3.toml")
         .arg("--db")
-        .arg("homestar3.db")
+        .arg(DB3)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8027, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client2, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Collect logs for five seconds then kill proceses.
     let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
@@ -455,12 +540,18 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
     assert!(one_in_dht_routing_table);
     assert!(two_connected_to_one);
 
+    remove_db(DB1);
+    remove_db(DB2);
+    remove_db(DB3);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_disconnect_mdns_discovery_serial1.db";
+    const DB2: &str = "test_libp2p_disconnect_mdns_discovery_serial2.db";
     let _ = stop_homestar();
 
     // Start two nodes each configured to listen at 0.0.0.0 with no known peers.
@@ -474,10 +565,15 @@ fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_mdns1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8000, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     let homestar_proc2 = Command::new(BIN.as_os_str())
         .env(
@@ -488,10 +584,15 @@ fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_mdns2.toml")
         .arg("--db")
-        .arg("homestar2.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8001, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc2, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Kill node two after seven seconds.
     let _ = kill_homestar(homestar_proc2, Some(Duration::from_secs(7)));
@@ -523,12 +624,17 @@ fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
     assert!(two_disconnected_from_one);
     assert!(two_removed_from_dht_table);
 
+    remove_db(DB1);
+    remove_db(DB2);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_disconnect_known_peers_serial1.db";
+    const DB2: &str = "test_libp2p_disconnect_known_peers_serial2.db";
     let _ = stop_homestar();
 
     // Start two nodes configured to listen at 127.0.0.1 each with their own port.
@@ -542,10 +648,15 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9820, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     let homestar_proc2 = Command::new(BIN.as_os_str())
         .env(
@@ -556,10 +667,15 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_network2.toml")
         .arg("--db")
-        .arg("homestar2.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9821, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc2, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Kill node two after seven seconds.
     let _ = kill_homestar(homestar_proc2, Some(Duration::from_secs(7)));
@@ -589,7 +705,10 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
     );
 
     assert!(two_disconnected_from_one);
-    assert_eq!(false, two_removed_from_dht_table);
+    assert!(!two_removed_from_dht_table);
+
+    remove_db(DB1);
+    remove_db(DB2);
 
     Ok(())
 }
@@ -597,6 +716,9 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
 #[test]
 #[file_serial]
 fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_disconnect_rendezvous_discovery_serial1.db";
+    const DB2: &str = "test_libp2p_disconnect_rendezvous_discovery_serial2.db";
+    const DB3: &str = "test_libp2p_disconnect_rendezvous_discovery_serial3.db";
     let _ = stop_homestar();
 
     // Start a rendezvous server
@@ -609,10 +731,15 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8024, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_server, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Start a peer that will register with the rendezvous server
     let rendezvous_client1 = Command::new(BIN.as_os_str())
@@ -624,13 +751,18 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous2.toml")
         .arg("--db")
-        .arg("homestar2.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection(8026, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     // Wait for registration to complete.
-    // TODO When we have websocket push events, listen on a registration event instead of using an arbitrary sleep.
+    // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep.
     thread::sleep(Duration::from_secs(2));
 
     // Start a peer that will discover the registrant through the rendezvous server
@@ -643,10 +775,15 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous3.toml")
         .arg("--db")
-        .arg("homestar3.db")
+        .arg(DB3)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8027, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Kill server and client one after five seconds
     let _ = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
@@ -679,12 +816,18 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
     assert!(two_disconnected_from_one);
     assert!(two_removed_from_dht_table);
 
+    remove_db(DB1);
+    remove_db(DB2);
+    remove_db(DB3);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_rendezvous_renew_registration_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_rendezvous_renew_registration_serial1.db";
+    const DB2: &str = "test_libp2p_rendezvous_renew_registration_serial2.db";
     let _ = stop_homestar();
 
     // Start a rendezvous server
@@ -697,10 +840,15 @@ fn test_libp2p_rendezvous_renew_registration_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8024, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_server, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Start a peer that will renew registrations with the rendezvous server once per second
     let rendezvous_client1 = Command::new(BIN.as_os_str())
@@ -712,10 +860,15 @@ fn test_libp2p_rendezvous_renew_registration_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous4.toml")
         .arg("--db")
-        .arg("homestar4.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8028, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Collect logs for five seconds then kill proceses.
     let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
@@ -746,12 +899,17 @@ fn test_libp2p_rendezvous_renew_registration_serial() -> Result<()> {
     assert!(server_registration_count > 1);
     assert!(client_registration_count > 1);
 
+    remove_db(DB1);
+    remove_db(DB2);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_rendezvous_rediscovery_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_rendezvous_rediscovery_serial1.db";
+    const DB2: &str = "test_libp2p_rendezvous_rediscovery_serial2.db";
     let _ = stop_homestar();
 
     // Start a rendezvous server
@@ -764,10 +922,15 @@ fn test_libp2p_rendezvous_rediscovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8024, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_server, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Start a peer that will discover with the rendezvous server once per second
     let rendezvous_client1 = Command::new(BIN.as_os_str())
@@ -779,10 +942,15 @@ fn test_libp2p_rendezvous_rediscovery_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous5.toml")
         .arg("--db")
-        .arg("homestar5.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection_v6(9829, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Collect logs for five seconds then kill proceses.
     let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
@@ -813,12 +981,18 @@ fn test_libp2p_rendezvous_rediscovery_serial() -> Result<()> {
     assert!(server_discovery_count > 1);
     assert!(client_discovery_count > 1);
 
+    remove_db(DB1);
+    remove_db(DB2);
+
     Ok(())
 }
 
 #[test]
 #[file_serial]
 fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
+    const DB1: &str = "test_libp2p_rendezvous_rediscover_on_expiration_serial1.db";
+    const DB2: &str = "test_libp2p_rendezvous_rediscover_on_expiration_serial2.db";
+    const DB3: &str = "test_libp2p_rendezvous_rediscover_on_expiration_serial3.db";
     let _ = stop_homestar();
 
     // Start a rendezvous server
@@ -831,10 +1005,15 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous1.toml")
         .arg("--db")
-        .arg("homestar1.db")
+        .arg(DB1)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8024, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_server, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Start a peer that will renew registrations with the rendezvous server every five seconds
     let rendezvous_client1 = Command::new(BIN.as_os_str())
@@ -846,13 +1025,18 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous6.toml")
         .arg("--db")
-        .arg("homestar6.db")
+        .arg(DB2)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
+    if wait_for_socket_connection_v6(9830, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
     // Wait for registration to complete.
-    // TODO When we have websocket push events, listen on a registration event instead of using an arbitrary sleep.
+    // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep.
     thread::sleep(Duration::from_secs(2));
 
     // Start a peer that will discover with the rendezvous server when
@@ -868,10 +1052,15 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_rendezvous3.toml")
         .arg("--db")
-        .arg("homestar3.db")
+        .arg(DB3)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+
+    if wait_for_socket_connection(8027, 1000).is_err() {
+        let _ = kill_homestar(rendezvous_client1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
 
     // Collect logs for seven seconds then kill proceses.
     let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(7)));
@@ -902,6 +1091,10 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
 
     assert!(server_discovery_count > 1);
     assert!(client_discovery_count > 1);
+
+    remove_db(DB1);
+    remove_db(DB2);
+    remove_db(DB3);
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 use super::IndexedResources;
 use crate::{
-    channel::{AsyncBoundedChannel, AsyncBoundedChannelSender},
+    channel::{AsyncChannel, AsyncChannelSender},
     db::{Connection, Database},
     event_handler::{
         event::QueryRecord,
@@ -17,11 +17,13 @@ use faststr::FastStr;
 use homestar_core::{ipld::DagJson, workflow::Pointer};
 use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Cid, Ipld};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, fmt, sync::Arc, time::Duration};
-use tokio::{
-    runtime::Handle,
-    time::{self, Instant},
+use std::{
+    collections::BTreeMap,
+    fmt,
+    sync::Arc,
+    time::{Duration, Instant},
 };
+use tokio::runtime::Handle;
 use tracing::info;
 
 /// [Workflow] header tag, for sharing workflow information over libp2p.
@@ -30,6 +32,7 @@ use tracing::info;
 pub const WORKFLOW_TAG: &str = "ipvm/workflow";
 
 const CID_KEY: &str = "cid";
+const NAME_KEY: &str = "name";
 const NUM_TASKS_KEY: &str = "num_tasks";
 const PROGRESS_KEY: &str = "progress";
 const PROGRESS_COUNT_KEY: &str = "progress_count";
@@ -41,11 +44,29 @@ const RESOURCES_KEY: &str = "resources";
 #[derive(Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Selectable)]
 #[diesel(table_name = crate::db::schema::workflows, primary_key(cid))]
 pub struct Stored {
+    /// Wrapped-[Cid] of [Workflow].
+    ///
+    /// [Workflow]: homestar_core::Workflow
     pub(crate) cid: Pointer,
+    /// Local name of [Workflow].
+    ///
+    /// [Workflow]: homestar_core::Workflow
     pub(crate) name: Option<String>,
+    /// Number of tasks in [Workflow].
+    ///
+    /// [Workflow]: homestar_core::Workflow
     pub(crate) num_tasks: i32,
+    /// Map of [Instruction] [Cid]s to resources.
+    ///
+    /// [Instruction]: homestar_core::workflow::Instruction
     pub(crate) resources: IndexedResources,
+    /// Local timestamp of [Workflow] creation.
+    ///
+    /// [Workflow]: homestar_core::Workflow
     pub(crate) created_at: NaiveDateTime,
+    /// Local timestamp of [Workflow] completion.
+    ///
+    /// [Workflow]: homestar_core::Workflow
     pub(crate) completed_at: Option<NaiveDateTime>,
 }
 
@@ -137,6 +158,7 @@ impl StoredReceipt {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Info {
     pub(crate) cid: Cid,
+    pub(crate) name: Option<FastStr>,
     pub(crate) num_tasks: u32,
     pub(crate) progress: Vec<Cid>,
     pub(crate) progress_count: u32,
@@ -147,8 +169,11 @@ impl fmt::Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "cid: {}, progress: {}/{}",
-            self.cid, self.progress_count, self.num_tasks
+            "cid: {}, local_name: {}, name, progress: {}/{}",
+            self.cid,
+            self.name.clone().unwrap_or(self.cid.to_string().into()),
+            self.progress_count,
+            self.num_tasks
         )
     }
 }
@@ -161,6 +186,7 @@ impl Info {
         let cid = stored.cid.cid();
         Self {
             cid,
+            name: stored.name.map(|name| name.into()),
             num_tasks: stored.num_tasks as u32,
             progress,
             progress_count,
@@ -173,6 +199,7 @@ impl Info {
         let cid = stored.cid.cid();
         Self {
             cid,
+            name: stored.name.map(|name| name.into()),
             num_tasks: stored.num_tasks as u32,
             progress: vec![],
             progress_count: 0,
@@ -254,7 +281,7 @@ impl Info {
         name: FastStr,
         resources: IndexedResources,
         p2p_timeout: Duration,
-        event_sender: Arc<AsyncBoundedChannelSender<Event>>,
+        event_sender: Arc<AsyncChannelSender<Event>>,
         mut conn: Connection,
     ) -> Result<(Self, NaiveDateTime)> {
         let timestamp = Utc::now().naive_utc();
@@ -266,21 +293,21 @@ impl Info {
             Ok((_, info)) => Ok((info, timestamp)),
             Err(_err) => {
                 info!(
+                    subject = "workflow.init.db.check",
+                    category = "workflow",
                     cid = workflow_cid.to_string(),
                     "workflow information not available in the database"
                 );
 
-                let result = Db::store_workflow(
-                    Stored::new(
-                        Pointer::new(workflow_cid),
-                        Some(name.into_string()),
-                        workflow_len as i32,
-                        resources,
-                        timestamp,
-                    ),
-                    &mut conn,
-                )?;
+                let stored = Stored::new(
+                    Pointer::new(workflow_cid),
+                    Some(name.into_string()),
+                    workflow_len as i32,
+                    resources,
+                    timestamp,
+                );
 
+                let result = Db::store_workflow(stored.clone(), &mut conn)?;
                 let workflow_info = Self::default(result);
 
                 // spawn a task to retrieve the workflow info from the
@@ -304,7 +331,7 @@ impl Info {
     pub(crate) async fn gather<'a>(
         workflow_cid: Cid,
         p2p_timeout: Duration,
-        event_sender: Arc<AsyncBoundedChannelSender<Event>>,
+        event_sender: Arc<AsyncChannelSender<Event>>,
         mut conn: Option<Connection>,
         handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> Result<Self>>,
     ) -> Result<Self> {
@@ -315,6 +342,8 @@ impl Info {
             Some((_name, workflow_info)) => Ok(workflow_info),
             None => {
                 info!(
+                    subject = "workflow.gather.db.check",
+                    category = "workflow",
                     cid = workflow_cid.to_string(),
                     "workflow information not available in the database"
                 );
@@ -336,11 +365,11 @@ impl Info {
     async fn retrieve_from_query<'a>(
         workflow_cid: Cid,
         p2p_timeout: Duration,
-        event_sender: Arc<AsyncBoundedChannelSender<Event>>,
+        event_sender: Arc<AsyncChannelSender<Event>>,
         conn: Option<Connection>,
         handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> Result<Info>>,
     ) -> Result<Info> {
-        let (tx, rx) = AsyncBoundedChannel::oneshot();
+        let (tx, rx) = AsyncChannel::oneshot();
         event_sender
             .send_async(Event::FindRecord(QueryRecord::with(
                 workflow_cid,
@@ -349,8 +378,8 @@ impl Info {
             )))
             .await?;
 
-        match time::timeout_at(Instant::now() + p2p_timeout, rx.recv_async()).await {
-            Ok(Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info))))) => {
+        match rx.recv_deadline(Instant::now() + p2p_timeout) {
+            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info)))) => {
                 // store workflow receipts from info, as we've already stored
                 // the static information.
                 if let Some(mut conn) = conn {
@@ -359,13 +388,12 @@ impl Info {
 
                 Ok(workflow_info)
             }
-            Ok(Ok(ResponseEvent::Found(Err(err)))) => {
+            Ok(ResponseEvent::Found(Err(err))) => {
                 bail!("failure in attempting to find event: {err}")
             }
-            Ok(Ok(event)) => {
+            Ok(event) => {
                 bail!("received unexpected event {event:?} for workflow {workflow_cid}")
             }
-            Ok(Err(err)) => bail!("failure in attempting to find workflow: {err}"),
             Err(err) => handle_timeout_fn
                 .map(|f| f(workflow_cid, conn).context(err))
                 .unwrap_or(Err(anyhow!(
@@ -379,6 +407,14 @@ impl From<Info> for Ipld {
     fn from(workflow: Info) -> Self {
         Ipld::Map(BTreeMap::from([
             (CID_KEY.into(), Ipld::Link(workflow.cid)),
+            (
+                NAME_KEY.into(),
+                workflow
+                    .name
+                    .as_ref()
+                    .map(|name| name.to_string().into())
+                    .unwrap_or(Ipld::Null),
+            ),
             (
                 NUM_TASKS_KEY.into(),
                 Ipld::Integer(workflow.num_tasks as i128),
@@ -406,6 +442,13 @@ impl TryFrom<Ipld> for Info {
                 .ok_or_else(|| anyhow!("no `cid` set"))?
                 .to_owned(),
         )?;
+        let name = map
+            .get(NAME_KEY)
+            .and_then(|ipld| match ipld {
+                Ipld::Null => None,
+                ipld => Some(ipld),
+            })
+            .and_then(|ipld| from_ipld(ipld.to_owned()).ok());
         let num_tasks = from_ipld(
             map.get(NUM_TASKS_KEY)
                 .ok_or_else(|| anyhow!("no `num_tasks` set"))?
@@ -429,6 +472,7 @@ impl TryFrom<Ipld> for Info {
 
         Ok(Self {
             cid,
+            name,
             num_tasks,
             progress,
             progress_count,

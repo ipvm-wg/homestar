@@ -1,11 +1,10 @@
-use crate::utils::{kill_homestar, stop_homestar, BIN_NAME};
+use crate::utils::{kill_homestar, stop_homestar, wait_for_socket_connection, BIN_NAME};
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use reqwest::StatusCode;
 use retry::{delay::Exponential, retry, OperationResult};
 use serial_test::file_serial;
 use std::{
-    net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Command, Stdio},
 };
@@ -13,9 +12,12 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const METRICS_URL: &str = "http://localhost:4020";
 
+#[cfg(feature = "monitoring")]
 #[test]
 #[file_serial]
 fn test_metrics_serial() -> Result<()> {
+    use crate::utils::remove_db;
+
     fn sample_metrics() -> Option<prometheus_parse::Value> {
         let body = retry(
             Exponential::from_millis(500).take(20),
@@ -37,10 +39,11 @@ fn test_metrics_serial() -> Result<()> {
         metrics
             .samples
             .iter()
-            .find(|sample| sample.metric.as_str() == "system_used_memory_bytes")
-            .and_then(|sample| Some(sample.value.to_owned()))
+            .find(|sample| sample.metric.as_str() == "homestar_system_used_memory_bytes")
+            .map(|sample| sample.value.to_owned())
     }
 
+    const DB: &str = "test_metrics_serial.db";
     let _ = stop_homestar();
 
     let mut homestar_proc = Command::new(BIN.as_os_str())
@@ -48,18 +51,13 @@ fn test_metrics_serial() -> Result<()> {
         .arg("-c")
         .arg("tests/fixtures/test_metrics.toml")
         .arg("--db")
-        .arg("homestar.db")
+        .arg(DB)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 4020);
-    let result = retry(Exponential::from_millis(1000).take(10), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if result.is_err() {
-        homestar_proc.kill().unwrap();
+    if wait_for_socket_connection(4020, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc, None);
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -91,6 +89,7 @@ fn test_metrics_serial() -> Result<()> {
 
     let _ = kill_homestar(homestar_proc, None);
     let _ = stop_homestar();
+    remove_db(DB);
 
     Ok(())
 }

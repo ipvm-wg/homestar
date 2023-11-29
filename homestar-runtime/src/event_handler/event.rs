@@ -2,12 +2,14 @@
 
 use super::EventHandler;
 #[cfg(feature = "websocket-notify")]
-use crate::network::ws::notifier::NotifyReceipt;
+use crate::event_handler::notification::{
+    self, emit_receipt, EventNotificationTyp, SwarmNotification,
+};
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
     db::Database,
-    event_handler::{Handler, P2PSender},
+    event_handler::{channel::AsyncChannelSender, Handler, P2PSender, ResponseEvent},
     network::{
         pubsub,
         swarm::{CapsuleTag, RequestResponseKey, TopicMessage},
@@ -16,22 +18,26 @@ use crate::{
 };
 use anyhow::Result;
 use async_trait::async_trait;
-use homestar_core::workflow::Pointer;
 #[cfg(feature = "websocket-notify")]
-use homestar_core::{ipld::DagJson, workflow::Receipt as InvocationReceipt};
+use homestar_core::workflow::Pointer;
+use homestar_core::workflow::Receipt as InvocationReceipt;
 use libipld::{Cid, Ipld};
 use libp2p::{
     kad::{record::Key, Quorum, Record},
     rendezvous::Namespace,
     PeerId,
 };
+#[cfg(feature = "websocket-notify")]
+use maplit::btreemap;
 use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
-#[cfg(feature = "ipfs")]
+#[cfg(all(feature = "ipfs", not(feature = "test-utils")))]
 use tokio::runtime::Handle;
-use tokio::sync::oneshot;
 use tracing::{error, info, warn};
 
+const RENDEZVOUS_NAMESPACE: &str = "homestar";
+
 /// A [Receipt] captured (inner) event.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) struct Captured {
     /// The captured receipt.
@@ -91,7 +97,7 @@ pub(crate) enum Event {
     #[cfg(feature = "websocket-notify")]
     ReplayReceipts(Replay),
     /// General shutdown event.
-    Shutdown(oneshot::Sender<()>),
+    Shutdown(AsyncChannelSender<()>),
     /// Find a [Record] in the DHT, e.g. a [Receipt].
     ///
     /// [Record]: libp2p::kad::Record
@@ -111,23 +117,35 @@ pub(crate) enum Event {
     RegisterPeer(PeerId),
     /// Discover peers from a rendezvous node.
     DiscoverPeers(PeerId),
+    /// Dynamically get listeners for the swarm.
+    GetListeners(AsyncChannelSender<Vec<libp2p::core::Multiaddr>>),
 }
 
-const RENDEZVOUS_NAMESPACE: &str = "homestar";
-
+#[allow(unreachable_patterns)]
 impl Event {
     async fn handle_info<DB>(self, event_handler: &mut EventHandler<DB>) -> Result<()>
     where
         DB: Database,
     {
         match self {
-            Event::Shutdown(tx) => {
-                info!("event_handler server shutting down");
-                event_handler.shutdown().await;
-                let _ = tx.send(());
+            Event::CapturedReceipt(captured) => {
+                let _ = captured.publish_and_notify(event_handler);
             }
-            Event::FindRecord(record) => record.find(event_handler),
-            Event::RemoveRecord(record) => record.remove(event_handler),
+            Event::Shutdown(tx) => {
+                info!(
+                    subject = "shutdown",
+                    category = "handle_event",
+                    "event_handler server shutting down"
+                );
+                event_handler.shutdown().await;
+                let _ = tx.send_async(()).await;
+            }
+            Event::GetListeners(tx) => {
+                let listeners = event_handler.swarm.listeners().cloned().collect();
+                let _ = tx.send_async(listeners).await;
+            }
+            Event::FindRecord(record) => record.find(event_handler).await,
+            Event::RemoveRecord(record) => record.remove(event_handler).await,
             Event::OutboundRequest(PeerRequest {
                 peer,
                 request,
@@ -143,7 +161,7 @@ impl Event {
                     .request_response_senders
                     .insert(request_id, (request, sender));
             }
-            Event::GetProviders(record) => record.get_providers(event_handler),
+            Event::GetProviders(record) => record.get_providers(event_handler).await,
             Event::ProvideRecord(cid, sender, capsule_tag) => {
                 let query_id = event_handler
                     .swarm
@@ -169,7 +187,12 @@ impl Event {
                 }
             }
             Event::Providers(Err(err)) => {
-                error!("failed to find providers: {}", err);
+                info!(
+                    subject = "libp2p.providers.err",
+                    category = "handle_event",
+                    err=?err,
+                    "failed to find providers",
+                );
             }
             Event::RegisterPeer(peer_id) => {
                 if let Some(rendezvous_client) = event_handler
@@ -185,6 +208,8 @@ impl Event {
                         Some(event_handler.rendezvous.registration_ttl.as_secs()),
                     ) {
                         warn!(
+                            subject = "libp2p.register.rendezvous.err",
+                            category = "handle_event",
                             peer_id = peer_id.to_string(),
                             err = format!("{err}"),
                             "failed to register with rendezvous peer"
@@ -229,7 +254,8 @@ impl Captured {
         }
     }
 
-    fn store_and_notify<DB>(
+    #[allow(dead_code)]
+    fn publish_and_notify<DB>(
         mut self,
         event_handler: &mut EventHandler<DB>,
     ) -> Result<(Cid, InvocationReceipt<Ipld>)>
@@ -238,36 +264,60 @@ impl Captured {
     {
         let receipt = Db::find_receipt_by_cid(self.receipt, &mut event_handler.db.conn()?)?;
         let invocation_receipt = InvocationReceipt::from(&receipt);
-        let invocation_notification = invocation_receipt.clone();
         let instruction_bytes = receipt.instruction_cid_as_bytes();
         let receipt_cid = receipt.cid();
 
-        #[cfg(all(feature = "websocket-server", feature = "websocket-notify"))]
+        #[cfg(feature = "websocket-notify")]
         {
-            let ws_tx = event_handler.ws_sender();
-            let metadata = self.metadata.to_owned();
-            let receipt = NotifyReceipt::with(invocation_notification, receipt_cid, metadata);
-            if let Ok(json) = receipt.to_json() {
-                info!(
-                    cid = receipt_cid.to_string(),
-                    "Sending receipt to websocket"
-                );
-                let _ = ws_tx.notify(json);
-            }
+            emit_receipt(
+                event_handler.ws_workflow_sender(),
+                &receipt,
+                self.metadata.to_owned(),
+            )
+        }
+
+        // short-circuit if no peers
+        //
+        // - don't gossip receipt
+        // - don't store receipt or workflow info on DHT
+        if event_handler.connections.peers.is_empty() {
+            return Ok((self.receipt, invocation_receipt));
         }
 
         if event_handler.pubsub_enabled {
             match event_handler.swarm.behaviour_mut().gossip_publish(
                 pubsub::RECEIPTS_TOPIC,
-                TopicMessage::CapturedReceipt(receipt),
+                TopicMessage::CapturedReceipt(pubsub::Message::new(receipt.clone())),
             ) {
-                Ok(msg_id) => info!(
-                    "message {msg_id} published on {} topic for receipt with cid: {receipt_cid}",
-                    pubsub::RECEIPTS_TOPIC
-                ),
-                Err(_err) => {
-                    error!(
-                        "message not published on {} topic for receipt with cid: {receipt_cid}",
+                Ok(msg_id) => {
+                    info!(
+                        subject = "libp2p.gossip.publish",
+                        category = "publish_event",
+                        cid = receipt_cid.to_string(),
+                        message_id = msg_id.to_string(),
+                        "message published on {} topic for receipt with cid: {receipt_cid}",
+                        pubsub::RECEIPTS_TOPIC
+                    );
+
+                    #[cfg(feature = "websocket-notify")]
+                    notification::emit_event(
+                        event_handler.ws_evt_sender(),
+                        EventNotificationTyp::SwarmNotification(
+                            SwarmNotification::PublishedReceiptPubsub,
+                        ),
+                        btreemap! {
+                            "cid" => receipt.cid().to_string(),
+                            "ran" => receipt.ran().to_string()
+                        },
+                    );
+                }
+                Err(err) => {
+                    warn!(
+                        subject = "libp2p.gossip.publish.err",
+                        category = "publish_event",
+                        cid = receipt_cid.to_string(),
+                        err=?err,
+                        "message not published on {} topic for receipt",
                         pubsub::RECEIPTS_TOPIC
                     )
                 }
@@ -295,7 +345,12 @@ impl Captured {
                     Record::new(instruction_bytes, receipt_bytes.to_vec()),
                     receipt_quorum,
                 )
-                .map_err(|err| warn!(err=?err, "receipt not PUT on dht"));
+                .map_err(|err| {
+                    warn!(subject = "libp2p.put_record.err",
+                          category = "publish_event",
+                          err=?err,
+                          "receipt not PUT onto DHT")
+                });
 
             Arc::make_mut(&mut self.workflow).increment_progress(receipt_cid);
             let workflow_cid_bytes = self.workflow.cid_as_bytes();
@@ -308,15 +363,27 @@ impl Captured {
                         Record::new(workflow_cid_bytes, workflow_bytes),
                         workflow_quorum,
                     )
-                    .map_err(|err| warn!(err=?err, "workflow information not PUT on dht"));
+                    .map_err(|err| {
+                        warn!(subject = "libp2p.put_record.err",
+                                         category = "publish_event",
+                                         err=?err,
+                                         "workflow information not PUT onto DHT")
+                    });
             } else {
                 error!(
-                    "cannot convert workflow information {} to bytes",
-                    self.workflow.cid()
+                    subject = "libp2p.put_record.err",
+                    category = "publish_event",
+                    cid = self.workflow.cid().to_string(),
+                    "cannot convert workflow information to bytes",
                 );
             }
         } else {
-            error!("cannot convert receipt {receipt_cid} to bytes");
+            error!(
+                subject = "libp2p.put_record.err",
+                category = "publish_event",
+                cid = receipt_cid.to_string(),
+                "cannot convert receipt to bytes"
+            );
         }
 
         Ok((self.receipt, invocation_receipt))
@@ -332,7 +399,7 @@ impl Replay {
         Self { pointers, metadata }
     }
 
-    fn notify<DB>(self, event_handler: &EventHandler<DB>) -> Result<()>
+    fn notify<DB>(self, event_handler: &mut EventHandler<DB>) -> Result<()>
     where
         DB: Database,
     {
@@ -353,23 +420,58 @@ impl Replay {
             self.pointers.iter().collect::<Vec<_>>()
         );
 
-        receipts.into_iter().for_each(|receipt| {
-            let invocation_receipt = InvocationReceipt::from(&receipt);
-            let invocation_notification = invocation_receipt;
-            let receipt_cid = receipt.cid();
-
-            let ws_tx = event_handler.ws_sender();
-            let metadata = self.metadata.to_owned();
-            let receipt = NotifyReceipt::with(invocation_notification, receipt_cid, metadata);
-            if let Ok(json) = receipt.to_json() {
-                info!(
-                    cid = receipt_cid.to_string(),
-                    "Sending receipt to websocket"
-                );
-                let _ = ws_tx.notify(json);
-            }
+        #[cfg(feature = "websocket-notify")]
+        receipts.iter().for_each(|receipt| {
+            emit_receipt(
+                event_handler.ws_workflow_sender(),
+                receipt,
+                self.metadata.to_owned(),
+            );
         });
 
+        // gossiping replayed receipts
+        if event_handler.pubsub_enabled {
+            receipts.into_iter().for_each(|receipt| {
+                let receipt_cid = receipt.cid().to_string();
+                let _ = event_handler
+                    .swarm
+                    .behaviour_mut()
+                    .gossip_publish(
+                        pubsub::RECEIPTS_TOPIC,
+                        TopicMessage::CapturedReceipt(pubsub::Message::new(receipt.clone())),
+                    )
+                    .map(|msg_id| {
+                        info!(
+                            subject = "libp2p.gossip.publish.replay",
+                            category = "publish_event",
+                            cid = receipt_cid,
+                            message_id = msg_id.to_string(),
+                            "message published on {} topic for receipt with cid: {receipt_cid}",
+                            pubsub::RECEIPTS_TOPIC
+                        );
+
+                        #[cfg(feature = "websocket-notify")]
+                        notification::emit_event(
+                            event_handler.ws_evt_sender(),
+                            EventNotificationTyp::SwarmNotification(
+                                SwarmNotification::PublishedReceiptPubsub,
+                            ),
+                            btreemap! {
+                                "cid" => receipt.cid().to_string(),
+                                "ran" => receipt.ran().to_string()
+                            },
+                        );
+                    })
+                    .map_err(|err| {
+                        warn!(
+                            subject = "libp2p.gossip.publish.replay.err",
+                            category = "publish_event",
+                            err=?err,
+                            cid=receipt_cid,
+                            "message not published on {} topic for receipt", pubsub::RECEIPTS_TOPIC)
+                    });
+            });
+        }
         Ok(())
     }
 }
@@ -384,10 +486,18 @@ impl QueryRecord {
         }
     }
 
-    fn find<DB>(self, event_handler: &mut EventHandler<DB>)
+    async fn find<DB>(self, event_handler: &mut EventHandler<DB>)
     where
         DB: Database,
     {
+        if event_handler.connections.peers.is_empty() {
+            if let Some(sender) = self.sender {
+                let _ = sender.send_async(ResponseEvent::NoPeersAvailable).await;
+            }
+
+            return;
+        }
+
         let id = event_handler
             .swarm
             .behaviour_mut()
@@ -398,10 +508,18 @@ impl QueryRecord {
         event_handler.query_senders.insert(id, (key, self.sender));
     }
 
-    fn remove<DB>(self, event_handler: &mut EventHandler<DB>)
+    async fn remove<DB>(self, event_handler: &mut EventHandler<DB>)
     where
         DB: Database,
     {
+        if event_handler.connections.peers.is_empty() {
+            if let Some(sender) = self.sender {
+                let _ = sender.send_async(ResponseEvent::NoPeersAvailable).await;
+            }
+
+            return;
+        }
+
         event_handler
             .swarm
             .behaviour_mut()
@@ -415,10 +533,18 @@ impl QueryRecord {
             .stop_providing(&Key::new(&self.cid.to_bytes()));
     }
 
-    fn get_providers<DB>(self, event_handler: &mut EventHandler<DB>)
+    async fn get_providers<DB>(self, event_handler: &mut EventHandler<DB>)
     where
         DB: Database,
     {
+        if event_handler.connections.peers.is_empty() {
+            if let Some(sender) = self.sender {
+                let _ = sender.send_async(ResponseEvent::NoPeersAvailable).await;
+            }
+
+            return;
+        }
+
         let id = event_handler
             .swarm
             .behaviour_mut()
@@ -449,48 +575,79 @@ where
     #[cfg(not(feature = "ipfs"))]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>) {
         if let Err(err) = self.handle_info(event_handler).await {
-            error!(error=?err, "error storing event")
+            error!(subject = "handle.err",
+                   category = "handle_event",
+                   error=?err,
+                   "error storing event")
         }
     }
 
     #[cfg(feature = "ipfs")]
     #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
+    #[allow(unused_variables)]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>, ipfs: IpfsCli) {
         match self {
             Event::CapturedReceipt(captured) => {
-                let _ = captured
-                .store_and_notify(event_handler)
-                .map(|(cid, receipt)| {
-                    // Spawn client call in the background, without awaiting.
-                    let handle = Handle::current();
-                    let ipfs = ipfs.clone();
-                    handle.spawn(async move {
-                        if let Ok(bytes) = receipt.try_into() {
-                            match ipfs.put_receipt_bytes(bytes).await {
-                                Ok(put_cid) => {
-                                    info!(cid = put_cid, "IPLD DAG node stored");
-                                    #[cfg(debug_assertions)]
-                                    debug_assert_eq!(put_cid, cid.to_string());
+                if let Ok((cid, receipt)) = captured.publish_and_notify(event_handler) {
+                    #[cfg(not(feature = "test-utils"))]
+                    {
+                        // Spawn client call in the background, without awaiting.
+                        let handle = Handle::current();
+                        let ipfs = ipfs.clone();
+                        handle.spawn(async move {
+                            if let Ok(bytes) = receipt.try_into() {
+                                match ipfs.put_receipt_bytes(bytes).await {
+                                    Ok(put_cid) => {
+                                        info!(
+                                            subject = "ipfs.put.receipt",
+                                            category = "handle_event",
+                                            cid = put_cid,
+                                            "IPLD DAG node stored"
+                                        );
+                                        #[cfg(debug_assertions)]
+                                        debug_assert_eq!(put_cid, cid.to_string());
+                                    }
+                                    Err(err) => {
+                                        warn!(subject = "ipfs.put.receipt.err",
+                                               category = "handle_event",
+                                               error=?err,
+                                               cid=cid.to_string(),
+                                               "failed to store IPLD DAG node");
+                                    }
                                 }
-                                Err(err) => {
-                                    warn!(error=?err, cid=cid.to_string(), "failed to store IPLD DAG node");
-                                }
+                            } else {
+                                warn!(
+                                    subject = "ipfs.put.receipt.err",
+                                    category = "handle_event",
+                                    cid = cid.to_string(),
+                                    "failed to convert receipt to bytes"
+                                );
                             }
-                        } else {
-                            warn!(cid=cid.to_string(), "failed to convert receipt to bytes");
-                        }
-                    })
-                });
+                        });
+                    }
+                } else {
+                    error!(
+                        subject = "ipfs.put.receipt.err",
+                        category = "handle_event",
+                        "failed to capture receipt"
+                    );
+                }
             }
             #[cfg(feature = "websocket-notify")]
             Event::ReplayReceipts(replay) => {
                 if let Err(err) = replay.notify(event_handler) {
-                    error!(error=?err, "error notifying receipts")
+                    error!(subject = "replay.err",
+                           category = "handle_event",
+                           error=?err,
+                           "error replaying and notifying receipts")
                 }
             }
             event => {
                 if let Err(err) = event.handle_info(event_handler).await {
-                    error!(error=?err, "error storing event")
+                    error!(subject = "event.err",
+                           category = "handle_event",
+                           error=?err,
+                           "error storing event")
                 }
             }
         }

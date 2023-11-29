@@ -1,7 +1,7 @@
-//! RPC server implementation.
+//! CLI-focused RPC server implementation.
 
 use crate::{
-    channel::{AsyncBoundedChannel, AsyncBoundedChannelReceiver, AsyncBoundedChannelSender},
+    channel::{AsyncChannel, AsyncChannelReceiver, AsyncChannelSender},
     runner::{self, file::ReadWorkflow, response, RpcSender},
     settings,
 };
@@ -14,7 +14,7 @@ use tarpc::{
     context,
     server::{self, incoming::Incoming, Channel},
 };
-use tokio::{runtime::Handle, select, sync::oneshot, time};
+use tokio::{runtime::Handle, select, time};
 use tokio_serde::formats::MessagePack;
 use tracing::{info, warn};
 
@@ -34,7 +34,7 @@ pub(crate) enum ServerMessage {
     /// Message sent by the [Runner] to start a graceful shutdown.
     ///
     /// [Runner]: crate::Runner
-    GracefulShutdown(oneshot::Sender<()>),
+    GracefulShutdown(AsyncChannelSender<()>),
     /// Message sent to start a [Workflow] run by reading a [Workflow] file.
     ///
     /// [Workflow]: homestar_core::Workflow
@@ -47,6 +47,7 @@ pub(crate) enum ServerMessage {
     ///
     /// [Workflow]: homestar_core::Workflow
     RunErr(runner::Error),
+    /// For skipping server messages.
     Skip,
 }
 
@@ -70,9 +71,9 @@ pub(crate) struct Server {
     /// [SocketAddr] of the RPC server.
     pub(crate) addr: SocketAddr,
     /// Sender for messages to be sent to the RPC server.
-    pub(crate) sender: Arc<AsyncBoundedChannelSender<ServerMessage>>,
+    pub(crate) sender: Arc<AsyncChannelSender<ServerMessage>>,
     /// Receiver for messages sent to the RPC server.
-    pub(crate) receiver: AsyncBoundedChannelReceiver<ServerMessage>,
+    pub(crate) receiver: AsyncChannelReceiver<ServerMessage>,
     /// Sender for messages to be sent to the [Runner].
     ///
     /// [Runner]: crate::Runner
@@ -118,15 +119,15 @@ impl Interface for ServerHandler {
         name: Option<FastStr>,
         workflow_file: ReadWorkflow,
     ) -> Result<Box<response::AckWorkflow>, Error> {
-        let (tx, rx) = oneshot::channel();
+        let (tx, rx) = AsyncChannel::oneshot();
         self.runner_sender
-            .send((ServerMessage::Run((name, workflow_file)), Some(tx)))
+            .send_async((ServerMessage::Run((name, workflow_file)), Some(tx)))
             .await
             .map_err(|e| Error::FailureToSendOnChannel(e.to_string()))?;
 
         let now = time::Instant::now();
         select! {
-            Ok(msg) = rx => {
+            Ok(msg) = rx.recv_async() => {
                 match msg {
                     ServerMessage::RunAck(response) => {
                         Ok(response)
@@ -137,7 +138,9 @@ impl Interface for ServerHandler {
             },
             _ = time::sleep_until(now + self.timeout) => {
                 let s = format!("server timeout of {} ms reached", self.timeout.as_millis());
-                info!("{s}");
+                info!(subject = "rpc.timeout",
+                      category = "rpc",
+                      "{s}");
                 Err(Error::FailureToReceiveOnChannel(s))
             }
 
@@ -148,7 +151,7 @@ impl Interface for ServerHandler {
     }
     async fn stop(self, _: context::Context) -> Result<(), Error> {
         self.runner_sender
-            .send((ServerMessage::ShutdownCmd, None))
+            .send_async((ServerMessage::ShutdownCmd, None))
             .await
             .map_err(|e| Error::FailureToSendOnChannel(e.to_string()))
     }
@@ -157,19 +160,19 @@ impl Interface for ServerHandler {
 impl Server {
     /// Create a new instance of the RPC server.
     pub(crate) fn new(settings: &settings::Network, runner_sender: Arc<RpcSender>) -> Self {
-        let (tx, rx) = AsyncBoundedChannel::oneshot();
+        let (tx, rx) = AsyncChannel::oneshot();
         Self {
-            addr: SocketAddr::new(settings.rpc_host, settings.rpc_port),
+            addr: SocketAddr::new(settings.rpc.host, settings.rpc.port),
             sender: tx.into(),
             receiver: rx,
             runner_sender,
-            max_connections: settings.rpc_max_connections,
-            timeout: settings.rpc_server_timeout,
+            max_connections: settings.rpc.max_connections,
+            timeout: settings.rpc.server_timeout,
         }
     }
 
     /// Return a RPC server channel sender.
-    pub(crate) fn sender(&self) -> Arc<AsyncBoundedChannelSender<ServerMessage>> {
+    pub(crate) fn sender(&self) -> Arc<AsyncChannelSender<ServerMessage>> {
         self.sender.clone()
     }
 
@@ -179,7 +182,12 @@ impl Server {
             tarpc::serde_transport::tcp::listen(self.addr, MessagePack::default).await?;
         listener.config_mut().max_frame_length(usize::MAX);
 
-        info!("RPC server listening on {}", self.addr);
+        info!(
+            subject = "rpc.spawn",
+            category = "rpc",
+            "RPC server listening on {}",
+            self.addr
+        );
 
         // setup valved listener for cancellation
         let (exit, incoming) = Valved::new(listener);
@@ -202,11 +210,16 @@ impl Server {
 
             select! {
                 Ok(ServerMessage::GracefulShutdown(tx)) = self.receiver.recv_async() => {
-                    info!("RPC server shutting down");
+                    info!(subject = "shutdown",
+                          category = "homestar.shutdown",
+                          "RPC server shutting down");
                     drop(exit);
-                    let _ = tx.send(());
+                    let _ = tx.send_async(()).await;
                 }
-                _ = fut => warn!("RPC server exited unexpectedly"),
+                _ = fut =>
+                    warn!(subject = "rpc.spawn.err",
+                          category = "rpc",
+                          "RPC server exited unexpectedly"),
             }
         });
 

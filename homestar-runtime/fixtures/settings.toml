@@ -2,5 +2,9 @@
 
 [node.network]
 events_buffer_len = 1000
-websocket_port = 9999
+
+[node.network.webserver]
+port = 9999
+
+[node.network.libp2p]
 node_addresses = ["/ip4/127.0.0.1/tcp/9998/ws"]

@@ -1,7 +1,8 @@
-//! [libp2p], [websocket], and [ipfs] networking interfaces.
+//! [libp2p], multi-use [HTTP] and [WebSocket] server, and [ipfs] networking
+//! interfaces.
 //!
-//! [libp2p]: libp2p
-//! [websocket]: axum::extract::ws
+//! [HTTP]: jsonrpsee::server
+//! [WebSocket]: jsonrpsee::server
 //! [ipfs]: ipfs_api
 
 pub(crate) mod error;
@@ -10,8 +11,9 @@ pub(crate) mod ipfs;
 pub(crate) mod pubsub;
 pub mod rpc;
 pub(crate) mod swarm;
-#[cfg(feature = "websocket-server")]
-pub(crate) mod ws;
+pub(crate) mod webserver;
 
+#[allow(unused_imports)]
+pub(crate) use error::Error;
 #[cfg(feature = "ipfs")]
 pub(crate) use ipfs::IpfsCli;

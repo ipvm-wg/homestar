@@ -9,47 +9,27 @@ use nix::{
 };
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
-use retry::{delay::Fixed, retry};
+#[cfg(not(windows))]
+use retry::delay::Fixed;
+use retry::{delay::Exponential, retry};
 use std::{
-    net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
+    fs,
+    future::Future,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Child, Command, Stdio},
     time::Duration,
 };
-use strip_ansi_escapes;
 #[cfg(not(windows))]
 use sysinfo::PidExt;
 use sysinfo::{ProcessExt, SystemExt};
+use tokio::time::{timeout, Timeout};
 use wait_timeout::ChildExt;
 
 /// Binary name, which is different than the crate name.
 pub(crate) const BIN_NAME: &str = "homestar";
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
-const IPFS: &str = "ipfs";
-
-/// Start-up IPFS daemon for tests with the feature turned-on.
-pub(crate) fn startup_ipfs() -> Result<()> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
-    println!("starting ipfs daemon...{}", path.to_str().unwrap());
-    let mut ipfs_daemon = Command::new(IPFS)
-        .args(["--offline", "daemon", "--init"])
-        .stdout(Stdio::piped())
-        .spawn()?;
-
-    // wait for ipfs daemon to start by testing for a connection
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 5001);
-    let result = retry(Fixed::from_millis(500), || {
-        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
-    });
-
-    if let Err(err) = result {
-        ipfs_daemon.kill().unwrap();
-        panic!("`ipfs daemon` failed to start: {:?}", err);
-    } else {
-        Ok(())
-    }
-}
 
 /// Stop the Homestar server/binary.
 pub(crate) fn stop_homestar() -> Result<()> {
@@ -59,28 +39,6 @@ pub(crate) fn stop_homestar() -> Result<()> {
         .stderr(Stdio::null())
         .status()
         .context("failed to stop Homestar server")?;
-
-    Ok(())
-}
-
-/// Stop the IPFS binary.
-pub(crate) fn stop_ipfs() -> Result<()> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".ipfs");
-    Command::new(IPFS)
-        .args(["--repo-dir", path.to_str().unwrap(), "shutdown"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .context("failed to stop IPFS daemon")?;
-    rm_rf::ensure_removed(path).unwrap();
-
-    Ok(())
-}
-
-/// Stop all binaries.
-pub(crate) fn stop_all_bins() -> Result<()> {
-    let _ = stop_ipfs();
-    let _ = stop_homestar();
 
     Ok(())
 }
@@ -95,13 +53,13 @@ pub(crate) fn retrieve_output(proc: Child) -> String {
 /// Check process output for all predicates in any line
 pub(crate) fn check_lines_for(output: String, predicates: Vec<&str>) -> bool {
     output
-        .split("\n")
+        .split('\n')
         .map(|line| line_contains(line, &predicates))
-        .fold(false, |acc, curr| acc || curr)
+        .any(|curr| curr)
 }
 
 pub(crate) fn count_lines_where(output: String, predicates: Vec<&str>) -> i32 {
-    output.split("\n").fold(0, |count, line| {
+    output.split('\n').fold(0, |count, line| {
         if line_contains(line, &predicates) {
             count + 1
         } else {
@@ -116,10 +74,9 @@ pub(crate) fn extract_timestamps_where(
     output: String,
     predicates: Vec<&str>,
 ) -> Vec<DateTime<FixedOffset>> {
-    output.split("\n").fold(vec![], |mut timestamps, line| {
+    output.split('\n').fold(vec![], |mut timestamps, line| {
         if line_contains(line, &predicates) {
-            match extract_label(&line, "ts").and_then(|val| DateTime::parse_from_rfc3339(val).ok())
-            {
+            match extract_label(line, "ts").and_then(|val| DateTime::parse_from_rfc3339(val).ok()) {
                 Some(datetime) => {
                     timestamps.push(datetime);
                     timestamps
@@ -136,11 +93,11 @@ pub(crate) fn extract_timestamps_where(
 }
 
 /// Check process output line for all predicates
-fn line_contains(line: &str, predicates: &Vec<&str>) -> bool {
+fn line_contains(line: &str, predicates: &[&str]) -> bool {
     predicates
         .iter()
         .map(|pred| predicate::str::contains(*pred).eval(line))
-        .fold(true, |acc, curr| acc && curr)
+        .all(|curr| curr)
 }
 
 /// Extract label value from process output line
@@ -215,3 +172,55 @@ pub(crate) fn kill_homestar_daemon() -> Result<()> {
 
     Ok(())
 }
+
+/// Remove sqlite database and associated temporary files
+pub(crate) fn remove_db(name: &str) {
+    let _ = fs::remove_file(name);
+    let _ = fs::remove_file(format!("{name}-shm"));
+    let _ = fs::remove_file(format!("{name}-wal"));
+}
+
+/// Wait for socket connection or timeout
+pub(crate) fn wait_for_socket_connection(port: u16, exp_retry_base: u64) -> Result<(), ()> {
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+    let result = retry(Exponential::from_millis(exp_retry_base).take(10), || {
+        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
+    });
+
+    result.map_or_else(|_| Err(()), |_| Ok(()))
+}
+
+/// Wait for socket connection or timeout (ipv6)
+pub(crate) fn wait_for_socket_connection_v6(port: u16, exp_retry_base: u64) -> Result<(), ()> {
+    let socket = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), port);
+    let result = retry(Exponential::from_millis(exp_retry_base).take(10), || {
+        TcpStream::connect(socket).map(|stream| stream.shutdown(Shutdown::Both))
+    });
+
+    result.map_or_else(|_| Err(()), |_| Ok(()))
+}
+
+/// Helper extension trait which allows to limit execution time for the futures.
+/// It is helpful in tests to ensure that no future will ever get stuck forever.
+pub(crate) trait TimeoutFutureExt<T>: Future<Output = T> + Sized {
+    /// Returns a reasonable value that can be used as a future timeout with a certain
+    /// degree of confidence that timeout won't be triggered by the test specifics.
+    fn default_timeout() -> Duration {
+        // If some future wasn't done in 60 seconds, it's either a poorly written test
+        // or (most likely) a bug related to some future never actually being completed.
+        const TIMEOUT_SECONDS: u64 = 60;
+        Duration::from_secs(TIMEOUT_SECONDS)
+    }
+
+    /// Adds a fixed timeout to the future.
+    fn with_default_timeout(self) -> Timeout<Self> {
+        self.with_timeout(Self::default_timeout())
+    }
+
+    /// Adds a custom timeout to the future.
+    fn with_timeout(self, timeout_value: Duration) -> Timeout<Self> {
+        timeout(timeout_value, self)
+    }
+}
+
+impl<T, U> TimeoutFutureExt<T> for U where U: Future<Output = T> + Sized {}

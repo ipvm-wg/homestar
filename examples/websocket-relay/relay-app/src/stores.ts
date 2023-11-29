@@ -1,16 +1,26 @@
-import { derived, writable } from "svelte/store";
-import type { Readable, Writable } from "svelte/store";
+import {
+  derived,
+  readable,
+  writable,
+  type Readable,
+  type Writable,
+} from "svelte/store";
+import { Homestar } from "@fission-codes/homestar";
 import type { NodeProps } from "svelvet";
+import { WebsocketTransport } from "@fission-codes/homestar/transports/ws.js";
 
-import type { Channel } from "$lib/channel";
 import type { Workflow, WorkflowId, WorkflowState } from "$lib/workflow";
 import type { Maybe } from "$lib";
 import type { Task } from "$lib/task";
 
-// Initialized in +page.svelte
-export const base64CatStore: Writable<string> = writable("")
+export const homestarStore: Readable<Homestar> = readable(
+  new Homestar({
+    transport: new WebsocketTransport(import.meta.env.VITE_WEBSOCKET_ENDPOINT),
+  })
+);
 
-export const channelStore: Writable<Maybe<Channel>> = writable(null);
+// Initialized in +page.svelte
+export const base64CatStore: Writable<string> = writable("");
 
 export const workflowStore: Writable<Record<string, Workflow>> = writable({
   one: {
@@ -26,7 +36,8 @@ export const workflowStore: Writable<Record<string, Workflow>> = writable({
 export const activeWorkflowStore: Writable<Maybe<WorkflowState>> =
   writable(null);
 
-export const firstWorkflowToRunStore: Writable<'one' | 'two'| null> = writable(null)
+export const firstWorkflowToRunStore: Writable<"one" | "two" | null> =
+  writable(null);
 
 export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
   one: [
@@ -84,13 +95,13 @@ export const taskStore: Writable<Record<WorkflowId, Task[]>> = writable({
 });
 
 const NODE_TASK_MAP = {
-  '2': 'crop',
-  '3': 'rotate90',
-  '4': 'blur',
-  '5': 'crop',
-  '6': 'rotate90',
-  '7': 'grayscale',
-}
+  "2": "crop",
+  "3": "rotate90",
+  "4": "blur",
+  "5": "crop",
+  "6": "rotate90",
+  "7": "grayscale",
+};
 export const nodeStore: Readable<NodeProps[]> = derived(
   [firstWorkflowToRunStore, taskStore],
   ($stores) => {

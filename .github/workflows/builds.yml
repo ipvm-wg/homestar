@@ -15,7 +15,7 @@ on:
 
   # for debugging
   # pull_request:
-  #   branches: [ '**' ]
+  #   branches: ['**']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,14 +29,19 @@ jobs:
         include:
           - target: aarch64-unknown-linux-gnu
           - target: aarch64-unknown-linux-musl
+            npm: linux-arm64
           - target: aarch64-apple-darwin
             os: macos-latest
+            npm: darwin-arm64
           - target: x86_64-unknown-linux-gnu
           - target: x86_64-unknown-linux-musl
+            npm: linux-x64
           - target: x86_64-apple-darwin
             os: macos-latest
+            npm: darwin-x64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
+            npm: windows-x64
           - target: x86_64-unknown-freebsd
 
     permissions:
@@ -94,25 +99,91 @@ jobs:
           include: LICENSE,README.md
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  npm-publish:
+    needs: binary-builds
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-unknown-linux-musl
+            os: linux
+            arch: arm64
+          - target: x86_64-unknown-linux-musl
+            os: linux
+            arch: x64
+          - target: aarch64-apple-darwin
+            os: darwin
+            arch: arm64
+          - target: x86_64-apple-darwin
+            os: darwin
+            arch: x64
+          - target: x86_64-pc-windows-msvc
+            os: windows
+            arch: x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          registry-url: 'https://registry.npmjs.org'
+      - name: Install cargo get
+        run: cargo install cargo-get
+      - name: Prepare os/arch packages
+        shell: bash
+        env:
+          node_os: ${{ matrix.os }}
+          node_arch: ${{ matrix.arch }}
+          node_pkg: homestar-${{ matrix.os }}-${{ matrix.arch }}
+        run: |
+          export node_version=$(cargo get workspace.package.version)
+          echo "node_pkg=${node_pkg}" >> "$GITHUB_ENV"
+          cd homestar-runtime/npm
+          mkdir -p "${node_pkg}/bin"
+          envsubst < package.json.tmpl > "${node_pkg}/package.json"
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ matrix.target }}
+          path: 'homestar-runtime/npm/${{ env.node_pkg }}/bin'
+      - name: Publish production
+        if: github.event_name == 'release' && github.event.action == 'published'
+        run: |
+          cd "homestar-runtime/npm/${{ env.node_pkg }}"
+          npm publish --access=public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      - name: Publish RC
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          cd "homestar-runtime/npm/${{ env.node_pkg }}"
+          npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
+          npm publish --access public --tag rc
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+
   build-packages:
     runs-on: ubuntu-latest
-
-    env:
-      LINUX_TARGET: x86_64-unknown-linux-musl
-
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+          - target: x86_64-unknown-linux-musl
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install musl-tools
         run: sudo apt update && sudo apt install -y musl-dev musl-tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
 
       - name: Install Rust toolchain
         id: toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
-          targets: ${{ env.LINUX_TARGET }}
+          targets: ${{ matrix.target }}
 
       - name: Override rust-toolchain.toml
         run: rustup override set ${{steps.toolchain.outputs.name}}
@@ -131,18 +202,18 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          shared-key: check-${{ env.LINUX_TARGET }}-ubuntu-latest
+          shared-key: check-${{ matrix.target }}-ubuntu-latest
 
       - name: Create .deb
-        run: cargo deb -p homestar-runtime --target ${{ env.LINUX_TARGET }} --output homestar.deb
+        run: cargo deb -p homestar-runtime --target ${{ matrix.target }} --variant ${{ matrix.target }} --output homestar.deb
 
       - name: Create .rpm
-        run: cargo generate-rpm -p homestar-runtime --target ${{ env.LINUX_TARGET }} --output homestar.rpm
+        run: cargo generate-rpm -p homestar-runtime --target ${{ matrix.target }} --variant ${{ matrix.target }} --output homestar.rpm
 
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ env.LINUX_TARGET }}
+          name: ${{ matrix.target }}
           path: |
             *.deb
             *.rpm

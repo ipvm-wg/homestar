@@ -1,0 +1,44 @@
+{
+  "tasks": [
+    {
+      "cause": null,
+      "meta": {
+      "memory": 4294967296,
+      "time": 100000
+    },
+    "prf": [],
+    "run": {
+      "input": {
+        "args": ["helloworld", 10],
+        "func": "sum"
+      },
+      "nnc": "",
+      "op": "wasm/run",
+      "rsc": "ipfs://bafybeibawnb3pytqmky4ph37hj7y7qosqcneofjextqq55zhxfniiletfu"
+      }
+    },
+    {
+      "cause": null,
+      "meta": {
+        "memory": 4294967296,
+        "time": 100000
+      },
+      "prf": [],
+      "run": {
+        "input": {
+          "args": [
+            {
+              "await/ok": {
+                "/": "bafyrmigltroc4nrdaskjselusvfcuooc52k2rl7nmrf72edbauyptmx5bq"
+              }
+            }
+          ],
+          "func": "hashbytes"
+        },
+        "nnc": "",
+        "op": "wasm/run",
+        "rsc": "ipfs://bafybeifrgndv3blrxucig2pei6uaoyiyipk5vvzds7ps47ec6pzf4ax2d4"
+      }
+    }
+  ]
+}

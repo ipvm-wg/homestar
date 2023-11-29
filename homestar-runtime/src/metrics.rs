@@ -2,19 +2,35 @@
 
 use crate::settings;
 use anyhow::Result;
+use metrics_exporter_prometheus::PrometheusHandle;
+#[cfg(feature = "monitoring")]
 use tokio::runtime::Handle;
 
 mod exporter;
+#[cfg(feature = "monitoring")]
 mod node;
 
 /// Start metrics collection and setup scrape endpoint.
-pub(crate) async fn start(settings: &settings::Monitoring) -> Result<()> {
-    let handle = Handle::current();
-    exporter::setup_metrics_recorder(settings)?;
+/// Also, spawn a task to collect process metrics at a regular interval.
+#[cfg(feature = "monitoring")]
+pub(crate) async fn start(
+    monitor_settings: &settings::Monitoring,
+    network_settings: &settings::Network,
+) -> Result<PrometheusHandle> {
+    let metrics_hdl = exporter::setup_metrics_recorder(network_settings)?;
 
     // Spawn tick-driven process collection task
-    #[cfg(feature = "monitoring")]
-    handle.spawn(node::collect_metrics(settings.process_collector_interval));
+    let handle = Handle::current();
+    handle.spawn(node::collect_metrics(
+        monitor_settings.process_collector_interval,
+    ));
 
-    Ok(())
+    Ok(metrics_hdl)
+}
+
+/// Start metrics collection and setup scrape endpoint.
+#[cfg(not(feature = "monitoring"))]
+pub(crate) async fn start(network_settings: &settings::Network) -> Result<PrometheusHandle> {
+    let metrics_hdl = exporter::setup_metrics_recorder(network_settings)?;
+    Ok(metrics_hdl)
 }

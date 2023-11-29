@@ -3,7 +3,7 @@
     <img src="https://raw.githubusercontent.com/ipvm-wg/homestar/main/assets/mascot_full_transparent.png" alt="Homestar logo" width="400"></img>
   </a>
 
-  <h1 align="center">homestar</h1>
+  <h1 align="center">Homestar</h1>
 
   <p>
     <a href="https://crates.io/crates/homestar-core">
@@ -50,6 +50,7 @@
 ## Outline
 
 - [Quickstart](#quickstart)
+- [Packages](#packages)
 - [Running Examples](#running-examples)
 - [Workspace](#workspace)
 - [Contributing](#contributing)
@@ -60,18 +61,18 @@
 
 ## Quickstart
 
-If you're looking to help develop `homestar`, please dive right into our
+If you're looking to help develop `Homestar`, please dive right into our
 [development](./DEVELOPMENT.md) guide.
 
-Otherwise, the easiest way to get started and see `homestar` in action is to
+Otherwise, the easiest way to get started and see `Homestar` in action is to
 follow-along and run our image-processing
 [websocket relay](./examples/websocket-relay) example, which integrates
-`homestar` with a browser application to run a
+`Homestar` with a browser application to run a
 statically-configured workflow. The associated `README.md` walks through
 what to install (i.e. `rust`, `node/npm`, `ipfs`), what commands
 to run, and embeds a video demonstrating its usage.
 
-Throughout the `homestar` ecosystem and documentation, we'll draw a distinction
+Throughout the `Homestar` ecosystem and documentation, we'll draw a distinction
 between the [host runtime][host-runtime] and the support for different
 [guest languages and bindings][guest].
 
@@ -80,26 +81,35 @@ components (currently focused on authoring in Rust), please jump into
 our [`homestar-functions`](./homestar-functions) directory and check out
 our examples there.
 
+## Packages
+
+Each `Homestar` release will also build packages for distribution across
+different platforms.
+
+- [homebrew][homebrew]: `brew install fission-codes/fission/homestar`
+  This includes `ipfs` in the install by default.
+- [npm](https://www.npmjs.com/package/homestar-runtime): `npm install homestar-runtime -g` Wraps the `homestar-runtime` binary in a node script.  
+
 ## Running Examples
 
 All [examples](./examples) contain instructions for running
 them, including what to install and how to run them. Please clone this repo,
 and get started!
 
-Each example showcases something specific and interesting about `homestar`
+Each example showcases something specific and interesting about `Homestar`
 as a system.
 
 Our current list includes:
 
 - [websocket relay](./examples/websocket-relay/README.md) - An example
   (browser-based) application that connects to the `homestar-runtime` over a
-  websocket connection in order to run a couple static Wasm-based, image
+  WebSocket connection in order to run a couple static Wasm-based, image
   processing workflows that chain inputs and outputs.
 
 ## Workspace
 
 This repository is comprised of a few library packages and a library/binary that
-represents the `homestar` runtime. We recommend diving into each package's own
+represents the `Homestar` runtime. We recommend diving into each package's own
 `README.md` for more information when available.
 
 ### Core Crates
@@ -135,8 +145,8 @@ represents the `homestar` runtime. We recommend diving into each package's own
 
 - [examples/*](./examples)
 
-  `examples` contains examples and demos showcasing `homestar` packages
-  and the `homestar runtime`. Each example is set up as its own crate,
+  `examples` contains examples and demos showcasing `Homestar` packages
+  and the `Homestar` runtime. Each example is set up as its own crate,
   demonstrating the necessary dependencies and setup(s).
 
 ## Contributing
@@ -167,7 +177,6 @@ We would be happy to try to answer your question or try opening a new issue on G
 - [IPVM - IPFS and WASM][ipfs-thing-ipvm] by Brooklyn Zelenka
 - [Breaking Down the Interplanetary Virtual Machine][blog-1]
 - [Ucan Invocation Spec][ucan-invocation]
-- [Wasm/Wit Demo - Februrary 2023][demo-1] by Zeeshan Lakhani
 
 ## License
 
@@ -187,6 +196,7 @@ conditions.
 [demo-1]: https://www.loom.com/share/3204037368fe426ba3b4c952b0691c5c
 [foundations-for-openworld-compute]: https://youtu.be/dRz5mau6fsY
 [guest]: https://github.com/bytecodealliance/wit-bindgen#supported-guest-languages
+[homebrew]: https://brew.sh/
 [host-runtime]: https://github.com/bytecodealliance/wit-bindgen#host-runtimes-for-components
 [ipfs-thing-ipvm]: https://www.youtube.com/watch?v=rzJWk1nlYvs
 [ipld]: https://ipld.io/

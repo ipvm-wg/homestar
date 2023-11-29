@@ -51,9 +51,8 @@ cd test && cargo build --target wasm32-unknown-unknown --profile release-wasm-fn
 cargo build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn
 ```
 
-Guest Wasm modules will be generated within the
-`../target/wasm32-unknown-unknown/release` directory, e.g.
-`../target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_test.wasm`.
+Guest Wasm modules will be generated in the top-level `homestar` directory:
+`./target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_test.wasm`.
 
 Sadly, this module is **not yet** an actual `component`. But, we can leverage
 the [wasm-tools][wasm-tools] tooling ([wit-component][wit-component] in
@@ -99,7 +98,7 @@ conditions.
 [kv-demo]: https://github.com/Mossaka/keyvalue-component-model-demo
 [spiderlightning]: https://github.com/deislabs/spiderlightning
 [wasi]: https://github.com/WebAssembly/WASI
-[wasm32]: https://doc.rust-lang.org/rustc/platform-support/wasm64-unknown-unknown.html
+[wasm32]: https://rustwasm.github.io/docs/wasm-pack/prerequisites/non-rustup-setups.html#manually-add-wasm32-unknown-unknown
 [wasmtime]: https://github.com/bytecodealliance/wasmtime
 [wasm-tools]: https://github.com/bytecodealliance/wasm-tools
 [wit-bindgen]: https://github.com/bytecodealliance/wit-bindgen

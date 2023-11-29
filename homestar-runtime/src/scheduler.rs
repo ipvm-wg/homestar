@@ -19,7 +19,7 @@ use indexmap::IndexMap;
 use libipld::Cid;
 use std::{ops::ControlFlow, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
-use tracing::info;
+use tracing::debug;
 
 /// Type alias for a [Dag] set of batched nodes.
 ///
@@ -106,7 +106,8 @@ impl<'a> TaskScheduler<'a> {
         let mut_graph = Arc::make_mut(&mut graph);
         let schedule: &mut Schedule<'a> = mut_graph.schedule.as_mut();
         let schedule_length = schedule.len();
-        let mut resources_to_fetch: FnvHashSet<Resource> = FnvHashSet::default();
+        let mut resources_to_fetch = vec![];
+        let linkmap = LinkMap::<InstructionResult<Arg>>::new();
 
         let resume = 'resume: {
             for (idx, vec) in schedule.iter().enumerate().rev() {
@@ -117,7 +118,7 @@ impl<'a> TaskScheduler<'a> {
                         .get(&cid)
                         .map(|resource| {
                             resource.iter().for_each(|rsc| {
-                                resources_to_fetch.insert(rsc.to_owned());
+                                resources_to_fetch.push((cid, rsc));
                             });
                             ptrs.push(Pointer::new(cid));
                         })
@@ -128,28 +129,32 @@ impl<'a> TaskScheduler<'a> {
                 if let Ok(pointers) = folded_pointers {
                     match Db::find_instruction_pointers(&pointers, conn) {
                         Ok(found) => {
-                            let linkmap = found.iter().fold(
-                                LinkMap::<InstructionResult<Arg>>::new(),
-                                |mut map, receipt| {
-                                    let _ = map.insert(
-                                        receipt.instruction().cid(),
-                                        receipt.output_as_arg(),
-                                    );
+                            let linkmap = found.iter().fold(linkmap.clone(), |mut map, receipt| {
+                                if let Some(idx) = resources_to_fetch
+                                    .iter()
+                                    .position(|(cid, _rsc)| cid == &receipt.instruction().cid())
+                                {
+                                    resources_to_fetch.swap_remove(idx);
+                                }
 
-                                    map
-                                },
-                            );
+                                let _ = map
+                                    .insert(receipt.instruction().cid(), receipt.output_as_arg());
+
+                                map
+                            });
 
                             if found.len() == vec.len() {
                                 break 'resume ControlFlow::Break((idx + 1, linkmap));
-                            } else if !found.is_empty() && found.len() < vec.len() {
-                                break 'resume ControlFlow::Break((idx, linkmap));
                             } else {
                                 continue;
                             }
                         }
                         Err(_) => {
-                            info!("receipt not available in the database");
+                            debug!(
+                                subject = "receipt.db.check",
+                                category = "scheduler.run",
+                                "receipt not available in the database"
+                            );
                             continue;
                         }
                     }
@@ -159,6 +164,11 @@ impl<'a> TaskScheduler<'a> {
             }
             ControlFlow::Continue(())
         };
+
+        let resources_to_fetch: FnvHashSet<Resource> = resources_to_fetch
+            .into_iter()
+            .map(|(_, rsc)| rsc.to_owned())
+            .collect();
 
         let fetched = fetch_fn(resources_to_fetch).await?;
 
@@ -183,7 +193,7 @@ impl<'a> TaskScheduler<'a> {
             }
             _ => Ok(SchedulerContext {
                 scheduler: Self {
-                    linkmap: Arc::new(LinkMap::<InstructionResult<Arg>>::new().into()),
+                    linkmap: Arc::new(linkmap.into()),
                     ran: None,
                     run: schedule.to_vec(),
                     resume_step: None,
@@ -191,6 +201,25 @@ impl<'a> TaskScheduler<'a> {
                 },
             }),
         }
+    }
+
+    /// Get the number of tasks that have already ran in the [Workflow].
+    ///
+    /// [Workflow]: homestar_core::Workflow
+    #[allow(dead_code)]
+    pub(crate) fn ran_length(&self) -> usize {
+        self.ran
+            .as_ref()
+            .map(|ran| ran.iter().flatten().collect::<Vec<_>>().len())
+            .unwrap_or_default()
+    }
+
+    /// Get the number of tasks left to run in the [Workflow].
+    ///
+    /// [Workflow]: homestar_core::Workflow
+    #[allow(dead_code)]
+    pub(crate) fn run_length(&self) -> usize {
+        self.run.iter().flatten().collect::<Vec<_>>().len()
     }
 }
 
@@ -292,7 +321,7 @@ mod test {
         let mut conn = db.conn().unwrap();
         let stored_receipt = MemoryDb::store_receipt(receipt.clone(), &mut conn).unwrap();
 
-        assert_eq!(receipt, stored_receipt);
+        assert_eq!(receipt, stored_receipt.unwrap());
 
         let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
         let fetch_fn = |_rscs: FnvHashSet<Resource>| {

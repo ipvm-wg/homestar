@@ -1,3 +1,5 @@
+//! Event-handler cache for retry events.
+
 use crate::{channel, event_handler::Event};
 use libp2p::PeerId;
 use moka::{
@@ -24,6 +26,7 @@ impl ExpiryBase<String, CacheValue> for Expiry {
     }
 }
 
+/// A cache value, made-up of an expiration and data map.
 #[derive(Clone, Debug)]
 pub(crate) struct CacheValue {
     expiration: Duration,
@@ -36,20 +39,23 @@ impl CacheValue {
     }
 }
 
+/// Kinds of data to be stored in the cache.
 #[derive(Clone, Debug)]
 pub(crate) enum CacheData {
     Peer(PeerId),
     OnExpiration(DispatchEvent),
 }
 
+/// Events to be dispatched on cache expiration.
 #[derive(Clone, Debug)]
 pub(crate) enum DispatchEvent {
     RegisterPeer,
     DiscoverPeers,
 }
 
+/// Setup a cache with an eviction listener.
 pub(crate) fn setup_cache(
-    sender: Arc<channel::AsyncBoundedChannelSender<Event>>,
+    sender: Arc<channel::AsyncChannelSender<Event>>,
 ) -> Cache<String, CacheValue> {
     let eviction_listener = move |_key: Arc<String>, val: CacheValue, cause: RemovalCause| {
         let tx = Arc::clone(&sender);

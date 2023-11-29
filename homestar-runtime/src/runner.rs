@@ -1,48 +1,51 @@
 //! General [Runner] interface for working across multiple workers
 //! and executing workflows.
 
-#[cfg(feature = "websocket-server")]
-use crate::network::ws;
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
-    channel::{AsyncBoundedChannel, AsyncBoundedChannelReceiver, AsyncBoundedChannelSender},
+    channel::{AsyncChannel, AsyncChannelReceiver, AsyncChannelSender},
     db::Database,
     event_handler::{Event, EventHandler},
-    metrics,
-    network::{rpc, swarm},
+    network::{rpc, swarm, webserver},
+    tasks::Fetch,
     worker::WorkerMessage,
-    workflow, Settings, Worker,
+    workflow::{self, Resource},
+    Settings, Worker,
 };
 use anyhow::{anyhow, Context, Result};
 use atomic_refcell::AtomicRefCell;
 use chrono::NaiveDateTime;
 use dashmap::DashMap;
 use faststr::FastStr;
-use futures::future::poll_fn;
+use fnv::FnvHashSet;
+use futures::{future::poll_fn, FutureExt};
 use homestar_core::Workflow;
 use homestar_wasm::io::Arg;
+use jsonrpsee::server::ServerHandle;
 use libipld::Cid;
+use metrics_exporter_prometheus::PrometheusHandle;
 #[cfg(not(test))]
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{ops::ControlFlow, rc::Rc, sync::Arc, task::Poll};
+use std::{ops::ControlFlow, rc::Rc, sync::Arc, task::Poll, time::Instant};
 #[cfg(not(windows))]
 use tokio::signal::unix::{signal, SignalKind};
 #[cfg(windows)]
 use tokio::signal::windows;
 use tokio::{
     runtime, select,
-    sync::{mpsc, oneshot},
     task::{AbortHandle, JoinHandle},
     time,
 };
 use tokio_util::time::{delay_queue, DelayQueue};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 mod error;
 pub(crate) mod file;
+mod nodeinfo;
 pub(crate) mod response;
 pub(crate) use error::Error;
+pub(crate) use nodeinfo::{DynamicNodeInfo, StaticNodeInfo};
 
 #[cfg(not(test))]
 const HOMESTAR_THREAD: &str = "homestar-runtime";
@@ -59,25 +62,29 @@ pub(crate) trait ModifiedSet {
     fn append_or_insert(&self, cid: Cid, handles: Vec<AbortHandle>);
 }
 
-/// [mpsc::Sender] for RPC server messages.
-pub(crate) type RpcSender = mpsc::Sender<(
+/// [AsyncChannelSender] for RPC server messages.
+pub(crate) type RpcSender = AsyncChannelSender<(
     rpc::ServerMessage,
-    Option<oneshot::Sender<rpc::ServerMessage>>,
+    Option<AsyncChannelSender<rpc::ServerMessage>>,
 )>;
 
-/// [mpsc::Receiver] for RPC server messages.
-pub(crate) type RpcReceiver = mpsc::Receiver<(
+/// [AsyncChannelReceiver] for RPC server messages.
+pub(crate) type RpcReceiver = AsyncChannelReceiver<(
     rpc::ServerMessage,
-    Option<oneshot::Sender<rpc::ServerMessage>>,
+    Option<AsyncChannelSender<rpc::ServerMessage>>,
 )>;
 
-/// [mpsc::Sender] for sending messages websocket server clients.
-#[cfg(feature = "websocket-server")]
-pub(crate) type WsSender = mpsc::Sender<(ws::Message, Option<oneshot::Sender<ws::Message>>)>;
+/// [AsyncChannelSender] for sending messages WebSocket server clients.
+pub(crate) type WsSender = AsyncChannelSender<(
+    webserver::Message,
+    Option<AsyncChannelSender<webserver::Message>>,
+)>;
 
-/// [mpsc::Receiver] for receiving messages from websocket server clients.
-#[cfg(feature = "websocket-server")]
-pub(crate) type WsReceiver = mpsc::Receiver<(ws::Message, Option<oneshot::Sender<ws::Message>>)>;
+/// [AsyncChannelReceiver] for receiving messages from WebSocket server clients.
+pub(crate) type WsReceiver = AsyncChannelReceiver<(
+    webserver::Message,
+    Option<AsyncChannelSender<webserver::Message>>,
+)>;
 
 impl ModifiedSet for RunningTaskSet {
     fn append_or_insert(&self, cid: Cid, mut handles: Vec<AbortHandle>) {
@@ -93,65 +100,38 @@ impl ModifiedSet for RunningTaskSet {
 /// Used to manage workers and execute/run [Workflows].
 ///
 /// [Workflows]: homestar_core::Workflow
-#[cfg(feature = "websocket-server")]
-#[cfg_attr(docsrs, doc(cfg(feature = "websocket-server")))]
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Runner {
-    event_sender: Arc<AsyncBoundedChannelSender<Event>>,
+    event_sender: Arc<AsyncChannelSender<Event>>,
     expiration_queue: Rc<AtomicRefCell<DelayQueue<Cid>>>,
+    node_info: StaticNodeInfo,
     running_tasks: Arc<RunningTaskSet>,
     running_workers: RunningWorkerSet,
-    runtime: tokio::runtime::Runtime,
-    settings: Arc<Settings>,
-    ws_server: Arc<ws::Server>,
-}
-
-/// Runner interface.
-/// Used to manage workers and execute/run [Workflows].
-///
-/// [Workflows]: homestar_core::Workflow
-#[cfg(not(feature = "websocket-server"))]
-#[allow(dead_code)]
-#[derive(Debug)]
-pub struct Runner {
-    event_sender: Arc<AsyncBoundedChannelSender<Event>>,
-    expiration_queue: Rc<AtomicRefCell<DelayQueue<Cid>>>,
-    running_tasks: Arc<RunningTaskSet>,
-    running_workers: RunningWorkerSet,
-    runtime: tokio::runtime::Runtime,
-    settings: Arc<Settings>,
+    pub(crate) runtime: tokio::runtime::Runtime,
+    pub(crate) settings: Arc<Settings>,
+    webserver: Arc<webserver::Server>,
 }
 
 impl Runner {
     /// Setup bounded, MPSC channel for top-level RPC communication.
     pub(crate) fn setup_rpc_channel(capacity: usize) -> (RpcSender, RpcReceiver) {
-        mpsc::channel(capacity)
+        AsyncChannel::with(capacity)
     }
 
     /// Setup bounded, MPSC channel for top-level Worker communication.
     pub(crate) fn setup_worker_channel(
         capacity: usize,
-    ) -> (mpsc::Sender<WorkerMessage>, mpsc::Receiver<WorkerMessage>) {
-        mpsc::channel(capacity)
-    }
-
-    /// Oneshot channel for sending direct messages to the websocket server,
-    /// e.g. for shutdown.
-    #[cfg(feature = "websocket-server")]
-    pub(crate) fn setup_ws_oneshot_channel() -> (
-        AsyncBoundedChannelSender<ws::Message>,
-        AsyncBoundedChannelReceiver<ws::Message>,
+    ) -> (
+        AsyncChannelSender<WorkerMessage>,
+        AsyncChannelReceiver<WorkerMessage>,
     ) {
-        let (tx, rx) = AsyncBoundedChannel::oneshot();
-        (tx, rx)
+        AsyncChannel::with(capacity)
     }
 
     /// MPSC channel for sending and receiving messages through to/from
-    /// websocket server clients.
-    #[cfg(feature = "websocket-server")]
+    /// WebSocket server clients.
     pub(crate) fn setup_ws_mpsc_channel(capacity: usize) -> (WsSender, WsReceiver) {
-        mpsc::channel(capacity)
+        AsyncChannel::with(capacity)
     }
 
     /// Initialize and start the Homestar [Runner] / runtime.
@@ -185,59 +165,46 @@ impl Runner {
         db: impl Database + 'static,
         runtime: tokio::runtime::Runtime,
     ) -> Result<Self> {
-        let swarm = runtime.block_on(swarm::new(settings.node()))?;
+        let swarm = runtime.block_on(swarm::new(settings.node().network()))?;
+        let peer_id = *swarm.local_peer_id();
 
-        #[cfg(feature = "websocket-server")]
-        {
-            let ws_server = ws::Server::new(settings.node().network())?;
-            let ws_msg_tx = ws_server.notifier();
+        let webserver = webserver::Server::new(settings.node().network().webserver())?;
 
-            let event_handler = EventHandler::new(swarm, db, settings.node(), ws_msg_tx);
-            let event_sender = event_handler.sender();
+        #[cfg(feature = "websocket-notify")]
+        let (ws_msg_tx, ws_evt_tx) = {
+            let ws_msg_tx = webserver.workflow_msg_notifier();
+            let ws_evt_tx = webserver.evt_notifier();
 
-            #[cfg(feature = "ipfs")]
-            let _event_handler_hdl = runtime.spawn({
-                let ipfs = IpfsCli::default();
-                event_handler.start(ipfs)
-            });
+            (ws_msg_tx, ws_evt_tx)
+        };
 
-            #[cfg(not(feature = "ipfs"))]
-            let _event_handler_hdl = runtime.spawn(event_handler.start());
+        #[cfg(feature = "websocket-notify")]
+        let event_handler =
+            EventHandler::new(swarm, db, settings.node().network(), ws_evt_tx, ws_msg_tx);
+        #[cfg(not(feature = "websocket-notify"))]
+        let event_handler = EventHandler::new(swarm, db, settings.node().network());
 
-            Ok(Self {
-                event_sender,
-                expiration_queue: Rc::new(AtomicRefCell::new(DelayQueue::new())),
-                running_tasks: DashMap::new().into(),
-                running_workers: DashMap::new(),
-                runtime,
-                settings: settings.into(),
-                ws_server: ws_server.into(),
-            })
-        }
+        let event_sender = event_handler.sender();
 
-        #[cfg(not(feature = "websocket-server"))]
-        {
-            let event_handler = EventHandler::new(swarm, db, settings.node());
-            let event_sender = event_handler.sender();
+        #[cfg(feature = "ipfs")]
+        let _event_handler_hdl = runtime.spawn({
+            let ipfs = IpfsCli::new(settings.node.network.ipfs())?;
+            event_handler.start(ipfs)
+        });
 
-            #[cfg(feature = "ipfs")]
-            let _event_handler_hdl = runtime.spawn({
-                let ipfs = IpfsCli::default();
-                event_handler.start(ipfs)
-            });
+        #[cfg(not(feature = "ipfs"))]
+        let _event_handler_hdl = runtime.spawn(event_handler.start());
 
-            #[cfg(not(feature = "ipfs"))]
-            let _event_handler_hdl = runtime.spawn(event_handler.start());
-
-            Ok(Self {
-                event_sender,
-                expiration_queue: Rc::new(AtomicRefCell::new(DelayQueue::new())),
-                running_tasks: DashMap::new().into(),
-                running_workers: DashMap::new(),
-                runtime,
-                settings: settings.into(),
-            })
-        }
+        Ok(Self {
+            event_sender,
+            expiration_queue: Rc::new(AtomicRefCell::new(DelayQueue::new())),
+            node_info: StaticNodeInfo::new(peer_id),
+            running_tasks: DashMap::new().into(),
+            running_workers: DashMap::new(),
+            runtime,
+            settings: settings.into(),
+            webserver: webserver.into(),
+        })
     }
 
     /// Listen loop for [Runner] signals and messages.
@@ -245,24 +212,27 @@ impl Runner {
     fn serve(self, db: impl Database + 'static) -> Result<()> {
         let message_buffer_len = self.settings.node.network.events_buffer_len;
 
-        #[cfg(feature = "websocket-server")]
-        let (ws_sender, mut ws_receiver) = {
-            let (oneshot_ws_tx, oneshot_ws_rx) = Self::setup_ws_oneshot_channel();
+        #[cfg(feature = "monitoring")]
+        let metrics_hdl: PrometheusHandle = self.runtime.block_on(crate::metrics::start(
+            self.settings.node.monitoring(),
+            self.settings.node.network(),
+        ))?;
+
+        #[cfg(not(feature = "monitoring"))]
+        let metrics_hdl: PrometheusHandle = self
+            .runtime
+            .block_on(crate::metrics::start(self.settings.node.network()))?;
+
+        let (ws_receiver, ws_hdl) = {
             let (mpsc_ws_tx, mpsc_ws_rx) = Self::setup_ws_mpsc_channel(message_buffer_len);
-            let _ws_hdl = self.runtime.spawn({
-                let ws_server = self.ws_server.clone();
-                async move { ws_server.start(oneshot_ws_rx, mpsc_ws_tx).await }
-            });
-            (oneshot_ws_tx, mpsc_ws_rx)
+            let ws_hdl = self
+                .runtime
+                .block_on(self.webserver.start(mpsc_ws_tx, metrics_hdl))?;
+            (mpsc_ws_rx, ws_hdl)
         };
 
-        let (rpc_tx, mut rpc_rx) = Self::setup_rpc_channel(message_buffer_len);
-        let (runner_worker_tx, mut runner_worker_rx) =
-            Self::setup_worker_channel(message_buffer_len);
-
-        #[cfg(feature = "metrics")]
-        self.runtime
-            .block_on(metrics::start(&self.settings.monitoring))?;
+        let (rpc_tx, rpc_rx) = Self::setup_rpc_channel(message_buffer_len);
+        let (runner_worker_tx, runner_worker_rx) = Self::setup_worker_channel(message_buffer_len);
 
         let shutdown_timeout = self.settings.node.shutdown_timeout;
         let rpc_server = rpc::Server::new(self.settings.node.network(), rpc_tx.into());
@@ -272,77 +242,91 @@ impl Runner {
         let shutdown_time_left = self.runtime.block_on(async {
             let mut gc_interval = tokio::time::interval(self.settings.node.gc_interval);
             loop {
-                // Sadness to get around https://github.com/tokio-rs/tokio/issues/3974.
-                #[cfg(feature = "websocket-server")]
-                let ws_receiver_wait = ws_receiver.recv();
-                #[cfg(not(feature = "websocket-server"))]
-                let ws_receiver_wait: future::Pending<Option<()>> = std::future::pending();
-
                 select! {
-                    biased;
                     // Handle RPC messages.
-                    Some((rpc_message, Some(oneshot_tx))) = rpc_rx.recv() => {
+                    Ok((rpc_message, Some(oneshot_tx))) = rpc_rx.recv_async() => {
                         let now = time::Instant::now();
-                        #[cfg(feature = "websocket-server")]
                         let handle = self.handle_command_message(
                             rpc_message,
                             Channels {
                                 rpc: rpc_sender.clone(),
                                 runner: runner_worker_tx.clone(),
-                                ws: ws_sender.clone(),
                             },
+                            ws_hdl.clone(),
                             db.clone(),
                             now
                         ).await;
 
-                        #[cfg(not(feature = "websocket-server"))]
-                        let handle = self.handle_command_message(
-                            rpc_message,
-                            Channels {
-                                rpc: rpc_sender.clone(),
-                                runner: runner_worker_tx.clone(),
-                            },
-                            db.clone(),
-                            now
-                        ).await;
 
                         match handle {
                             Ok(ControlFlow::Break(())) => break now.elapsed(),
                             Ok(ControlFlow::Continue(rpc::ServerMessage::Skip)) => {},
                             Ok(ControlFlow::Continue(msg @ rpc::ServerMessage::RunAck(_))) => {
-                                info!("sending message to rpc server");
-                                let _ = oneshot_tx.send(msg);
+                                debug!(subject = "rpc.ack",
+                                       category = "rpc",
+                                       "sending message to rpc server");
+                                let _ = oneshot_tx.send_async(msg).await;
                             },
                             Err(err) => {
-                                error!(err=?err, "error handling rpc message");
-                                let _ = oneshot_tx.send(rpc::ServerMessage::RunErr(err.into()));
+                                error!(subject = "rpc.err",
+                                       category = "rpc",
+                                       err=?err,
+                                       "error handling rpc message");
+                                let _ = oneshot_tx.send_async(rpc::ServerMessage::RunErr(err.into())).await;
                             },
                              _ => {}
                         }
                     }
-                    Some((ws::Message::RunWorkflow((name, workflow)), Some(oneshot_tx))) = ws_receiver_wait => {
-                        // TODO: Parse this from the workflow data itself.
-                        info!("running workflow: {}", name);
-                        let workflow_settings = workflow::Settings::default();
-                        match self.run_worker(
-                            workflow,
-                            workflow_settings,
-                            Some(name),
-                            runner_worker_tx.clone(),
-                            db.clone(),
-                        ).await {
-                            Ok(_) => {
-                                info!("sending message to rpc server");
-                                let _ = oneshot_tx.send(ws::Message::RunWorkflowAck);
+                    Ok(msg) = ws_receiver.recv_async() => {
+                        match msg {
+                            (webserver::Message::RunWorkflow((name, workflow)), Some(oneshot_tx)) => {
+                                info!(subject = "workflow",
+                                      category = "workflow.run",
+                                      "running workflow: {}", name);
+                                // TODO: Parse this from the workflow data itself.
+                                let workflow_settings = workflow::Settings::default();
+                                match self.run_worker(
+                                    workflow,
+                                    workflow_settings,
+                                    Some(name),
+                                    runner_worker_tx.clone(),
+                                    db.clone(),
+                                ).await {
+                                    Ok(data) => {
+                                        debug!(subject = "jsonrpc.ack",
+                                               category = "jsonrpc",
+                                               "sending message to jsonrpc server");
+                                        let _ = oneshot_tx.send_async(webserver::Message::AckWorkflow((data.info.cid, data.name))).await;
+                                    }
+                                    Err(err) => {
+                                        error!(subject = "jsonrpc.err",
+                                               category = "jsonrpc",
+                                               err=?err,
+                                               "error handling ws message");
+                                        let _ = oneshot_tx.send_async(webserver::Message::RunErr(err.into())).await;
+                                    }
+                                }
+
                             }
-                            Err(err) => {
-                                error!(err=?err, "error handling ws message");
-                                let _ = oneshot_tx.send(ws::Message::RunErr(err.into()));
+                            (webserver::Message::GetNodeInfo, Some(oneshot_tx)) => {
+                                debug!(subject = "jsonrpc.nodeinfo",
+                                       category = "jsonrpc",
+                                       "getting node info");
+                                let (tx, rx) = AsyncChannel::oneshot();
+                                let _ = self.event_sender.send_async(Event::GetListeners(tx)).await;
+                                let dyn_node_info = if let Ok(listeners) = rx.recv_deadline(Instant::now() + self.settings.node.network.webserver.timeout) {
+                                    DynamicNodeInfo::new(listeners)
+                                } else {
+                                    DynamicNodeInfo::new(vec![])
+                                };
+                                let _ = oneshot_tx.send_async(webserver::Message::AckNodeInfo((self.node_info.clone(), dyn_node_info))).await;
                             }
+                            _ => ()
                         }
                     }
+
                     // Handle messages from the worker.
-                    Some(msg) = runner_worker_rx.recv() => {
+                    Ok(msg) = runner_worker_rx.recv_async() => {
                         match msg {
                             WorkerMessage::Dropped(cid) => {
                                 let _ = self.abort_worker(cid);
@@ -360,42 +344,33 @@ impl Runner {
                             Err(_) => Poll::Pending,
                         }
                     ) => {
-                        info!("worker expired, aborting");
+                        info!(subject = "worker.expired",
+                              category = "worker",
+                              "worker expired, aborting");
                         let _ = self.abort_worker(*expired.get_ref());
                     },
                     // Handle shutdown signal.
                     _ = Self::shutdown_signal() => {
-                        info!("gracefully shutting down runner");
+                        info!(subject = "shutdown",
+                              category = "homestar.shutdown",
+                              "gracefully shutting down runner");
 
                         let now = time::Instant::now();
                         let drain_timeout = now + shutdown_timeout;
-                        // Sub-select handling of runner `shutdown`.
-                        #[cfg(feature = "websocket-server")] {
-                            select! {
-                                // Graceful shutdown.
-                                Ok(()) = self.shutdown(rpc_sender, ws_sender) => {
-                                    break now.elapsed();
-                                },
-                                // Force shutdown upon drain timeout.
-                                _ = time::sleep_until(drain_timeout) => {
-                                    info!("shutdown timeout reached, shutting down runner anyway");
-                                    break now.elapsed();
-                                }
+                        select! {
+                            // Graceful shutdown.
+                            Ok(()) = self.shutdown(rpc_sender, ws_hdl) => {
+                                break now.elapsed();
+                            },
+                            // Force shutdown upon drain timeout.
+                            _ = time::sleep_until(drain_timeout) => {
+                                info!(subject = "shutdown",
+                                      category = "homestar.shutdown",
+                                      "shutdown timeout reached, shutting down runner anyway");
+                                break now.elapsed();
                             }
                         }
-                        #[cfg(not(feature = "websocket-server"))] {
-                            select! {
-                                // Graceful shutdown.
-                                Ok(()) = self.shutdown(rpc_sender) => {
-                                    break now.elapsed();
-                                },
-                                // Force shutdown upon drain timeout.
-                                _ = time::sleep_until(drain_timeout) => {
-                                    info!("shutdown timeout reached, shutting down runner anyway");
-                                    break now.elapsed();
-                                }
-                            }
-                        }
+
                     }
                 }
             }
@@ -404,16 +379,20 @@ impl Runner {
         if shutdown_time_left < shutdown_timeout {
             self.runtime
                 .shutdown_timeout(shutdown_timeout - shutdown_time_left);
-            info!("runner shutdown complete");
+            info!(
+                subject = "shutdown",
+                category = "homestar.shutdown",
+                "runner shutdown complete"
+            );
         }
 
         Ok(())
     }
 
-    /// [mpsc::Sender] of the event-handler.
+    /// [AsyncChannelSender] of the event-handler.
     ///
     /// [EventHandler]: crate::EventHandler
-    pub(crate) fn event_sender(&self) -> Arc<AsyncBoundedChannelSender<Event>> {
+    pub(crate) fn event_sender(&self) -> Arc<AsyncChannelSender<Event>> {
         self.event_sender.clone()
     }
 
@@ -532,9 +511,18 @@ impl Runner {
         let mut sigterm = signal(SignalKind::terminate())?;
 
         select! {
-            _ = tokio::signal::ctrl_c() => info!("CTRL-C received, shutting down"),
-            _ = sigint.recv() => info!("SIGINT received, shutting down"),
-            _ = sigterm.recv() => info!("SIGTERM received, shutting down"),
+            _ = tokio::signal::ctrl_c() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "CTRL-C received, shutting down"),
+            _ = sigint.recv() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "SIGINT received, shutting down"),
+            _ = sigterm.recv() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "SIGTERM received, shutting down"),
         }
         Ok(())
     }
@@ -547,10 +535,22 @@ impl Runner {
         let mut sighup = windows::ctrl_break()?;
 
         select! {
-            _ = tokio::signal::ctrl_c() => info!("CTRL-C received, shutting down"),
-            _ = sigint.recv() => info!("SIGINT received, shutting down"),
-            _ = sigterm.recv() => info!("SIGTERM received, shutting down"),
-            _ = sighup.recv() => info!("SIGHUP received, shutting down")
+            _ = tokio::signal::ctrl_c() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "CTRL-C received, shutting down"),
+            _ = sigint.recv() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "SIGINT received, shutting down"),
+            _ = sigterm.recv() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "SIGTERM received, shutting down"),
+            _ = sighup.recv() =>
+                info!(subject = "shutdown",
+                      category = "homestar.shutdown",
+                      "SIGHUP received, shutting down")
         }
         Ok(())
     }
@@ -559,54 +559,31 @@ impl Runner {
     /// a) RPC and runner-related channels.
     /// b) Event-handler channels.
     /// c) Running workers
-    #[cfg(feature = "websocket-server")]
     async fn shutdown(
         &self,
-        rpc_sender: Arc<AsyncBoundedChannelSender<rpc::ServerMessage>>,
-        ws_sender: AsyncBoundedChannelSender<ws::Message>,
+        rpc_sender: Arc<AsyncChannelSender<rpc::ServerMessage>>,
+        ws_hdl: ServerHandle,
     ) -> Result<()> {
-        let (shutdown_sender, shutdown_receiver) = oneshot::channel();
-        let _ = rpc_sender.try_send(rpc::ServerMessage::GracefulShutdown(shutdown_sender));
-        let _ = shutdown_receiver.await;
+        let (shutdown_sender, shutdown_receiver) = AsyncChannel::oneshot();
+        let _ = rpc_sender
+            .send_async(rpc::ServerMessage::GracefulShutdown(shutdown_sender))
+            .await;
+        let _ = shutdown_receiver;
 
-        let (shutdown_sender, shutdown_receiver) = oneshot::channel();
+        info!(
+            subject = "shutdown",
+            category = "homestar.shutdown",
+            "shutting down webserver"
+        );
+        let _ = ws_hdl.stop();
+        ws_hdl.clone().stopped().await;
+
+        let (shutdown_sender, shutdown_receiver) = AsyncChannel::oneshot();
         let _ = self
             .event_sender
             .send_async(Event::Shutdown(shutdown_sender))
             .await;
-        let _ = shutdown_receiver.await;
-
-        let (shutdown_sender, shutdown_receiver) = oneshot::channel();
-        let _ = ws_sender
-            .send_async(ws::Message::GracefulShutdown(shutdown_sender))
-            .await;
-        let _ = shutdown_receiver.await;
-
-        // abort all workers
-        self.abort_workers();
-
-        Ok(())
-    }
-
-    /// Sequence for shutting down a [Runner], including:
-    /// a) RPC and runner-related channels.
-    /// b) Event-handler channels.
-    /// c) Running workers
-    #[cfg(not(feature = "websocket-server"))]
-    async fn shutdown(
-        &self,
-        rpc_sender: Arc<AsyncBoundedChannelSender<rpc::ServerMessage>>,
-    ) -> Result<()> {
-        let (shutdown_sender, shutdown_receiver) = oneshot::channel();
-        let _ = rpc_sender.try_send(rpc::ServerMessage::GracefulShutdown(shutdown_sender));
-        let _ = shutdown_receiver.await;
-
-        let (shutdown_sender, shutdown_receiver) = oneshot::channel();
-        let _ = self
-            .event_sender
-            .send_async(Event::Shutdown(shutdown_sender))
-            .await;
-        let _ = shutdown_receiver.await;
+        let _ = shutdown_receiver;
 
         // abort all workers
         self.abort_workers();
@@ -618,38 +595,29 @@ impl Runner {
         &self,
         msg: rpc::ServerMessage,
         channels: Channels,
+        ws_hdl: ServerHandle,
         db: impl Database + 'static,
         now: time::Instant,
     ) -> Result<ControlFlow<(), rpc::ServerMessage>> {
-        info!("received message: {:?}", msg);
         match msg {
             rpc::ServerMessage::ShutdownCmd => {
-                info!("RPC shutdown signal received, shutting down runner");
+                info!(
+                    subject = "rpc.command",
+                    category = "rpc",
+                    "RPC shutdown signal received, shutting down runner"
+                );
                 let drain_timeout = now + self.settings.node.shutdown_timeout;
-                #[cfg(feature = "websocket-server")]
-                {
-                    select! {
-                        // we can unwrap here b/c we know we have a sender based
-                        // on the feature flag.
-                        Ok(()) = self.shutdown(channels.rpc, channels.ws) => {
-                            Ok(ControlFlow::Break(()))
-                        },
-                        _ = time::sleep_until(drain_timeout) => {
-                            info!("shutdown timeout reached, shutting down runner anyway");
-                            Ok(ControlFlow::Break(()))
-                        }
-                    }
-                }
-                #[cfg(not(feature = "websocket-server"))]
-                {
-                    select! {
-                        Ok(()) = self.shutdown(rpc_sender) => {
-                            Ok(ControlFlow::Break(()))
-                        },
-                        _ = time::sleep_until(drain_timeout) => {
-                            info!("shutdown timeout reached, shutting down runner anyway");
-                            Ok(ControlFlow::Break(()))
-                        }
+                select! {
+                    // we can unwrap here b/c we know we have a sender based
+                    // on the feature flag.
+                    Ok(()) = self.shutdown(channels.rpc, ws_hdl) => {
+                        Ok(ControlFlow::Break(()))
+                    },
+                    _ = time::sleep_until(drain_timeout) => {
+                        info!(subject = "shutdown",
+                              category = "homestar.shutdown",
+                              "shutdown timeout reached, shutting down runner anyway");
+                        Ok(ControlFlow::Break(()))
                     }
                 }
             }
@@ -668,7 +636,12 @@ impl Runner {
                 ))))
             }
             msg => {
-                warn!("received unexpected message: {:?}", msg);
+                warn!(
+                    subject = "rpc.command",
+                    category = "rpc",
+                    "received unexpected message: {:?}",
+                    msg
+                );
                 Ok(ControlFlow::Continue(rpc::ServerMessage::Skip))
             }
         }
@@ -679,7 +652,7 @@ impl Runner {
         workflow: Workflow<'static, Arg>,
         workflow_settings: workflow::Settings,
         name: Option<S>,
-        runner_sender: mpsc::Sender<WorkerMessage>,
+        runner_sender: AsyncChannelSender<WorkerMessage>,
         db: impl Database + 'static,
     ) -> Result<WorkflowData> {
         let worker = {
@@ -698,14 +671,18 @@ impl Runner {
         // `clone`, as the underlying type is an `Arc`.
         let initial_info = Arc::clone(&worker.workflow_info);
         let workflow_timeout = worker.workflow_settings.timeout;
-        let workflow_name = worker.workflow_name.to_string();
+        let workflow_name = worker.workflow_name.clone();
+        let workflow_settings = worker.workflow_settings.clone();
         let timestamp = worker.workflow_started;
 
         // Spawn worker, which initializees the scheduler and runs
         // the workflow.
         info!(
+            subject = "workflow.run",
+            category = "workflow",
             cid = worker.workflow_info.cid.to_string(),
-            "running workflow with settings: {:#?}", worker.workflow_settings
+            "running workflow with settings: {:#?}",
+            worker.workflow_settings
         );
 
         // Provide workflow to network.
@@ -717,7 +694,23 @@ impl Runner {
             ))
             .await?;
 
-        let handle = self.runtime.spawn(worker.run(self.running_tasks()));
+        #[cfg(feature = "ipfs")]
+        let fetch_fn = {
+            let settings = Arc::clone(&self.settings);
+            let ipfs = IpfsCli::new(settings.node.network.ipfs())?;
+            move |rscs: FnvHashSet<Resource>| {
+                async move { Fetch::get_resources(rscs, workflow_settings, ipfs).await }.boxed()
+            }
+        };
+
+        #[cfg(not(feature = "ipfs"))]
+        let fetch_fn = |rscs: FnvHashSet<Resource>| {
+            async move { Fetch::get_resources(rscs, workflow_settings).await }.boxed()
+        };
+
+        let handle = self
+            .runtime
+            .spawn(worker.run(self.running_tasks(), fetch_fn));
 
         // Add Cid to expirations timing wheel
         let delay_key = self
@@ -740,24 +733,14 @@ impl Runner {
 
 struct WorkflowData {
     info: Arc<workflow::Info>,
-    name: String,
+    name: FastStr,
     timestamp: NaiveDateTime,
 }
 
-#[cfg(feature = "websocket-server")]
 #[derive(Debug)]
 struct Channels {
-    rpc: Arc<AsyncBoundedChannelSender<rpc::ServerMessage>>,
-    runner: mpsc::Sender<WorkerMessage>,
-    ws: AsyncBoundedChannelSender<ws::Message>,
-}
-
-#[cfg(not(feature = "websocket-server"))]
-#[derive(Debug)]
-struct Channels {
-    rpc: Arc<AsyncBoundedChannelSender<rpc::ServerMessage>>,
-    runner: mpsc::Sender<WorkerMessage>,
-    runner: Arc<mpsc::Sender<WorkerMessage>>,
+    rpc: Arc<AsyncChannelSender<rpc::ServerMessage>>,
+    runner: AsyncChannelSender<WorkerMessage>,
 }
 
 #[cfg(test)]
@@ -773,34 +756,41 @@ mod test {
     #[homestar_runtime_proc_macro::runner_test]
     fn shutdown() {
         let TestRunner { runner, settings } = TestRunner::start();
-
         let (tx, _rx) = Runner::setup_rpc_channel(1);
-        let (ws_oneshot_tx, ws_oneshot_rx) = Runner::setup_ws_oneshot_channel();
-        let (ws_tx, _ws_rx) = Runner::setup_ws_mpsc_channel(1);
+        let (runner_tx, _runner_rx) = Runner::setup_ws_mpsc_channel(1);
         let rpc_server = rpc::Server::new(settings.node.network(), Arc::new(tx));
         let rpc_sender = rpc_server.sender();
 
         let addr = SocketAddr::new(
-            settings.node.network.rpc_host,
-            settings.node.network.rpc_port,
+            settings.node.network.rpc.host,
+            settings.node.network.rpc.port,
         );
 
-        runner.runtime.block_on(async {
+        let ws_hdl = runner.runtime.block_on(async {
             rpc_server.spawn().await.unwrap();
+            #[cfg(feature = "monitoring")]
+            let metrics_hdl =
+                crate::metrics::start(settings.node.monitoring(), settings.node.network())
+                    .await
+                    .unwrap();
+            #[cfg(not(feature = "monitoring"))]
+            let metrics_hdl = crate::metrics::start(settings.node.network())
+                .await
+                .unwrap();
 
-            #[cfg(feature = "websocket-server")]
-            runner.runtime.spawn({
-                let ws_server = runner.ws_server.clone();
-                async move { ws_server.start(ws_oneshot_rx, ws_tx).await }
-            });
-
+            let ws_hdl = runner
+                .webserver
+                .start(runner_tx, metrics_hdl)
+                .await
+                .unwrap();
             let _stream = TcpStream::connect(addr).await.expect("Connection error");
             let _another_stream = TcpStream::connect(addr).await.expect("Connection error");
+
+            ws_hdl
         });
 
         runner.runtime.block_on(async {
-            #[cfg(feature = "websocket-server")]
-            match runner.shutdown(rpc_sender, ws_oneshot_tx).await {
+            match runner.shutdown(rpc_sender, ws_hdl).await {
                 Ok(()) => {
                     // with shutdown, we should not be able to connect to the server(s)
                     let stream_error = TcpStream::connect(addr).await;
@@ -816,20 +806,9 @@ mod test {
                 }
                 _ => panic!("Shutdown failed."),
             }
-            #[cfg(not(feature = "websocket-server"))]
-            match runner.shutdown(rpc_sender).await {
-                Ok(()) => {
-                    // with shutdown, we should not be able to connect to the server(s)
-                    let stream_error = TcpStream::connect(addr).await;
-                    assert!(stream_error.is_err());
-                    assert!(matches!(
-                        stream_error.unwrap_err().kind(),
-                        std::io::ErrorKind::ConnectionRefused
-                    ));
-                }
-                _ => panic!("Shutdown failed."),
-            }
         });
+
+        unsafe { metrics::clear_recorder() }
     }
 
     #[homestar_runtime_proc_macro::runner_test]
@@ -843,8 +822,8 @@ mod test {
 
         runner.runtime.spawn(async move {
             let addr = SocketAddr::new(
-                settings.node.network.rpc_host,
-                settings.node.network.rpc_port,
+                settings.node.network.rpc.host,
+                settings.node.network.rpc.port,
             );
 
             let client = Client::new(addr, context::current()).await.unwrap();
@@ -858,10 +837,14 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
 
         runner.runtime.block_on(async {
-            let worker = WorkerBuilder::new(settings.node).build().await;
+            let builder = WorkerBuilder::new(settings.node);
+            let fetch_fn = builder.fetch_fn();
+            let worker = builder.build().await;
             let workflow_cid = worker.workflow_info.cid;
             let workflow_timeout = worker.workflow_settings.timeout;
-            let handle = runner.runtime.spawn(worker.run(runner.running_tasks()));
+            let handle = runner
+                .runtime
+                .spawn(worker.run(runner.running_tasks(), fetch_fn));
             let delay_key = runner
                 .expiration_queue
                 .try_borrow_mut()
@@ -891,10 +874,14 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
 
         runner.runtime.block_on(async {
-            let worker = WorkerBuilder::new(settings.node).build().await;
+            let builder = WorkerBuilder::new(settings.node);
+            let fetch_fn = builder.fetch_fn();
+            let worker = builder.build().await;
             let workflow_cid = worker.workflow_info.cid;
             let workflow_timeout = worker.workflow_settings.timeout;
-            let handle = runner.runtime.spawn(worker.run(runner.running_tasks()));
+            let handle = runner
+                .runtime
+                .spawn(worker.run(runner.running_tasks(), fetch_fn));
             let delay_key = runner
                 .expiration_queue
                 .try_borrow_mut()
@@ -915,10 +902,14 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
 
         runner.runtime.block_on(async {
-            let worker = WorkerBuilder::new(settings.node).build().await;
+            let builder = WorkerBuilder::new(settings.node);
+            let fetch_fn = builder.fetch_fn();
+            let worker = builder.build().await;
             let workflow_cid = worker.workflow_info.cid;
             let workflow_timeout = worker.workflow_settings.timeout;
-            let handle = runner.runtime.spawn(worker.run(runner.running_tasks()));
+            let handle = runner
+                .runtime
+                .spawn(worker.run(runner.running_tasks(), fetch_fn));
             let delay_key = runner
                 .expiration_queue
                 .try_borrow_mut()
@@ -953,10 +944,11 @@ mod test {
     #[homestar_runtime_proc_macro::runner_test]
     fn gc_while_workers_finished() {
         let TestRunner { runner, settings } = TestRunner::start();
-
         runner.runtime.block_on(async {
-            let worker = WorkerBuilder::new(settings.node).build().await;
-            let _ = worker.run(runner.running_tasks()).await;
+            let builder = WorkerBuilder::new(settings.node);
+            let fetch_fn = builder.fetch_fn();
+            let worker = builder.build().await;
+            let _ = worker.run(runner.running_tasks(), fetch_fn).await;
         });
 
         runner.running_tasks.iter().for_each(|handles| {

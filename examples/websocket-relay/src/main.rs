@@ -10,24 +10,17 @@ use tracing::info;
 
 fn main() -> Result<()> {
     let settings = Settings::load().expect("runtime settings to be loaded");
-    let _guard = Logger::init(settings.monitoring());
+    let _guard = Logger::init(settings.node().monitoring());
 
     // Just for example purposes, we're going to start the ipfs
     // daemon. Typically, these would be started separately.
     let ipfs_daemon = ipfs_setup();
 
-    info!(
-        subject = "settings",
-        category = "homestar_init",
-        "starting with settings: {:?}",
-        settings,
-    );
+    info!("starting with settings: {:?}", settings,);
 
     let db = Db::setup_connection_pool(settings.node(), None).expect("to setup database pool");
 
     info!(
-        subject = "database",
-        category = "homestar_init",
         "starting with database: {}",
         Db::url().expect("database url to be provided"),
     );
@@ -36,7 +29,6 @@ fn main() -> Result<()> {
     Runner::start(settings, db).expect("Failed to start runtime");
 
     // ipfs cleanup after runtime is stopped
-
     if let Some(mut ipfs_daemon) = ipfs_daemon {
         match ipfs_daemon.try_wait() {
             Ok(Some(status)) => info!("exited with: {status}"),

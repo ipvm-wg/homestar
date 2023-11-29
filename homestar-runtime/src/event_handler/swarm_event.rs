@@ -1,6 +1,8 @@
 //! Internal libp2p [SwarmEvent] handling and [Handler] implementation.
 
 use super::EventHandler;
+#[cfg(feature = "websocket-notify")]
+use crate::event_handler::notification::{self, EventNotificationTyp, SwarmNotification};
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
@@ -11,8 +13,11 @@ use crate::{
         Event, Handler, RequestResponseError,
     },
     libp2p::multiaddr::MultiaddrExt,
-    network::swarm::{
-        CapsuleTag, ComposedEvent, PeerDiscoveryInfo, RequestResponseKey, HOMESTAR_PROTOCOL_VER,
+    network::{
+        pubsub,
+        swarm::{
+            CapsuleTag, ComposedEvent, PeerDiscoveryInfo, RequestResponseKey, HOMESTAR_PROTOCOL_VER,
+        },
     },
     receipt::{RECEIPT_TAG, VERSION_KEY},
     workflow,
@@ -39,6 +44,8 @@ use libp2p::{
     swarm::{dial_opts::DialOpts, SwarmEvent},
     PeerId, StreamProtocol,
 };
+#[cfg(feature = "websocket-notify")]
+use maplit::btreemap;
 use std::{
     collections::{HashMap, HashSet},
     fmt,
@@ -54,7 +61,9 @@ const RENDEZVOUS_NAMESPACE: &str = "homestar";
 pub(crate) enum ResponseEvent {
     /// Found [PeerRecord] on the DHT.
     Found(Result<FoundEvent>),
-    /// Found Providers/[PeerId]s on the DHT.
+    /// No peers available to network with on the DHT.
+    NoPeersAvailable,
+    /// Found providers/[PeerId]s on the DHT.
     Providers(Result<HashSet<PeerId>>),
 }
 
@@ -106,17 +115,33 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         SwarmEvent::Behaviour(ComposedEvent::Identify(identify_event)) => {
             match identify_event {
                 identify::Event::Error { peer_id, error } => {
-                    warn!(peer_id=peer_id.to_string(), err=?error, "error while attempting to identify the remote")
+                    warn!(subject = "libp2p.identify.err",
+                          category = "handle_swarm_event",
+                          peer_id=peer_id.to_string(),
+                          err=?error,
+                          "error while attempting to identify the remote")
                 }
                 identify::Event::Sent { peer_id } => {
-                    debug!(peer_id = peer_id.to_string(), "sent identify info to peer")
+                    debug!(
+                        subject = "libp2p.identify.sent",
+                        category = "handle_swarm_event",
+                        peer_id = peer_id.to_string(),
+                        "sent identify info to peer"
+                    )
                 }
                 identify::Event::Received { peer_id, info } => {
-                    debug!(peer_id=peer_id.to_string(), info=?info, "identify info received from peer");
+                    debug!(subject = "libp2p.identify.recv",
+                           category = "handle_swarm_event",
+                           peer_id=peer_id.to_string(),
+                           info=?info,
+                           "identify info received from peer");
 
                     // Ignore peers that do not use the Homestar protocol
                     if info.protocol_version != HOMESTAR_PROTOCOL_VER {
-                        info!(protocol_version=info.protocol_version, "peer was not using our homestar protocol version: {HOMESTAR_PROTOCOL_VER}");
+                        debug!(subject ="libp2p.identify.recv",
+                               category="handle_swarm_event",
+                               protocol_version=info.protocol_version,
+                               "peer was not using our homestar protocol version: {HOMESTAR_PROTOCOL_VER}");
                         return;
                     }
 
@@ -136,7 +161,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             .all(|proto| !proto.is_private())
                             // Identify observed a potentially valid external address that we weren't aware of.
                             // Add it to the addresses we announce to other peers.
-                            // TODO: have a set of _maybe_ external addresses that we validate with other peers first before adding it
                             .then(|| event_handler.swarm.add_external_address(info.observed_addr));
                     }
 
@@ -147,6 +171,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         for addr in info.listen_addrs {
                             behavior.kademlia.add_address(&peer_id, addr);
                             debug!(
+                                subject = "libp2p.identify.recv",
+                                category = "handle_swarm_event",
                                 peer_id = peer_id.to_string(),
                                 "added identified node to kademlia routing table"
                             );
@@ -168,6 +194,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 Some(event_handler.rendezvous.registration_ttl.as_secs()),
                             ) {
                                 warn!(
+                                    subject = "libp2p.identify.recv",
+                                    category = "handle_swarm_event",
                                     peer_id = peer_id.to_string(),
                                     err = format!("{err}"),
                                     "failed to register with rendezvous peer"
@@ -185,6 +213,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     }
                 }
                 identify::Event::Pushed { peer_id } => debug!(
+                    subject = "libp2p.identify.pushed",
+                    category = "handle_swarm_event",
                     peer_id = peer_id.to_string(),
                     "pushed identify info to peer"
                 ),
@@ -199,6 +229,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 } => {
                     if cookie.namespace() == Some(&Namespace::from_static(RENDEZVOUS_NAMESPACE)) {
                         debug!(
+                            subject = "libp2p.rendezvous.client.discovered",
+                            category = "handle_swarm_event",
                             peer_id = rendezvous_node.to_string(),
                             "received discovery from rendezvous server"
                         );
@@ -213,7 +245,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
                         // Skip dialing peers if at connected peers limit
                         if connected_peers_count >= event_handler.connections.max_peers as usize {
-                            warn!("peers discovered through rendezvous not dialed because max connected peers limit reached");
+                            debug!(
+                                subject = "libp2p.rendezvous.client.discovered.err",
+                                category = "handle_swarm_event",
+                                "peers discovered not dialed because max connected peers limit reached"
+                            );
                             return;
                         }
 
@@ -254,14 +290,18 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                         );
                                     }
                                     Err(err) => {
-                                        warn!(peer_id=peer_id.to_string(), err=?err, "failed to dial peer discovered through rendezvous");
+                                        warn!(subject = "libp2p.rendezvous.client.discovered.err",
+                                              category = "handle_swarm_event",
+                                              peer_id=peer_id.to_string(),
+                                              err=?err,
+                                              "failed to dial discovered peer");
                                     }
                                 };
                             } else if !self_registration {
-                                warn!(
-                                        peer_id=registration.record.peer_id().to_string(),
-                                        "peer discovered through rendezvous not dialed because the max connected peers limit was reached"
-                                    )
+                                debug!(subject = "libp2p.rendezvous.client.discovered.err",
+                                       category = "handle_swarm_event",
+                                       peer_id=registration.record.peer_id().to_string(),
+                                       "peer discovered not dialed because the max connected peers limit was reached")
                             }
                         }
 
@@ -289,22 +329,31 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             .await;
                     } else {
                         // Do not dial peers that are not using our namespace
-                        warn!(peer_id=rendezvous_node.to_string(), namespace=?cookie.namespace(), "rendezvous peer gave records from an unexpected namespace");
+                        debug!(subject = "libp2p.rendezvous.client.discovered.err",
+                               category = "handle_swarm_event",
+                               peer_id=rendezvous_node.to_string(),
+                               namespace=?cookie.namespace(),
+                               "rendezvous peer gave records from an unexpected namespace");
                     }
                 }
                 rendezvous::client::Event::DiscoverFailed {
                     rendezvous_node,
                     error,
                     ..
-                } => {
-                    error!(peer_id=rendezvous_node.to_string(), err=?error, "failed to discover peers from rendezvous peer")
-                }
+                } => warn!(subject = "libp2p.rendezvous.client.discovered.err",
+                           category = "handle_swarm_event",
+                           peer_id=rendezvous_node.to_string(),
+                           err=?error,
+                           "failed to discover peers"),
+
                 rendezvous::client::Event::Registered {
                     rendezvous_node,
                     ttl,
                     ..
                 } => {
                     debug!(
+                        subject = "libp2p.rendezvous.client.registered",
+                        category = "handle_swarm_event",
                         peer_id = rendezvous_node.to_string(),
                         ttl = ttl,
                         "registered self with rendezvous node"
@@ -335,7 +384,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     error,
                     ..
                 } => {
-                    error!(peer_id=rendezvous_node.to_string(), err=?error, "failed to register self with rendezvous peer")
+                    warn!(subject = "libp2p.rendezvous.client.registered.err",
+                          category = "handle_swarm_event",
+                          peer_id=rendezvous_node.to_string(),
+                          err=?error,
+                          "failed to register self with rendezvous peer")
                 }
                 rendezvous::client::Event::Expired { peer } => {
                     // re-discover records from peer
@@ -364,14 +417,22 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         SwarmEvent::Behaviour(ComposedEvent::RendezvousServer(rendezvous_server_event)) => {
             match rendezvous_server_event {
                 rendezvous::server::Event::DiscoverServed { enquirer, .. } => debug!(
+                    subject = "libp2p.rendezvous.server.discover",
+                    category = "handle_swarm_event",
                     peer_id = enquirer.to_string(),
                     "served rendezvous discover request to peer"
                 ),
                 rendezvous::server::Event::DiscoverNotServed { enquirer, error } => {
-                    warn!(peer_id=enquirer.to_string(), err=?error, "did not serve rendezvous discover request")
+                    warn!(subject = "libp2p.rendezvous.server.discover.err",
+                          category = "handle_swarm_event",
+                          peer_id=enquirer.to_string(),
+                          err=?error,
+                          "did not serve rendezvous discover request")
                 }
                 rendezvous::server::Event::PeerRegistered { peer, .. } => {
                     debug!(
+                        subject = "libp2p.rendezvous.server.peer_registered",
+                        category = "handle_swarm_event",
                         peer_id = peer.to_string(),
                         "registered peer through rendezvous"
                     )
@@ -381,10 +442,17 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     namespace,
                     error,
                 } => {
-                    warn!(peer_id=peer.to_string(), err=?error, namespace=?namespace, "did not register peer with rendezvous")
+                    debug!(subject = "libp2p.rendezvous.server.peer_registered.err",
+                           category = "handle_swarm_event",
+                           peer_id=peer.to_string(),
+                           err=?error,
+                           namespace=?namespace,
+                           "did not register peer with rendezvous")
                 }
                 rendezvous::server::Event::RegistrationExpired(registration) => {
                     debug!(
+                        subject = "libp2p.rendezvous.server.registration_expired",
+                        category = "handle_swarm_event",
                         peer_id = registration.record.peer_id().to_string(),
                         "rendezvous peer registration expired on server"
                     )
@@ -397,27 +465,53 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 message,
                 propagation_source,
                 message_id,
-            } => match Receipt::try_from(message.data) {
-                // TODO: dont fail blindly if we get a non receipt message
-                Ok(receipt) => {
-                    info!("got message: {receipt} from {propagation_source} with message id: {message_id}");
+            } => {
+                let bytes: Vec<u8> = message.data;
+                match pubsub::Message::<Receipt>::try_from(bytes) {
+                    Ok(msg) => {
+                        let receipt = msg.payload;
+                        info!(
+                            subject = "libp2p.gossipsub.recv",
+                            category = "handle_swarm_event",
+                            peer_id = propagation_source.to_string(),
+                            message_id = message_id.to_string(),
+                            "message received on receipts topic: {}",
+                            receipt.cid()
+                        );
 
-                    // Store gossiped receipt.
-                    let _ = event_handler
-                        .db
-                        .conn()
-                        .as_mut()
-                        .map(|conn| Db::store_receipt(receipt, conn));
+                        // Store gossiped receipt.
+                        let _ = event_handler
+                            .db
+                            .conn()
+                            .as_mut()
+                            .map(|conn| Db::store_receipt(receipt.clone(), conn));
+
+                        #[cfg(feature = "websocket-notify")]
+                        notification::emit_event(
+                            event_handler.ws_evt_sender(),
+                            EventNotificationTyp::SwarmNotification(
+                                SwarmNotification::ReceivedReceiptPubsub,
+                            ),
+                            btreemap! {
+                                "peerId" => propagation_source.to_string(),
+                                "cid" => receipt.cid().to_string(),
+                                "ran" => receipt.ran().to_string()
+                            },
+                        );
+                    }
+                    Err(err) => debug!(subject = "libp2p.gossipsub.err",
+                                       category = "handle_swarm_event",
+                                       err=?err,
+                                       "cannot handle incoming gossipsub message"),
                 }
-                Err(err) => info!(err=?err, "cannot handle incoming event message"),
-            },
-            gossipsub::Event::Subscribed { peer_id, topic } => {
-                debug!(
-                    peer_id = peer_id.to_string(),
-                    topic = topic.to_string(),
-                    "subscribed to topic over gossipsub"
-                )
             }
+            gossipsub::Event::Subscribed { peer_id, topic } => debug!(
+                subject = "libp2p.gossipsub.subscribed",
+                category = "handle_swarm_event",
+                peer_id = peer_id.to_string(),
+                topic = topic.to_string(),
+                "subscribed to topic over gossipsub"
+            ),
             _ => {}
         },
 
@@ -427,9 +521,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             ..
         })) => {
             match result {
-                QueryResult::Bootstrap(Ok(BootstrapOk { peer, .. })) => {
-                    debug!("successfully bootstrapped peer: {peer}")
-                }
+                QueryResult::Bootstrap(Ok(BootstrapOk { peer, .. })) => debug!(
+                    subject = "libp2p.kad.bootstrap",
+                    category = "handle_swarm_event",
+                    "successfully bootstrapped peer: {peer}"
+                ),
                 QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders {
                     key: _,
                     providers,
@@ -457,7 +553,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 }
 
                 QueryResult::GetProviders(Err(err)) => {
-                    warn!(err=?err, "error retrieving outbound query providers");
+                    warn!(subject = "libp2p.kad.get_providers.err",
+                          category = "handle_swarm_event",
+                          err=?err,
+                          "error retrieving outbound query providers");
 
                     let Some((_, sender)) = event_handler.query_senders.remove(&id) else {
                         return;
@@ -471,8 +570,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 }
                 QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
                     debug!(
+                        subject = "libp2p.kad.get_record.err",
+                        category = "handle_swarm_event",
                         "found record {:#?}, published by {:?}",
-                        peer_record.record.key, peer_record.record.publisher
+                        peer_record.record.key,
+                        peer_record.record.publisher
                     );
                     match peer_record.found_record() {
                         Ok(event) => {
@@ -485,8 +587,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             }
                         }
                         Err(err) => {
-                            warn!(err=?err, "error retrieving record");
-
+                            warn!(subject = "libp2p.kad.get_record.err",
+                                  category = "handle_swarm_event",
+                                  err=?err,
+                                  "error retrieving record");
                             let Some((_, sender)) = event_handler.query_senders.remove(&id) else {
                                 return;
                             };
@@ -499,7 +603,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 }
                 QueryResult::GetRecord(Ok(_)) => {}
                 QueryResult::GetRecord(Err(err)) => {
-                    warn!(err=?err, "error retrieving record");
+                    warn!(subject = "libp2p.kad.get_record.err",
+                          category = "handle_swarm_event",
+                          err=?err,
+                          "error retrieving record");
 
                     // Upon an error, attempt to find the record on the DHT via
                     // a provider if it's a Workflow/Info one.
@@ -531,39 +638,67 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                     ))))
                                     .await;
                             } else {
-                                warn!("not a valid provider record tag: {capsule_tag}",)
+                                warn!(
+                                    subject = "libp2p.kad.req_resp.err",
+                                    category = "handle_swarm_event",
+                                    "not a valid provider record tag: {capsule_tag}",
+                                )
                             }
                         }
-                        None => {
-                            info!("No provider found for outbound query {id:?}")
-                        }
+                        None => debug!(
+                            subject = "libp2p.kad.req_resp.err",
+                            category = "handle_swarm_event",
+                            "No provider found for outbound query {id:?}"
+                        ),
                     }
                 }
-                QueryResult::PutRecord(Ok(PutRecordOk { key })) => {
-                    debug!("successfully put record {key:#?}");
-                }
-                QueryResult::PutRecord(Err(err)) => {
-                    warn!("error putting record: {err}")
-                }
+                QueryResult::PutRecord(Ok(PutRecordOk { key })) => debug!(
+                    subject = "libp2p.kad.put_record",
+                    category = "handle_swarm_event",
+                    "successfully put record {key:#?}"
+                ),
+                QueryResult::PutRecord(Err(err)) => warn!(
+                    subject = "libp2p.kad.put_record.err",
+                    category = "handle_swarm_event",
+                    err=?err,
+                    "error putting record"),
                 QueryResult::StartProviding(Ok(AddProviderOk { key })) => {
                     // Currently, we don't send anything to the <worker> channel,
                     // once they key is provided.
                     let _ = event_handler.query_senders.remove(&id);
-                    debug!("successfully providing {key:#?}");
+                    debug!(
+                        subject = "libp2p.kad.provide_record",
+                        category = "handle_swarm_event",
+                        "successfully providing {key:#?}"
+                    );
                 }
                 QueryResult::StartProviding(Err(err)) => {
                     // Currently, we don't send anything to the <worker> channel,
                     // once they key is provided.
                     let _ = event_handler.query_senders.remove(&id);
-                    warn!("error providing key: {:#?}", err.key());
+                    warn!(
+                        subject = "libp2p.kad.provide_record.err",
+                        category = "handle_swarm_event",
+                        "error providing key: {:#?}",
+                        err.key()
+                    );
                 }
                 _ => {}
             }
+        }
+        SwarmEvent::Behaviour(ComposedEvent::Kademlia(kad::Event::InboundRequest { request })) => {
+            debug!(
+                subject = "libp2p.kad.inbound_request",
+                category = "handle_swarm_event",
+                "kademlia inbound request received {request:?}"
+            )
         }
         SwarmEvent::Behaviour(ComposedEvent::Kademlia(kad::Event::RoutingUpdated {
             peer, ..
         })) => {
             debug!(
+                subject = "libp2p.kad.routing",
+                category = "handle_swarm_event",
                 peer = peer.to_string(),
                 "kademlia routing table updated with peer"
             )
@@ -612,7 +747,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             }
                         }
                         Err(err) => {
-                            warn!(err=?err, cid=?cid, "error retrieving workflow info");
+                            warn!(subject = "libp2p.req_resp.err",
+                                  category = "handle_swarm_event",
+                                  err=?err,
+                                  cid=?cid,
+                                  "error retrieving workflow info");
 
                             let _ = event_handler
                                 .swarm
@@ -653,11 +792,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 let _ = sender.send_async(ResponseEvent::Found(Ok(event))).await;
                             }
                             Err(err) => {
-                                warn!(
-                                    err=?err,
-                                    cid = key_cid.as_str(),
-                                    "error returning capsule for request_id: {request_id}"
-                                );
+                                warn!(subject = "libp2p.req_resp.resp.err",
+                                      category = "handle_swarm_event",
+                                      err=?err,
+                                      cid = key_cid.as_str(),
+                                      "error returning capsule for request_id: {request_id}");
 
                                 let _ = sender.send_async(ResponseEvent::Found(Err(err))).await;
                             }
@@ -668,7 +807,9 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         },
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Discovered(list))) => {
             for (peer_id, multiaddr) in list {
-                info!(
+                debug!(
+                    subject = "libp2p.mdns.discovered",
+                    category = "handle_swarm_event",
                     peer_id = peer_id.to_string(),
                     addr = multiaddr.to_string(),
                     "mDNS discovered a new peer"
@@ -683,9 +824,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             .build(),
                     );
                 } else {
-                    warn!(
-                        peer_id = peer_id.to_string(),
-                        "peer discovered by mDNS not dialed because max connected peers limit reached"
+                    debug!(subject = "libp2p.mdns.discovered.err",
+                           category = "handle_swarm_event",
+                           peer_id = peer_id.to_string(),
+                           "peer discovered by mDNS not dialed because max connected peers limit reached"
                     )
                 }
             }
@@ -695,13 +837,17 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
 
             if let Some(mdns) = behaviour.mdns.as_ref() {
                 for (peer_id, multiaddr) in list {
-                    info!(
+                    debug!(
+                        subject = "libp2p.mdns.expired",
+                        category = "handle_swarm_event",
                         peer_id = peer_id.to_string(),
                         "mDNS discover peer has expired"
                     );
                     if mdns.has_node(&peer_id) {
                         behaviour.kademlia.remove_address(&peer_id, &multiaddr);
                         debug!(
+                            subject = "libp2p.mdns.expired",
+                            category = "handle_swarm_event",
                             peer_id = peer_id.to_string(),
                             "removed peer address from kademlia table"
                         );
@@ -711,23 +857,62 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         }
         SwarmEvent::NewListenAddr { address, .. } => {
             let local_peer = *event_handler.swarm.local_peer_id();
+
             info!(
+                subject = "libp2p.listen.addr",
+                category = "handle_swarm_event",
+                peer_id = local_peer.to_string(),
                 "local node is listening on {}",
-                address.with(Protocol::P2p(local_peer))
+                address
+            );
+
+            #[cfg(feature = "websocket-notify")]
+            notification::emit_event(
+                event_handler.ws_evt_sender(),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::ListeningOn),
+                btreemap! {
+                    "peerId" => local_peer.to_string(),
+                    "address" => address.to_string()
+                },
             );
         }
         SwarmEvent::IncomingConnection { .. } => {}
         SwarmEvent::ConnectionEstablished {
             peer_id, endpoint, ..
         } => {
-            debug!(peer_id=peer_id.to_string(), endpoint=?endpoint, "peer connection established");
+            debug!(subject = "libp2p.conn.established",
+                   category = "handle_swarm_event",
+                   peer_id=peer_id.to_string(),
+                   endpoint=?endpoint,
+                   "peer connection established");
+
             // add peer to connected peers list
-            event_handler.connections.peers.insert(peer_id, endpoint);
+            event_handler
+                .connections
+                .peers
+                .insert(peer_id, endpoint.clone());
+
+            #[cfg(feature = "websocket-notify")]
+            notification::emit_event(
+                event_handler.ws_evt_sender(),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
+                btreemap! {
+                    "peerId" => peer_id.to_string(),
+                    "address" => endpoint.get_remote_address().to_string()
+                },
+            );
         }
-        SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
+        SwarmEvent::ConnectionClosed {
+            peer_id,
+            cause,
+            endpoint,
+            ..
+        } => {
             debug!(
+                subject = "libp2p.conn.closed",
+                category = "handle_swarm_event",
                 peer_id = peer_id.to_string(),
-                "peer connection closed, cause: {cause:?}"
+                "peer connection closed, cause: {cause:#?}, endpoint: {endpoint:#?}"
             );
             event_handler.connections.peers.remove_entry(&peer_id);
 
@@ -738,7 +923,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 } else {
                     // TODO: We may want to check the multiadress without relying on
                     // the peer ID. This would give more flexibility when configuring nodes.
-                    warn!("Configured peer must include a peer ID: {multiaddr}");
+                    warn!(
+                        subject = "libp2p.conn.closed",
+                        category = "handle_swarm_event",
+                        "Configured peer must include a peer ID: {multiaddr}"
+                    );
                     true
                 }
             }) {
@@ -749,22 +938,45 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     .remove_peer(&peer_id);
 
                 debug!(
+                    subject = "libp2p.kad.remove",
+                    category = "handle_swarm_event",
                     peer_id = peer_id.to_string(),
                     "removed peer from kademlia table"
                 );
             }
+
+            #[cfg(feature = "websocket-notify")]
+            notification::emit_event(
+                event_handler.ws_evt_sender(),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionClosed),
+                btreemap! {
+                    "peerId" => peer_id.to_string(),
+                    "address" => endpoint.get_remote_address().to_string()
+                },
+            );
         }
         SwarmEvent::OutgoingConnectionError {
             connection_id,
             peer_id,
             error,
         } => {
-            error!(
-                peer_id=peer_id.map(|p| p.to_string()).unwrap_or_default(),
-                err=?error,
-                connection_id=?connection_id,
-                "outgoing connection error"
-            )
+            warn!(subject = "libp2p.outgoing.err",
+                  category = "handle_swarm_event",
+                  peer_id=peer_id.map(|p| p.to_string()).unwrap_or_default(),
+                  err=?error,
+                  connection_id=?connection_id,
+                  "outgoing connection error"
+            );
+
+            #[cfg(feature = "websocket-notify")]
+            notification::emit_event(
+                event_handler.ws_evt_sender(),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::OutgoingConnectionError),
+                btreemap! {
+                    "peerId" => peer_id.map_or("Unknown peer".into(), |p| p.to_string()),
+                    "error" => error.to_string()
+                },
+            );
         }
         SwarmEvent::IncomingConnectionError {
             connection_id,
@@ -772,22 +984,49 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
             send_back_addr,
             error,
         } => {
-            error!(
-                err=?error,
-                connection_id=?connection_id,
-                local_address=local_addr.to_string(),
-                remote_address=send_back_addr.to_string(),
-                "incoming connection error"
-            )
+            warn!(subject = "libp2p.incoming.err",
+                  category = "handle_swarm_event",
+                  err=?error,
+                  connection_id=?connection_id,
+                  local_address=local_addr.to_string(),
+                  remote_address=send_back_addr.to_string(),
+                  "incoming connection error");
+
+            #[cfg(feature = "websocket-notify")]
+            notification::emit_event(
+                event_handler.ws_evt_sender(),
+                EventNotificationTyp::SwarmNotification(SwarmNotification::IncomingConnectionError),
+                btreemap! {
+                    "error" => error.to_string()
+                },
+            );
         }
         SwarmEvent::ListenerError { listener_id, error } => {
-            error!(err=?error, listener_id=?listener_id, "listener error")
+            error!(subject = "libp2p.listener.err",
+                   category = "handle_swarm_event",
+                   err=?error,
+                   listener_id=?listener_id,
+                   "listener error")
         }
         SwarmEvent::Dialing { peer_id, .. } => match peer_id {
-            Some(id) => debug!(peer_id = id.to_string(), "dialing peer"),
-            None => debug!("dialing an unknown peer"),
+            Some(id) => {
+                debug!(
+                    subject = "libp2p.dialing",
+                    category = "handle_swarm_event",
+                    peer_id = id.to_string(),
+                    "dialing peer"
+                )
+            }
+            None => debug!(
+                subject = "libp2p.dialing",
+                category = "handle_swarm_event",
+                "dialing an unknown peer"
+            ),
         },
-        e => debug!(e=?e, "uncaught event"),
+        e => debug!(subject = "libp2p.event",
+                    category = "handle_swarm_event",
+                    e=?e,
+                    "uncaught event"),
     }
 }
 
@@ -823,10 +1062,7 @@ fn decode_capsule(key_cid: Cid, value: &Vec<u8>) -> Result<FoundEvent> {
         Ok(ipld) => Err(anyhow!(
             "decode mismatch: expected an Ipld map, got {ipld:#?}",
         )),
-        Err(err) => {
-            warn!(error=?err, "error deserializing record value");
-            Err(anyhow!("error deserializing record value"))
-        }
+        Err(err) => Err(anyhow!("error deserializing record value: {err}")),
     }
 }
 

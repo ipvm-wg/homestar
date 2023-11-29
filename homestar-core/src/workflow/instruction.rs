@@ -132,7 +132,7 @@ where
 /// use libipld::Ipld;
 /// use url::Url;
 ///
-/// let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
+/// let wasm = "bafkreihxcyjgyrz437ewzi7md55uqt2zf6yr3zn7xrfi4orc34xdc5jgrm".to_string();
 /// let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
 ///
 /// let instr = Instruction::unique(
@@ -154,7 +154,7 @@ where
 /// use libipld::{cid::{multihash::{Code, MultihashDigest}, Cid}, Ipld, Link};
 /// use url::Url;
 
-/// let wasm = "bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".to_string();
+/// let wasm = "bafkreihxcyjgyrz437ewzi7md55uqt2zf6yr3zn7xrfi4orc34xdc5jgrm".to_string();
 /// let resource = Url::parse(format!("ipfs://{wasm}").as_str()).expect("IPFS URL");
 /// let h = Code::Blake3_256.digest(b"beep boop");
 /// let cid = Cid::new_v1(0x55, h);
@@ -317,7 +317,13 @@ impl<'a, T> DagCbor for Instruction<'a, T> where Ipld: From<T> {}
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{test_utils, Unit};
+    use crate::{test_utils, Unit, DAG_CBOR};
+    use libipld::{
+        cbor::DagCborCodec,
+        multihash::{Code, MultihashDigest},
+        prelude::Codec,
+        Cid,
+    };
 
     #[test]
     fn ipld_roundtrip() {
@@ -330,7 +336,7 @@ mod test {
                 (
                     RESOURCE_KEY.into(),
                     Ipld::String(
-                        "ipfs://bafybeihzvrlcfqf6ffbp2juhuakspxj2bdsc54cabxnuxfvuqy5lvfxapy".into()
+                        "ipfs://bafybeig6u35v6t3f4j3zgz2jvj4erd45fbkeolioaddu3lmu6uxm3ilb7a".into()
                     )
                 ),
                 (OP_KEY.into(), Ipld::String("ipld/fun".to_string())),
@@ -339,6 +345,28 @@ mod test {
             ]))
         );
         assert_eq!(instruction, ipld.try_into().unwrap())
+    }
+
+    #[test]
+    fn ipld_cid_trials() {
+        let a_cid =
+            Cid::try_from("bafyrmiev5j2jzjrqncbfqo6pbraiw7r2p527m4z3bbm6ir3o5kdz2zwcjy").unwrap();
+        let ipld = libipld::ipld!({"input":
+                        {
+                            "args": [{"await/ok": a_cid}, "111111"],
+                            "func": "join-strings"
+                        },
+                        "nnc": "", "op": "wasm/run",
+                        "rsc": "ipfs://bafybeig6u35v6t3f4j3zgz2jvj4erd45fbkeolioaddu3lmu6uxm3ilb7a"});
+
+        let instruction = Instruction::<Unit>::try_from(ipld.clone()).unwrap();
+        let instr_cid = instruction.to_cid().unwrap();
+
+        let bytes = DagCborCodec.encode(&ipld).unwrap();
+        let hash = Code::Sha3_256.digest(&bytes);
+        let ipld_to_cid = Cid::new_v1(DAG_CBOR, hash);
+
+        assert_eq!(ipld_to_cid, instr_cid);
     }
 
     #[test]

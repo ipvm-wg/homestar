@@ -5,7 +5,7 @@ use crate::{
     runner::{file, response},
 };
 use anyhow::anyhow;
-use clap::{Args, Parser};
+use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr},
@@ -19,19 +19,21 @@ pub use error::Error;
 pub(crate) mod show;
 pub(crate) use show::ConsoleTable;
 
+const DEFAULT_DB_PATH: &str = "homestar.db";
 const TMP_DIR: &str = "/tmp";
 const HELP_TEMPLATE: &str = "{name} {version}
 
+{about}
 
-USAGE:
-    {usage}
+Usage: {usage}
 
 {all-args}
 ";
 
 /// CLI arguments.
-#[derive(Parser, Debug)]
-#[command(bin_name = "homestar", name = "homestar", author, version, about, long_about = None, help_template = HELP_TEMPLATE)]
+#[derive(Debug, Parser)]
+#[command(bin_name = "homestar", name = "homestar", author, version, about,
+          long_about = None, help_template = HELP_TEMPLATE)]
 pub struct Cli {
     /// Homestar [Command].
     #[clap(subcommand)]
@@ -43,17 +45,17 @@ pub struct Cli {
 /// [Client]: crate::network::rpc::Client
 #[derive(Debug, Clone, PartialEq, Args, Serialize, Deserialize)]
 pub struct RpcArgs {
-    /// RPC Homestar runtime host to ping.
+    /// Homestar RPC host.
     #[clap(
             long = "host",
             default_value = "::1",
             value_hint = clap::ValueHint::Hostname
         )]
     host: IpAddr,
-    /// RPC Homestar runtime port to ping.
+    /// Homestar RPC port.
     #[clap(short = 'p', long = "port", default_value_t = 3030)]
     port: u16,
-    /// RPC Homestar runtime port to ping.
+    /// Homestar RPC timeout.
     #[clap(long = "timeout", default_value = "60s", value_parser = humantime::parse_duration)]
     timeout: Duration,
 }
@@ -69,32 +71,36 @@ impl Default for RpcArgs {
 }
 
 /// CLI Argument types.
-#[derive(Debug, Parser)]
+#[derive(Debug, Subcommand)]
 pub enum Command {
     /// Start the Homestar runtime.
     Start {
-        /// Database url, defaults to sqlite://homestar.db.
+        /// Database URL, defaults to homestar.db.
         #[arg(
             long = "db",
             value_name = "DB",
-            env = "DATABASE_URL",
-            help = "SQLite database url"
+            env = "DATABASE_PATH",
+            value_hint = clap::ValueHint::AnyPath,
+            value_name = "DATABASE_PATH",
+            default_value = DEFAULT_DB_PATH,
+            help = "Database path (SQLite) [optional]"
         )]
         database_url: Option<String>,
-        /// Optional runtime configuration file, otherwise use defaults.
+        /// Runtime configuration file (.toml).
         #[arg(
             short = 'c',
             long = "config",
+            value_hint = clap::ValueHint::FilePath,
             value_name = "CONFIG",
-            help = "runtime configuration file"
+            help = "Runtime configuration file (.toml) [optional]"
         )]
         runtime_config: Option<PathBuf>,
         /// Daemonize the runtime, false by default.
         #[arg(
             short = 'd',
             long = "daemonize",
-            default_value_t = false,
-            help = "daemonize the runtime"
+            default_value = "false",
+            help = "Daemonize the runtime"
         )]
         daemonize: bool,
         /// Directory to place daemon files, defaults to /tmp.
@@ -103,35 +109,39 @@ pub enum Command {
             default_value = TMP_DIR,
             value_hint = clap::ValueHint::DirPath,
             value_name = "DIR",
-            help = "directory to place daemon files"
+            help = "Directory to place daemon file(s)"
         )]
         daemon_dir: PathBuf,
     },
     /// Stop the Homestar runtime.
     Stop(RpcArgs),
-    /// Ping the Homestar runtime.
+    /// Ping the Homestar runtime to see if it's running.
     Ping(RpcArgs),
-    /// Run a workflow, given a workflow file.
+    /// Run an IPVM-configured workflow file on the Homestar runtime.
     Run {
         /// RPC host / port arguments.
         #[clap(flatten)]
         args: RpcArgs,
-        /// (optional) name given to a workflow.
+        /// Local name associated with a workflow (optional).
         #[arg(
             short = 'n',
             long = "name",
             value_name = "NAME",
-            help = "(optional) name given to a workflow"
+            help = "Local name given to a workflow (optional)"
         )]
         name: Option<String>,
-        /// Workflow file to run.
+        /// IPVM-configured workflow file to run.
+        /// Supported:
+        ///   - JSON (.json).
         #[arg(
             short='w',
             long = "workflow",
             value_hint = clap::ValueHint::FilePath,
             value_name = "FILE",
             value_parser = clap::value_parser!(file::ReadWorkflow),
-            help = "path to workflow file"
+            help = r#"IPVM-configured workflow file to run.
+Supported:
+  - JSON (.json)"#
         )]
         workflow: file::ReadWorkflow,
     },

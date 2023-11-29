@@ -35,6 +35,7 @@ report.json
 homestar.err
 homestar.out
 homestar.pid
+homestar.log*
 
 # locks
 homestar-wasm/Cargo.lock
@@ -54,3 +55,6 @@ examples/**/tmp/*
 
 # nix build results
 /result
+
+# npm packages
+homestar-runtime/npm/binaries

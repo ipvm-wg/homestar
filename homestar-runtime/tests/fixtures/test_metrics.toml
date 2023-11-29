@@ -1,14 +1,18 @@
-[monitoring]
-process_collector_interval = 500
-metrics_port = 4020
-console_subscriber_port = 5570
-
 [node]
 
-[node.network]
-rpc_port = 9810
-websocket_port = 8010
+[node.monitoring]
+process_collector_interval = 500
+console_subscriber_port = 5570
 
 # Peer ID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }
+
+[node.network.metrics]
+port = 4020
+
+[node.network.rpc]
+port = 9810
+
+[node.network.webserver]
+port = 8010

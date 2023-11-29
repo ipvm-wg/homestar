@@ -1,9 +1,6 @@
-#![allow(missing_docs)]
-
 //! Sets up a [libp2p] [Swarm], containing the state of the network and the way
 //! it should behave.
 //!
-//! [libp2p]: libp2p
 //! [Swarm]: libp2p::Swarm
 
 use crate::{
@@ -11,6 +8,7 @@ use crate::{
     settings, Receipt, RECEIPT_TAG, WORKFLOW_TAG,
 };
 use anyhow::{Context, Result};
+use const_format::formatcp;
 use enum_assoc::Assoc;
 use faststr::FastStr;
 use libp2p::{
@@ -32,31 +30,38 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use tracing::{info, warn};
 
-pub(crate) const HOMESTAR_PROTOCOL_VER: &str = "homestar/0.0.1";
+/// Homestar protocol version, shared among peers, tied to the homestar version.
+pub(crate) const HOMESTAR_PROTOCOL_VER: &str = formatcp!("homestar/{VERSION}");
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Build a new [Swarm] with a given transport and a tokio executor.
-pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehaviour>> {
+pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBehaviour>> {
     let keypair = settings
-        .network
         .keypair_config
         .keypair()
-        .with_context(|| "Failed to generate/import keypair for libp2p".to_string())?;
+        .with_context(|| "failed to generate/import keypair for libp2p".to_string())?;
 
     let peer_id = keypair.public().to_peer_id();
-    info!(peer_id = peer_id.to_string(), "local peer ID generated");
+    info!(
+        subject = "swarm.init",
+        category = "libp2p.swarm",
+        peer_id = peer_id.to_string(),
+        "local peer ID generated"
+    );
 
     let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
         .upgrade(upgrade::Version::V1Lazy)
         .authenticate(noise::Config::new(&keypair)?)
         .multiplex(yamux::Config::default())
-        .timeout(settings.network.transport_connection_timeout)
+        .timeout(settings.libp2p.transport_connection_timeout)
         .boxed();
 
     let mut swarm = Swarm::new(
         transport,
         ComposedBehaviour {
-            gossipsub: Toggle::from(if settings.network.enable_pubsub {
-                Some(pubsub::new(keypair.clone(), settings)?)
+            gossipsub: Toggle::from(if settings.libp2p.pubsub.enable {
+                Some(pubsub::new(keypair.clone(), settings.libp2p().pubsub())?)
             } else {
                 None
             }),
@@ -85,24 +90,24 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
                 )],
                 request_response::Config::default(),
             ),
-            mdns: Toggle::from(if settings.network.enable_mdns {
+            mdns: Toggle::from(if settings.libp2p.mdns.enable {
                 Some(mdns::Behaviour::new(
                     mdns::Config {
-                        ttl: settings.network.mdns_ttl,
-                        query_interval: settings.network.mdns_query_interval,
-                        enable_ipv6: settings.network.mdns_enable_ipv6,
+                        ttl: settings.libp2p.mdns.ttl,
+                        query_interval: settings.libp2p.mdns.query_interval,
+                        enable_ipv6: settings.libp2p.mdns.enable_ipv6,
                     },
                     peer_id,
                 )?)
             } else {
                 None
             }),
-            rendezvous_client: Toggle::from(if settings.network.enable_rendezvous_client {
+            rendezvous_client: Toggle::from(if settings.libp2p.rendezvous.enable_client {
                 Some(rendezvous::client::Behaviour::new(keypair.clone()))
             } else {
                 None
             }),
-            rendezvous_server: Toggle::from(if settings.network.enable_rendezvous_server {
+            rendezvous_server: Toggle::from(if settings.libp2p.rendezvous.enable_server {
                 Some(rendezvous::server::Behaviour::new(
                     rendezvous::server::Config::with_min_ttl(
                         rendezvous::server::Config::default(),
@@ -121,7 +126,7 @@ pub(crate) async fn new(settings: &settings::Node) -> Result<Swarm<ComposedBehav
         swarm::Config::with_tokio_executor(),
     );
 
-    init(&mut swarm, &settings.network)?;
+    init(&mut swarm, settings)?;
 
     Ok(swarm)
 }
@@ -139,7 +144,7 @@ pub(crate) fn init(
     settings: &settings::Network,
 ) -> Result<()> {
     // Listen-on given address
-    swarm.listen_on(settings.listen_address.to_string().parse()?)?;
+    swarm.listen_on(settings.libp2p.listen_address.to_string().parse()?)?;
 
     // Set Kademlia server mode
     swarm
@@ -148,43 +153,58 @@ pub(crate) fn init(
         .set_mode(Some(kad::Mode::Server));
 
     // add external addresses from settings
-    if !settings.announce_addresses.is_empty() {
-        for addr in settings.announce_addresses.iter() {
+    if !settings.libp2p.announce_addresses.is_empty() {
+        for addr in settings.libp2p.announce_addresses.iter() {
             swarm.add_external_address(addr.clone());
         }
     } else {
-        warn!(
-            err = "no addresses to announce to peers defined in settings",
-            "node may be unreachable to external peers"
+        info!(
+            subject = "swarm.init",
+            category = "libp2p.swarm",
+            "no addresses to announce to peers defined in settings: node may be unreachable to external peers"
         )
     }
 
     // Dial nodes specified in settings. Failure here shouldn't halt node startup.
-    for (index, addr) in settings.node_addresses.iter().enumerate() {
-        if index < settings.max_connected_peers as usize {
+    for (index, addr) in settings.libp2p.node_addresses.iter().enumerate() {
+        if index < settings.libp2p.max_connected_peers as usize {
             let _ = swarm
                 .dial(addr.clone())
                 // log dial failure and continue
-                .map_err(|e| warn!(err=?e, "failed to dial configured node"));
+                .map_err(|e| {
+                    warn!(subject = "swarm.init.err",
+                          category = "libp2p.swarm",
+                          err=?e, "failed to dial configured node")
+                });
 
             // add node to kademlia routing table
             if let Some(Protocol::P2p(peer_id)) =
                 addr.iter().find(|proto| matches!(proto, Protocol::P2p(_)))
             {
-                info!(addr=?addr, "added configured node to kademlia routing table");
+                info!(subject = "swarm.init",
+                      category = "libp2p.swarm",
+                      addr=?addr,
+                      "added configured node to kademlia routing table");
                 swarm
                     .behaviour_mut()
                     .kademlia
                     .add_address(&peer_id, addr.clone());
             } else {
-                warn!(addr=?addr, err="configured node address did not include a peer ID", "node not added to kademlia routing table")
+                warn!(subject = "swarm.init.err",
+                      category = "libp2p.swarm",
+                      addr=?addr,
+                      err="configured node address did not include a peer ID",
+                      "node not added to kademlia routing table")
             }
         } else {
-            warn!(addr=?addr, "address not dialed because node addresses count exceeds max connected peers configuration")
+            warn!(subject = "swarm.init.err",
+                  category = "libp2p.swarm",
+                  addr=?addr,
+                  "address not dialed because node addresses count exceeds max connected peers configuration")
         }
     }
 
-    if settings.enable_pubsub {
+    if settings.libp2p.pubsub.enable {
         // join `receipts` topic
         swarm
             .behaviour_mut()
@@ -270,7 +290,7 @@ pub(crate) enum ComposedEvent {
 #[derive(Debug)]
 pub(crate) enum TopicMessage {
     /// Receipt topic, wrapping [Receipt].
-    CapturedReceipt(Receipt),
+    CapturedReceipt(pubsub::Message<Receipt>),
 }
 
 /// Custom behaviours for [Swarm].
@@ -316,8 +336,9 @@ impl ComposedBehaviour {
         if let Some(gossipsub) = self.gossipsub.as_mut() {
             let id_topic = gossipsub::IdentTopic::new(topic);
             // Make this a match once we have other topics.
-            let TopicMessage::CapturedReceipt(receipt) = msg;
-            let msg_bytes: Vec<u8> = receipt.try_into()?;
+            let TopicMessage::CapturedReceipt(message) = msg;
+            let msg_bytes: Vec<u8> = message.try_into()?;
+
             if gossipsub
                 .mesh_peers(&TopicHash::from_raw(topic))
                 .peekable()
