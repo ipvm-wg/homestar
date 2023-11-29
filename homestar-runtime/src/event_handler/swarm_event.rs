@@ -301,7 +301,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 debug!(subject = "libp2p.rendezvous.cli.discovered",
                                        category = "handle_swarm_event",
                                        peer_id=registration.record.peer_id().to_string(),
-                                       "peer discovered not dialed b/c the max connected peers limit was reached")
+                                       "peer discovered not dialed because the max connected peers limit was reached")
                             }
                         }
 
