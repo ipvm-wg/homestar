@@ -44,7 +44,7 @@ pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBe
 
     let peer_id = keypair.public().to_peer_id();
     info!(
-        subject = "swarm.init.err",
+        subject = "swarm.init",
         category = "libp2p.swarm",
         peer_id = peer_id.to_string(),
         "local peer ID generated"
