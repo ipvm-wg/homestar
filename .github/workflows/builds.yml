@@ -123,8 +123,11 @@ jobs:
             os: windows
             arch: x64
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          registry-url: 'https://registry.npmjs.org'
       - name: Install cargo get
         run: cargo install cargo-get
       - name: Prepare os/arch packages
@@ -140,16 +143,26 @@ jobs:
           mkdir -p "${node_pkg}/bin"
           envsubst < package.json.tmpl > "${node_pkg}/package.json"
       - name: Download build artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: ${{ matrix.target }}
           path: "homestar-runtime/npm/${{ env.node_pkg }}/bin"
-      - name: Publish rc or production
+      - run: echo ${{  github.event_name }}
+      - name: Publish production
+        if: github.event_name == 'release' && github.event.action == 'published'
+        run: |
+          cd "homestar-runtime/npm/${{ env.node_pkg }}"
+          pnpm -r publish --access=public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      - name: Publish RC
+        if: github.event_name == 'workflow_dispatch' || github.event.action == 'pull_request'
         run: |
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
           npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
-          cat package.json
-          ls -R
+          npm publish --access public --tag rc
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
 
 
 
