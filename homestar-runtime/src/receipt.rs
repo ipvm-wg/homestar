@@ -1,4 +1,7 @@
-//! Output of an invocation, referenced by its invocation pointer.
+//! Runtime, extended representation of a [Receipt] for [Invocation]s and storage.
+//!
+//! [Receipt]: homestar_core::workflow::Receipt
+//! [Invocation]: homestar_core::workflow::Invocation
 
 use anyhow::anyhow;
 use diesel::{

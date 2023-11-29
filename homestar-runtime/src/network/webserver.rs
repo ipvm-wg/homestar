@@ -1,5 +1,4 @@
-//! Sets up a websocket server for sending and receiving messages from browser
-//! clients.
+//! Sets up a webserver for WebSocket and HTTP interaction with clients.
 
 use crate::{
     runner,
@@ -48,7 +47,7 @@ pub(crate) use rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT;
 use rpc::{Context, JsonRpc};
 
 /// Message type for messages sent back from the
-/// websocket server to the [runner] for example.
+/// WebSocket server to the [runner] for example.
 ///
 /// [runner]: crate::Runner
 #[allow(dead_code)]
@@ -60,47 +59,57 @@ pub(crate) enum Message {
     RunWorkflow((FastStr, Workflow<'static, Arg>)),
     /// Acknowledgement of a [Workflow] run.
     AckWorkflow((Cid, FastStr)),
-    /// TODO
+    /// Message sent to the [Runner] to gather node information from the [EventHandler].
+    ///
+    /// [Runner]: crate::Runner
+    /// [EventHandler]: crate::EventHandler
     GetNodeInfo,
-    /// TODO
+    /// Acknowledgement of a [Message::GetNodeInfo] request, receiving static and dynamic
+    /// node information.
     AckNodeInfo((StaticNodeInfo, DynamicNodeInfo)),
 }
 
-/// WebSocket server fields.
+/// Server fields.
 #[cfg(feature = "websocket-notify")]
 #[derive(Clone, Debug)]
 pub(crate) struct Server {
-    /// Address of the websocket server.
+    /// Address of the server.
     addr: SocketAddr,
-    /// TODO
+    /// Message buffer capacity for the server.
     capacity: usize,
-    /// TODO
+    /// Message sender for broadcasting internal events to clients connected to
+    /// to the server.
     evt_notifier: Notifier<notifier::Message>,
-    /// Message sender for broadcasting to clients connected to the
-    /// websocket server.
+    /// Message sender for broadcasting workflow-related events to clients
+    /// connected to to the server.
     workflow_msg_notifier: Notifier<notifier::Message>,
-    /// Receiver timeout for the websocket server.
+    /// Receiver timeout for the server when communicating with the [Runner].
+    ///
+    /// [Runner]: crate::Runner
     receiver_timeout: Duration,
-    /// TODO
+    /// General timeout for the server.
     webserver_timeout: Duration,
 }
 
+/// Server fields.
 #[cfg(not(feature = "websocket-notify"))]
 #[derive(Clone, Debug)]
 pub(crate) struct Server {
-    /// Address of the websocket server.
+    /// Address of the server.
     addr: SocketAddr,
-    /// TODO
+    /// Message buffer capacity for the server.
     capacity: usize,
-    /// Receiver timeout for the websocket server.
+    /// Receiver timeout for the server when communicating with the [Runner].
+    ///
+    /// [Runner]: crate::Runner
     receiver_timeout: Duration,
-    /// TODO
+    /// General timeout for the server.
     webserver_timeout: Duration,
 }
 
 impl Server {
     /// Setup bounded, MPMC channel for runtime to send and received messages
-    /// through the websocket connection(s).
+    /// through the WebSocket connection(s).
     #[cfg(feature = "websocket-notify")]
     fn setup_channel(
         capacity: usize,
@@ -111,6 +120,8 @@ impl Server {
         broadcast::channel(capacity)
     }
 
+    /// Set up a new [Server] instance, which acts as both a
+    /// WebSocket and HTTP server.
     #[cfg(feature = "websocket-notify")]
     pub(crate) fn new(settings: &settings::Webserver) -> Result<Self> {
         let (evt_sender, _receiver) = Self::setup_channel(settings.websocket_capacity);
@@ -136,6 +147,7 @@ impl Server {
         })
     }
 
+    /// Set up a new [Server] instance, which only acts as an HTTP server.
     #[cfg(not(feature = "websocket-notify"))]
     pub(crate) fn new(settings: &settings::Webserver) -> Result<Self> {
         let host = IpAddr::from_str(&settings.host.to_string())?;
@@ -157,7 +169,7 @@ impl Server {
         })
     }
 
-    /// Start the websocket server.
+    /// Instantiates the [JsonRpc] module, and starts the server.
     #[cfg(feature = "websocket-notify")]
     pub(crate) async fn start(
         &self,
@@ -176,7 +188,7 @@ impl Server {
         self.start_inner(module).await
     }
 
-    /// Start the websocket server.
+    /// Instantiates the [JsonRpc] module, and starts the server.
     #[cfg(not(feature = "websocket-notify"))]
     pub(crate) async fn start(
         &self,
@@ -192,23 +204,29 @@ impl Server {
         self.start_inner(module).await
     }
 
-    /// Get websocket message sender for broadcasting messages to websocket
+    /// Return the WebSocket event sender for broadcasting messages to connected
     /// clients.
     #[cfg(feature = "websocket-notify")]
     pub(crate) fn evt_notifier(&self) -> Notifier<notifier::Message> {
         self.evt_notifier.clone()
     }
 
-    /// Get websocket message sender for broadcasting messages to websocket
-    /// clients.
+    /// Get WebSocket message sender for broadcasting workflow-related messages
+    /// to connected clients.
     #[cfg(feature = "websocket-notify")]
     pub(crate) fn workflow_msg_notifier(&self) -> Notifier<notifier::Message> {
         self.workflow_msg_notifier.clone()
     }
 
+    /// Shared start logic for both WebSocket and HTTP servers.
     async fn start_inner(&self, module: JsonRpc) -> Result<ServerHandle> {
         let addr = self.addr;
-        info!("webserver listening on {}", addr);
+        info!(
+            subject = "webserver.start",
+            category = "webserver",
+            "webserver listening on {}",
+            addr
+        );
 
         let cors = CorsLayer::new()
             // Allow `POST` when accessing the resource

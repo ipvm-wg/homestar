@@ -11,6 +11,7 @@ mod exporter;
 mod node;
 
 /// Start metrics collection and setup scrape endpoint.
+/// Also, spawn a task to collect process metrics at a regular interval.
 #[cfg(feature = "monitoring")]
 pub(crate) async fn start(
     monitor_settings: &settings::Monitoring,
@@ -27,6 +28,7 @@ pub(crate) async fn start(
     Ok(metrics_hdl)
 }
 
+/// Start metrics collection and setup scrape endpoint.
 #[cfg(not(feature = "monitoring"))]
 pub(crate) async fn start(network_settings: &settings::Network) -> Result<PrometheusHandle> {
     let metrics_hdl = exporter::setup_metrics_recorder(network_settings)?;

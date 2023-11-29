@@ -6,7 +6,7 @@ use libipld::Cid;
 use std::{fmt, sync::Arc};
 use tokio::sync::broadcast;
 
-/// Type-wrapper for websocket sender.
+/// Type-wrapper for WebSocket sender.
 #[derive(Debug)]
 pub(crate) struct Notifier<T>(Arc<broadcast::Sender<T>>);
 
@@ -37,7 +37,7 @@ where
         self.0
     }
 
-    /// Send a message to all connected websocket clients.
+    /// Send a message to all connected WebSocket clients.
     pub(crate) fn notify(&self, msg: T) -> Result<()> {
         let _ = self.0.send(msg)?;
         Ok(())
@@ -52,7 +52,7 @@ pub(crate) enum SubscriptionTyp {
     Cid(Cid),
 }
 
-/// A header for a message to be sent to a websocket client.
+/// A header for a message to be sent to a WebSocket client.
 #[derive(Debug, Clone)]
 pub(crate) struct Header {
     pub(crate) subscription: SubscriptionTyp,
@@ -69,7 +69,7 @@ impl Header {
     }
 }
 
-/// A message to be sent to a websocket client, with a header and payload.
+/// A message to be sent to a WebSocket client, with a header and payload.
 #[derive(Debug, Clone)]
 pub(crate) struct Message {
     pub(crate) header: Header,
@@ -82,13 +82,13 @@ impl Message {
         Self { header, payload }
     }
 
-    /// TODO
+    /// Get a reference to the [Header] of a [Message].
     #[allow(dead_code)]
     pub(crate) fn header(&self) -> &Header {
         &self.header
     }
 
-    /// TODO
+    /// Get a reference to the payload of a [Message].
     #[allow(dead_code)]
     pub(crate) fn payload(&self) -> &[u8] {
         &self.payload

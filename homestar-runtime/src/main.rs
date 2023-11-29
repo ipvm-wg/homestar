@@ -37,7 +37,7 @@ fn main() -> Result<()> {
 
             info!(
                 subject = "settings",
-                category = "homestar_init",
+                category = "homestar.init",
                 "starting with settings: {:?}",
                 settings,
             );
@@ -47,7 +47,7 @@ fn main() -> Result<()> {
 
             info!(
                 subject = "database",
-                category = "homestar_init",
+                category = "homestar.init",
                 "starting with database: {}",
                 Db::url().expect("database url to be provided"),
             );

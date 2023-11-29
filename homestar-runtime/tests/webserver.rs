@@ -20,6 +20,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const SUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "subscribe_run_workflow";
 const UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "unsubscribe_run_workflow";
+const AWAIT_CID: &str = "bafyrmih5bwjinspvn5ktpcaxqvvxkmhxrznhuu3qqmu45jnpmo3ab72vaq";
 
 #[test]
 #[file_serial]
@@ -75,7 +76,7 @@ fn test_workflow_run_serial() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
-                let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
+                let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": format!("{AWAIT_CID}")}});
                 assert_eq!(check, &expected);
                 received_cids += 1;
             } else {
@@ -103,7 +104,7 @@ fn test_workflow_run_serial() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
-                let expected = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
+                let expected = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": format!("{AWAIT_CID}")}});
                 assert_eq!(check, &expected);
                 received_cids += 1;
             } else {
@@ -137,7 +138,7 @@ fn test_workflow_run_serial() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
-                let expected = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
+                let expected = serde_json::json!({"name": "test", "replayed": true, "workflow": {"/": format!("{AWAIT_CID}")}});
                 assert_eq!(check, &expected);
                 received_cids += 1;
             } else {
@@ -172,7 +173,7 @@ fn test_workflow_run_serial() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
-                let expected = serde_json::json!({"name": "another_test", "replayed": true, "workflow": {"/": "bafyrmihfhdhxmhotbgn5digt6n7vgz2ukisafhjozki2e6nwtvunep3mrm"}});
+                let expected = serde_json::json!({"name": "another_test", "replayed": true, "workflow": {"/": format!("{AWAIT_CID}")}});
                 assert_eq!(check, &expected);
                 received_cids += 1;
             } else {

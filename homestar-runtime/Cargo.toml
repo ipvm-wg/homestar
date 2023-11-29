@@ -54,6 +54,7 @@ config = { version = "0.13", default-features = false, features = ["toml"] }
 console-subscriber = { version = "0.2", default-features = false, features = [
   "parking_lot",
 ], optional = true }
+const_format = "0.2"
 crossbeam = "0.8"
 dagga = "0.2"
 dashmap = "5.5"
@@ -218,7 +219,7 @@ wait-timeout = "0.2"
 
 [features]
 default = ["wasmtime-default", "ipfs", "monitoring", "websocket-notify"]
-dev = ["ansi-logs", "console", "ipfs", "monitoring", "websocket-notify"]
+dev = ["ansi-logs", "ipfs", "monitoring", "websocket-notify"]
 ansi-logs = ["tracing-logfmt/ansi_logs"]
 console = ["dep:console-subscriber"]
 ipfs = ["dep:ipfs-api", "dep:ipfs-api-backend-hyper"]

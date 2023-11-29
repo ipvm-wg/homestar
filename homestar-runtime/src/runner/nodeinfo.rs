@@ -1,33 +1,38 @@
+//! Node information.
+
 use libp2p::{Multiaddr, PeerId};
 use serde::{Deserialize, Serialize};
 
-/// TODO
+/// Static node information available at startup.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct StaticNodeInfo {
+    /// The [PeerId] of a node.
     pub(crate) peer_id: PeerId,
 }
 
 impl StaticNodeInfo {
-    /// TODO
+    /// Create an instance of [StaticNodeInfo].
     pub(crate) fn new(peer_id: PeerId) -> Self {
         Self { peer_id }
     }
 
-    /// TODO
+    /// Get a reference to the [PeerId] of a node.
     #[allow(dead_code)]
     pub(crate) fn peer_id(&self) -> &PeerId {
         &self.peer_id
     }
 }
 
-/// TODO
+/// Dynamic node information available through events
+/// at runtime.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct DynamicNodeInfo {
+    /// Listeners for the node.
     pub(crate) listeners: Vec<Multiaddr>,
 }
 
 impl DynamicNodeInfo {
-    /// TODO
+    /// Create an instance of [DynamicNodeInfo].
     pub(crate) fn new(listeners: Vec<Multiaddr>) -> Self {
         Self { listeners }
     }

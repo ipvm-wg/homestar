@@ -13,4 +13,5 @@ world test {
   export grayscale-base64: func(data: string) -> list<u8>
   export rotate90: func(data: list<u8>) -> list<u8>
   export rotate90-base64: func(data: string) -> list<u8>
+  export hash: func(data: string) -> list<u8>
 }

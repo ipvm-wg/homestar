@@ -6,7 +6,11 @@ wit_bindgen::generate!({
 });
 
 use base64::{engine::general_purpose, Engine};
-use std::io::Cursor;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    io::Cursor,
+};
 
 pub struct Component;
 
@@ -114,6 +118,12 @@ impl Guest for Component {
             .decode(base64_encoded_png)
             .unwrap();
         Self::rotate90(decoded)
+    }
+
+    fn hash(s: String) -> Vec<u8> {
+        let mut hash = DefaultHasher::new();
+        s.hash(&mut hash);
+        hash.finish().to_be_bytes().to_vec()
     }
 }
 

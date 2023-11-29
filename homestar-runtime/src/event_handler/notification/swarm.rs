@@ -1,3 +1,7 @@
+// Notification types for [swarm] events.
+//
+// [swarm]: libp2p_swarm::Swarm
+
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};

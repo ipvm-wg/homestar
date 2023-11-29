@@ -1,9 +1,6 @@
-#![allow(missing_docs)]
-
 //! Sets up a [libp2p] [Swarm], containing the state of the network and the way
 //! it should behave.
 //!
-//! [libp2p]: libp2p
 //! [Swarm]: libp2p::Swarm
 
 use crate::{
@@ -11,6 +8,7 @@ use crate::{
     settings, Receipt, RECEIPT_TAG, WORKFLOW_TAG,
 };
 use anyhow::{Context, Result};
+use const_format::formatcp;
 use enum_assoc::Assoc;
 use faststr::FastStr;
 use libp2p::{
@@ -32,7 +30,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use tracing::{info, warn};
 
-pub(crate) const HOMESTAR_PROTOCOL_VER: &str = "homestar/0.0.1";
+/// Homestar protocol version, shared among peers, tied to the homestar version.
+pub(crate) const HOMESTAR_PROTOCOL_VER: &str = formatcp!("homestar/{VERSION}");
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Build a new [Swarm] with a given transport and a tokio executor.
 pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBehaviour>> {
@@ -42,7 +43,12 @@ pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBe
         .with_context(|| "failed to generate/import keypair for libp2p".to_string())?;
 
     let peer_id = keypair.public().to_peer_id();
-    info!(peer_id = peer_id.to_string(), "local peer ID generated");
+    info!(
+        subject = "swarm.init",
+        category = "libp2p.swarm",
+        peer_id = peer_id.to_string(),
+        "local peer ID generated"
+    );
 
     let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
         .upgrade(upgrade::Version::V1Lazy)
@@ -152,9 +158,10 @@ pub(crate) fn init(
             swarm.add_external_address(addr.clone());
         }
     } else {
-        warn!(
-            err = "no addresses to announce to peers defined in settings",
-            "node may be unreachable to external peers"
+        info!(
+            subject = "swarm.init",
+            category = "libp2p.swarm",
+            "no addresses to announce to peers defined in settings: node may be unreachable to external peers"
         )
     }
 
@@ -164,22 +171,36 @@ pub(crate) fn init(
             let _ = swarm
                 .dial(addr.clone())
                 // log dial failure and continue
-                .map_err(|e| warn!(err=?e, "failed to dial configured node"));
+                .map_err(|e| {
+                    warn!(subject = "swarm.init.err",
+                          category = "libp2p.swarm",
+                          err=?e, "failed to dial configured node")
+                });
 
             // add node to kademlia routing table
             if let Some(Protocol::P2p(peer_id)) =
                 addr.iter().find(|proto| matches!(proto, Protocol::P2p(_)))
             {
-                info!(addr=?addr, "added configured node to kademlia routing table");
+                info!(subject = "swarm.init",
+                      category = "libp2p.swarm",
+                      addr=?addr,
+                      "added configured node to kademlia routing table");
                 swarm
                     .behaviour_mut()
                     .kademlia
                     .add_address(&peer_id, addr.clone());
             } else {
-                warn!(addr=?addr, err="configured node address did not include a peer ID", "node not added to kademlia routing table")
+                warn!(subject = "swarm.init.err",
+                      category = "libp2p.swarm",
+                      addr=?addr,
+                      err="configured node address did not include a peer ID",
+                      "node not added to kademlia routing table")
             }
         } else {
-            warn!(addr=?addr, "address not dialed because node addresses count exceeds max connected peers configuration")
+            warn!(subject = "swarm.init.err",
+                  category = "libp2p.swarm",
+                  addr=?addr,
+                  "address not dialed because node addresses count exceeds max connected peers configuration")
         }
     }
 

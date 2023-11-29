@@ -14,7 +14,7 @@ use std::sync::Arc;
 pub(crate) struct Fetch;
 
 #[cfg(any(test, feature = "test-utils"))]
-const WASM_CID: &str = "bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia";
+const WASM_CID: &str = "bafybeig6u35v6t3f4j3zgz2jvj4erd45fbkeolioaddu3lmu6uxm3ilb7a";
 #[cfg(any(test, feature = "test-utils"))]
 const CAT_CID: &str = "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm";
 
@@ -34,6 +34,8 @@ impl Fetch {
         for rsc in resources.iter() {
             let task = tryhard::retry_fn(|| async {
                 tracing::info!(
+                    subject = "fetch_rsc",
+                    category = "fetch",
                     rsc = rsc.to_string(),
                     "attempting to fetch resource from IPFS"
                 );
@@ -47,20 +49,32 @@ impl Fetch {
                 async move {
                     if attempts < retries {
                         tracing::warn!(
+                            subject = "fetch_rsc.err",
+                            category = "fetch",
                             err = err,
                             attempts = attempts,
                             "retrying fetch after error @ {}ms",
                             next_delay.map(|d| d.as_millis()).unwrap_or(0)
                         );
                     } else {
-                        tracing::warn!(err = err, attempts = attempts, "maxed out # of retries");
+                        tracing::warn!(
+                            subject = "fetch_rsc.err",
+                            category = "fetch",
+                            err = err,
+                            attempts = attempts,
+                            "maxed out # of retries"
+                        );
                     }
                 }
             });
             tasks.push(task);
         }
 
-        tracing::info!("fetching necessary resources from IPFS");
+        tracing::info!(
+            subject = "fetch_rscs",
+            category = "fetch",
+            "fetching necessary resources from IPFS"
+        );
         if let Ok(vec) = tasks.try_collect::<Vec<_>>().await {
             vec.into_iter()
                 .try_fold(IndexMap::default(), |mut acc, res| {

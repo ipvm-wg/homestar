@@ -1,23 +1,26 @@
+//! Notification receipts.
+
 use homestar_core::{ipld::DagJson, workflow::Receipt};
 use libipld::{ipld, Cid, Ipld};
 
-/// A [Receipt] that is sent out *just* for websocket notifications.
+/// A [Receipt] that is sent out for websocket notifications.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ReceiptNotification(Ipld);
 
 impl ReceiptNotification {
-    /// TODO
+    /// Obtain a reference to the inner [Ipld] value.
     #[allow(dead_code)]
     pub(crate) fn inner(&self) -> &Ipld {
         &self.0
     }
 
-    /// TODO
+    /// Obtain ownership of the inner [Ipld] value.
     #[allow(dead_code)]
     pub(crate) fn into_inner(self) -> Ipld {
         self.0.to_owned()
     }
 
+    /// Create a new [ReceiptNotification].
     pub(crate) fn with(receipt: Receipt<Ipld>, cid: Cid, metadata: Option<Ipld>) -> Self {
         let receipt: Ipld = receipt.into();
         let data = ipld!({

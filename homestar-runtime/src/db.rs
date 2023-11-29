@@ -25,7 +25,6 @@ use tracing::info;
 pub mod schema;
 pub(crate) mod utils;
 
-pub(crate) const ENV: &str = "DATABASE_URL";
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
 const PRAGMAS: &str = "
 PRAGMA journal_mode = WAL;          -- better write-concurrency
@@ -34,6 +33,9 @@ PRAGMA wal_autocheckpoint = 1000;   -- write WAL changes back every 1000 pages, 
 PRAGMA busy_timeout = 1000;         -- sleep if the database is busy
 PRAGMA foreign_keys = ON;           -- enforce foreign keys
 ";
+
+/// Database environment variable.
+pub(crate) const ENV: &str = "DATABASE_URL";
 
 /// A Sqlite connection [pool].
 ///
@@ -92,7 +94,7 @@ pub trait Database: Send + Sync + Clone {
     fn setup(url: &str) -> Result<SqliteConnection> {
         info!(
             subject = "database",
-            category = "homestar_init",
+            category = "homestar.init",
             "setting up database at {}, running migrations if needed",
             url
         );
@@ -211,6 +213,9 @@ pub trait Database: Send + Sync + Clone {
     }
 
     /// Store localized workflow cid and information, e.g. number of tasks.
+    ///
+    /// On conflicts, do nothing.
+    /// Otherwise, return the stored workflow.
     fn store_workflow(
         workflow: workflow::Stored,
         conn: &mut Connection,

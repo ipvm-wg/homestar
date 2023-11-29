@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 //! Module for working with task-types and task-specific functionality.
 
 use anyhow::{anyhow, Result};

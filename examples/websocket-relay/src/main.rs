@@ -16,18 +16,11 @@ fn main() -> Result<()> {
     // daemon. Typically, these would be started separately.
     let ipfs_daemon = ipfs_setup();
 
-    info!(
-        subject = "settings",
-        category = "homestar_init",
-        "starting with settings: {:?}",
-        settings,
-    );
+    info!("starting with settings: {:?}", settings,);
 
     let db = Db::setup_connection_pool(settings.node(), None).expect("to setup database pool");
 
     info!(
-        subject = "database",
-        category = "homestar_init",
         "starting with database: {}",
         Db::url().expect("database url to be provided"),
     );

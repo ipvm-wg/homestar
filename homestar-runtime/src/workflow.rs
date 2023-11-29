@@ -156,7 +156,12 @@ impl<'a> Builder<'a> {
                 (Dag::default(), vec![], vec![], IndexMap::new()),
                 |(mut dag, mut unawaits, mut awaited, mut resources), (i, task)| {
                     let instr_cid = task.instruction_cid()?;
-                    debug!("instruction cid: {}", instr_cid);
+                    debug!(
+                        subject = "task.instruction",
+                        category = "aot.information",
+                        "instruction cid of task: {}",
+                        instr_cid
+                    );
 
                     // Clone as we're owning the struct going backward.
                     let ptr: Pointer = Invocation::<Arg>::from(task.clone()).try_into()?;

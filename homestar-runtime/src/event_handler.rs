@@ -5,6 +5,7 @@ use crate::network::webserver::{self, notifier};
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
+    channel,
     db::Database,
     network::swarm::{ComposedBehaviour, PeerDiscoveryInfo, RequestResponseKey},
     settings,
@@ -22,7 +23,6 @@ use swarm_event::ResponseEvent;
 use tokio::{runtime::Handle, select};
 
 pub(crate) mod cache;
-pub mod channel;
 pub(crate) mod error;
 pub(crate) mod event;
 #[cfg(feature = "websocket-notify")]
@@ -51,24 +51,45 @@ where
 #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
 #[allow(missing_debug_implementations, dead_code)]
 pub(crate) struct EventHandler<DB: Database> {
+    /// Minimum number of peers required to receive a receipt.
     receipt_quorum: usize,
+    /// Minimum number of peers required to receive workflow information.
     workflow_quorum: usize,
+    /// Timeout for p2p provider requests.
     p2p_provider_timeout: Duration,
+    /// Accessible database instance.
     db: DB,
+    /// [libp2p::swarm::Swarm] swarm instance.
     swarm: Swarm<ComposedBehaviour>,
+    /// [moka::future::Cache] instance, used for retry logic.
     cache: Arc<Cache<String, CacheValue>>,
+    /// [channel::AsyncChannelSender] for sending [Event]s to the [EventHandler].
     sender: Arc<channel::AsyncChannelSender<Event>>,
+    /// [channel::AsyncChannelReceiver] for receiving [Event]s from the [EventHandler].
     receiver: channel::AsyncChannelReceiver<Event>,
+    /// [QueryId] to [RequestResponseKey] and [P2PSender] mapping.
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
+    /// [PeerId] to [ConnectedPoint] connections mapping.
     connections: Connections,
+    /// [RequestId] to [RequestResponseKey] and [P2PSender] mapping.
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
+    /// Rendezvous protocol configurations and state (cookies).
     rendezvous: Rendezvous,
+    /// Whether or not to enable pubsub.
     pubsub_enabled: bool,
+    /// [tokio::sync::broadcast::Sender] for websocket event
+    /// notification messages.
     ws_evt_sender: webserver::Notifier<notifier::Message>,
+    /// [tokio::sync::broadcast::Sender] for websocket workflow-related
+    /// notification messages.
     ws_workflow_sender: webserver::Notifier<notifier::Message>,
+    /// [libp2p::Multiaddr] addresses to dial.
     node_addresses: Vec<libp2p::Multiaddr>,
+    /// [libp2p::Multiaddr] externally reachable addresses to announce to the network.
     announce_addresses: Vec<libp2p::Multiaddr>,
+    /// Maximum number of externally reachable addresses to announce to the network.
     external_address_limit: u32,
+    /// Interval for polling the cache for expired entries.
     poll_cache_interval: Duration,
 }
 
@@ -76,22 +97,39 @@ pub(crate) struct EventHandler<DB: Database> {
 #[cfg(not(feature = "websocket-notify"))]
 #[allow(missing_debug_implementations, dead_code)]
 pub(crate) struct EventHandler<DB: Database> {
+    /// Minimum number of peers required to receive a receipt.
     receipt_quorum: usize,
+    /// Minimum number of peers required to receive workflow information.
     workflow_quorum: usize,
+    /// Timeout for p2p provider requests.
     p2p_provider_timeout: Duration,
+    /// Accesible database instance.
     db: DB,
+    /// [libp2p::swarm::Swarm] swarm instance.
     swarm: Swarm<ComposedBehaviour>,
+    /// [moka::future::Cache] instance, centered around retry logic.
     cache: Arc<Cache<String, CacheValue>>,
+    /// [channel::AsyncChannelReceiver] for receiving [Event]s from the [EventHandler].
     sender: Arc<channel::AsyncChannelSender<Event>>,
+    /// [channel::AsyncChannelReceiver] for receiving [Event]s from the [EventHandler].
     receiver: channel::AsyncChannelReceiver<Event>,
+    /// [QueryId] to [RequestResponseKey] and [P2PSender] mapping.
     query_senders: FnvHashMap<QueryId, (RequestResponseKey, Option<P2PSender>)>,
+    /// [PeerId] to [ConnectedPoint] connections mapping.
     connections: Connections,
+    /// [RequestId] to [RequestResponseKey] and [P2PSender] mapping.
     request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
+    /// Rendezvous protocol configurations and state (cookies).
     rendezvous: Rendezvous,
+    /// Whether or not to enable pubsub.
     pubsub_enabled: bool,
+    /// [libp2p::Multiaddr] addresses to dial.
     node_addresses: Vec<libp2p::Multiaddr>,
+    /// [libp2p::Multiaddr] externally reachable addresses to announce to the network.
     announce_addresses: Vec<libp2p::Multiaddr>,
+    /// Maximum number of externally reachable addresses to announce to the network.
     external_address_limit: u32,
+    /// Interval for polling the cache for expired entries.
     poll_cache_interval: Duration,
 }
 
@@ -210,8 +248,8 @@ where
         self.sender.clone()
     }
 
-    /// [tokio::sync::broadcast::Sender] for sending messages through the
-    /// webSocket server to subscribers.
+    /// [tokio::sync::broadcast::Sender] for sending workflow-related messages
+    /// through the WebSocket server to subscribers.
     #[cfg(feature = "websocket-notify")]
     #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
     #[allow(dead_code)]
@@ -219,7 +257,8 @@ where
         self.ws_workflow_sender.clone()
     }
 
-    /// TODO
+    /// [tokio::sync::broadcast::Sender] for sending event-related messages
+    /// through the WebSocket server to subscribers.
     #[cfg(feature = "websocket-notify")]
     #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
     #[allow(dead_code)]

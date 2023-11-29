@@ -1,3 +1,7 @@
+//! Functionality around Wasm-based [tasks].
+//!
+//! [tasks]: homestar_core::workflow::Task
+
 use super::FileLoad;
 use async_trait::async_trait;
 use homestar_core::workflow::input::Args;

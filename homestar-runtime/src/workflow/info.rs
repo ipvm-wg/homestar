@@ -44,11 +44,29 @@ const RESOURCES_KEY: &str = "resources";
 #[derive(Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Selectable)]
 #[diesel(table_name = crate::db::schema::workflows, primary_key(cid))]
 pub struct Stored {
+    /// Wrapped-[Cid] of [Workflow].
+    ///
+    /// [Workflow]: homestar_core::Workflow
     pub(crate) cid: Pointer,
+    /// Local name of [Workflow].
+    ///
+    /// [Workflow]: homestar_core::Workflow
     pub(crate) name: Option<String>,
+    /// Number of tasks in [Workflow].
+    ///
+    /// [Workflow]: homestar_core::Workflow
     pub(crate) num_tasks: i32,
+    /// Map of [Instruction] [Cid]s to resources.
+    ///
+    /// [Instruction]: homestar_core::workflow::Instruction
     pub(crate) resources: IndexedResources,
+    /// Local timestamp of [Workflow] creation.
+    ///
+    /// [Workflow]: homestar_core::Workflow
     pub(crate) created_at: NaiveDateTime,
+    /// Local timestamp of [Workflow] completion.
+    ///
+    /// [Workflow]: homestar_core::Workflow
     pub(crate) completed_at: Option<NaiveDateTime>,
 }
 
@@ -275,6 +293,8 @@ impl Info {
             Ok((_, info)) => Ok((info, timestamp)),
             Err(_err) => {
                 info!(
+                    subject = "workflow.init.db.check",
+                    category = "workflow",
                     cid = workflow_cid.to_string(),
                     "workflow information not available in the database"
                 );
@@ -322,6 +342,8 @@ impl Info {
             Some((_name, workflow_info)) => Ok(workflow_info),
             None => {
                 info!(
+                    subject = "workflow.gather.db.check",
+                    category = "workflow",
                     cid = workflow_cid.to_string(),
                     "workflow information not available in the database"
                 );

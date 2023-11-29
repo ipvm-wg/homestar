@@ -200,7 +200,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+            "ipfs://bafybeig6u35v6t3f4j3zgz2jvj4erd45fbkeolioaddu3lmu6uxm3ilb7a",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
@@ -215,7 +215,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia",
+            "ipfs://bafybeig6u35v6t3f4j3zgz2jvj4erd45fbkeolioaddu3lmu6uxm3ilb7a",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));

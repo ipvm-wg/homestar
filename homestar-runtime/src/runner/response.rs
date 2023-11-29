@@ -1,5 +1,5 @@
 //! Responses for display/return to the user for
-//! Client requests.
+//! client requests.
 
 use crate::{
     cli::show::{self, ApplyStyle},

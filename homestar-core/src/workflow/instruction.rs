@@ -336,7 +336,7 @@ mod test {
                 (
                     RESOURCE_KEY.into(),
                     Ipld::String(
-                        "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia".into()
+                        "ipfs://bafybeig6u35v6t3f4j3zgz2jvj4erd45fbkeolioaddu3lmu6uxm3ilb7a".into()
                     )
                 ),
                 (OP_KEY.into(), Ipld::String("ipld/fun".to_string())),
@@ -357,7 +357,7 @@ mod test {
                             "func": "join-strings"
                         },
                         "nnc": "", "op": "wasm/run",
-                        "rsc": "ipfs://bafybeiczefaiu7464ehupezpzulnti5jvcwnvdalqrdliugnnwcdz6ljia"});
+                        "rsc": "ipfs://bafybeig6u35v6t3f4j3zgz2jvj4erd45fbkeolioaddu3lmu6uxm3ilb7a"});
 
         let instruction = Instruction::<Unit>::try_from(ipld.clone()).unwrap();
         let instr_cid = instruction.to_cid().unwrap();

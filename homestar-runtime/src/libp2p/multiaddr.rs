@@ -1,5 +1,7 @@
+/// Multiaddr extension methods.
 use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
 
+/// [Multiaddr] extension trait.
 pub(crate) trait MultiaddrExt {
     fn peer_id(&self) -> Option<PeerId>;
 }

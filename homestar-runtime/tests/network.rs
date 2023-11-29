@@ -456,7 +456,7 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
     }
 
     // Wait for registration to complete
-    // TODO When we have websocket push events, listen on a registration event instead of using an arbitrary sleep
+    // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep
     thread::sleep(Duration::from_secs(2));
 
     // Start a peer that will discover the registrant through the rendezvous server
@@ -762,7 +762,7 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
     }
 
     // Wait for registration to complete.
-    // TODO When we have websocket push events, listen on a registration event instead of using an arbitrary sleep.
+    // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep.
     thread::sleep(Duration::from_secs(2));
 
     // Start a peer that will discover the registrant through the rendezvous server
@@ -1036,7 +1036,7 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_serial() -> Result<()> {
     }
 
     // Wait for registration to complete.
-    // TODO When we have websocket push events, listen on a registration event instead of using an arbitrary sleep.
+    // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep.
     thread::sleep(Duration::from_secs(2));
 
     // Start a peer that will discover with the rendezvous server when
