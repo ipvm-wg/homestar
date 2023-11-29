@@ -248,7 +248,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             debug!(
                                 subject = "libp2p.rendezvous.client.discovered.err",
                                 category = "handle_swarm_event",
-                                "peers discovered not dialed b/c max connected peers limit reached"
+                                "peers discovered not dialed because max connected peers limit reached"
                             );
                             return;
                         }
