@@ -57,7 +57,7 @@ pub(crate) struct EventHandler<DB: Database> {
     workflow_quorum: usize,
     /// Timeout for p2p provider requests.
     p2p_provider_timeout: Duration,
-    /// Accesible database instance.
+    /// Accessible database instance.
     db: DB,
     /// [libp2p::swarm::Swarm] swarm instance.
     swarm: Swarm<ComposedBehaviour>,
