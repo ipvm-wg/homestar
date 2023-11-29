@@ -61,7 +61,7 @@ pub(crate) struct EventHandler<DB: Database> {
     db: DB,
     /// [libp2p::swarm::Swarm] swarm instance.
     swarm: Swarm<ComposedBehaviour>,
-    /// [moka::future::Cache] instance, centered around retry logic.
+    /// [moka::future::Cache] instance, used for retry logic.
     cache: Arc<Cache<String, CacheValue>>,
     /// [channel::AsyncChannelSender] for sending [Event]s to the [EventHandler].
     sender: Arc<channel::AsyncChannelSender<Event>>,
