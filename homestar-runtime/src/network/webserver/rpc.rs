@@ -69,7 +69,7 @@ pub(crate) struct Context {
     workflow_listeners: Arc<DashMap<SubscriptionId<'static>, (Cid, FastStr)>>,
 }
 
-/// Context needed for RPC methods.
+/// Context for RPC methods.
 #[allow(dead_code)]
 #[cfg(not(feature = "websocket-notify"))]
 pub(crate) struct Context {
