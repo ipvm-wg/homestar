@@ -88,6 +88,7 @@ different platforms.
 
 - [homebrew][homebrew]: `brew install fission-codes/fission/homestar`
   This includes `ipfs` in the install by default.
+- [npm](https://www.npmjs.com/package/homestar-runtime): `npm install homestar-runtime -g` Wraps the `homestar-runtime` binary in a node script.  
 
 ## Running Examples
 
