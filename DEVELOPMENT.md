@@ -32,7 +32,7 @@
   cargo run --no-default-features --features dev -- start
   ```
 
-- Running alongside [`tokio-console`][tokio-console] for diagnosis and debugging:
+- Running with [`tokio-console`][tokio-console] for diagnosis and debugging:
 
   ``` console
   cargo run --no-default-features --features dev,console -- start
