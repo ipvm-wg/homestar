@@ -121,7 +121,7 @@ impl Server {
         broadcast::channel(capacity)
     }
 
-    /// Set up a new [Server] instance, which simultaneously acts as both a
+    /// Set up a new [Server] instance, which acts as both a
     /// WebSocket and HTTP server.
     #[cfg(feature = "websocket-notify")]
     pub(crate) fn new(settings: &settings::Webserver) -> Result<Self> {
