@@ -1,7 +1,6 @@
 name: ⚃ Builds
 
 # TODO: brew formula (Macs), cargo-wix (Windows Installs), cargo-aur (Arch)
-# TODO: bring back release hook (vs on PR)
 
 on:
   workflow_dispatch:
