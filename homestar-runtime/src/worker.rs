@@ -168,7 +168,7 @@ where
         {
             Ok(ctx) => self.run_queue(ctx.scheduler, running_tasks).await,
             Err(err) => {
-                error!(subject = "worker.init",
+                error!(subject = "worker.init.err",
                        category = "worker.run",
                        err=?err,
                        "error initializing scheduler");
