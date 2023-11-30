@@ -69,7 +69,7 @@ We have packaged homestar binaries using brew, so
 including `ipfs`. You will still need `npm` to run this example. From this folder, you can then run the example like this:
 
 ```
-homestar start --db homestar.db`
+homestar start --db homestar.db
 ```
 
 Running `homestar` via `cargo run` requires a minimum Rust version of
@@ -80,9 +80,18 @@ You do not have to start Kubo (IPFS) on your own. The example will do this
 for you, and use `examples/websocket-relay/tmp/.ipfs` as a local blockstore.
 Feel free to discard it when you don't need it.
 
-If you're already running an IPFS instance however, e.g. [IPFS Desktop][ipfs-desktop],
-the example will check for an already running instance and not start a new,
-local one.
+If you're already running an IPFS instance, for example [IPFS Desktop][ipfs-desktop],
+the application will check for it and not start a new, local one.
+However, the application expects a default IPFS host and port. The expected
+IPFS `host` and `port` can be updated in the `homestar` network settings:
+
+``` toml
+[node]
+
+[node.network.ipfs]
+host = "127.0.0.1"
+port = 5001
+```
 
 [@fission-codes/homestar]: https://www.npmjs.com/package/@fission-codes/homestar
 [install-ipfs]: https://docs.ipfs.tech/install/

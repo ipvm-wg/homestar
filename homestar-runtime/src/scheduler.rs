@@ -9,7 +9,7 @@ use crate::{
     workflow::{IndexedResources, Resource, Vertex},
     Db,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use dagga::Node;
 use fnv::FnvHashSet;
 use futures::future::BoxFuture;
@@ -170,7 +170,9 @@ impl<'a> TaskScheduler<'a> {
             .map(|(_, rsc)| rsc.to_owned())
             .collect();
 
-        let fetched = fetch_fn(resources_to_fetch).await?;
+        let fetched = fetch_fn(resources_to_fetch)
+            .await
+            .with_context(|| "unable to fetch resources")?;
 
         match resume {
             ControlFlow::Break((idx, linkmap)) => {

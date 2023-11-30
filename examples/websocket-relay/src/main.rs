@@ -98,7 +98,7 @@ fn ipfs_setup() -> Option<Child> {
         .args(add_wasm_args)
         .stdout(Stdio::piped())
         .output()
-        .expect("`ipfs add` of synthcat.png");
+        .expect("`ipfs add` of example_test.wasm");
 
     println!("wasm module added to local IPFS instance");
 
