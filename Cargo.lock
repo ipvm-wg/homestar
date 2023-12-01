@@ -2626,7 +2626,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wasi-common",
- "wasmparser 0.115.0",
+ "wasmparser 0.116.1",
  "wasmtime 13.0.1",
  "wasmtime-component-util 13.0.1",
  "wasmtime-wasi",
@@ -7559,16 +7559,6 @@ name = "wasmparser"
 version = "0.113.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "286049849b5a5bd09a8773171be96824afabffc7cc3df6caaf33a38db6cd07ae"
-dependencies = [
- "indexmap 2.1.0",
- "semver",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.115.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e06c0641a4add879ba71ccb3a1e4278fd546f76f1eafb21d8f7b07733b547cd5"
 dependencies = [
  "indexmap 2.1.0",
  "semver",
