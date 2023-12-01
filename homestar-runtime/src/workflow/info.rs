@@ -464,7 +464,7 @@ impl TryFrom<Ipld> for Info {
                 .ok_or_else(|| anyhow!("no `progress_count` set"))?
                 .to_owned(),
         )?;
-        let resources = from_ipld(
+        let resources = IndexedResources::try_from(
             map.get(RESOURCES_KEY)
                 .ok_or_else(|| anyhow!("no `resources` set"))?
                 .to_owned(),
