@@ -570,7 +570,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 }
                 QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
                     debug!(
-                        subject = "libp2p.kad.get_record.err",
+                        subject = "libp2p.kad.get_record",
                         category = "handle_swarm_event",
                         "found record {:#?}, published by {:?}",
                         peer_record.record.key,
