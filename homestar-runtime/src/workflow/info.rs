@@ -504,6 +504,7 @@ impl DagJson for Info where Ipld: From<Info> {}
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::workflow::Resource;
     use homestar_core::{
         ipld::DagCbor,
         test_utils,
@@ -511,6 +512,7 @@ mod test {
         Workflow,
     };
     use homestar_wasm::io::Arg;
+    use indexmap::IndexMap;
 
     #[test]
     fn ipld_roundtrip_workflow_info() {
@@ -518,21 +520,34 @@ mod test {
         let (instruction1, instruction2, _) =
             test_utils::workflow::related_wasm_instructions::<Arg>();
         let task1 = Task::new(
-            RunInstruction::Expanded(instruction1),
+            RunInstruction::Expanded(instruction1.clone()),
             config.clone().into(),
             UcanPrf::default(),
         );
         let task2 = Task::new(
-            RunInstruction::Expanded(instruction2),
+            RunInstruction::Expanded(instruction2.clone()),
             config.into(),
             UcanPrf::default(),
         );
 
-        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let stored_info = Stored::default(
-            Pointer::new(workflow.clone().to_cid().unwrap()),
-            workflow.len() as i32,
+        let mut index_map = IndexMap::new();
+        index_map.insert(
+            instruction1.clone().to_cid().unwrap(),
+            vec![Resource::Url(instruction1.resource().to_owned())],
         );
+        index_map.insert(
+            instruction2.clone().to_cid().unwrap(),
+            vec![Resource::Url(instruction2.resource().to_owned())],
+        );
+
+        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+        let stored_info = Stored::new_with_resources(
+            Pointer::new(workflow.clone().to_cid().unwrap()),
+            None,
+            workflow.len() as i32,
+            IndexedResources::new(index_map),
+        );
+
         let mut workflow_info = Info::default(stored_info);
         workflow_info.increment_progress(task1.to_cid().unwrap());
         workflow_info.increment_progress(task2.to_cid().unwrap());
