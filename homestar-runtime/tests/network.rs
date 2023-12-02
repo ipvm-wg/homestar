@@ -13,6 +13,8 @@ use std::{
 };
 
 #[cfg(feature = "websocket-notify")]
+mod dht;
+#[cfg(feature = "websocket-notify")]
 mod gossip;
 #[cfg(feature = "websocket-notify")]
 mod notification;

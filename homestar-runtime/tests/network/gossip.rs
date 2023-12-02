@@ -31,6 +31,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
     const DB1: &str = "homestar_test_libp2p_receipt_gossip_serial1.db";
     const DB2: &str = "homestar_test_libp2p_receipt_gossip_serial2.db";
     let _ = stop_homestar();
+
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
