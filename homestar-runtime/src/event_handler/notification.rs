@@ -75,7 +75,7 @@ pub(crate) fn emit_receipt(
 pub(crate) fn emit_event(
     notifier: Notifier<notifier::Message>,
     ty: EventNotificationTyp,
-    data: BTreeMap<&str, String>,
+    data: BTreeMap<&str, Ipld>,
 ) {
     let header = Header::new(
         SubscriptionTyp::EventSub(SUBSCRIBE_NETWORK_EVENTS_ENDPOINT.to_string()),
@@ -104,15 +104,15 @@ pub(crate) struct EventNotification {
 }
 
 impl EventNotification {
-    pub(crate) fn new(typ: EventNotificationTyp, data: BTreeMap<&str, String>) -> Self {
-        let ipld_data = data
+    pub(crate) fn new(typ: EventNotificationTyp, data: BTreeMap<&str, Ipld>) -> Self {
+        let data = data
             .iter()
-            .map(|(key, val)| (key.to_string(), Ipld::String(val.to_owned())))
+            .map(|(key, val)| (key.to_string(), val.to_owned()))
             .collect();
 
         Self {
             typ,
-            data: Ipld::Map(ipld_data),
+            data: Ipld::Map(data),
             timestamp: Utc::now().timestamp_millis(),
         }
     }
@@ -222,8 +222,8 @@ mod test {
         let notification = EventNotification::new(
             EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
             btreemap! {
-                "peer_id" => peer_id.clone(),
-                "address" => address.clone()
+                "peerId" => Ipld::String(peer_id.clone()),
+                "address" => Ipld::String(address.clone())
             },
         );
         let bytes = notification.to_json().unwrap();
@@ -235,7 +235,7 @@ mod test {
             parsed.typ,
             EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished)
         );
-        assert_eq!(data.get("peer_id").unwrap(), &peer_id);
+        assert_eq!(data.get("peerId").unwrap(), &peer_id);
         assert_eq!(data.get("address").unwrap(), &address);
     }
 
@@ -247,8 +247,8 @@ mod test {
         let notification = EventNotification::new(
             EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
             btreemap! {
-                "peer_id" => peer_id.clone(),
-                "address" => address.clone()
+                "peerId" => Ipld::String(peer_id.clone()),
+                "address" => Ipld::String(address.clone()),
             },
         );
         let json_string = notification.to_json_string().unwrap();
@@ -260,7 +260,7 @@ mod test {
             parsed.typ,
             EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished)
         );
-        assert_eq!(data.get("peer_id").unwrap(), &peer_id);
+        assert_eq!(data.get("peerId").unwrap(), &peer_id);
         assert_eq!(data.get("address").unwrap(), &address);
     }
 }

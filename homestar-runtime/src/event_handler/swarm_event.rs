@@ -493,9 +493,9 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 SwarmNotification::ReceivedReceiptPubsub,
                             ),
                             btreemap! {
-                                "peerId" => propagation_source.to_string(),
-                                "cid" => receipt.cid().to_string(),
-                                "ran" => receipt.ran().to_string()
+                                "peerId" => Ipld::String(propagation_source.to_string()),
+                                "cid" => Ipld::String(receipt.cid().to_string()),
+                                "ran" => Ipld::String(receipt.ran().to_string())
                             },
                         );
                     }
@@ -871,8 +871,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ListeningOn),
                 btreemap! {
-                    "peerId" => local_peer.to_string(),
-                    "address" => address.to_string()
+                    "peerId" => Ipld::String(local_peer.to_string()),
+                    "address" => Ipld::String(address.to_string())
                 },
             );
         }
@@ -897,8 +897,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
                 btreemap! {
-                    "peerId" => peer_id.to_string(),
-                    "address" => endpoint.get_remote_address().to_string()
+                    "peerId" => Ipld::String(peer_id.to_string()),
+                    "address" => Ipld::String(endpoint.get_remote_address().to_string())
                 },
             );
         }
@@ -950,8 +950,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionClosed),
                 btreemap! {
-                    "peerId" => peer_id.to_string(),
-                    "address" => endpoint.get_remote_address().to_string()
+                    "peerId" => Ipld::String(peer_id.to_string()),
+                    "address" => Ipld::String(endpoint.get_remote_address().to_string())
                 },
             );
         }
@@ -973,8 +973,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::OutgoingConnectionError),
                 btreemap! {
-                    "peerId" => peer_id.map_or("Unknown peer".into(), |p| p.to_string()),
-                    "error" => error.to_string()
+                    "peerId" => peer_id.map_or(Ipld::Null, |p| Ipld::String(p.to_string())),
+                    "error" => Ipld::String(error.to_string())
                 },
             );
         }
@@ -997,7 +997,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::IncomingConnectionError),
                 btreemap! {
-                    "error" => error.to_string()
+                    "error" => Ipld::String(error.to_string())
                 },
             );
         }

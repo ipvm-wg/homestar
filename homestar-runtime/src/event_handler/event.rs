@@ -306,8 +306,8 @@ impl Captured {
                             SwarmNotification::PublishedReceiptPubsub,
                         ),
                         btreemap! {
-                            "cid" => receipt.cid().to_string(),
-                            "ran" => receipt.ran().to_string()
+                            "cid" => Ipld::String(receipt.cid().to_string()),
+                            "ran" => Ipld::String(receipt.ran().to_string())
                         },
                     );
                 }
@@ -457,8 +457,8 @@ impl Replay {
                                 SwarmNotification::PublishedReceiptPubsub,
                             ),
                             btreemap! {
-                                "cid" => receipt.cid().to_string(),
-                                "ran" => receipt.ran().to_string()
+                                "cid" => Ipld::String(receipt.cid().to_string()),
+                                "ran" => Ipld::String(receipt.ran().to_string())
                             },
                         );
                     })
