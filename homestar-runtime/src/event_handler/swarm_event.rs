@@ -736,10 +736,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         }
 
         SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
-            request_response::Event::Message {
-                message,
-                peer: _peer,
-            },
+            request_response::Event::Message { message, peer },
         )) => match message {
             request_response::Message::Request {
                 request, channel, ..
@@ -764,6 +761,22 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                     .behaviour_mut()
                                     .request_response
                                     .send_response(channel, bytes);
+
+                                #[cfg(feature = "websocket-notify")]
+                                notification::emit_event(
+                                    event_handler.ws_evt_sender(),
+                                    EventNotificationTyp::SwarmNotification(
+                                        SwarmNotification::SentWorkflowInfo,
+                                    ),
+                                    btreemap! {
+                                        "requestor" => Ipld::String(peer.to_string()),
+                                        "cid" => Ipld::String(workflow_info.cid().to_string()),
+                                        "name" => workflow_info.name.as_ref().map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
+                                        "numTasks" => Ipld::Integer(workflow_info.num_tasks as i128),
+                                        "progress" => Ipld::List(workflow_info.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
+                                        "progressCount" => Ipld::Integer(workflow_info.progress_count as i128),
+                                    },
+                                )
                             } else {
                                 let _ = event_handler
                                     .swarm
@@ -820,7 +833,27 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     if let Ok(cid) = Cid::try_from(key_cid.as_str()) {
                         match decode_capsule(cid, &response) {
                             Ok(event) => {
-                                let _ = sender.send_async(ResponseEvent::Found(Ok(event))).await;
+                                let _ = sender
+                                    .send_async(ResponseEvent::Found(Ok(event.clone())))
+                                    .await;
+
+                                #[cfg(feature = "websocket-notify")]
+                                if let FoundEvent::Workflow(workflow_info) = event {
+                                    notification::emit_event(
+                                        event_handler.ws_evt_sender(),
+                                        EventNotificationTyp::SwarmNotification(
+                                            SwarmNotification::ReceivedWorkflowInfo,
+                                        ),
+                                        btreemap! {
+                                            "provider" => Ipld::String(peer.to_string()),
+                                            "cid" => Ipld::String(workflow_info.cid().to_string()),
+                                            "name" => workflow_info.name.map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
+                                            "numTasks" => Ipld::Integer(workflow_info.num_tasks as i128),
+                                            "progress" => Ipld::List(workflow_info.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
+                                            "progressCount" => Ipld::Integer(workflow_info.progress_count as i128),
+                                        },
+                                    );
+                                }
                             }
                             Err(err) => {
                                 warn!(subject = "libp2p.req_resp.resp.err",

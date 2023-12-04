@@ -20,6 +20,8 @@ pub(crate) enum SwarmNotification {
     PutReceiptDht,
     GotWorkflowInfoDht,
     PutWorkflowInfoDht,
+    SentWorkflowInfo,
+    ReceivedWorkflowInfo,
 }
 
 impl fmt::Display for SwarmNotification {
@@ -52,6 +54,12 @@ impl fmt::Display for SwarmNotification {
             SwarmNotification::GotWorkflowInfoDht => {
                 write!(f, "gotWorkflowInfoDht")
             }
+            SwarmNotification::SentWorkflowInfo => {
+                write!(f, "sentWorkflowInfo")
+            }
+            SwarmNotification::ReceivedWorkflowInfo => {
+                write!(f, "receivedWorkflowInfo")
+            }
         }
     }
 }
@@ -72,6 +80,8 @@ impl FromStr for SwarmNotification {
             "gotReciptDht" => Ok(Self::GotReceiptDht),
             "putWorkflowInfoDht" => Ok(Self::PutWorkflowInfoDht),
             "gotWorkflowInfoDht" => Ok(Self::GotWorkflowInfoDht),
+            "sentWorkflowInfo" => Ok(Self::SentWorkflowInfo),
+            "receivedWorkflowInfo" => Ok(Self::ReceivedWorkflowInfo),
             _ => Err(anyhow!("Missing swarm notification type: {}", ty)),
         }
     }
