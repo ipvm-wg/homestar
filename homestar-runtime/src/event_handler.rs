@@ -72,7 +72,7 @@ pub(crate) struct EventHandler<DB: Database> {
     /// [PeerId] to [ConnectedPoint] connections mapping.
     connections: Connections,
     /// [RequestId] to [RequestResponseKey] and [P2PSender] mapping.
-    request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, PeerId, P2PSender)>,
+    request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     /// Rendezvous protocol configurations and state (cookies).
     rendezvous: Rendezvous,
     /// Whether or not to enable pubsub.
@@ -118,7 +118,7 @@ pub(crate) struct EventHandler<DB: Database> {
     /// [PeerId] to [ConnectedPoint] connections mapping.
     connections: Connections,
     /// [RequestId] to [RequestResponseKey] and [P2PSender] mapping.
-    request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, PeerId, P2PSender)>,
+    request_response_senders: FnvHashMap<RequestId, (RequestResponseKey, P2PSender)>,
     /// Rendezvous protocol configurations and state (cookies).
     rendezvous: Rendezvous,
     /// Whether or not to enable pubsub.
