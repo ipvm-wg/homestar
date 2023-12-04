@@ -109,18 +109,23 @@ jobs:
           - target: aarch64-unknown-linux-musl
             os: linux
             arch: arm64
+            bin: homestar
           - target: x86_64-unknown-linux-musl
             os: linux
             arch: x64
+            bin: homestar
           - target: aarch64-apple-darwin
             os: darwin
             arch: arm64
+            bin: homestar
           - target: x86_64-apple-darwin
             os: darwin
             arch: x64
+            bin: homestar
           - target: x86_64-pc-windows-msvc
             os: windows
             arch: x64
+            bin: homestar.exe
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -157,6 +162,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: |
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
+          chmod +x bin/${{ matrix.bin }}
           npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
           npm publish --access public --tag rc
         env:
