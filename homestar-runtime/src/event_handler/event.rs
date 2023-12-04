@@ -32,7 +32,7 @@ use maplit::btreemap;
 use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
 #[cfg(all(feature = "ipfs", not(feature = "test-utils")))]
 use tokio::runtime::Handle;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 const RENDEZVOUS_NAMESPACE: &str = "homestar";
 
@@ -337,7 +337,7 @@ impl Captured {
         };
 
         if let Ok(receipt_bytes) = Receipt::invocation_capsule(&invocation_receipt) {
-            let _id = event_handler
+            event_handler
                 .swarm
                 .behaviour_mut()
                 .kademlia
@@ -345,17 +345,38 @@ impl Captured {
                     Record::new(instruction_bytes, receipt_bytes.to_vec()),
                     receipt_quorum,
                 )
-                .map_err(|err| {
-                    warn!(subject = "libp2p.put_record.err",
+                .map_or_else(
+                    |err| {
+                        warn!(subject = "libp2p.put_record.err",
                           category = "publish_event",
                           err=?err,
                           "receipt not PUT onto DHT")
-                });
+                    },
+                    |_| {
+                        debug!(
+                            subject = "libp2p.put_record",
+                            category = "publish_event",
+                            "receipt PUT onto DHT"
+                        );
+
+                        #[cfg(feature = "websocket-notify")]
+                        notification::emit_event(
+                            event_handler.ws_evt_sender(),
+                            EventNotificationTyp::SwarmNotification(
+                                SwarmNotification::PutReceiptDht,
+                            ),
+                            btreemap! {
+                                "cid" => Ipld::String(receipt.cid().to_string()),
+                                "ran" => Ipld::String(receipt.ran().to_string())
+                            },
+                        );
+                    },
+                );
 
             Arc::make_mut(&mut self.workflow).increment_progress(receipt_cid);
             let workflow_cid_bytes = self.workflow.cid_as_bytes();
             if let Ok(workflow_bytes) = self.workflow.capsule() {
-                let _id = event_handler
+                event_handler
                     .swarm
                     .behaviour_mut()
                     .kademlia
@@ -363,12 +384,36 @@ impl Captured {
                         Record::new(workflow_cid_bytes, workflow_bytes),
                         workflow_quorum,
                     )
-                    .map_err(|err| {
-                        warn!(subject = "libp2p.put_record.err",
+                    .map_or_else(
+                        |err| {
+                            warn!(subject = "libp2p.put_record.err",
                                          category = "publish_event",
                                          err=?err,
                                          "workflow information not PUT onto DHT")
-                    });
+                        },
+                        |_| {
+                            debug!(
+                                subject = "libp2p.put_record",
+                                category = "publish_event",
+                                "workflow info PUT onto DHT"
+                            );
+
+                            #[cfg(feature = "websocket-notify")]
+                            notification::emit_event(
+                                event_handler.ws_evt_sender(),
+                                EventNotificationTyp::SwarmNotification(
+                                    SwarmNotification::PutWorkflowInfoDht,
+                                ),
+                                btreemap! {
+                                    "cid" => Ipld::String(self.workflow.cid().to_string()),
+                                    "name" => self.workflow.name.as_ref().map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
+                                    "numTasks" => Ipld::Integer(self.workflow.num_tasks as i128),
+                                    "progress" => Ipld::List(self.workflow.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
+                                    "progressCount" => Ipld::Integer(self.workflow.progress_count as i128),
+                                },
+                            )
+                        },
+                    );
             } else {
                 error!(
                     subject = "libp2p.put_record.err",

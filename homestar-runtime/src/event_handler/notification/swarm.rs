@@ -16,6 +16,10 @@ pub(crate) enum SwarmNotification {
     IncomingConnectionError,
     PublishedReceiptPubsub,
     ReceivedReceiptPubsub,
+    GotReceiptDht,
+    PutReceiptDht,
+    GotWorkflowInfoDht,
+    PutWorkflowInfoDht,
 }
 
 impl fmt::Display for SwarmNotification {
@@ -36,6 +40,18 @@ impl fmt::Display for SwarmNotification {
             SwarmNotification::PublishedReceiptPubsub => {
                 write!(f, "publishedReceiptPubsub")
             }
+            SwarmNotification::PutReceiptDht => {
+                write!(f, "putReceiptDht")
+            }
+            SwarmNotification::GotReceiptDht => {
+                write!(f, "gotReceiptDht")
+            }
+            SwarmNotification::PutWorkflowInfoDht => {
+                write!(f, "putWorkflowInfoDht")
+            }
+            SwarmNotification::GotWorkflowInfoDht => {
+                write!(f, "gotWorkflowInfoDht")
+            }
         }
     }
 }
@@ -52,6 +68,10 @@ impl FromStr for SwarmNotification {
             "incomingConnectionError" => Ok(Self::IncomingConnectionError),
             "receivedReceiptPubsub" => Ok(Self::ReceivedReceiptPubsub),
             "publishedReceiptPubsub" => Ok(Self::PublishedReceiptPubsub),
+            "putReciptDht" => Ok(Self::PutReceiptDht),
+            "gotReciptDht" => Ok(Self::GotReceiptDht),
+            "putWorkflowInfoDht" => Ok(Self::PutWorkflowInfoDht),
+            "gotWorkflowInfoDht" => Ok(Self::GotWorkflowInfoDht),
             _ => Err(anyhow!("Missing swarm notification type: {}", ty)),
         }
     }
