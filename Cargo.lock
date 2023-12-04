@@ -2556,7 +2556,7 @@ dependencies = [
  "predicates",
  "prometheus-parse",
  "proptest",
- "puffin",
+ "puffin 0.18.0",
  "puffin_egui",
  "rand",
  "regex",
@@ -5110,6 +5110,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "puffin"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e0b84517b2fb755da3a634bc030fcbc7b6337a786aa25a7fb350cdd51ab5e15"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "cfg-if",
+ "once_cell",
+]
+
+[[package]]
 name = "puffin_egui"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5119,7 +5131,7 @@ dependencies = [
  "indexmap 1.9.3",
  "natord",
  "once_cell",
- "puffin",
+ "puffin 0.17.0",
  "time",
  "vec1",
  "web-time",

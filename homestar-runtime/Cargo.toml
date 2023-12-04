@@ -124,7 +124,7 @@ moka = { version = "0.12.1", default-features = false, features = [
 names = { version = "0.14", default-features = false }
 once_cell = { version = "1.18", default-features = false }
 proptest = { version = "1.2", optional = true }
-puffin = { version = "0.17", default-features = false, optional = true }
+puffin = { version = "0.18", default-features = false, optional = true }
 puffin_egui = { version = "0.23.0", default-features = false, optional = true }
 rand = { workspace = true }
 regex = "1.10"
