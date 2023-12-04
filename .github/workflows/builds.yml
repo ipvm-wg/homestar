@@ -157,6 +157,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: |
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
+          chmod +x bin/homestar
           npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
           npm publish --access public --tag rc
         env:
