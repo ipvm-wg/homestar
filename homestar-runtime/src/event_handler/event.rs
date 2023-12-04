@@ -159,7 +159,7 @@ impl Event {
 
                 event_handler
                     .request_response_senders
-                    .insert(request_id, (request, sender));
+                    .insert(request_id, (request, peer, sender));
             }
             Event::GetProviders(record) => record.get_providers(event_handler).await,
             Event::ProvideRecord(cid, sender, capsule_tag) => {

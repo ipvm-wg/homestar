@@ -783,7 +783,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 request_id,
                 response,
             } => {
-                if let Some((RequestResponseKey { cid: key_cid, .. }, sender)) =
+                if let Some((RequestResponseKey { cid: key_cid, .. }, _peer, sender)) =
                     event_handler.request_response_senders.remove(&request_id)
                 {
                     if let Ok(cid) = Cid::try_from(key_cid.as_str()) {
