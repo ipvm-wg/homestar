@@ -752,7 +752,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
             request_response::Event::Message {
                 message,
-                #[cfg(feature = "websocket-notify")]
+                #[allow(unused_variables)]
                 peer,
             },
         )) => match message {
