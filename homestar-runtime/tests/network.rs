@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-#[cfg(feature = "websocket-notify")]
+// #[cfg(all(feature = "websocket-notify", feature = "test-utils"))]
 mod dht;
 #[cfg(feature = "websocket-notify")]
 mod gossip;
