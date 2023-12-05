@@ -336,8 +336,13 @@ impl Settings {
     }
 
     fn build(path: Option<PathBuf>) -> Result<Self, ConfigError> {
+        let builder = Config::builder();
+
+        #[cfg(not(test))]
+        let builder = builder.add_source(File::from(config_file()).required(false));
+
         let builder = if let Some(p) = path {
-            Config::builder().add_source(File::with_name(
+            builder.add_source(File::with_name(
                 &p.canonicalize()
                     .map_err(|e| ConfigError::NotFound(e.to_string()))?
                     .as_path()
@@ -345,7 +350,7 @@ impl Settings {
                     .to_string(),
             ))
         } else {
-            Config::builder()
+            builder
         };
 
         let s = builder
@@ -356,13 +361,16 @@ impl Settings {
 }
 
 #[allow(dead_code)]
+fn config_file() -> PathBuf {
+    config_dir().join("settings")
+}
+
 fn config_dir() -> PathBuf {
     let config_dir =
         env::var("XDG_CONFIG_HOME").map_or_else(|_| home_dir().join(".config"), PathBuf::from);
     config_dir.join("homestar")
 }
 
-#[allow(dead_code)]
 fn home_dir() -> PathBuf {
     let home = env::var(HOME_VAR).unwrap_or_else(|_| panic!("{} not found", HOME_VAR));
     PathBuf::from(home)
