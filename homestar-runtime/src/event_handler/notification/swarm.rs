@@ -77,7 +77,7 @@ impl FromStr for SwarmNotification {
             "receivedReceiptPubsub" => Ok(Self::ReceivedReceiptPubsub),
             "publishedReceiptPubsub" => Ok(Self::PublishedReceiptPubsub),
             "putReciptDht" => Ok(Self::PutReceiptDht),
-            "gotReciptDht" => Ok(Self::GotReceiptDht),
+            "gotReceiptDht" => Ok(Self::GotReceiptDht),
             "putWorkflowInfoDht" => Ok(Self::PutWorkflowInfoDht),
             "gotWorkflowInfoDht" => Ok(Self::GotWorkflowInfoDht),
             "sentWorkflowInfo" => Ok(Self::SentWorkflowInfo),

@@ -569,13 +569,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     }
                 }
                 QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
-                    debug!(
-                        subject = "libp2p.kad.get_record",
-                        category = "handle_swarm_event",
-                        "found record {:#?}, published by {:?}",
-                        peer_record.record.key,
-                        peer_record.record.publisher
-                    );
                     match peer_record.found_record() {
                         Ok(event) => {
                             let Some((_, sender)) = event_handler.query_senders.remove(&id) else {
@@ -588,33 +581,54 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                     .await;
                             }
 
-                            #[cfg(feature = "websocket-notify")]
                             match event {
-                                FoundEvent::Receipt(receipt) => notification::emit_event(
-                                    event_handler.ws_evt_sender(),
-                                    EventNotificationTyp::SwarmNotification(
-                                        SwarmNotification::GotReceiptDht,
-                                    ),
-                                    btreemap! {
-                                        "publisher" => peer_record.record.publisher.map_or(Ipld::Null, |peer_id| Ipld::String(peer_id.to_string())),
-                                        "cid" => Ipld::String(receipt.cid().to_string()),
-                                        "ran" => Ipld::String(receipt.ran().to_string())
-                                    },
-                                ),
-                                FoundEvent::Workflow(workflow_info) => notification::emit_event(
-                                    event_handler.ws_evt_sender(),
-                                    EventNotificationTyp::SwarmNotification(
-                                        SwarmNotification::GotWorkflowInfoDht,
-                                    ),
-                                    btreemap! {
-                                        "publisher" => peer_record.record.publisher.map_or(Ipld::Null, |peer_id| Ipld::String(peer_id.to_string())),
-                                        "cid" => Ipld::String(workflow_info.cid().to_string()),
-                                        "name" => workflow_info.name.map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
-                                        "numTasks" => Ipld::Integer(workflow_info.num_tasks as i128),
-                                        "progress" => Ipld::List(workflow_info.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
-                                        "progressCount" => Ipld::Integer(workflow_info.progress_count as i128),
-                                    },
-                                ),
+                                FoundEvent::Receipt(receipt) => {
+                                    debug!(
+                                        subject = "libp2p.kad.get_record",
+                                        category = "handle_swarm_event",
+                                        "found receipt record with key {:#?}, published by {:?}",
+                                        peer_record.record.key,
+                                        peer_record.record.publisher
+                                    );
+
+                                    #[cfg(feature = "websocket-notify")]
+                                    notification::emit_event(
+                                        event_handler.ws_evt_sender(),
+                                        EventNotificationTyp::SwarmNotification(
+                                            SwarmNotification::GotReceiptDht,
+                                        ),
+                                        btreemap! {
+                                            "publisher" => peer_record.record.publisher.map_or(Ipld::Null, |peer_id| Ipld::String(peer_id.to_string())),
+                                            "cid" => Ipld::String(receipt.cid().to_string()),
+                                            "ran" => Ipld::String(receipt.ran().to_string())
+                                        },
+                                    )
+                                }
+                                FoundEvent::Workflow(workflow_info) => {
+                                    debug!(
+                                        subject = "libp2p.kad.get_record",
+                                        category = "handle_swarm_event",
+                                        "found workflow info record with key {:#?}, published by {:?}",
+                                        peer_record.record.key,
+                                        peer_record.record.publisher
+                                    );
+
+                                    #[cfg(feature = "websocket-notify")]
+                                    notification::emit_event(
+                                        event_handler.ws_evt_sender(),
+                                        EventNotificationTyp::SwarmNotification(
+                                            SwarmNotification::GotWorkflowInfoDht,
+                                        ),
+                                        btreemap! {
+                                            "publisher" => peer_record.record.publisher.map_or(Ipld::Null, |peer_id| Ipld::String(peer_id.to_string())),
+                                            "cid" => Ipld::String(workflow_info.cid().to_string()),
+                                            "name" => workflow_info.name.map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
+                                            "numTasks" => Ipld::Integer(workflow_info.num_tasks as i128),
+                                            "progress" => Ipld::List(workflow_info.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
+                                            "progressCount" => Ipld::Integer(workflow_info.progress_count as i128),
+                                        },
+                                    )
+                                }
                             }
                         }
                         Err(err) => {
