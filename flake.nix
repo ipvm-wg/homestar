@@ -31,7 +31,7 @@
         pkgs = import nixpkgs {inherit system overlays;};
 
         rust-toolchain = (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml).override {
-          extensions = ["cargo" "clippy" "rustfmt" "rust-src" "rust-std"];
+          extensions = ["cargo" "clippy" "llvm-tools-preview" "rustfmt" "rust-src" "rust-std"];
           targets = [
             "wasm32-unknown-unknown"
             "wasm32-wasi"

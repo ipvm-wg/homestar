@@ -28,14 +28,14 @@ heck = "0.4"
 homestar-core = { version = "0.1", path = "../homestar-core" }
 itertools = { workspace = true }
 libipld = { workspace = true }
-rust_decimal = { version = "1.32", default-features = false }
+rust_decimal = { version = "1.33", default-features = false }
 serde = { workspace = true }
 stacker = "0.1"
 thiserror = { workspace = true }
 tracing = { workspace = true }
 wasi-common = { version = "11.0", default-features = false }
 wasmparser = "0.116"
-wasmtime = { version = "13.0", default-features = false, features = [
+wasmtime = { version = "14.0", default-features = false, features = [
   "async",
   "component-model",
   "cranelift",
