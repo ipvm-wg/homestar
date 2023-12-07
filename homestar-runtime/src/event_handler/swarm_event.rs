@@ -857,6 +857,13 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                     .request_response
                                     .send_response(channel, bytes);
 
+                                debug!(subject = "libp2p.req_resp",
+                                      category = "handle_swarm_event",
+                                      cid=?cid,
+                                      peer_id = peer.to_string(),
+                                      "sent workflow info to peer"
+                                );
+
                                 #[cfg(feature = "websocket-notify")]
                                 notification::emit_event(
                                     event_handler.ws_evt_sender(),
@@ -931,6 +938,13 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 let _ = sender
                                     .send_async(ResponseEvent::Found(Ok(event.clone())))
                                     .await;
+
+                                debug!(subject = "libp2p.req_resp",
+                                      category = "handle_swarm_event",
+                                      cid=?cid,
+                                      peer_id = peer.to_string(),
+                                      "received workflow info to peer"
+                                );
 
                                 #[cfg(feature = "websocket-notify")]
                                 if let FoundEvent::Workflow(workflow_info) = event {
