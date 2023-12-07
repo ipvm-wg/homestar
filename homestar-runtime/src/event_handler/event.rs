@@ -352,7 +352,13 @@ impl Captured {
                           err=?err,
                           "receipt not PUT onto DHT")
                     },
-                    |_| {
+                    |query_id| {
+                        let key = RequestResponseKey::new(
+                            receipt.cid().to_string().into(),
+                            CapsuleTag::Receipt,
+                        );
+                        event_handler.query_senders.insert(query_id, (key, None));
+
                         debug!(
                             subject = "libp2p.put_record",
                             category = "publish_event",
@@ -391,7 +397,13 @@ impl Captured {
                                          err=?err,
                                          "workflow information not PUT onto DHT")
                         },
-                        |_| {
+                        |query_id| {
+                            let key = RequestResponseKey::new(
+                                self.workflow.cid().to_string().into(),
+                                CapsuleTag::Workflow,
+                            );
+                            event_handler.query_senders.insert(query_id, (key, None));
+
                             debug!(
                                 subject = "libp2p.put_record",
                                 category = "publish_event",

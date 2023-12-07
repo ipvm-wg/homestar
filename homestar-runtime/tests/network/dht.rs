@@ -19,7 +19,6 @@ use std::{
     str::FromStr,
     time::Duration,
 };
-use tokio::time::sleep;
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
@@ -129,6 +128,8 @@ fn test_libp2p_dht_records() -> Result<()> {
         // Poll for put receipt and workflow info messages
         let mut put_receipt = false;
         let mut put_workflow_info = false;
+        let mut receipt_quorum_success = false;
+        let mut workflow_info_quorum_success = false;
         loop {
             if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
@@ -136,20 +137,26 @@ fn test_libp2p_dht_records() -> Result<()> {
 
                 if json["type"].as_str().unwrap() == "network:putReceiptDht" {
                     put_receipt = true;
-                }
-            } else {
-                panic!("Node one did not put receipt in time.")
-            }
-
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-                if json["type"].as_str().unwrap() == "network:putWorkflowInfoDht" {
+                } else if json["type"].as_str().unwrap() == "network:putWorkflowInfoDht" {
                     put_workflow_info = true;
+                } else if json["type"].as_str().unwrap() == "network:receiptQuorumSuccess" {
+                    receipt_quorum_success = true;
+                } else if json["type"].as_str().unwrap() == "network:workflowInfoQuorumSuccess" {
+                    workflow_info_quorum_success = true;
                 }
             } else {
-                panic!("Node one did not put workflow info in time.")
+                panic!(
+                    r#"Expected notifications from node one did not arrive in time:
+  - Put receipt to DHT: {}
+  - Put workflow info to DHT: {}
+  - Receipt quorum succeeded: {}
+  - Workflow info quorum succeeded: {}
+  "#,
+                    put_receipt,
+                    put_workflow_info,
+                    receipt_quorum_success,
+                    workflow_info_quorum_success
+                );
             }
 
             if put_receipt && put_workflow_info {
@@ -246,10 +253,17 @@ fn test_libp2p_dht_records() -> Result<()> {
 
         // Check node one put receipt and workflow info
         let put_receipt_logged = check_lines_for(stdout1.clone(), vec!["receipt PUT onto DHT"]);
-        let put_workflow_info_logged = check_lines_for(stdout1, vec!["workflow info PUT onto DHT"]);
+        let put_workflow_info_logged =
+            check_lines_for(stdout1.clone(), vec!["workflow info PUT onto DHT"]);
+        let receipt_quorum_success_logged =
+            check_lines_for(stdout1.clone(), vec!["quorum success for receipt record"]);
+        let workflow_info_quorum_success_logged =
+            check_lines_for(stdout1, vec!["quorum success for workflow info record"]);
 
         assert!(put_receipt_logged);
         assert!(put_workflow_info_logged);
+        assert!(receipt_quorum_success_logged);
+        assert!(workflow_info_quorum_success_logged);
 
         // Check node two received a receipt and workflow info from node one
         let retrieved_receipt_logged = check_lines_for(
@@ -279,7 +293,7 @@ fn test_libp2p_dht_records() -> Result<()> {
 
 #[test]
 #[file_serial]
-fn test_libp2p_dht_insufficient_quorum_serial() -> Result<()> {
+fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
     const DB1: &str = "test_libp2p_dht_insufficient_quorum_serial1.db";
     const DB2: &str = "test_libp2p_dht_insufficient_quorum_serial2.db";
     let _ = stop_homestar();
@@ -363,9 +377,27 @@ fn test_libp2p_dht_insufficient_quorum_serial() -> Result<()> {
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 
-        // Wait for workflow to run
-        // TODO Listen on an event instead of using an arbitrary sleep
-        sleep(Duration::from_secs(1)).await;
+        // Poll for quorum failure messages
+        let mut receipt_quorum_failure = false;
+        let mut workflow_info_quorum_failure = false;
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["type"].as_str().unwrap() == "network:receiptQuorumFailure" {
+                    receipt_quorum_failure = true
+                } else if json["type"].as_str().unwrap() == "network:workflowInfoQuorumFailure" {
+                    workflow_info_quorum_failure = true
+                }
+            } else {
+                panic!("Node one did not establish a connection with node two in time.")
+            }
+
+            if receipt_quorum_failure && workflow_info_quorum_failure {
+                break;
+            }
+        }
 
         // Collect logs then kill proceses.
         let dead_proc1 = kill_homestar(homestar_proc1, None);
@@ -374,10 +406,18 @@ fn test_libp2p_dht_insufficient_quorum_serial() -> Result<()> {
         // Retrieve logs.
         let stdout1 = retrieve_output(dead_proc1);
 
-        // Check that DHT put record failed
-        let put_failed = check_lines_for(stdout1, vec!["QuorumFailed", "error putting record"]);
+        // Check that receipt and workflow info quorums failed
+        let receipt_quorum_failure_logged = check_lines_for(
+            stdout1.clone(),
+            vec!["QuorumFailed", "error propagating receipt record"],
+        );
+        let workflow_info_quorum_failure_logged = check_lines_for(
+            stdout1,
+            vec!["QuorumFailed", "error propagating workflow info record"],
+        );
 
-        assert!(put_failed);
+        assert!(receipt_quorum_failure_logged);
+        assert!(workflow_info_quorum_failure_logged);
     });
 
     remove_db(DB1);

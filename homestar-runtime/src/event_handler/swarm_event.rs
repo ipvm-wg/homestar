@@ -697,16 +697,93 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         ),
                     }
                 }
-                QueryResult::PutRecord(Ok(PutRecordOk { key })) => debug!(
-                    subject = "libp2p.kad.put_record",
-                    category = "handle_swarm_event",
-                    "successfully put record {key:#?}"
-                ),
-                QueryResult::PutRecord(Err(err)) => warn!(
-                    subject = "libp2p.kad.put_record.err",
-                    category = "handle_swarm_event",
-                    err=?err,
-                    "error putting record"),
+                QueryResult::PutRecord(Ok(PutRecordOk { .. })) => {
+                    let Some((key, _)) = event_handler.query_senders.remove(&id) else {
+                        return;
+                    };
+
+                    debug!(
+                        subject = "libp2p.kad.put_record",
+                        category = "handle_swarm_event",
+                        cid = key.cid.to_string(),
+                        "quorum success for {} record",
+                        match key.capsule_tag {
+                            CapsuleTag::Receipt => "receipt",
+                            CapsuleTag::Workflow => "workflow info",
+                        }
+                    );
+
+                    #[cfg(feature = "websocket-notify")]
+                    match key.capsule_tag {
+                        CapsuleTag::Receipt => notification::emit_event(
+                            event_handler.ws_evt_sender(),
+                            EventNotificationTyp::SwarmNotification(
+                                SwarmNotification::ReceiptQuorumSuccess,
+                            ),
+                            btreemap! {
+                                "cid" => Ipld::String(key.cid.to_string()),
+                                "quorum" => Ipld::Integer(event_handler.receipt_quorum as i128),
+                            },
+                        ),
+                        CapsuleTag::Workflow => notification::emit_event(
+                            event_handler.ws_evt_sender(),
+                            EventNotificationTyp::SwarmNotification(
+                                SwarmNotification::WorkflowInfoQuorumSuccess,
+                            ),
+                            btreemap! {
+                                "cid" => Ipld::String(key.cid.to_string()),
+                                "quorum" => Ipld::Integer(event_handler.workflow_quorum as i128),
+                            },
+                        ),
+                    }
+                }
+                QueryResult::PutRecord(Err(err)) => {
+                    let Some((key, _)) = event_handler.query_senders.remove(&id) else {
+                        return;
+                    };
+
+                    warn!(
+                      subject = "libp2p.kad.put_record.err",
+                      category = "handle_swarm_event",
+                      err=?err.clone(),
+                      cid = key.cid.to_string(),
+                      "error propagating {} record",
+                      match key.capsule_tag {
+                          CapsuleTag::Receipt => "receipt",
+                          CapsuleTag::Workflow => "workflow info",
+                      }
+                    );
+
+                    if let kad::PutRecordError::QuorumFailed { success, .. } = err {
+                        #[cfg(feature = "websocket-notify")]
+                        match key.capsule_tag {
+                            CapsuleTag::Receipt => notification::emit_event(
+                                event_handler.ws_evt_sender(),
+                                EventNotificationTyp::SwarmNotification(
+                                    SwarmNotification::ReceiptQuorumFailure,
+                                ),
+                                btreemap! {
+                                    "cid" => Ipld::String(key.cid.to_string()),
+                                    "quorum" => Ipld::Integer(event_handler.receipt_quorum as i128),
+                                    "connectedPeers" => Ipld::Integer(event_handler.connections.peers.len() as i128),
+                                    "storedToPeers" => Ipld::List(success.iter().map(|cid| Ipld::String(cid.to_string())).collect())
+                                },
+                            ),
+                            CapsuleTag::Workflow => notification::emit_event(
+                                event_handler.ws_evt_sender(),
+                                EventNotificationTyp::SwarmNotification(
+                                    SwarmNotification::WorkflowInfoQuorumFailure,
+                                ),
+                                btreemap! {
+                                    "cid" => Ipld::String(key.cid.to_string()),
+                                    "quorum" => Ipld::Integer(event_handler.workflow_quorum as i128),
+                                    "connectedPeers" => Ipld::Integer(event_handler.connections.peers.len() as i128),
+                                    "storedToPeers" => Ipld::List(success.iter().map(|cid| Ipld::String(cid.to_string())).collect())
+                                },
+                            ),
+                        }
+                    }
+                }
                 QueryResult::StartProviding(Ok(AddProviderOk { key })) => {
                     // Currently, we don't send anything to the <worker> channel,
                     // once they key is provided.
