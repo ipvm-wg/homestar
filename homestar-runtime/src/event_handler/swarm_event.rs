@@ -827,11 +827,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         }
 
         SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
-            request_response::Event::Message {
-                message,
-                #[allow(unused_variables)]
-                peer,
-            },
+            request_response::Event::Message { message, peer },
         )) => match message {
             request_response::Message::Request {
                 request, channel, ..

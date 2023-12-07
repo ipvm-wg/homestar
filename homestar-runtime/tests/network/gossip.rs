@@ -28,8 +28,8 @@ const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 #[test]
 #[file_serial]
 fn test_libp2p_receipt_gossip_serial() -> Result<()> {
-    const DB1: &str = "homestar_test_libp2p_receipt_gossip_serial1.db";
-    const DB2: &str = "homestar_test_libp2p_receipt_gossip_serial2.db";
+    const DB1: &str = "test_libp2p_receipt_gossip_serial1.db";
+    const DB2: &str = "test_libp2p_receipt_gossip_serial2.db";
     let _ = stop_homestar();
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
@@ -117,7 +117,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             .await
             .unwrap();
 
-        // Run test workflow
+        // Run test workflow on node one
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
@@ -126,9 +126,8 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 
-        // Poll for published and received receipt messages
+        // Poll for published receipt messages
         let mut published_cids: Vec<Cid> = vec![];
-        let mut received_cids: Vec<Cid> = vec![];
         loop {
             if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
@@ -144,6 +143,14 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
                 panic!("Node one did not publish receipt in time.")
             }
 
+            if published_cids.len() == 2 {
+                break;
+            }
+        }
+
+        // Poll for received receipt messages
+        let mut received_cids: Vec<Cid> = vec![];
+        loop {
             if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
@@ -158,7 +165,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
                 panic!("Node two did not receive receipt in time.")
             }
 
-            if published_cids.len() == 2 && received_cids.len() == 2 {
+            if received_cids.len() == 2 {
                 break;
             }
         }
