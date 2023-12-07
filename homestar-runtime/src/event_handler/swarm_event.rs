@@ -586,8 +586,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                     debug!(
                                         subject = "libp2p.kad.get_record",
                                         category = "handle_swarm_event",
-                                        "found receipt record with key {:#?}, published by {:?}",
-                                        peer_record.record.key,
+                                        cid = receipt.cid().to_string(),
+                                        "found receipt record published by {:?}",
                                         peer_record.record.publisher
                                     );
 
@@ -608,8 +608,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                     debug!(
                                         subject = "libp2p.kad.get_record",
                                         category = "handle_swarm_event",
-                                        "found workflow info record with key {:#?}, published by {:?}",
-                                        peer_record.record.key,
+                                        cid = workflow_info.cid().to_string(),
+                                        "found workflow info record published by {:?}",
                                         peer_record.record.publisher
                                     );
 
@@ -754,8 +754,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                       }
                     );
 
+                    #[cfg(feature = "websocket-notify")]
                     if let kad::PutRecordError::QuorumFailed { success, .. } = err {
-                        #[cfg(feature = "websocket-notify")]
                         match key.capsule_tag {
                             CapsuleTag::Receipt => notification::emit_event(
                                 event_handler.ws_evt_sender(),
