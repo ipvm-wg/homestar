@@ -15,7 +15,6 @@ node_addresses = [
 ]
 
 [node.network.libp2p.dht]
-p2p_provider_timeout = 0
 receipt_quorum = 1
 workflow_quorum = 1
 
