@@ -17,6 +17,7 @@ use crate::{
     network::swarm::CapsuleTag,
     runner::{ModifiedSet, RunningTaskSet},
     scheduler::ExecutionGraph,
+    settings,
     tasks::{RegisteredTasks, WasmContext},
     workflow::{self, Resource},
     Db, Receipt, TaskScheduler,
@@ -82,6 +83,8 @@ pub(crate) struct Worker<'a, DB: Database> {
     pub(crate) workflow_info: Arc<workflow::Info>,
     /// [Workflow] settings.
     pub(crate) workflow_settings: Arc<workflow::Settings>,
+    /// Network settings.
+    pub(crate) network_settings: Arc<settings::Dht>,
     /// [NaiveDateTime] of when the [Workflow] was started.
     pub(crate) workflow_started: NaiveDateTime,
 }
@@ -97,13 +100,13 @@ where
     pub(crate) async fn new<S: Into<FastStr>>(
         workflow: Workflow<'a, Arg>,
         settings: workflow::Settings,
+        network_settings: settings::Dht,
         // Name would be runner specific, separated from core workflow spec.
         name: Option<S>,
         event_sender: Arc<AsyncChannelSender<Event>>,
         runner_sender: AsyncChannelSender<WorkerMessage>,
         db: DB,
     ) -> Result<Worker<'a, DB>> {
-        let p2p_timeout = settings.p2p_timeout;
         let workflow_len = workflow.len();
         // Need to take ownership here to get the cid.
         let workflow_cid = workflow.to_owned().to_cid()?;
@@ -119,7 +122,7 @@ where
             workflow_len,
             name.clone(),
             graph.indexed_resources.clone(),
-            p2p_timeout,
+            network_settings.clone(),
             event_sender.clone(),
             db.conn()?,
         )
@@ -134,6 +137,7 @@ where
             workflow_info: workflow_info.into(),
             workflow_settings: settings.into(),
             workflow_started: timestamp,
+            network_settings: network_settings.into(),
         })
     }
 
@@ -196,7 +200,7 @@ where
         async fn resolve_cid(
             cid: Cid,
             workflow_cid: Cid,
-            workflow_settings: Arc<workflow::Settings>,
+            network_settings: Arc<settings::Dht>,
             linkmap: Arc<RwLock<IndexMap<Cid, InstructionResult<Arg>>>>,
             resources: Arc<RwLock<IndexMap<Resource, Vec<u8>>>>,
             db: impl Database,
@@ -248,7 +252,7 @@ where
                             .await;
 
                         let found = match rx
-                            .recv_deadline(Instant::now() + workflow_settings.p2p_timeout)
+                            .recv_deadline(Instant::now() + network_settings.p2p_receipt_timeout)
                         {
                             Ok(ResponseEvent::Found(Ok(FoundEvent::Receipt(found)))) => found,
                             Ok(ResponseEvent::Found(Err(err))) => {
@@ -364,7 +368,7 @@ where
                         let mut wasm_ctx = WasmContext::new(state)?;
 
                         let db = self.db.clone();
-                        let settings = self.workflow_settings.clone();
+                        let network_settings = self.network_settings.clone();
                         let linkmap = scheduler.linkmap.clone();
                         let resources = scheduler.resources.clone();
                         let event_sender = self.event_sender.clone();
@@ -374,7 +378,7 @@ where
                             resolve_cid(
                                 cid,
                                 workflow_cid,
-                                settings.clone(),
+                                network_settings.clone(),
                                 linkmap.clone(),
                                 resources.clone(),
                                 db.clone(),

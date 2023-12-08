@@ -838,9 +838,10 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 (Ok(cid), WORKFLOW_TAG) => {
                     match workflow::Info::gather(
                         cid,
-                        event_handler.p2p_provider_timeout,
                         event_handler.sender.clone(),
                         event_handler.db.conn().ok(),
+                        event_handler.p2p_workflow_info_timeout,
+                        event_handler.p2p_provider_timeout,
                         None::<fn(Cid, Option<Connection>) -> Result<workflow::Info>>,
                     )
                     .await

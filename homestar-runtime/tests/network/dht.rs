@@ -159,7 +159,11 @@ fn test_libp2p_dht_records() -> Result<()> {
                 );
             }
 
-            if put_receipt && put_workflow_info {
+            if put_receipt
+                && put_workflow_info
+                && receipt_quorum_success
+                && workflow_info_quorum_success
+            {
                 break;
             }
         }

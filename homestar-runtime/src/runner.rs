@@ -8,6 +8,7 @@ use crate::{
     db::Database,
     event_handler::{Event, EventHandler},
     network::{rpc, swarm, webserver},
+    settings,
     tasks::Fetch,
     worker::WorkerMessage,
     workflow::{self, Resource},
@@ -257,6 +258,7 @@ impl Runner {
                             },
                             ws_hdl.clone(),
                             db.clone(),
+                            self.settings.node.network().libp2p().dht(),
                             now
                         ).await;
 
@@ -291,6 +293,7 @@ impl Runner {
                                 match self.run_worker(
                                     workflow,
                                     workflow_settings,
+                                    self.settings.node.network().libp2p().dht(),
                                     Some(name),
                                     runner_worker_tx.clone(),
                                     db.clone(),
@@ -600,6 +603,7 @@ impl Runner {
         channels: Channels,
         ws_hdl: ServerHandle,
         db: impl Database + 'static,
+        network_settings: &settings::Dht,
         now: time::Instant,
     ) -> Result<ControlFlow<(), rpc::ServerMessage>> {
         match msg {
@@ -634,6 +638,7 @@ impl Runner {
                     .run_worker(
                         workflow,
                         workflow_settings,
+                        network_settings,
                         name,
                         channels.runner,
                         db.clone(),
@@ -665,6 +670,7 @@ impl Runner {
         &self,
         workflow: Workflow<'static, Arg>,
         workflow_settings: workflow::Settings,
+        network_settings: &settings::Dht,
         name: Option<S>,
         runner_sender: AsyncChannelSender<WorkerMessage>,
         db: impl Database + 'static,
@@ -673,6 +679,7 @@ impl Runner {
             Worker::new(
                 workflow,
                 workflow_settings,
+                network_settings.clone().to_owned(),
                 name,
                 self.event_sender(),
                 runner_sender,

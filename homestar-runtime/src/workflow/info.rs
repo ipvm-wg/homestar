@@ -8,7 +8,7 @@ use crate::{
         Event,
     },
     network::swarm::CapsuleTag,
-    Db, Receipt,
+    settings, Db, Receipt,
 };
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::{NaiveDateTime, Utc};
@@ -280,7 +280,7 @@ impl Info {
         workflow_len: u32,
         name: FastStr,
         resources: IndexedResources,
-        p2p_timeout: Duration,
+        network_settings: settings::Dht,
         event_sender: Arc<AsyncChannelSender<Event>>,
         mut conn: Connection,
     ) -> Result<(Self, NaiveDateTime)> {
@@ -315,9 +315,10 @@ impl Info {
                 let handle = Handle::current();
                 handle.spawn(Self::retrieve_from_query(
                     workflow_cid,
-                    p2p_timeout,
                     event_sender,
                     Some(conn),
+                    network_settings.p2p_workflow_info_timeout,
+                    network_settings.p2p_provider_timeout,
                     None::<fn(Cid, Option<Connection>) -> Result<Self>>,
                 ));
 
@@ -330,9 +331,10 @@ impl Info {
     /// workflow [Cid].
     pub(crate) async fn gather<'a>(
         workflow_cid: Cid,
-        p2p_timeout: Duration,
         event_sender: Arc<AsyncChannelSender<Event>>,
         mut conn: Option<Connection>,
+        p2p_workflow_info_timeout: Duration,
+        p2p_provider_timeout: Duration,
         handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> Result<Self>>,
     ) -> Result<Self> {
         let workflow_info = match conn
@@ -350,9 +352,10 @@ impl Info {
 
                 Self::retrieve_from_query(
                     workflow_cid,
-                    p2p_timeout,
                     event_sender,
                     conn,
+                    p2p_workflow_info_timeout,
+                    p2p_provider_timeout,
                     handle_timeout_fn,
                 )
                 .await
@@ -364,9 +367,10 @@ impl Info {
 
     async fn retrieve_from_query<'a>(
         workflow_cid: Cid,
-        p2p_timeout: Duration,
         event_sender: Arc<AsyncChannelSender<Event>>,
         conn: Option<Connection>,
+        p2p_workflow_info_timeout: Duration,
+        _p2p_provider_timeout: Duration,
         handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> Result<Info>>,
     ) -> Result<Info> {
         let (tx, rx) = AsyncChannel::oneshot();
@@ -378,7 +382,7 @@ impl Info {
             )))
             .await?;
 
-        match rx.recv_deadline(Instant::now() + p2p_timeout) {
+        match rx.recv_deadline(Instant::now() + p2p_workflow_info_timeout) {
             Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info)))) => {
                 // store workflow receipts from info, as we've already stored
                 // the static information.

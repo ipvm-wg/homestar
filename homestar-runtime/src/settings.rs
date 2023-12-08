@@ -15,7 +15,7 @@ use std::{
 
 mod libp2p_config;
 mod pubkey_config;
-pub(crate) use libp2p_config::{Libp2p, Pubsub};
+pub(crate) use libp2p_config::{Dht, Libp2p, Pubsub};
 pub(crate) use pubkey_config::PubkeyConfig;
 
 #[cfg(target_os = "windows")]
