@@ -529,8 +529,15 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders {
                     key: _,
                     providers,
-                    ..
                 })) => {
+                    debug!(
+                        subject = "libp2p.kad.get_providers",
+                        category = "handle_swarm_event",
+                        providers = ?providers,
+
+                        "got workflow info providers"
+                    );
+
                     let Some((key, sender)) = event_handler.query_senders.remove(&id) else {
                         return;
                     };
@@ -787,23 +794,41 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 QueryResult::StartProviding(Ok(AddProviderOk { key })) => {
                     // Currently, we don't send anything to the <worker> channel,
                     // once they key is provided.
-                    let _ = event_handler.query_senders.remove(&id);
-                    debug!(
-                        subject = "libp2p.kad.provide_record",
-                        category = "handle_swarm_event",
-                        "successfully providing {key:#?}"
-                    );
+                    if let Some((
+                        RequestResponseKey {
+                            cid: ref cid_str,
+                            capsule_tag: CapsuleTag::Workflow,
+                        },
+                        _,
+                    )) = event_handler.query_senders.remove(&id)
+                    {
+                        debug!(
+                            subject = "libp2p.kad.provide_record",
+                            category = "handle_swarm_event",
+                            cid=%cid_str,
+                            "successfully providing {key:#?}"
+                        );
+                    }
                 }
                 QueryResult::StartProviding(Err(err)) => {
                     // Currently, we don't send anything to the <worker> channel,
                     // once they key is provided.
-                    let _ = event_handler.query_senders.remove(&id);
-                    warn!(
-                        subject = "libp2p.kad.provide_record.err",
-                        category = "handle_swarm_event",
-                        "error providing key: {:#?}",
-                        err.key()
-                    );
+                    if let Some((
+                        RequestResponseKey {
+                            cid: ref cid_str,
+                            capsule_tag: CapsuleTag::Workflow,
+                        },
+                        _,
+                    )) = event_handler.query_senders.remove(&id)
+                    {
+                        warn!(
+                            subject = "libp2p.kad.provide_record.err",
+                            category = "handle_swarm_event",
+                            cid=%cid_str,
+                            "error providing key: {:#?}",
+                            err.key()
+                        );
+                    }
                 }
                 _ => {}
             }
@@ -940,7 +965,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                       category = "handle_swarm_event",
                                       cid=?cid,
                                       peer_id = peer.to_string(),
-                                      "received workflow info to peer"
+                                      "received workflow info from peer"
                                 );
 
                                 #[cfg(feature = "websocket-notify")]
