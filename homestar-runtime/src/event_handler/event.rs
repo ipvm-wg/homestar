@@ -171,7 +171,6 @@ impl Event {
                     .map_err(anyhow::Error::new)?;
 
                 let key = RequestResponseKey::new(cid.to_string().into(), capsule_tag);
-
                 event_handler.query_senders.insert(query_id, (key, sender));
             }
             Event::Providers(Ok((providers, key, sender))) => {

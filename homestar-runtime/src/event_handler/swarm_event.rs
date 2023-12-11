@@ -529,8 +529,14 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 ),
                 QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders {
                     key: _,
-                    providers,
+                    mut providers,
                 })) => {
+                    let _ = providers.remove(event_handler.swarm.local_peer_id());
+
+                    if providers.is_empty() {
+                        return;
+                    }
+
                     debug!(
                         subject = "libp2p.kad.get_providers",
                         category = "handle_swarm_event",
