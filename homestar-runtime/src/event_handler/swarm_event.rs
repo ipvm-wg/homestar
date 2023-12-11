@@ -26,6 +26,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use futures::future::Ready;
 use homestar_core::{
     consts,
     workflow::{Pointer, Receipt as InvocationReceipt},
@@ -867,7 +868,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         event_handler.db.conn().ok(),
                         event_handler.p2p_workflow_info_timeout,
                         event_handler.p2p_provider_timeout,
-                        None::<fn(Cid, Option<Connection>) -> Result<workflow::Info>>,
+                        None::<fn(Cid, Option<Connection>) -> Ready<Result<workflow::Info>>>,
                     )
                     .await
                     {
