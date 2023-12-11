@@ -221,6 +221,7 @@ where
                     cid = cid.to_string(),
                     "found CID in in-memory linkmap"
                 );
+
                 Ok(result.to_owned())
             } else if let Some(bytes) = resources.read().await.get(&Resource::Cid(cid)) {
                 debug!(
@@ -229,6 +230,7 @@ where
                     cid = cid.to_string(),
                     "found CID in map of resources"
                 );
+
                 Ok(InstructionResult::Ok(Arg::Ipld(Ipld::Bytes(
                     bytes.to_vec(),
                 ))))
@@ -559,6 +561,7 @@ mod test {
 
         // first time check DHT for workflow info
         let workflow_info_event = rx.recv_async().await.unwrap();
+        let get_providers_event = rx.recv_async().await.unwrap();
 
         // we should have received 2 receipts
         let next_run_receipt = rx.recv_async().await.unwrap();
@@ -566,6 +569,11 @@ mod test {
 
         match workflow_info_event {
             Event::FindRecord(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
+            _ => panic!("Wrong event type"),
+        };
+
+        match get_providers_event {
+            Event::GetProviders(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
             _ => panic!("Wrong event type"),
         };
 
