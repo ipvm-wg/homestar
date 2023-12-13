@@ -2,7 +2,7 @@
 
 [node.monitoring]
 process_collector_interval = 500
-console_subscriber_port = 5545
+console_subscriber_port = 5540
 
 # Peer ID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN
 [node.network.keypair_config]
@@ -30,10 +30,10 @@ enable = false
 enable_client = false
 
 [node.network.metrics]
-port = 3985
+port = 3980
 
 [node.network.rpc]
-port = 9785
+port = 9780
 
 [node.network.webserver]
-port = 7985
+port = 7980

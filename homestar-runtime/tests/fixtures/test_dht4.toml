@@ -2,7 +2,7 @@
 
 [node.monitoring]
 process_collector_interval = 500
-console_subscriber_port = 5548
+console_subscriber_port = 5543
 
 # Peer ID 12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq
 [node.network.keypair_config]
@@ -22,7 +22,7 @@ workflow_quorum = 100
 enable = false
 
 [node.network.metrics]
-port = 3988
+port = 3983
 
 [node.network.libp2p.pubsub]
 enable = false
@@ -31,7 +31,7 @@ enable = false
 enable_client = false
 
 [node.network.rpc]
-port = 9788
+port = 9783
 
 [node.network.webserver]
-port = 7988
+port = 7983

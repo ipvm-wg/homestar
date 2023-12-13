@@ -45,7 +45,7 @@ fn test_libp2p_dht_records() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let ws_port1 = 7985;
+    let ws_port1 = 7980;
     if wait_for_socket_connection(ws_port1, 1000).is_err() {
         let _ = kill_homestar(homestar_proc1, None);
         panic!("Homestar server/runtime failed to start in time");
@@ -81,7 +81,7 @@ fn test_libp2p_dht_records() -> Result<()> {
             .spawn()
             .unwrap();
 
-        let ws_port2 = 7986;
+        let ws_port2 = 7981;
         if wait_for_socket_connection(ws_port2, 1000).is_err() {
             let _ = kill_homestar(homestar_proc2, None);
             panic!("Homestar server/runtime failed to start in time");
@@ -120,7 +120,7 @@ fn test_libp2p_dht_records() -> Result<()> {
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9785")
+            .arg("9780")
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one-part-one.json")
             .output();
@@ -174,7 +174,7 @@ fn test_libp2p_dht_records() -> Result<()> {
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9786")
+            .arg("9781")
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one-part-two.json")
             .output();
@@ -203,7 +203,7 @@ fn test_libp2p_dht_records() -> Result<()> {
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9786")
+            .arg("9781")
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one-part-one.json")
             .output();
@@ -316,7 +316,7 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let ws_port = 7987;
+    let ws_port = 7982;
     if wait_for_socket_connection(ws_port, 1000).is_err() {
         let _ = kill_homestar(homestar_proc1, None);
         panic!("Homestar server/runtime failed to start in time");
@@ -352,7 +352,7 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
             .spawn()
             .unwrap();
 
-        let ws_port2 = 7988;
+        let ws_port2 = 7983;
         if wait_for_socket_connection(ws_port2, 1000).is_err() {
             let _ = kill_homestar(homestar_proc1, None);
             panic!("Homestar server/runtime failed to start in time");
@@ -376,7 +376,7 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9787")
+            .arg("9782")
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
@@ -457,7 +457,7 @@ fn test_libp2p_dht_workflow_info_provider() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let ws_port1 = 7989;
+    let ws_port1 = 7984;
     if wait_for_socket_connection(ws_port1, 1000).is_err() {
         let _ = kill_homestar(homestar_proc1, None);
         panic!("Homestar server/runtime failed to start in time");
@@ -493,7 +493,7 @@ fn test_libp2p_dht_workflow_info_provider() -> Result<()> {
             .spawn()
             .unwrap();
 
-        let ws_port2 = 7990;
+        let ws_port2 = 7985;
         if wait_for_socket_connection(ws_port2, 1000).is_err() {
             let _ = kill_homestar(homestar_proc2, None);
             panic!("Homestar server/runtime failed to start in time");
@@ -532,7 +532,7 @@ fn test_libp2p_dht_workflow_info_provider() -> Result<()> {
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9789")
+            .arg("9784")
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
@@ -544,7 +544,7 @@ fn test_libp2p_dht_workflow_info_provider() -> Result<()> {
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9790")
+            .arg("9785")
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();

@@ -46,7 +46,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let ws_port = 7991;
+    let ws_port = 7990;
     if wait_for_socket_connection(ws_port, 1000).is_err() {
         let _ = kill_homestar(homestar_proc1, None);
         panic!("Homestar server/runtime failed to start in time");
@@ -82,7 +82,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             .spawn()
             .unwrap();
 
-        let ws_port2 = 7992;
+        let ws_port2 = 7991;
         if wait_for_socket_connection(ws_port2, 1000).is_err() {
             let _ = kill_homestar(homestar_proc1, None);
             panic!("Homestar server/runtime failed to start in time");
@@ -121,7 +121,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9791")
+            .arg("9790")
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();

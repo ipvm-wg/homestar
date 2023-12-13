@@ -2,7 +2,7 @@
 
 [node.monitoring]
 process_collector_interval = 500
-console_subscriber_port = 5552
+console_subscriber_port = 5551
 
 # Peer ID 16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc
 [node.network.keypair_config]
@@ -18,13 +18,13 @@ node_addresses = [
 enable = false
 
 [node.network.metrics]
-port = 3992
+port = 3991
 
 [node.network.libp2p.rendezvous]
 enable_client = false
 
 [node.network.rpc]
-port = 9792
+port = 9791
 
 [node.network.webserver]
-port = 7992
+port = 7991
