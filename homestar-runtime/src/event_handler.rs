@@ -57,8 +57,6 @@ pub(crate) struct EventHandler<DB: Database> {
     workflow_quorum: usize,
     /// Timeout for p2p workflow info record requests.
     p2p_workflow_info_timeout: Duration,
-    /// Timeout for p2p provider requests.
-    p2p_provider_timeout: Duration,
     /// Accessible database instance.
     db: DB,
     /// [libp2p::swarm::Swarm] swarm instance.
@@ -105,8 +103,6 @@ pub(crate) struct EventHandler<DB: Database> {
     workflow_quorum: usize,
     /// Timeout for p2p workflow info record requests.
     p2p_workflow_info_timeout: Duration,
-    /// Timeout for p2p provider requests.
-    p2p_provider_timeout: Duration,
     /// Accesible database instance.
     db: DB,
     /// [libp2p::swarm::Swarm] swarm instance.
@@ -179,7 +175,6 @@ where
             receipt_quorum: settings.libp2p.dht.receipt_quorum,
             workflow_quorum: settings.libp2p.dht.workflow_quorum,
             p2p_workflow_info_timeout: settings.libp2p.dht.p2p_workflow_info_timeout,
-            p2p_provider_timeout: settings.libp2p.dht.p2p_provider_timeout,
             db,
             swarm,
             cache: Arc::new(setup_cache(sender.clone())),
@@ -219,7 +214,6 @@ where
         Self {
             receipt_quorum: settings.libp2p.dht.receipt_quorum,
             workflow_quorum: settings.libp2p.dht.workflow_quorum,
-            p2p_provider_timeout: settings.libp2p.dht.p2p_provider_timeout,
             db,
             swarm,
             cache: Arc::new(setup_cache(sender.clone())),

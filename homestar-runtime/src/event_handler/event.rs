@@ -9,7 +9,7 @@ use crate::event_handler::notification::{
 use crate::network::IpfsCli;
 use crate::{
     db::Database,
-    event_handler::{channel::AsyncChannelSender, Handler, P2PSender, ResponseEvent},
+    event_handler::{channel::AsyncChannelSender, Handler, P2PSender},
     network::{
         pubsub,
         swarm::{CapsuleTag, RequestResponseKey, TopicMessage},
@@ -169,7 +169,6 @@ impl Event {
                     .kademlia
                     .start_providing(Key::new(&cid.to_bytes()))
                     .map_err(anyhow::Error::new)?;
-
                 let key = RequestResponseKey::new(cid.to_string().into(), capsule_tag);
                 event_handler.query_senders.insert(query_id, (key, sender));
             }
@@ -546,14 +545,6 @@ impl QueryRecord {
     where
         DB: Database,
     {
-        if event_handler.connections.peers.is_empty() {
-            if let Some(sender) = self.sender {
-                let _ = sender.send_async(ResponseEvent::NoPeersAvailable).await;
-            }
-
-            return;
-        }
-
         let id = event_handler
             .swarm
             .behaviour_mut()
@@ -568,14 +559,6 @@ impl QueryRecord {
     where
         DB: Database,
     {
-        if event_handler.connections.peers.is_empty() {
-            if let Some(sender) = self.sender {
-                let _ = sender.send_async(ResponseEvent::NoPeersAvailable).await;
-            }
-
-            return;
-        }
-
         event_handler
             .swarm
             .behaviour_mut()
@@ -593,14 +576,6 @@ impl QueryRecord {
     where
         DB: Database,
     {
-        if event_handler.connections.peers.is_empty() {
-            if let Some(sender) = self.sender {
-                let _ = sender.send_async(ResponseEvent::NoPeersAvailable).await;
-            }
-
-            return;
-        }
-
         let id = event_handler
             .swarm
             .behaviour_mut()

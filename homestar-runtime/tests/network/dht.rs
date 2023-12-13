@@ -395,7 +395,13 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
                     workflow_info_quorum_failure = true
                 }
             } else {
-                panic!("Node one did not establish a connection with node two in time.")
+                panic!(
+                    r#"Expected notifications from node one did not arrive in time:
+  - Receipt quorum failure: {}
+  - Workflow info failure: {}
+  "#,
+                    receipt_quorum_failure, workflow_info_quorum_failure
+                );
             }
 
             if receipt_quorum_failure && workflow_info_quorum_failure {
@@ -422,6 +428,233 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
 
         assert!(receipt_quorum_failure_logged);
         assert!(workflow_info_quorum_failure_logged);
+    });
+
+    remove_db(DB1);
+    remove_db(DB2);
+
+    Ok(())
+}
+
+#[test]
+#[file_serial]
+fn test_libp2p_dht_workflow_info_provider() -> Result<()> {
+    const DB1: &str = "test_libp2p_dht_workflow_info_provider_records1.db";
+    const DB2: &str = "test_libp2p_dht_workflow_info_provider_records2.db";
+    let _ = stop_homestar();
+
+    let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg("tests/fixtures/test_dht5.toml")
+        .arg("--db")
+        .arg(DB1)
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let ws_port1 = 7989;
+    if wait_for_socket_connection(ws_port1, 1000).is_err() {
+        let _ = kill_homestar(homestar_proc1, None);
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
+    tokio_test::block_on(async {
+        let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
+        let client = WsClientBuilder::default()
+            .build(ws_url.clone())
+            .await
+            .unwrap();
+
+        let mut sub1: Subscription<Vec<u8>> = client
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
+
+        let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env(
+                "RUST_LOG",
+                "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+            )
+            .arg("start")
+            .arg("-c")
+            .arg("tests/fixtures/test_dht6.toml")
+            .arg("--db")
+            .arg(DB2)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let ws_port2 = 7990;
+        if wait_for_socket_connection(ws_port2, 1000).is_err() {
+            let _ = kill_homestar(homestar_proc2, None);
+            panic!("Homestar server/runtime failed to start in time");
+        }
+
+        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
+        let client2 = WsClientBuilder::default()
+            .build(ws_url2.clone())
+            .await
+            .unwrap();
+
+        let mut sub2: Subscription<Vec<u8>> = client2
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
+
+        // Poll for connection established message
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                    break;
+                }
+            } else {
+                panic!("Node one did not establish a connection with node two in time.")
+            }
+        }
+
+        // Run test workflow on node one
+        let _ = Command::new(BIN.as_os_str())
+            .arg("run")
+            .arg("-p")
+            .arg("9789")
+            .arg("-w")
+            .arg("tests/fixtures/test-workflow-add-one.json")
+            .output();
+
+        // Run the same workflow run on node two.
+        // Node two should be request workflow info from
+        // node one instead of waiting to get the record
+        // from the DHT.
+        let _ = Command::new(BIN.as_os_str())
+            .arg("run")
+            .arg("-p")
+            .arg("9790")
+            .arg("-w")
+            .arg("tests/fixtures/test-workflow-add-one.json")
+            .output();
+
+        // Poll for sent workflow info message
+        let sent_workflow_info_cid: Cid;
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(60)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["type"].as_str().unwrap() == "network:sentWorkflowInfo" {
+                    sent_workflow_info_cid = Cid::from_str(json["data"]["cid"].as_str().unwrap())
+                        .expect("Unable to parse sent workflow info CID.");
+                    break;
+                }
+            } else {
+                panic!("Node one did not send workflow info in time.")
+            }
+        }
+
+        assert_eq!(
+            sent_workflow_info_cid.to_string(),
+            "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq"
+        );
+
+        // Poll for retrieved workflow info message
+        let received_workflow_info_cid: Cid;
+        loop {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["type"].as_str().unwrap() == "network:receivedWorkflowInfo" {
+                    received_workflow_info_cid =
+                        Cid::from_str(json["data"]["cid"].as_str().unwrap())
+                            .expect("Unable to parse received workflow info CID.");
+                    break;
+                }
+            } else {
+                panic!("Node two did not get workflow info in time.")
+            }
+        }
+
+        assert_eq!(
+            received_workflow_info_cid.to_string(),
+            "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq"
+        );
+
+        // Check database for workflow info
+        let settings =
+            Settings::load_from_file(PathBuf::from("tests/fixtures/test_dht6.toml")).unwrap();
+        let db = Db::setup_connection_pool(settings.node(), Some(DB2.to_string()))
+            .expect("Failed to connect to node two database");
+
+        let stored_workflow_info =
+            Db::get_workflow_info(received_workflow_info_cid, &mut db.conn().unwrap());
+
+        assert!(stored_workflow_info.is_ok());
+
+        // Collect logs then kill proceses.
+        let dead_proc1 = kill_homestar(homestar_proc1, None);
+        let dead_proc2 = kill_homestar(homestar_proc2, None);
+
+        // Retrieve logs.
+        let stdout1 = retrieve_output(dead_proc1);
+        let stdout2 = retrieve_output(dead_proc2);
+
+        // Check node one providing workflow info
+        let providing_workflow_info_logged = check_lines_for(
+            stdout1.clone(),
+            vec![
+                "successfully providing",
+                "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq",
+            ],
+        );
+
+        // Check node two got workflow info providers
+        let got_workflow_info_provider_logged = check_lines_for(
+            stdout2.clone(),
+            vec![
+                "got workflow info providers",
+                "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+            ],
+        );
+
+        // Check node one sent workflow info
+        let sent_workflow_info_logged = check_lines_for(
+            stdout1.clone(),
+            vec![
+                "sent workflow info to peer",
+                "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+                "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq",
+            ],
+        );
+
+        // Check node two received workflow info
+        let received_workflow_info_logged = check_lines_for(
+            stdout2.clone(),
+            vec![
+                "received workflow info from peer",
+                "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+                "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq",
+            ],
+        );
+
+        assert!(providing_workflow_info_logged);
+        assert!(got_workflow_info_provider_logged);
+        assert!(sent_workflow_info_logged);
+        assert!(received_workflow_info_logged);
     });
 
     remove_db(DB1);

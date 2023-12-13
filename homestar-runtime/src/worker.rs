@@ -262,11 +262,6 @@ where
                                     "failure in attempting to find event: {err}"
                                 )))
                             }
-                            Ok(ResponseEvent::NoPeersAvailable) => {
-                                bail!(ResolveError::UnresolvedCid(
-                                    "no peers available to communicate with".to_string()
-                                ))
-                            }
                             Ok(_) => bail!(ResolveError::UnresolvedCid(
                                 "wrong or unexpected event message received".to_string(),
                             )),
@@ -561,7 +556,6 @@ mod test {
 
         // first time check DHT for workflow info
         let workflow_info_event = rx.recv_async().await.unwrap();
-        let get_providers_event = rx.recv_async().await.unwrap();
 
         // we should have received 2 receipts
         let next_run_receipt = rx.recv_async().await.unwrap();
@@ -569,11 +563,6 @@ mod test {
 
         match workflow_info_event {
             Event::FindRecord(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
-            _ => panic!("Wrong event type"),
-        };
-
-        match get_providers_event {
-            Event::GetProviders(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
             _ => panic!("Wrong event type"),
         };
 

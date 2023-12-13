@@ -10,11 +10,10 @@ use crate::{
     network::swarm::CapsuleTag,
     settings, Db, Receipt,
 };
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Result};
 use chrono::{NaiveDateTime, Utc};
 use diesel::{Associations, Identifiable, Insertable, Queryable, Selectable};
 use faststr::FastStr;
-use futures::Future;
 use homestar_core::{ipld::DagJson, workflow::Pointer};
 use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Cid, Ipld};
 use serde::{Deserialize, Serialize};
@@ -319,44 +318,6 @@ impl Info {
                     event_sender.clone(),
                     Some(conn),
                     network_settings.p2p_workflow_info_timeout,
-                    network_settings.p2p_provider_timeout,
-                    Some(
-                        move |_cid, conn| async move {
-                            let (provider_tx, provider_rx) = AsyncChannel::oneshot();
-                            let _ = event_sender
-                                .send_async(Event::GetProviders(QueryRecord::with(
-                                    workflow_cid,
-                                    CapsuleTag::Workflow,
-                                    Some(provider_tx),
-                                )))
-                                .await;
-
-                            match provider_rx.recv_deadline(Instant::now() + network_settings.p2p_provider_timeout) {
-                                Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info)))) => {
-                                    // store workflow receipts from info, as we've already stored
-                                    // the static information.
-                                    if let Some(mut conn) = conn {
-                                        Db::store_workflow_receipts(
-                                            workflow_cid,
-                                            &workflow_info.progress,
-                                            &mut conn,
-                                        )?;
-                                    }
-
-                                    Ok(workflow_info)
-                                }
-                                Ok(ResponseEvent::Found(Err(err))) => {
-                                    bail!("failure attempting to retrieve workflow info from provider: {err}")
-                                }
-                                Ok(event) => {
-                                    bail!("received unexpected event {event:?} for workflow {workflow_cid}")
-                                }
-                                Err(_err) => {
-                                    bail!("could not retrieve worflow info from a provider")
-                                }
-                            }
-                        }
-                    )
                 ));
 
                 Ok((workflow_info, timestamp))
@@ -366,17 +327,12 @@ impl Info {
 
     /// Gather available [Info] from the database or [libp2p] given a
     /// workflow [Cid].
-    pub(crate) async fn gather<'a, F>(
+    pub(crate) async fn gather<'a>(
         workflow_cid: Cid,
         event_sender: Arc<AsyncChannelSender<Event>>,
         mut conn: Option<Connection>,
         p2p_workflow_info_timeout: Duration,
-        p2p_provider_timeout: Duration,
-        handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> F>,
-    ) -> Result<Self>
-    where
-        F: Future<Output = Result<Self>>,
-    {
+    ) -> Result<Self> {
         let workflow_info = match conn
             .as_mut()
             .and_then(|conn| Db::get_workflow_info(workflow_cid, conn).ok())
@@ -395,8 +351,6 @@ impl Info {
                     event_sender,
                     conn,
                     p2p_workflow_info_timeout,
-                    p2p_provider_timeout,
-                    handle_timeout_fn,
                 )
                 .await
             }
@@ -405,17 +359,12 @@ impl Info {
         Ok(workflow_info)
     }
 
-    async fn retrieve_from_query<'a, F>(
+    async fn retrieve_from_query<'a>(
         workflow_cid: Cid,
         event_sender: Arc<AsyncChannelSender<Event>>,
         conn: Option<Connection>,
         p2p_workflow_info_timeout: Duration,
-        _p2p_provider_timeout: Duration,
-        handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> F>,
-    ) -> Result<Info>
-    where
-        F: Future<Output = Result<Info>>,
-    {
+    ) -> Result<Info> {
         let (tx, rx) = AsyncChannel::oneshot();
         event_sender
             .send_async(Event::FindRecord(QueryRecord::with(
@@ -441,10 +390,9 @@ impl Info {
             Ok(event) => {
                 bail!("received unexpected event {event:?} for workflow {workflow_cid}")
             }
-            Err(err) => match handle_timeout_fn {
-                Some(f) => f(workflow_cid, conn).await.context(err),
-                None => bail!("timeout deadline reached for retrieving workflow info"),
-            },
+            Err(err) => {
+                bail!("timeout deadline reached for retrieving workflow info: {err}")
+            }
         }
     }
 }

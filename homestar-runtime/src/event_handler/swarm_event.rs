@@ -6,7 +6,7 @@ use crate::event_handler::notification::{self, EventNotificationTyp, SwarmNotifi
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
-    db::{Connection, Database},
+    db::Database,
     event_handler::{
         cache::{self, CacheData, CacheValue},
         event::QueryRecord,
@@ -26,7 +26,6 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use futures::future::Ready;
 use homestar_core::{
     consts,
     workflow::{Pointer, Receipt as InvocationReceipt},
@@ -62,8 +61,6 @@ const RENDEZVOUS_NAMESPACE: &str = "homestar";
 pub(crate) enum ResponseEvent {
     /// Found [PeerRecord] on the DHT.
     Found(Result<FoundEvent>),
-    /// No peers available to network with on the DHT.
-    NoPeersAvailable,
     /// Found providers/[PeerId]s on the DHT.
     Providers(Result<HashSet<PeerId>>),
 }
@@ -689,6 +686,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                             }
                         }
                         Some((RequestResponseKey { capsule_tag, .. }, sender)) => {
+                            // TODO Query sender already removed?
                             let _ = event_handler.query_senders.remove(&id);
                             if let Some(sender) = sender {
                                 let _ = sender
@@ -873,8 +871,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         event_handler.sender.clone(),
                         event_handler.db.conn().ok(),
                         event_handler.p2p_workflow_info_timeout,
-                        event_handler.p2p_provider_timeout,
-                        None::<fn(Cid, Option<Connection>) -> Ready<Result<workflow::Info>>>,
                     )
                     .await
                     {
