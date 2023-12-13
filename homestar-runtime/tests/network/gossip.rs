@@ -1,5 +1,5 @@
 use crate::utils::{
-    check_lines_for, kill_homestar, remove_db, retrieve_output, stop_homestar,
+    check_for_line_with, kill_homestar, remove_db, retrieve_output, stop_homestar,
     wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
 };
 use anyhow::Result;
@@ -180,10 +180,10 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
 
         // Check node one published a receipt
         let message_published =
-            check_lines_for(stdout1, vec!["message published on receipts topic"]);
+            check_for_line_with(stdout1, vec!["message published on receipts topic"]);
 
         // Check node two received a receipt from node one
-        let message_received = check_lines_for(
+        let message_received = check_for_line_with(
             stdout2,
             vec![
                 "message received on receipts topic",

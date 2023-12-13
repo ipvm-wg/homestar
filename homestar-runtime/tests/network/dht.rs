@@ -1,5 +1,5 @@
 use crate::utils::{
-    check_lines_for, kill_homestar, remove_db, retrieve_output, stop_homestar,
+    check_for_line_with, kill_homestar, remove_db, retrieve_output, stop_homestar,
     wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
 };
 use anyhow::Result;
@@ -256,13 +256,13 @@ fn test_libp2p_dht_records() -> Result<()> {
         let stdout2 = retrieve_output(dead_proc2);
 
         // Check node one put receipt and workflow info
-        let put_receipt_logged = check_lines_for(stdout1.clone(), vec!["receipt PUT onto DHT"]);
+        let put_receipt_logged = check_for_line_with(stdout1.clone(), vec!["receipt PUT onto DHT"]);
         let put_workflow_info_logged =
-            check_lines_for(stdout1.clone(), vec!["workflow info PUT onto DHT"]);
+            check_for_line_with(stdout1.clone(), vec!["workflow info PUT onto DHT"]);
         let receipt_quorum_success_logged =
-            check_lines_for(stdout1.clone(), vec!["quorum success for receipt record"]);
+            check_for_line_with(stdout1.clone(), vec!["quorum success for receipt record"]);
         let workflow_info_quorum_success_logged =
-            check_lines_for(stdout1, vec!["quorum success for workflow info record"]);
+            check_for_line_with(stdout1, vec!["quorum success for workflow info record"]);
 
         assert!(put_receipt_logged);
         assert!(put_workflow_info_logged);
@@ -270,14 +270,14 @@ fn test_libp2p_dht_records() -> Result<()> {
         assert!(workflow_info_quorum_success_logged);
 
         // Check node two received a receipt and workflow info from node one
-        let retrieved_receipt_logged = check_lines_for(
+        let retrieved_receipt_logged = check_for_line_with(
             stdout2.clone(),
             vec![
                 "found receipt record",
                 "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
             ],
         );
-        let retrieved_workflow_info_logged = check_lines_for(
+        let retrieved_workflow_info_logged = check_for_line_with(
             stdout2,
             vec![
                 "found workflow info",
@@ -417,11 +417,11 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
         let stdout1 = retrieve_output(dead_proc1);
 
         // Check that receipt and workflow info quorums failed
-        let receipt_quorum_failure_logged = check_lines_for(
+        let receipt_quorum_failure_logged = check_for_line_with(
             stdout1.clone(),
             vec!["QuorumFailed", "error propagating receipt record"],
         );
-        let workflow_info_quorum_failure_logged = check_lines_for(
+        let workflow_info_quorum_failure_logged = check_for_line_with(
             stdout1,
             vec!["QuorumFailed", "error propagating workflow info record"],
         );
@@ -614,7 +614,7 @@ fn test_libp2p_dht_workflow_info_provider() -> Result<()> {
         let stdout2 = retrieve_output(dead_proc2);
 
         // Check node one providing workflow info
-        let providing_workflow_info_logged = check_lines_for(
+        let providing_workflow_info_logged = check_for_line_with(
             stdout1.clone(),
             vec![
                 "successfully providing",
@@ -623,7 +623,7 @@ fn test_libp2p_dht_workflow_info_provider() -> Result<()> {
         );
 
         // Check node two got workflow info providers
-        let got_workflow_info_provider_logged = check_lines_for(
+        let got_workflow_info_provider_logged = check_for_line_with(
             stdout2.clone(),
             vec![
                 "got workflow info providers",
@@ -632,7 +632,7 @@ fn test_libp2p_dht_workflow_info_provider() -> Result<()> {
         );
 
         // Check node one sent workflow info
-        let sent_workflow_info_logged = check_lines_for(
+        let sent_workflow_info_logged = check_for_line_with(
             stdout1.clone(),
             vec![
                 "sent workflow info to peer",
@@ -642,7 +642,7 @@ fn test_libp2p_dht_workflow_info_provider() -> Result<()> {
         );
 
         // Check node two received workflow info
-        let received_workflow_info_logged = check_lines_for(
+        let received_workflow_info_logged = check_for_line_with(
             stdout2.clone(),
             vec![
                 "received workflow info from peer",

@@ -1,6 +1,6 @@
 use crate::utils::{
-    check_lines_for, count_lines_where, kill_homestar, remove_db, retrieve_output, stop_homestar,
-    wait_for_socket_connection, wait_for_socket_connection_v6, BIN_NAME,
+    check_for_line_with, count_lines_where, kill_homestar, remove_db, retrieve_output,
+    stop_homestar, wait_for_socket_connection, wait_for_socket_connection_v6, BIN_NAME,
 };
 use anyhow::Result;
 use once_cell::sync::Lazy;
@@ -45,7 +45,7 @@ fn test_libp2p_generates_peer_id_serial() -> Result<()> {
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
-    let logs_expected = check_lines_for(
+    let logs_expected = check_for_line_with(
         stdout,
         vec![
             "local peer ID generated",
@@ -83,7 +83,7 @@ fn test_libp2p_listens_on_address_serial() -> Result<()> {
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
-    let logs_expected = check_lines_for(
+    let logs_expected = check_for_line_with(
         stdout,
         vec![
             "local node is listening",
@@ -122,7 +122,7 @@ fn test_rpc_listens_on_address_serial() -> Result<()> {
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
-    let logs_expected = check_lines_for(stdout, vec!["RPC server listening", "[::1]:9820"]);
+    let logs_expected = check_for_line_with(stdout, vec!["RPC server listening", "[::1]:9820"]);
 
     assert!(logs_expected);
 
@@ -154,7 +154,7 @@ fn test_websocket_listens_on_address_serial() -> Result<()> {
 
     let dead_proc = kill_homestar(homestar_proc, None);
     let stdout = retrieve_output(dead_proc);
-    let logs_expected = check_lines_for(stdout, vec!["webserver listening", "127.0.0.1:8020"]);
+    let logs_expected = check_for_line_with(stdout, vec!["webserver listening", "127.0.0.1:8020"]);
 
     assert!(logs_expected);
 
@@ -219,7 +219,7 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     let stdout2 = retrieve_output(dead_proc2);
 
     // Check node two was added to the Kademlia table
-    let two_addded_to_dht = check_lines_for(
+    let two_addded_to_dht = check_for_line_with(
         stdout1.clone(),
         vec![
             "added configured node to kademlia routing table",
@@ -228,7 +228,7 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     );
 
     // Check that DHT routing table was updated with node two
-    let two_in_dht_routing_table = check_lines_for(
+    let two_in_dht_routing_table = check_for_line_with(
         stdout1.clone(),
         vec![
             "kademlia routing table updated with peer",
@@ -237,7 +237,7 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     );
 
     // Check that node one connected to node two.
-    let one_connected_to_two = check_lines_for(
+    let one_connected_to_two = check_for_line_with(
         stdout1,
         vec![
             "peer connection established",
@@ -250,7 +250,7 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     assert!(two_addded_to_dht);
 
     // Check node one was added to the Kademlia table
-    let one_addded_to_dht = check_lines_for(
+    let one_addded_to_dht = check_for_line_with(
         stdout2.clone(),
         vec![
             "added configured node to kademlia routing table",
@@ -259,7 +259,7 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     );
 
     // Check that DHT routing table was updated with node one
-    let one_in_dht_routing_table = check_lines_for(
+    let one_in_dht_routing_table = check_for_line_with(
         stdout2.clone(),
         vec![
             "kademlia routing table updated with peer",
@@ -268,7 +268,7 @@ fn test_libp2p_connect_known_peers_serial() -> Result<()> {
     );
 
     // Check that node two connected to node one.
-    let two_connected_to_one = check_lines_for(
+    let two_connected_to_one = check_for_line_with(
         stdout2,
         vec![
             "peer connection established",
@@ -342,7 +342,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     let stdout2 = retrieve_output(dead_proc2);
 
     // Check that node one connected to node two.
-    let one_connected_to_two = check_lines_for(
+    let one_connected_to_two = check_for_line_with(
         stdout1.clone(),
         vec![
             "peer connection established",
@@ -351,7 +351,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     );
 
     // Check node two was added to the Kademlia table
-    let two_addded_to_dht = check_lines_for(
+    let two_addded_to_dht = check_for_line_with(
         stdout1.clone(),
         vec![
             "added identified node to kademlia routing table",
@@ -360,7 +360,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     );
 
     // Check that DHT routing table was updated with node two
-    let two_in_dht_routing_table = check_lines_for(
+    let two_in_dht_routing_table = check_for_line_with(
         stdout1,
         vec![
             "kademlia routing table updated with peer",
@@ -373,7 +373,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     assert!(two_in_dht_routing_table);
 
     // Check that node two connected to node one.
-    let two_connected_to_one = check_lines_for(
+    let two_connected_to_one = check_for_line_with(
         stdout2.clone(),
         vec![
             "peer connection established",
@@ -382,7 +382,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     );
 
     // Check node one was added to the Kademlia table
-    let one_addded_to_dht = check_lines_for(
+    let one_addded_to_dht = check_for_line_with(
         stdout2.clone(),
         vec![
             "added identified node to kademlia routing table",
@@ -391,7 +391,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     );
 
     // Check that DHT routing table was updated with node one
-    let one_in_dht_routing_table = check_lines_for(
+    let one_in_dht_routing_table = check_for_line_with(
         stdout2,
         vec![
             "kademlia routing table updated with peer",
@@ -491,7 +491,7 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
     let stdout_client2 = retrieve_output(dead_client2);
 
     // Check rendezvous server registered the client one
-    let registered_client_one = check_lines_for(
+    let registered_client_one = check_for_line_with(
         stdout_server.clone(),
         vec![
             "registered peer through rendezvous",
@@ -500,7 +500,7 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
     );
 
     // Check rendezvous served a discover request to client two
-    let served_discovery_to_client_two = check_lines_for(
+    let served_discovery_to_client_two = check_for_line_with(
         stdout_server.clone(),
         vec![
             "served rendezvous discover request to peer",
@@ -512,7 +512,7 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
     assert!(served_discovery_to_client_two);
 
     // Check that client two connected to client one.
-    let two_connected_to_one = check_lines_for(
+    let two_connected_to_one = check_for_line_with(
         stdout_client2.clone(),
         vec![
             "peer connection established",
@@ -521,7 +521,7 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
     );
 
     // Check client one was added to the Kademlia table
-    let one_addded_to_dht = check_lines_for(
+    let one_addded_to_dht = check_for_line_with(
         stdout_client2.clone(),
         vec![
             "added identified node to kademlia routing table",
@@ -530,7 +530,7 @@ fn test_libp2p_connect_rendezvous_discovery_serial() -> Result<()> {
     );
 
     // Check that DHT routing table was updated with client one
-    let one_in_dht_routing_table = check_lines_for(
+    let one_in_dht_routing_table = check_for_line_with(
         stdout_client2.clone(),
         vec![
             "kademlia routing table updated with peer",
@@ -606,7 +606,7 @@ fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
     let stdout = retrieve_output(dead_proc1);
 
     // Check that node two disconnected from node one.
-    let two_disconnected_from_one = check_lines_for(
+    let two_disconnected_from_one = check_for_line_with(
         stdout.clone(),
         vec![
             "peer connection closed",
@@ -615,7 +615,7 @@ fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
     );
 
     // Check that node two was removed from the Kademlia table
-    let two_removed_from_dht_table = check_lines_for(
+    let two_removed_from_dht_table = check_for_line_with(
         stdout.clone(),
         vec![
             "removed peer from kademlia table",
@@ -689,7 +689,7 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
     let stdout = retrieve_output(dead_proc1);
 
     // Check that node two disconnected from node one.
-    let two_disconnected_from_one = check_lines_for(
+    let two_disconnected_from_one = check_for_line_with(
         stdout.clone(),
         vec![
             "peer connection closed",
@@ -698,7 +698,7 @@ fn test_libp2p_disconnect_known_peers_serial() -> Result<()> {
     );
 
     // Check that node two was not removed from the Kademlia table.
-    let two_removed_from_dht_table = check_lines_for(
+    let two_removed_from_dht_table = check_for_line_with(
         stdout.clone(),
         vec![
             "removed peer from kademlia table",
@@ -798,7 +798,7 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
     let stdout = retrieve_output(dead_client2);
 
     // Check that client two disconnected from client one.
-    let two_disconnected_from_one = check_lines_for(
+    let two_disconnected_from_one = check_for_line_with(
         stdout.clone(),
         vec![
             "peer connection closed",
@@ -807,7 +807,7 @@ fn test_libp2p_disconnect_rendezvous_discovery_serial() -> Result<()> {
     );
 
     // Check that client two was removed from the Kademlia table
-    let two_removed_from_dht_table = check_lines_for(
+    let two_removed_from_dht_table = check_for_line_with(
         stdout.clone(),
         vec![
             "removed peer from kademlia table",
