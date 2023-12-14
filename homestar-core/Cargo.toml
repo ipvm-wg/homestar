@@ -32,7 +32,7 @@ generic-array = { version = "1.0", default-features = false, features = [
 ] }
 indexmap = { version = "2.1", default-features = false }
 libipld = { workspace = true }
-libsqlite3-sys = { version = "0.26", default-features = false, features = [
+libsqlite3-sys = { version = "0.27", default-features = false, features = [
   "bundled",
 ] }
 once_cell = { version = "1.18", default-features = false, optional = true }
