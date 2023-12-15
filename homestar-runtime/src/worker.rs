@@ -244,6 +244,7 @@ where
                             category = "worker.run",
                             "no related instruction receipt found in the DB"
                         );
+
                         let (tx, rx) = AsyncChannel::oneshot();
                         let _ = event_sender
                             .send_async(Event::FindRecord(QueryRecord::with(
@@ -270,12 +271,19 @@ where
                             ))),
                         };
 
-                        let receipt =
-                            Db::commit_receipt(workflow_cid, found.clone(), conn).unwrap_or(found);
+                        let receipt = Db::commit_receipt(workflow_cid, found.clone().receipt, conn)
+                            .unwrap_or(found.clone().receipt);
                         let found_result = receipt.output_as_arg();
 
                         // Store the result in the linkmap for use in next iterations.
                         insert_into_map(linkmap.clone(), cid, found_result.clone()).await;
+
+                        // TODO Check this event is sent when we've updated the receipt
+                        // retrieval mechanism.
+                        let _ = event_sender
+                            .send_async(Event::StoredRecord(FoundEvent::Receipt(found)))
+                            .await;
+
                         Ok(found_result)
                     }
                 }

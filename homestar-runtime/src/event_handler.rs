@@ -214,6 +214,7 @@ where
         Self {
             receipt_quorum: settings.libp2p.dht.receipt_quorum,
             workflow_quorum: settings.libp2p.dht.workflow_quorum,
+            p2p_workflow_info_timeout: settings.libp2p.dht.p2p_workflow_info_timeout,
             db,
             swarm,
             cache: Arc::new(setup_cache(sender.clone())),

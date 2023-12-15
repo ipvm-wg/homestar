@@ -94,6 +94,7 @@ impl<'a> WorkerBuilder<'a> {
         let workflow = Workflow::new(vec![task1, task2]);
         let workflow_cid = workflow.clone().to_cid().unwrap();
 
+        #[cfg(feature = "ipfs")]
         let ipfs = IpfsCli::new(settings.network.ipfs()).unwrap();
         Self {
             #[cfg(feature = "ipfs")]

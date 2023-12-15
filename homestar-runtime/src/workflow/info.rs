@@ -375,14 +375,23 @@ impl Info {
             .await?;
 
         match rx.recv_deadline(Instant::now() + p2p_workflow_info_timeout) {
-            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info)))) => {
+            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event)))) => {
+                // TODO Send this event after storing in the database
+                let _ = event_sender
+                    .send_async(Event::StoredRecord(FoundEvent::Workflow(event.clone())))
+                    .await;
+
                 // store workflow receipts from info, as we've already stored
                 // the static information.
                 if let Some(mut conn) = conn {
-                    Db::store_workflow_receipts(workflow_cid, &workflow_info.progress, &mut conn)?;
+                    Db::store_workflow_receipts(
+                        workflow_cid,
+                        &event.workflow_info.progress,
+                        &mut conn,
+                    )?;
                 }
 
-                Ok(workflow_info)
+                Ok(event.workflow_info)
             }
             Ok(ResponseEvent::Found(Err(err))) => {
                 bail!("failure in attempting to find event: {err}")

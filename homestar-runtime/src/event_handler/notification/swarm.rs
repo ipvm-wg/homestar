@@ -6,6 +6,8 @@ use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
 
+use super::EventNotificationTyp;
+
 // Swarm notification types sent to clients
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum SwarmNotification {
@@ -104,5 +106,17 @@ impl FromStr for SwarmNotification {
             "receivedWorkflowInfo" => Ok(Self::ReceivedWorkflowInfo),
             _ => Err(anyhow!("Missing swarm notification type: {}", ty)),
         }
+    }
+}
+
+pub(crate) fn workflow_info_source_label<'a>(typ: EventNotificationTyp) -> Option<&'a str> {
+    match typ {
+        EventNotificationTyp::SwarmNotification(SwarmNotification::ReceivedWorkflowInfo) => {
+            Some("provider")
+        }
+        EventNotificationTyp::SwarmNotification(SwarmNotification::GotWorkflowInfoDht) => {
+            Some("publisher")
+        }
+        _ => None,
     }
 }

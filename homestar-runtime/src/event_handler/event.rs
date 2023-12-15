@@ -1,9 +1,13 @@
 //! Internal [Event] type and [Handler] implementation.
 
-use super::EventHandler;
+use super::{swarm_event::FoundEvent, EventHandler};
 #[cfg(feature = "websocket-notify")]
-use crate::event_handler::notification::{
-    self, emit_receipt, EventNotificationTyp, SwarmNotification,
+use crate::event_handler::{
+    notification::{
+        self, emit_receipt, swarm::workflow_info_source_label, EventNotificationTyp,
+        SwarmNotification,
+    },
+    swarm_event::{ReceiptEvent, WorkflowInfoEvent},
 };
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
@@ -105,6 +109,8 @@ pub(crate) enum Event {
     FindRecord(QueryRecord),
     /// Remove a given record from the DHT, e.g. a [Receipt].
     RemoveRecord(QueryRecord),
+    /// [Receipt] or [workflow::Info] stored event.
+    StoredRecord(FoundEvent),
     /// Outbound request event to pull data from peers.
     OutboundRequest(PeerRequest),
     /// Get providers for a record in the DHT, e.g. workflow information.
@@ -146,6 +152,49 @@ impl Event {
             }
             Event::FindRecord(record) => record.find(event_handler).await,
             Event::RemoveRecord(record) => record.remove(event_handler).await,
+            Event::StoredRecord(event) => {
+                #[allow(unused_variables)]
+                let event = event;
+
+                #[cfg(feature = "websocket-notify")]
+                match event {
+                    FoundEvent::Receipt(ReceiptEvent {
+                        peer_id,
+                        receipt,
+                        notification_type,
+                    }) => notification::emit_event(
+                        event_handler.ws_evt_sender(),
+                        notification_type,
+                        btreemap! {
+                            "publisher" => peer_id.map_or(Ipld::Null, |peer_id| Ipld::String(peer_id.to_string())),
+                            "cid" => Ipld::String(receipt.cid().to_string()),
+                            "ran" => Ipld::String(receipt.ran().to_string())
+                        },
+                    ),
+                    FoundEvent::Workflow(WorkflowInfoEvent {
+                        peer_id,
+                        workflow_info,
+                        notification_type,
+                    }) => {
+                        if let Some(peer_label) =
+                            workflow_info_source_label(notification_type.clone())
+                        {
+                            notification::emit_event(
+                                event_handler.ws_evt_sender(),
+                                notification_type,
+                                btreemap! {
+                                    peer_label => peer_id.map_or(Ipld::Null, |peer_id| Ipld::String(peer_id.to_string())),
+                                    "cid" => Ipld::String(workflow_info.cid().to_string()),
+                                    "name" => workflow_info.name.map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
+                                    "numTasks" => Ipld::Integer(workflow_info.num_tasks as i128),
+                                    "progress" => Ipld::List(workflow_info.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
+                                    "progressCount" => Ipld::Integer(workflow_info.progress_count as i128),
+                                },
+                            )
+                        }
+                    }
+                }
+            }
             Event::OutboundRequest(PeerRequest {
                 peer,
                 request,
@@ -169,6 +218,7 @@ impl Event {
                     .kademlia
                     .start_providing(Key::new(&cid.to_bytes()))
                     .map_err(anyhow::Error::new)?;
+
                 let key = RequestResponseKey::new(cid.to_string().into(), capsule_tag);
                 event_handler.query_senders.insert(query_id, (key, sender));
             }
