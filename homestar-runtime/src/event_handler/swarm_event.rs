@@ -496,7 +496,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 SwarmNotification::ReceivedReceiptPubsub,
                             ),
                             btreemap! {
-                                "peerId" => Ipld::String(propagation_source.to_string()),
+                                "publisher" => Ipld::String(propagation_source.to_string()),
                                 "cid" => Ipld::String(receipt.cid().to_string()),
                                 "ran" => Ipld::String(receipt.ran().to_string())
                             },
