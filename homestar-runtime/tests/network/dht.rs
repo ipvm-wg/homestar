@@ -26,7 +26,7 @@ const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
 #[file_serial]
-fn test_libp2p_dht_records() -> Result<()> {
+fn test_libp2p_dht_records_serial() -> Result<()> {
     const DB1: &str = "test_libp2p_dht_records1.db";
     const DB2: &str = "test_libp2p_dht_records2.db";
     let _ = stop_homestar();
@@ -441,7 +441,7 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
 
 #[test]
 #[file_serial]
-fn test_libp2p_dht_workflow_info_provider() -> Result<()> {
+fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
     const DB1: &str = "test_libp2p_dht_workflow_info_provider_records1.db";
     const DB2: &str = "test_libp2p_dht_workflow_info_provider_records2.db";
     let _ = stop_homestar();
@@ -668,7 +668,7 @@ fn test_libp2p_dht_workflow_info_provider() -> Result<()> {
 
 #[test]
 #[file_serial]
-fn test_libp2p_dht_workflow_info_provider_recursive() -> Result<()> {
+fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
     // Start 3 nodes (a, b, c):
     // - a peers with b and c
     // - b peers with a
