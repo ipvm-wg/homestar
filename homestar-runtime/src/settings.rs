@@ -394,7 +394,7 @@ mod test {
     #[test]
     fn default_config() {
         let settings = Settings::load().unwrap();
-        let default_config = Settings::build(Some("fixtures/defaults.toml".into()))
+        let default_config = Settings::build(Some("config/defaults.toml".into()))
             .expect("default settings file in test fixtures");
         assert_eq!(settings, default_config);
     }
