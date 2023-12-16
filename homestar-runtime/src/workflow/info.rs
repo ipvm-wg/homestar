@@ -362,7 +362,7 @@ impl Info {
     async fn retrieve_from_query<'a>(
         workflow_cid: Cid,
         event_sender: Arc<AsyncChannelSender<Event>>,
-        conn: Option<Connection>,
+        _conn: Option<Connection>,
         p2p_workflow_info_timeout: Duration,
     ) -> Result<Info> {
         let (tx, rx) = AsyncChannel::oneshot();
@@ -376,30 +376,21 @@ impl Info {
 
         match rx.recv_deadline(Instant::now() + p2p_workflow_info_timeout) {
             Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event)))) => {
-                // TODO Send this event after storing in the database
                 let _ = event_sender
                     .send_async(Event::StoredRecord(FoundEvent::Workflow(event.clone())))
                     .await;
-
-                // store workflow receipts from info, as we've already stored
-                // the static information.
-                if let Some(mut conn) = conn {
-                    Db::store_workflow_receipts(
-                        workflow_cid,
-                        &event.workflow_info.progress,
-                        &mut conn,
-                    )?;
-                }
 
                 Ok(event.workflow_info)
             }
             Ok(ResponseEvent::Found(Err(err))) => {
                 bail!("failure in attempting to find event: {err}")
+                // TODO: Get Provider from part
             }
             Ok(event) => {
                 bail!("received unexpected event {event:?} for workflow {workflow_cid}")
             }
             Err(err) => {
+                // TODO: Get Provider from part
                 bail!("timeout deadline reached for retrieving workflow info: {err}")
             }
         }
