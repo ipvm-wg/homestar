@@ -73,7 +73,7 @@ faststr = { workspace = true }
 flume = { version = "0.11", default-features = false, features = ["async"] }
 fnv = { version = "1.0", default-features = false }
 futures = { workspace = true }
-headers = "0.3"
+headers = "0.4"
 homestar-core = { version = "0.1", path = "../homestar-core" }
 homestar-wasm = { version = "0.1", path = "../homestar-wasm", default-features = false }
 http = "0.2"
