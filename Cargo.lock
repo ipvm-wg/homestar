@@ -2648,7 +2648,7 @@ dependencies = [
  "wasi-common",
  "wasmparser 0.116.1",
  "wasmtime 14.0.4",
- "wasmtime-component-util 13.0.1",
+ "wasmtime-component-util 14.0.4",
  "wasmtime-wasi",
  "wat",
  "wit-component",
@@ -7776,12 +7776,6 @@ name = "wasmtime-component-util"
 version = "11.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31bd6b1c6d8ece2aa852bf5dad0ea91be63e81c7571d7bcf24238b05405adb70"
-
-[[package]]
-name = "wasmtime-component-util"
-version = "13.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e7d69464b94bd312a27d93d0b482cd74bedf01f030199ef0740d6300ebca1d3"
 
 [[package]]
 name = "wasmtime-component-util"
