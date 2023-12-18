@@ -2586,7 +2586,7 @@ dependencies = [
  "sec1",
  "semver",
  "serde",
- "serde_ipld_dagcbor",
+ "serde_ipld_dagcbor 0.3.0",
  "serde_json",
  "serde_with",
  "serial_test",
@@ -2640,7 +2640,7 @@ dependencies = [
  "libipld",
  "rust_decimal",
  "serde",
- "serde_ipld_dagcbor",
+ "serde_ipld_dagcbor 0.3.0",
  "stacker",
  "thiserror",
  "tokio",
@@ -5911,6 +5911,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_ipld_dagcbor"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e880e0b1f9c7a8db874642c1217f7e19b29e325f24ab9f0fcb11818adec7f01"
+dependencies = [
+ "cbor4ii 0.2.14",
+ "cid 0.10.1",
+ "scopeguard",
+ "serde",
+]
+
+[[package]]
 name = "serde_json"
 version = "1.0.108"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8620,21 +8632,24 @@ dependencies = [
 
 [[package]]
 name = "wnfs-common"
-version = "0.1.25"
+version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b26029429da960a0626100fae5399cb3ba3f302e192ad3e5824bdff5716c6521"
+checksum = "1395a47e38402df060d3448fe153c5af1eae6f27aeca9c2e79e5a39bb355efab"
 dependencies = [
  "anyhow",
  "async-once-cell",
  "async-trait",
  "bytes",
  "chrono",
+ "dashmap",
  "futures",
  "libipld",
  "multihash 0.18.1",
  "once_cell",
+ "parking_lot",
  "rand_core",
  "serde",
+ "serde_ipld_dagcbor 0.4.2",
  "thiserror",
 ]
 
