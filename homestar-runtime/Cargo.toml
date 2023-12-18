@@ -86,7 +86,7 @@ ipfs-api-backend-hyper = { version = "0.6", default-features = false, features =
   "with-send-sync",
 ], optional = true }
 itertools = { workspace = true }
-jsonrpsee = { version = "0.20", default-features = false, features = [
+jsonrpsee = { version = "0.21", default-features = false, features = [
   "server",
 ] }
 libipld = { workspace = true }
@@ -197,7 +197,7 @@ homestar-core = { version = "0.1", path = "../homestar-core", features = [
   "test-utils",
 ] }
 homestar_runtime_proc_macro = { path = "src/test_utils/proc_macro", package = "homestar-runtime-tests-proc-macro" }
-jsonrpsee = { version = "0.20", default-features = false, features = [
+jsonrpsee = { version = "0.21", default-features = false, features = [
   "client",
 ] }
 nix = { version = "0.27", features = ["signal"] }
