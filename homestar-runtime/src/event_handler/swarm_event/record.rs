@@ -24,8 +24,6 @@ impl FoundRecord for PeerRecord {
     fn found_record(&self) -> Result<DecodedRecord> {
         let key_cid = Cid::try_from(self.record.key.as_ref())?;
 
-        println!("<< KEY_CID {key_cid} >>");
-
         decode_capsule(key_cid, self.record.publisher, &self.record.value)
     }
 }
