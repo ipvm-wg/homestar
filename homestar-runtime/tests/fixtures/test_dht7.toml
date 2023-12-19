@@ -1,0 +1,41 @@
+[node]
+
+[node.monitoring]
+process_collector_interval = 500
+console_subscriber_port = 5546
+
+# Peer ID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN
+[node.network.keypair_config]
+existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }
+
+[node.network.libp2p]
+listen_address = "/ip4/127.0.0.1/tcp/7006"
+node_addresses = [
+  "/ip4/127.0.0.1/tcp/7007/p2p/16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+  "/ip4/127.0.0.1/tcp/7008/p2p/12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5",
+]
+
+[node.network.libp2p.dht]
+# Force node one to request from node two
+# as a provider instead of from DHT
+p2p_workflow_info_timeout = 0
+receipt_quorum = 1
+workflow_quorum = 1
+
+[node.network.libp2p.mdns]
+enable = false
+
+[node.network.libp2p.pubsub]
+enable = false
+
+[node.network.libp2p.rendezvous]
+enable_client = false
+
+[node.network.metrics]
+port = 3986
+
+[node.network.rpc]
+port = 9786
+
+[node.network.webserver]
+port = 7986

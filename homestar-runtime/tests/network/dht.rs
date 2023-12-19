@@ -3,7 +3,11 @@ use crate::utils::{
     wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
 };
 use anyhow::Result;
-use homestar_runtime::{db::Database, Db, Settings};
+use diesel::RunQueryDsl;
+use homestar_runtime::{
+    db::{self, schema, Database},
+    Db, Settings,
+};
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
     rpc_params,
@@ -540,6 +544,9 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 
+        // TODO Should not fail with this timeout present
+        // tokio::time::sleep(Duration::from_secs(5)).await
+
         // Run the same workflow run on node two.
         // Node two should be request workflow info from
         // node one instead of waiting to get the record
@@ -685,6 +692,268 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
     // 9. Wait for connection between a and c to be established
     // 10. Run workflow on c
     // 11. Wait for network:receivedWorkflowInfo on c (from a)
+
+    const DB1: &str = "test_libp2p_dht_workflow_info_provider_recursive1.db";
+    const DB2: &str = "test_libp2p_dht_workflow_info_provider_recursive2.db";
+    const DB3: &str = "test_libp2p_dht_workflow_info_provider_recursive3.db";
+    const DB4: &str = "test_libp2p_dht_workflow_info_provider_recursive4.db";
+    let _ = stop_homestar();
+
+    tokio_test::block_on(async move {
+        let homestar_proc1 = Command::new(BIN.as_os_str())
+            .env(
+                "RUST_LOG",
+                "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+            )
+            .arg("start")
+            .arg("-c")
+            .arg("tests/fixtures/test_dht7.toml")
+            .arg("--db")
+            .arg(DB1)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let ws_port1 = 7986;
+        if wait_for_socket_connection(ws_port1, 1000).is_err() {
+            let _ = kill_homestar(homestar_proc1, None);
+            panic!("Homestar server/runtime failed to start in time");
+        }
+
+        let ws_url1 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
+        let client1 = WsClientBuilder::default()
+            .build(ws_url1.clone())
+            .await
+            .unwrap();
+
+        let mut sub1: Subscription<Vec<u8>> = client1
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
+
+        let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env(
+                "RUST_LOG",
+                "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+            )
+            .arg("start")
+            .arg("-c")
+            .arg("tests/fixtures/test_dht8.toml")
+            .arg("--db")
+            .arg(DB2)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let ws_port2 = 7987;
+        if wait_for_socket_connection(ws_port2, 1000).is_err() {
+            let _ = kill_homestar(homestar_proc2, None);
+            panic!("Homestar server/runtime failed to start in time");
+        }
+
+        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
+        let client2 = WsClientBuilder::default()
+            .build(ws_url2.clone())
+            .await
+            .unwrap();
+
+        let mut sub2: Subscription<Vec<u8>> = client2
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
+
+        let homestar_proc3 = Command::new(BIN.as_os_str())
+            .env(
+                "RUST_LOG",
+                "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+            )
+            .arg("start")
+            .arg("-c")
+            .arg("tests/fixtures/test_dht9.toml")
+            .arg("--db")
+            .arg(DB3)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let ws_port3 = 7988;
+        if wait_for_socket_connection(ws_port3, 1000).is_err() {
+            let _ = kill_homestar(homestar_proc3, None);
+            panic!("Homestar server/runtime failed to start in time");
+        }
+
+        let ws_url3 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port3);
+        let client3 = WsClientBuilder::default()
+            .build(ws_url3.clone())
+            .await
+            .unwrap();
+
+        let mut sub3: Subscription<Vec<u8>> = client3
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
+
+        // Poll node one for connection established with node two message
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                    assert_eq!(
+                        json["data"]["peerId"],
+                        "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc"
+                    );
+
+                    break;
+                }
+            } else {
+                panic!("Node one did not establish a connection with node two in time.")
+            }
+        }
+
+        // Run test workflow on node one
+        let _ = Command::new(BIN.as_os_str())
+            .arg("run")
+            .arg("-p")
+            .arg("9786")
+            .arg("-w")
+            .arg("tests/fixtures/test-workflow-add-one.json")
+            .output();
+
+        // Poll for put workflow info messages
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                println!("{json}");
+
+                if json["type"].as_str().unwrap() == "network:putWorkflowInfoDht" {
+                    assert_eq!(
+                        json["data"]["cid"].as_str().unwrap(),
+                        "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq"
+                    );
+
+                    break;
+                }
+            } else {
+                panic!("Node one did not put workflow info in time.")
+            }
+        }
+
+        // Run the same workflow run on node two
+        let _ = Command::new(BIN.as_os_str())
+            .arg("run")
+            .arg("-p")
+            .arg("9787")
+            .arg("-w")
+            .arg("tests/fixtures/test-workflow-add-one.json")
+            .output();
+
+        // Poll for got workflow info messages on node two
+        loop {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                println!("{json}");
+
+                if json["type"].as_str().unwrap() == "network:gotWorkflowInfoDht" {
+                    assert_eq!(
+                        json["data"]["cid"].as_str().unwrap(),
+                        "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq"
+                    );
+
+                    break;
+                }
+            } else {
+                panic!("Node two did not get workflow info in time.")
+            }
+        }
+
+        // remove_db(DB1);
+        let db =
+            db::Db::setup_connection_pool(&Settings::load().unwrap().node(), Some(DB1.to_string()))
+                .unwrap();
+
+        dbg!(diesel::delete(schema::workflows_receipts::table)
+            .execute(&mut db.conn().unwrap())
+            .unwrap());
+
+        dbg!(diesel::delete(schema::workflows::table)
+            .execute(&mut db.conn().unwrap())
+            .unwrap());
+
+        // Run the workflow on node three.
+        // We expect node three to request workflow info
+        // from node one, which claims it is a provider. But
+        // node one no longer has the workflow info and should
+        // request it from node two.
+        let _ = Command::new(BIN.as_os_str())
+            .arg("run")
+            .arg("-p")
+            .arg("9788")
+            .arg("-w")
+            .arg("tests/fixtures/test-workflow-add-one.json")
+            .output();
+
+        // Poll for received workflow info messages on node three, which
+        // should come from node one
+        loop {
+            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                println!("{json}");
+
+                if json["type"].as_str().unwrap() == "network:receivedWorkflowInfo" {
+                    assert_eq!(
+                        json["data"]["peerId"],
+                        "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN"
+                    );
+
+                    assert_eq!(
+                        json["data"]["cid"].as_str().unwrap(),
+                        "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq"
+                    );
+
+                    break;
+                }
+            } else {
+                panic!("Node three did not receive workflow info in time.")
+            }
+        }
+
+        // TODO Check that node three stored the workflow info in its database.
+
+        let _ = kill_homestar(homestar_proc1, None);
+        let _ = kill_homestar(homestar_proc2, None);
+        let _ = kill_homestar(homestar_proc3, None);
+
+        // TODO Check for logs that indicate:
+        //   - Node three sent workflow info as a provider
+        //   - Node one received workflow info from node two provider
+        //   - Node one forwarded workflow info to node three
+        //   - Node three received the workflow info from node one
+
+        remove_db(DB1);
+        remove_db(DB2);
+        remove_db(DB3);
+        remove_db(DB4);
+    });
 
     Ok(())
 }
