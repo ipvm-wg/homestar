@@ -82,7 +82,7 @@ jobs:
 
       - name: Upload Release Artifacts
         if: github.event_name != 'release'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
           path: target/${{ matrix.target }}/release/homestar*
@@ -217,7 +217,7 @@ jobs:
         run: cargo generate-rpm -p homestar-runtime --target ${{ matrix.target }} --variant ${{ matrix.target }} --output homestar.rpm
 
       - name: Upload Release Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
           path: |
