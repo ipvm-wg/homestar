@@ -147,7 +147,7 @@ jobs:
           mkdir -p "${node_pkg}/bin"
           envsubst < package.json.tmpl > "${node_pkg}/package.json"
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.target }}
           path: 'homestar-runtime/npm/${{ env.node_pkg }}/bin'
