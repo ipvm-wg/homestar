@@ -2551,7 +2551,7 @@ dependencies = [
  "homestar-core",
  "homestar-runtime-tests-proc-macro",
  "homestar-wasm",
- "http 0.2.11",
+ "http 1.0.0",
  "http-serde",
  "humantime",
  "indexmap 2.1.0",

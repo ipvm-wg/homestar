@@ -76,7 +76,7 @@ futures = { workspace = true }
 headers = "0.4"
 homestar-core = { version = "0.1", path = "../homestar-core" }
 homestar-wasm = { version = "0.1", path = "../homestar-wasm", default-features = false }
-http = "0.2"
+http = "1.0"
 http-serde = "1.1"
 humantime = { workspace = true }
 indexmap = { version = "2.1", default-features = false, features = ["serde"] }
