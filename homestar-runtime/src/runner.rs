@@ -74,6 +74,9 @@ pub(crate) type RpcReceiver = AsyncChannelReceiver<(
     Option<AsyncChannelSender<rpc::ServerMessage>>,
 )>;
 
+/// Type alias for a tuple containing a receipt [Cid] and associated `ran` and `instruction` values.
+pub(crate) type WorkflowReceiptInfo = (Cid, Option<(String, Pointer)>);
+
 /// [AsyncChannelSender] for sending messages WebSocket server clients.
 pub(crate) type WsSender = AsyncChannelSender<(
     webserver::Message,
@@ -640,7 +643,7 @@ impl Runner {
                 Ok(ControlFlow::Continue(rpc::ServerMessage::RunAck(Box::new(
                     response::AckWorkflow::new(
                         data.info,
-                        data.receipt_info,
+                        data.replayed_receipt_info,
                         data.name,
                         data.timestamp,
                     ),
@@ -740,38 +743,46 @@ impl Runner {
             .iter()
             .map(|cid| Pointer::new(*cid))
             .collect();
-        let receipts: HashMap<Cid, Receipt> =
-            Db::find_receipt_pointers(&receipt_pointers, &mut db.conn()?)?
-                .into_iter()
-                .map(|receipt| (receipt.cid(), receipt))
-                .collect();
-        let receipt_info = receipt_pointers
-            .iter()
-            .map(|pointer| match receipts.get(&pointer.cid()) {
-                Some(receipt) => (
-                    pointer.cid(),
-                    Some((receipt.ran(), receipt.instruction().to_string())),
-                ),
-                None => (pointer.cid(), None),
-            })
-            .collect();
+        let replayed_receipt_info = find_receipt_info_by_pointers(&receipt_pointers, db)?;
 
         Ok(WorkflowData {
             info: initial_info,
             name: workflow_name,
             timestamp,
-            receipt_info,
+            replayed_receipt_info,
         })
     }
 }
 
-type WorkflowReceiptInfo = (Cid, Option<(String, String)>);
+/// Find receipts given a batch of [Receipt] [Pointer]s, and return them as [WorkflowReceiptInfo]s.
+fn find_receipt_info_by_pointers(
+    pointers: &Vec<Pointer>,
+    db: impl Database + 'static,
+) -> Result<Vec<WorkflowReceiptInfo>> {
+    let receipts: HashMap<Cid, Receipt> = Db::find_receipt_pointers(pointers, &mut db.conn()?)?
+        .into_iter()
+        .map(|receipt| (receipt.cid(), receipt))
+        .collect();
+
+    let receipt_info = pointers
+        .iter()
+        .map(|pointer| match receipts.get(&pointer.cid()) {
+            Some(receipt) => (
+                pointer.cid(),
+                Some((receipt.ran(), receipt.instruction().clone())),
+            ),
+            None => (pointer.cid(), None),
+        })
+        .collect();
+
+    Ok(receipt_info)
+}
 
 struct WorkflowData {
     info: Arc<workflow::Info>,
     name: FastStr,
     timestamp: NaiveDateTime,
-    receipt_info: Vec<WorkflowReceiptInfo>,
+    replayed_receipt_info: Vec<WorkflowReceiptInfo>,
 }
 
 #[derive(Debug)]
