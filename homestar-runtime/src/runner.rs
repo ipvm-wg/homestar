@@ -637,30 +637,13 @@ impl Runner {
                     )
                     .await?;
 
-                let receipt_pointers = data
-                    .info
-                    .progress
-                    .iter()
-                    .map(|cid| Pointer::new(*cid))
-                    .collect();
-                let receipts: HashMap<Cid, Receipt> =
-                    Db::find_receipt_pointers(&receipt_pointers, &mut db.conn()?)?
-                        .into_iter()
-                        .map(|receipt| (receipt.cid(), receipt))
-                        .collect();
-                let receipt_info = receipt_pointers
-                    .iter()
-                    .map(|pointer| match receipts.get(&pointer.cid()) {
-                        Some(receipt) => (
-                            pointer.cid(),
-                            Some((receipt.ran(), receipt.instruction().to_string())),
-                        ),
-                        None => (pointer.cid(), None),
-                    })
-                    .collect();
-
                 Ok(ControlFlow::Continue(rpc::ServerMessage::RunAck(Box::new(
-                    response::AckWorkflow::new(data.info, receipt_info, data.name, data.timestamp),
+                    response::AckWorkflow::new(
+                        data.info,
+                        data.receipt_info,
+                        data.name,
+                        data.timestamp,
+                    ),
                 ))))
             }
             msg => {
@@ -751,18 +734,44 @@ impl Runner {
         self.running_workers
             .insert(initial_info.cid, (handle, delay_key));
 
+        // Gather receipt info
+        let receipt_pointers = initial_info
+            .progress
+            .iter()
+            .map(|cid| Pointer::new(*cid))
+            .collect();
+        let receipts: HashMap<Cid, Receipt> =
+            Db::find_receipt_pointers(&receipt_pointers, &mut db.conn()?)?
+                .into_iter()
+                .map(|receipt| (receipt.cid(), receipt))
+                .collect();
+        let receipt_info = receipt_pointers
+            .iter()
+            .map(|pointer| match receipts.get(&pointer.cid()) {
+                Some(receipt) => (
+                    pointer.cid(),
+                    Some((receipt.ran(), receipt.instruction().to_string())),
+                ),
+                None => (pointer.cid(), None),
+            })
+            .collect();
+
         Ok(WorkflowData {
             info: initial_info,
             name: workflow_name,
             timestamp,
+            receipt_info,
         })
     }
 }
+
+type WorkflowReceiptInfo = (Cid, Option<(String, String)>);
 
 struct WorkflowData {
     info: Arc<workflow::Info>,
     name: FastStr,
     timestamp: NaiveDateTime,
+    receipt_info: Vec<WorkflowReceiptInfo>,
 }
 
 #[derive(Debug)]

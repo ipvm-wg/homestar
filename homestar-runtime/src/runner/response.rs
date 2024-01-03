@@ -17,7 +17,7 @@ use tabled::{
     Table, Tabled,
 };
 
-type ReceiptInfo = (Cid, Option<(String, String)>);
+use super::WorkflowReceiptInfo;
 
 /// Workflow information specified for response / display upon
 /// acknowledgement of running a workflow.
@@ -30,7 +30,7 @@ pub struct AckWorkflow {
     #[tabled(skip)]
     pub(crate) resources: IndexedResources,
     #[tabled(skip)]
-    pub(crate) receipt_info: Vec<ReceiptInfo>,
+    pub(crate) receipt_info: Vec<WorkflowReceiptInfo>,
     pub(crate) timestamp: String,
 }
 
@@ -48,7 +48,7 @@ impl AckWorkflow {
     /// Workflow information for response / display.
     pub(crate) fn new(
         workflow_info: Arc<workflow::Info>,
-        receipt_info: Vec<ReceiptInfo>,
+        receipt_info: Vec<WorkflowReceiptInfo>,
         name: FastStr,
         timestamp: NaiveDateTime,
     ) -> Self {
