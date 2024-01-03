@@ -85,8 +85,9 @@ impl show::ConsoleTable for AckWorkflow {
                 .collect::<Vec<String>>(),
         );
 
-        progress_table
-            .with(Modify::new(Rows::first()).with(Format::content(|_s| "Progress".to_string())));
+        progress_table.with(
+            Modify::new(Rows::first()).with(Format::content(|_s| "Receipts Computed".to_string())),
+        );
 
         let tbl = col![table, resource_table, progress_table].default();
 
