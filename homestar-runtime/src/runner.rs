@@ -11,7 +11,7 @@ use crate::{
     tasks::Fetch,
     worker::WorkerMessage,
     workflow::{self, Resource},
-    Settings, Worker,
+    Db, Receipt, Settings, Worker,
 };
 use anyhow::{anyhow, Context, Result};
 use atomic_refcell::AtomicRefCell;
@@ -20,14 +20,14 @@ use dashmap::DashMap;
 use faststr::FastStr;
 use fnv::FnvHashSet;
 use futures::{future::poll_fn, FutureExt};
-use homestar_core::Workflow;
+use homestar_core::{workflow::Pointer, Workflow};
 use homestar_wasm::io::Arg;
 use jsonrpsee::server::ServerHandle;
 use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
 #[cfg(not(test))]
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{ops::ControlFlow, rc::Rc, sync::Arc, task::Poll, time::Instant};
+use std::{collections::HashMap, ops::ControlFlow, rc::Rc, sync::Arc, task::Poll, time::Instant};
 #[cfg(not(windows))]
 use tokio::signal::unix::{signal, SignalKind};
 #[cfg(windows)]
@@ -628,11 +628,39 @@ impl Runner {
                     })?;
 
                 let data = self
-                    .run_worker(workflow, workflow_settings, name, channels.runner, db)
+                    .run_worker(
+                        workflow,
+                        workflow_settings,
+                        name,
+                        channels.runner,
+                        db.clone(),
+                    )
                     .await?;
 
+                let receipt_pointers = data
+                    .info
+                    .progress
+                    .iter()
+                    .map(|cid| Pointer::new(*cid))
+                    .collect();
+                let receipts: HashMap<Cid, Receipt> =
+                    Db::find_receipt_pointers(&receipt_pointers, &mut db.conn()?)?
+                        .into_iter()
+                        .map(|receipt| (receipt.cid(), receipt))
+                        .collect();
+                let receipt_info = receipt_pointers
+                    .iter()
+                    .map(|pointer| match receipts.get(&pointer.cid()) {
+                        Some(receipt) => (
+                            pointer.cid(),
+                            Some((receipt.ran(), receipt.instruction().to_string())),
+                        ),
+                        None => (pointer.cid(), None),
+                    })
+                    .collect();
+
                 Ok(ControlFlow::Continue(rpc::ServerMessage::RunAck(Box::new(
-                    response::AckWorkflow::new(data.info, data.name, data.timestamp),
+                    response::AckWorkflow::new(data.info, receipt_info, data.name, data.timestamp),
                 ))))
             }
             msg => {

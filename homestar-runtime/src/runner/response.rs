@@ -11,10 +11,13 @@ use libipld::Cid;
 use serde::{Deserialize, Serialize};
 use std::{fmt, net::SocketAddr, sync::Arc};
 use tabled::{
+    builder::Builder,
     col,
     settings::{object::Rows, Format, Modify},
     Table, Tabled,
 };
+
+type ReceiptInfo = (Cid, Option<(String, String)>);
 
 /// Workflow information specified for response / display upon
 /// acknowledgement of running a workflow.
@@ -23,11 +26,11 @@ pub struct AckWorkflow {
     pub(crate) cid: Cid,
     pub(crate) name: FastStr,
     pub(crate) num_tasks: u32,
-    #[tabled(skip)]
-    pub(crate) progress: Vec<Cid>,
     pub(crate) progress_count: u32,
     #[tabled(skip)]
     pub(crate) resources: IndexedResources,
+    #[tabled(skip)]
+    pub(crate) receipt_info: Vec<ReceiptInfo>,
     pub(crate) timestamp: String,
 }
 
@@ -45,6 +48,7 @@ impl AckWorkflow {
     /// Workflow information for response / display.
     pub(crate) fn new(
         workflow_info: Arc<workflow::Info>,
+        receipt_info: Vec<ReceiptInfo>,
         name: FastStr,
         timestamp: NaiveDateTime,
     ) -> Self {
@@ -52,9 +56,9 @@ impl AckWorkflow {
             cid: workflow_info.cid,
             name,
             num_tasks: workflow_info.num_tasks,
-            progress: workflow_info.progress.clone(),
             progress_count: workflow_info.progress_count,
             resources: workflow_info.resources.clone(),
+            receipt_info,
             timestamp: timestamp.format("%Y-%m-%d %H:%M:%S").to_string(),
         }
     }
@@ -78,18 +82,24 @@ impl show::ConsoleTable for AckWorkflow {
         resource_table
             .with(Modify::new(Rows::first()).with(Format::content(|_s| "Resources".to_string())));
 
-        let mut progress_table = Table::new(
-            self.progress
-                .iter()
-                .map(|v| v.to_string())
-                .collect::<Vec<String>>(),
-        );
+        let mut receipt_table_builder = Builder::default();
+        receipt_table_builder.push_record([
+            "Receipt".to_string(),
+            "Ran".to_string(),
+            "Instruction".to_string(),
+        ]);
 
-        progress_table.with(
-            Modify::new(Rows::first()).with(Format::content(|_s| "Receipts Computed".to_string())),
-        );
+        for (cid, info) in &self.receipt_info {
+            let (ran, instruction) = info
+                .clone()
+                .unwrap_or(("Unknown".to_string(), "Unknown".to_string()));
 
-        let tbl = col![table, resource_table, progress_table].default();
+            receipt_table_builder.push_record([cid.to_string(), ran, instruction]);
+        }
+
+        let receipt_table = receipt_table_builder.build();
+
+        let tbl = col![table, resource_table, receipt_table].default();
 
         tbl.echo()
     }
