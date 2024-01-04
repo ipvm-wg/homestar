@@ -84,7 +84,7 @@ impl show::ConsoleTable for AckWorkflow {
         let mut receipt_table_builder = Builder::default();
         receipt_table_builder.push_record([
             "Replayed Receipt".to_string(),
-            "Ran".to_string(),
+            "Invocation Ran".to_string(),
             "Instruction".to_string(),
         ]);
 
