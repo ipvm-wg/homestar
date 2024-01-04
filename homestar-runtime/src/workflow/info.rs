@@ -17,13 +17,8 @@ use faststr::FastStr;
 use homestar_core::{ipld::DagJson, workflow::Pointer};
 use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Cid, Ipld};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::BTreeMap,
-    fmt,
-    sync::Arc,
-    time::{Duration, Instant},
-};
-use tokio::runtime::Handle;
+use std::{collections::BTreeMap, fmt, sync::Arc, time::Duration};
+use tokio::{runtime::Handle, time::timeout};
 use tracing::info;
 
 /// [Workflow] header tag, for sharing workflow information over libp2p.
@@ -374,20 +369,23 @@ impl Info {
             )))
             .await?;
 
-        match rx.recv_deadline(Instant::now() + p2p_workflow_info_timeout) {
-            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event)))) => {
+        match timeout(p2p_workflow_info_timeout, rx.recv_async()).await {
+            Ok(Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event))))) => {
                 let _ = event_sender
                     .send_async(Event::StoredRecord(FoundEvent::Workflow(event.clone())))
                     .await;
 
                 Ok(event.workflow_info)
             }
-            Ok(ResponseEvent::Found(Err(err))) => {
+            Ok(Ok(ResponseEvent::Found(Err(err)))) => {
                 bail!("failure in attempting to find event: {err}")
                 // TODO: Get Provider from part
             }
-            Ok(event) => {
+            Ok(Ok(event)) => {
                 bail!("received unexpected event {event:?} for workflow {workflow_cid}")
+            }
+            Ok(Err(err)) => {
+                bail!("failure in attempting to find event: {err}")
             }
             Err(err) => {
                 // TODO: Get Provider from part
