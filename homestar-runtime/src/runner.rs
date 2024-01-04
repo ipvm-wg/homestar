@@ -11,7 +11,7 @@ use crate::{
     tasks::Fetch,
     worker::WorkerMessage,
     workflow::{self, Resource},
-    Settings, Worker,
+    Db, Receipt, Settings, Worker,
 };
 use anyhow::{anyhow, Context, Result};
 use atomic_refcell::AtomicRefCell;
@@ -20,14 +20,14 @@ use dashmap::DashMap;
 use faststr::FastStr;
 use fnv::FnvHashSet;
 use futures::{future::poll_fn, FutureExt};
-use homestar_core::Workflow;
+use homestar_core::{workflow::Pointer, Workflow};
 use homestar_wasm::io::Arg;
 use jsonrpsee::server::ServerHandle;
 use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
 #[cfg(not(test))]
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{ops::ControlFlow, rc::Rc, sync::Arc, task::Poll, time::Instant};
+use std::{collections::HashMap, ops::ControlFlow, rc::Rc, sync::Arc, task::Poll, time::Instant};
 #[cfg(not(windows))]
 use tokio::signal::unix::{signal, SignalKind};
 #[cfg(windows)]
@@ -73,6 +73,9 @@ pub(crate) type RpcReceiver = AsyncChannelReceiver<(
     rpc::ServerMessage,
     Option<AsyncChannelSender<rpc::ServerMessage>>,
 )>;
+
+/// Type alias for a tuple containing a receipt [Cid] and associated `ran` and `instruction` values.
+pub(crate) type WorkflowReceiptInfo = (Cid, Option<(String, Pointer)>);
 
 /// [AsyncChannelSender] for sending messages WebSocket server clients.
 pub(crate) type WsSender = AsyncChannelSender<(
@@ -628,11 +631,22 @@ impl Runner {
                     })?;
 
                 let data = self
-                    .run_worker(workflow, workflow_settings, name, channels.runner, db)
+                    .run_worker(
+                        workflow,
+                        workflow_settings,
+                        name,
+                        channels.runner,
+                        db.clone(),
+                    )
                     .await?;
 
                 Ok(ControlFlow::Continue(rpc::ServerMessage::RunAck(Box::new(
-                    response::AckWorkflow::new(data.info, data.name, data.timestamp),
+                    response::AckWorkflow::new(
+                        data.info,
+                        data.replayed_receipt_info,
+                        data.name,
+                        data.timestamp,
+                    ),
                 ))))
             }
             msg => {
@@ -723,18 +737,52 @@ impl Runner {
         self.running_workers
             .insert(initial_info.cid, (handle, delay_key));
 
+        // Gather receipt info
+        let receipt_pointers = initial_info
+            .progress
+            .iter()
+            .map(|cid| Pointer::new(*cid))
+            .collect();
+        let replayed_receipt_info = find_receipt_info_by_pointers(&receipt_pointers, db)?;
+
         Ok(WorkflowData {
             info: initial_info,
             name: workflow_name,
             timestamp,
+            replayed_receipt_info,
         })
     }
+}
+
+/// Find receipts given a batch of [Receipt] [Pointer]s, and return them as [WorkflowReceiptInfo]s.
+fn find_receipt_info_by_pointers(
+    pointers: &Vec<Pointer>,
+    db: impl Database + 'static,
+) -> Result<Vec<WorkflowReceiptInfo>> {
+    let receipts: HashMap<Cid, Receipt> = Db::find_receipt_pointers(pointers, &mut db.conn()?)?
+        .into_iter()
+        .map(|receipt| (receipt.cid(), receipt))
+        .collect();
+
+    let receipt_info = pointers
+        .iter()
+        .map(|pointer| match receipts.get(&pointer.cid()) {
+            Some(receipt) => (
+                pointer.cid(),
+                Some((receipt.ran(), receipt.instruction().clone())),
+            ),
+            None => (pointer.cid(), None),
+        })
+        .collect();
+
+    Ok(receipt_info)
 }
 
 struct WorkflowData {
     info: Arc<workflow::Info>,
     name: FastStr,
     timestamp: NaiveDateTime,
+    replayed_receipt_info: Vec<WorkflowReceiptInfo>,
 }
 
 #[derive(Debug)]

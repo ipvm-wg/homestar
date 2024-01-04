@@ -3,6 +3,7 @@
 
 use crate::{
     cli::show::{self, ApplyStyle},
+    runner::WorkflowReceiptInfo,
     workflow::{self, IndexedResources},
 };
 use chrono::NaiveDateTime;
@@ -11,6 +12,7 @@ use libipld::Cid;
 use serde::{Deserialize, Serialize};
 use std::{fmt, net::SocketAddr, sync::Arc};
 use tabled::{
+    builder::Builder,
     col,
     settings::{object::Rows, Format, Modify},
     Table, Tabled,
@@ -23,11 +25,11 @@ pub struct AckWorkflow {
     pub(crate) cid: Cid,
     pub(crate) name: FastStr,
     pub(crate) num_tasks: u32,
-    #[tabled(skip)]
-    pub(crate) progress: Vec<Cid>,
     pub(crate) progress_count: u32,
     #[tabled(skip)]
     pub(crate) resources: IndexedResources,
+    #[tabled(skip)]
+    pub(crate) replayed_receipt_info: Vec<WorkflowReceiptInfo>,
     pub(crate) timestamp: String,
 }
 
@@ -45,6 +47,7 @@ impl AckWorkflow {
     /// Workflow information for response / display.
     pub(crate) fn new(
         workflow_info: Arc<workflow::Info>,
+        replayed_receipt_info: Vec<WorkflowReceiptInfo>,
         name: FastStr,
         timestamp: NaiveDateTime,
     ) -> Self {
@@ -52,9 +55,9 @@ impl AckWorkflow {
             cid: workflow_info.cid,
             name,
             num_tasks: workflow_info.num_tasks,
-            progress: workflow_info.progress.clone(),
             progress_count: workflow_info.progress_count,
             resources: workflow_info.resources.clone(),
+            replayed_receipt_info,
             timestamp: timestamp.format("%Y-%m-%d %H:%M:%S").to_string(),
         }
     }
@@ -78,7 +81,35 @@ impl show::ConsoleTable for AckWorkflow {
         resource_table
             .with(Modify::new(Rows::first()).with(Format::content(|_s| "Resources".to_string())));
 
-        let tbl = col![table, resource_table].default();
+        let mut receipt_table_builder = Builder::default();
+        receipt_table_builder.push_record([
+            "Replayed Receipt".to_string(),
+            "Invocation Ran".to_string(),
+            "Instruction".to_string(),
+        ]);
+
+        for (cid, info) in &self.replayed_receipt_info {
+            if let Some((ran, instruction)) = info {
+                receipt_table_builder.push_record([
+                    cid.to_string(),
+                    ran.to_string(),
+                    instruction.to_string(),
+                ]);
+            }
+        }
+
+        // If there are no replayed receipts, add a placeholder row.
+        if receipt_table_builder.count_rows() == 1 {
+            receipt_table_builder.push_record([
+                "<none>".to_string(),
+                "".to_string(),
+                "".to_string(),
+            ]);
+        };
+
+        let receipt_table = receipt_table_builder.build();
+
+        let tbl = col![table, resource_table, receipt_table].default();
 
         tbl.echo()
     }
