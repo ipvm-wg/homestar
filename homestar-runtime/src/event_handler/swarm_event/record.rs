@@ -68,8 +68,6 @@ pub(crate) fn decode_capsule(
                     let invocation_receipt = InvocationReceipt::try_from(Ipld::Map(rest))?;
                     let receipt = Receipt::try_with(Pointer::new(key_cid), &invocation_receipt)?;
 
-                    println!("<< DESERIALIZED A RECEIPT >>");
-
                     Ok(DecodedRecord::Receipt(ReceiptRecord { peer_id, receipt }))
                 } else {
                     Err(anyhow!(
@@ -81,13 +79,12 @@ pub(crate) fn decode_capsule(
             Some((code, Ipld::Map(rest))) if code == WORKFLOW_TAG => {
                 let workflow_info = workflow::Info::try_from(Ipld::Map(rest))?;
 
-                println!("<< DESERIALIZED A WORKFLOW INFO >>");
-
                 Ok(DecodedRecord::Workflow(WorkflowInfoRecord {
                     peer_id,
                     workflow_info,
                 }))
             }
+            Some((code, _)) if code == "Timeout" => Err(anyhow!("decode error: record timed out")),
             Some((code, _)) => Err(anyhow!("decode mismatch: {code} is not known")),
             None => Err(anyhow!("invalid record value")),
         },
