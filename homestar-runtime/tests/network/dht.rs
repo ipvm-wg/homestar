@@ -683,20 +683,18 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
     //
     // 1. Start a, b, and c
     // 2. Wait for connection between a and b to be established
-    // 3. Run workflow on a
-    // 4. Wait for network:putWorkflowInfoDht on a
-    // 5. Run workflow on b
-    // 6. Wait for network:GotWorkflowInfoDht on b
-    // 7. Delete a's DB (may need to shutdown the node and restart it)
-    // 8. Wait for connection between a and b to be established (if we shutdown a)
-    // 9. Wait for connection between a and c to be established
-    // 10. Run workflow on c
-    // 11. Wait for network:receivedWorkflowInfo on c (from a)
+    // 3. Wait for connection between a and c to be established
+    // 4. Run workflow on a
+    // 5. Wait for network:putWorkflowInfoDht on a
+    // 6. Run workflow on b
+    // 7. Wait for network:GotWorkflowInfoDht on b
+    // 8. Delete a's DB
+    // 9. Run workflow on c
+    // 10. Wait for network:receivedWorkflowInfo on c (from b, through a)
 
     const DB1: &str = "test_libp2p_dht_workflow_info_provider_recursive1.db";
     const DB2: &str = "test_libp2p_dht_workflow_info_provider_recursive2.db";
     const DB3: &str = "test_libp2p_dht_workflow_info_provider_recursive3.db";
-    const DB4: &str = "test_libp2p_dht_workflow_info_provider_recursive4.db";
     let _ = stop_homestar();
 
     tokio_test::block_on(async move {
@@ -811,6 +809,8 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
+                println!("node1: {json}");
+
                 if json["type"].as_str().unwrap() == "network:connectionEstablished" {
                     assert_eq!(
                         json["data"]["peerId"],
@@ -821,6 +821,27 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
                 }
             } else {
                 panic!("Node one did not establish a connection with node two in time.")
+            }
+        }
+
+        // Poll node one for connection established with node three message
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                println!("node1: {json}");
+
+                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                    assert_eq!(
+                        json["data"]["peerId"],
+                        "12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5"
+                    );
+
+                    break;
+                }
+            } else {
+                panic!("Node one did not establish a connection with node three in time.")
             }
         }
 
@@ -839,7 +860,7 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                println!("{json}");
+                println!("node1: {json}");
 
                 if json["type"].as_str().unwrap() == "network:putWorkflowInfoDht" {
                     assert_eq!(
@@ -869,7 +890,7 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                println!("{json}");
+                println!("node2: {json}");
 
                 if json["type"].as_str().unwrap() == "network:gotWorkflowInfoDht" {
                     assert_eq!(
@@ -884,18 +905,17 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
             }
         }
 
-        // remove_db(DB1);
         let db =
             db::Db::setup_connection_pool(&Settings::load().unwrap().node(), Some(DB1.to_string()))
                 .unwrap();
 
-        dbg!(diesel::delete(schema::workflows_receipts::table)
+        diesel::delete(schema::workflows_receipts::table)
             .execute(&mut db.conn().unwrap())
-            .unwrap());
+            .unwrap();
 
-        dbg!(diesel::delete(schema::workflows::table)
+        diesel::delete(schema::workflows::table)
             .execute(&mut db.conn().unwrap())
-            .unwrap());
+            .unwrap();
 
         // Run the workflow on node three.
         // We expect node three to request workflow info
@@ -917,12 +937,12 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                println!("{json}");
+                println!("node3: {json}");
 
                 if json["type"].as_str().unwrap() == "network:receivedWorkflowInfo" {
                     assert_eq!(
-                        json["data"]["peerId"],
-                        "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN"
+                        json["data"]["provider"],
+                        "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc"
                     );
 
                     assert_eq!(
@@ -952,7 +972,6 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
         remove_db(DB1);
         remove_db(DB2);
         remove_db(DB3);
-        remove_db(DB4);
     });
 
     Ok(())

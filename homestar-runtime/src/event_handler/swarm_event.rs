@@ -9,7 +9,6 @@ use crate::{
     db::Database,
     event_handler::{
         cache::{self, CacheData, CacheValue},
-        event::QueryRecord,
         Event, Handler, RequestResponseError,
     },
     libp2p::multiaddr::MultiaddrExt,
@@ -680,19 +679,14 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     match event_handler.query_senders.remove(&id) {
                         Some((
                             RequestResponseKey {
-                                cid: ref cid_str,
                                 capsule_tag: CapsuleTag::Workflow,
+                                ..
                             },
                             sender,
                         )) => {
-                            let ev_sender = event_handler.sender();
-                            if let Ok(cid) = Cid::try_from(cid_str.as_str()) {
-                                let _ = ev_sender
-                                    .send_async(Event::GetProviders(QueryRecord::with(
-                                        cid,
-                                        CapsuleTag::Workflow,
-                                        sender,
-                                    )))
+                            if let Some(sender) = sender {
+                                let _ = sender
+                                    .send_async(ResponseEvent::Found(Err(err.into())))
                                     .await;
                             }
                         }
@@ -879,7 +873,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         cid,
                         event_handler.sender.clone(),
                         event_handler.db.conn().ok(),
-                        event_handler.p2p_workflow_info_timeout,
+                        event_handler.p2p_provider_timeout,
                     )
                     .await
                     {

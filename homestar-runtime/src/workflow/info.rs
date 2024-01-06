@@ -17,8 +17,13 @@ use faststr::FastStr;
 use homestar_core::{ipld::DagJson, workflow::Pointer};
 use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Cid, Ipld};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, fmt, sync::Arc, time::Duration};
-use tokio::{runtime::Handle, time::timeout};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+use tokio::runtime::Handle;
 use tracing::info;
 
 /// [Workflow] header tag, for sharing workflow information over libp2p.
@@ -308,12 +313,25 @@ impl Info {
                 // spawn a task to retrieve the workflow info from the
                 // network and store it in the database if it finds it.
                 let handle = Handle::current();
-                handle.spawn(Self::retrieve_from_query(
-                    workflow_cid,
-                    event_sender.clone(),
-                    Some(conn),
-                    network_settings.p2p_workflow_info_timeout,
-                ));
+                handle.spawn_blocking({
+                    let event_sender = event_sender.clone();
+                    let network_settings = network_settings.clone();
+                    move || {
+                        let handle = Handle::current();
+                        match handle.block_on(Self::retrieve_from_dht(
+                            workflow_cid,
+                            event_sender.clone(),
+                            network_settings.p2p_workflow_info_timeout,
+                        )) {
+                            Ok(workflow_info) => Ok(workflow_info),
+                            Err(_) => handle.block_on(Self::retrieve_from_provider(
+                                workflow_cid,
+                                event_sender,
+                                network_settings.p2p_provider_timeout,
+                            )),
+                        }
+                    }
+                });
 
                 Ok((workflow_info, timestamp))
             }
@@ -326,7 +344,7 @@ impl Info {
         workflow_cid: Cid,
         event_sender: Arc<AsyncChannelSender<Event>>,
         mut conn: Option<Connection>,
-        p2p_workflow_info_timeout: Duration,
+        p2p_provider_timeout: Duration,
     ) -> Result<Self> {
         let workflow_info = match conn
             .as_mut()
@@ -341,23 +359,16 @@ impl Info {
                     "workflow information not available in the database"
                 );
 
-                Self::retrieve_from_query(
-                    workflow_cid,
-                    event_sender,
-                    conn,
-                    p2p_workflow_info_timeout,
-                )
-                .await
+                Self::retrieve_from_provider(workflow_cid, event_sender, p2p_provider_timeout).await
             }
         }?;
 
         Ok(workflow_info)
     }
 
-    async fn retrieve_from_query<'a>(
+    async fn retrieve_from_dht<'a>(
         workflow_cid: Cid,
         event_sender: Arc<AsyncChannelSender<Event>>,
-        _conn: Option<Connection>,
         p2p_workflow_info_timeout: Duration,
     ) -> Result<Info> {
         let (tx, rx) = AsyncChannel::oneshot();
@@ -369,26 +380,55 @@ impl Info {
             )))
             .await?;
 
-        match timeout(p2p_workflow_info_timeout, rx.recv_async()).await {
-            Ok(Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event))))) => {
+        match rx.recv_deadline(Instant::now() + p2p_workflow_info_timeout) {
+            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event)))) => {
                 let _ = event_sender
                     .send_async(Event::StoredRecord(FoundEvent::Workflow(event.clone())))
                     .await;
 
                 Ok(event.workflow_info)
             }
-            Ok(Ok(ResponseEvent::Found(Err(err)))) => {
-                bail!("failure in attempting to find event: {err}")
-                // TODO: Get Provider from part
+            Ok(ResponseEvent::Found(Err(_err))) => {
+                bail!("failed to find workflow info with cid {workflow_cid}")
             }
-            Ok(Ok(event)) => {
+            Ok(event) => {
                 bail!("received unexpected event {event:?} for workflow {workflow_cid}")
             }
-            Ok(Err(err)) => {
+            Err(_err) => {
+                bail!("timed out while finding workflow info with cid {workflow_cid}")
+            }
+        }
+    }
+
+    async fn retrieve_from_provider<'a>(
+        workflow_cid: Cid,
+        event_sender: Arc<AsyncChannelSender<Event>>,
+        p2p_provider_timeout: Duration,
+    ) -> Result<Info> {
+        let (tx, rx) = AsyncChannel::oneshot();
+        event_sender
+            .send_async(Event::GetProviders(QueryRecord::with(
+                workflow_cid,
+                CapsuleTag::Workflow,
+                Some(tx),
+            )))
+            .await?;
+
+        match rx.recv_deadline(Instant::now() + p2p_provider_timeout) {
+            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event)))) => {
+                let _ = event_sender
+                    .send_async(Event::StoredRecord(FoundEvent::Workflow(event.clone())))
+                    .await;
+
+                Ok(event.workflow_info)
+            }
+            Ok(ResponseEvent::Found(Err(err))) => {
                 bail!("failure in attempting to find event: {err}")
             }
+            Ok(event) => {
+                bail!("received unexpected event {event:?} for workflow {workflow_cid}")
+            }
             Err(err) => {
-                // TODO: Get Provider from part
                 bail!("timeout deadline reached for retrieving workflow info: {err}")
             }
         }

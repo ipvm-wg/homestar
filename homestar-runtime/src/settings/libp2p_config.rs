@@ -50,6 +50,9 @@ pub(crate) struct Dht {
     /// Timeout for p2p workflow info lookups in milliseconds.
     #[serde_as(as = "DurationMilliSeconds<u64>")]
     pub(crate) p2p_workflow_info_timeout: Duration,
+    /// Timeout for p2p provider workflow info lookups in milliseconds.
+    #[serde_as(as = "DurationMilliSeconds<u64>")]
+    pub(crate) p2p_provider_timeout: Duration,
     /// Quorum for receipt records on the DHT.
     pub(crate) receipt_quorum: usize,
     /// Quorum for [workflow::Info] records on the DHT.
@@ -154,6 +157,7 @@ impl Default for Dht {
         Self {
             p2p_receipt_timeout: Duration::from_millis(500),
             p2p_workflow_info_timeout: Duration::from_millis(500),
+            p2p_provider_timeout: Duration::from_millis(10000),
             receipt_quorum: 2,
             workflow_quorum: 3,
         }

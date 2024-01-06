@@ -52,6 +52,7 @@ mesh_outbound_min = 1
 [node.network.libp2p.dht]
 p2p_receipt_timeout = 500
 p2p_workflow_info_timeout = 500
+p2p_provider_timeout = 10000
 receipt_quorum = 2
 workflow_quorum = 3
 

@@ -18,6 +18,7 @@ node_addresses = [
 # Force node three to request from node one
 # as a provider instead of from DHT
 p2p_workflow_info_timeout = 0
+p2p_provider_timeout = 10000
 receipt_quorum = 1
 workflow_quorum = 1
 
