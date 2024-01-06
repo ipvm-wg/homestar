@@ -961,31 +961,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     event_handler.request_response_senders.remove(&request_id)
                 {
                     if let Ok(cid) = Cid::try_from(key_cid.as_str()) {
-                        if let Ok(DecodedRecord::Workflow(WorkflowInfoRecord {
-                            peer_id,
-                            workflow_info,
-                        })) = decode_capsule(cid, Some(peer), &response)
-                        {
-                            let response_event =
-                                ResponseEvent::Found(Ok(FoundEvent::Workflow(WorkflowInfoEvent {
-                                    peer_id,
-                                    workflow_info,
-                                    #[cfg(feature = "websocket-notify")]
-                                    notification_type: EventNotificationTyp::SwarmNotification(
-                                        SwarmNotification::ReceivedWorkflowInfo,
-                                    ),
-                                })));
-
-                            let _ = sender.send_async(response_event).await;
-
-                            debug!(subject = "libp2p.req_resp",
-                                  category = "handle_swarm_event",
-                                  cid=?cid,
-                                  peer_id = peer.to_string(),
-                                  "received workflow info from peer"
-                            );
-                        }
-
                         match decode_capsule(cid, Some(peer), &response) {
                             Ok(DecodedRecord::Workflow(WorkflowInfoRecord {
                                 peer_id,
@@ -1009,24 +984,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                       cid=?cid,
                                       peer_id = peer.to_string(),
                                       "received workflow info from peer"
-                                );
-
-                                // TODO Shouldn't need this but event not arriving in
-                                // workflow info.rs
-                                #[cfg(feature = "websocket-notify")]
-                                notification::emit_event(
-                                    event_handler.ws_evt_sender(),
-                                    EventNotificationTyp::SwarmNotification(
-                                        SwarmNotification::ReceivedWorkflowInfo,
-                                    ),
-                                    btreemap! {
-                                        "provider" => Ipld::String(peer.to_string()),
-                                        "cid" => Ipld::String(workflow_info.cid().to_string()),
-                                        "name" => workflow_info.name.map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
-                                        "numTasks" => Ipld::Integer(workflow_info.num_tasks as i128),
-                                        "progress" => Ipld::List(workflow_info.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
-                                        "progressCount" => Ipld::Integer(workflow_info.progress_count as i128),
-                                    },
                                 );
                             }
                             Ok(DecodedRecord::Receipt(record)) => {
