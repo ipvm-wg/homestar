@@ -112,7 +112,7 @@ libsqlite3-sys = { version = "0.27", default-features = false, features = [
 ] }
 maplit = "1.0"
 metrics = { version = "0.21", default-features = false }
-metrics-exporter-prometheus = { version = "0.12.1", default-features = false, features = [
+metrics-exporter-prometheus = { version = "0.12.2", default-features = false, features = [
   "http-listener",
 ] }
 metrics-util = "0.15"
