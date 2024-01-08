@@ -80,6 +80,7 @@ pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBe
                 {
                     let mut cfg = kad::Config::default();
                     cfg.set_max_packet_size(10 * 1024 * 1024);
+                    cfg.set_kbucket_inserts(kad::BucketInserts::Manual);
                     cfg
                 },
             ),
