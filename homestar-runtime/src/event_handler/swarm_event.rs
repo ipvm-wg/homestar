@@ -1012,6 +1012,17 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 }
             }
         },
+        SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
+            request_response::Event::ResponseSent { peer, .. },
+        )) => {
+            debug!(
+                subject = "libp2p.req_resp.resp_sent",
+                category = "handle_swarm_event",
+                peer_id = peer.to_string(),
+                "response sent with workflow info record"
+            );
+        }
+
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Discovered(list))) => {
             for (peer_id, multiaddr) in list {
                 debug!(
