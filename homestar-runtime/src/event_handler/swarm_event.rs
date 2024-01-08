@@ -60,6 +60,7 @@ pub(crate) enum ResponseEvent {
     /// Found [libp2p::kad::PeerRecord] on the DHT.
     Found(Result<FoundEvent>),
     /// Found providers/[PeerId]s on the DHT.
+    #[allow(dead_code)]
     Providers(Result<HashSet<PeerId>>),
 }
 
