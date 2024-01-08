@@ -300,7 +300,7 @@ impl Info {
 
                 let stored = Stored::new(
                     Pointer::new(workflow_cid),
-                    Some(name.into_string()),
+                    Some(name.to_string()),
                     workflow_len as i32,
                     resources,
                     timestamp,

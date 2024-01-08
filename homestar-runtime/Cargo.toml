@@ -86,7 +86,7 @@ ipfs-api-backend-hyper = { version = "0.6", default-features = false, features =
   "with-send-sync",
 ], optional = true }
 itertools = { workspace = true }
-jsonrpsee = { version = "0.20", default-features = false, features = [
+jsonrpsee = { version = "0.21", default-features = false, features = [
   "server",
 ] }
 libipld = { workspace = true }
@@ -185,7 +185,6 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
 tryhard = "0.5"
 typetag = "0.2"
 url = "2.4"
-wnfs-common = "0.1"
 
 [target.'cfg(not(windows))'.dependencies]
 daemonize = "0.5"
@@ -197,7 +196,7 @@ homestar-core = { version = "0.1", path = "../homestar-core", features = [
   "test-utils",
 ] }
 homestar_runtime_proc_macro = { path = "src/test_utils/proc_macro", package = "homestar-runtime-tests-proc-macro" }
-jsonrpsee = { version = "0.20", default-features = false, features = [
+jsonrpsee = { version = "0.21", default-features = false, features = [
   "client",
 ] }
 nix = { version = "0.27", features = ["signal"] }
@@ -206,9 +205,6 @@ prometheus-parse = "0.2.4"
 rand = { workspace = true }
 retry = { version = "2.0", default-features = false }
 rm_rf = "0.6"
-serial_test = { version = "2.0", default-features = false, features = [
-  "file_locks",
-] }
 strip-ansi-escapes = "0.2.0"
 sysinfo = { version = "0.29", default-features = false }
 tokio-test = "0.4"

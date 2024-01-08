@@ -5,6 +5,12 @@
     # we leverage unstable due to wasm-tools/wasm updates
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    nixlib.url = "github:nix-community/nixpkgs.lib";
+
+    nixify = {
+      url = "github:rvolosatovs/nixify";
+      inputs.nixlib.follows = "nixlib";
+    };
 
     flake-compat = {
       url = "github:edolstra/flake-compat";
@@ -14,20 +20,35 @@
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
+    };
+
+    wit-deps = {
+      url = "github:bytecodealliance/wit-deps/v0.3.5";
+      inputs.nixlib.follows = "nixlib";
+      inputs.nixify.follows = "nixify";
+    };
+
+    # Needed due to wit-deps not existing in nixpkgs.
+    # TODO: Remove once wit-deps is in nixpkgs or move to fenix? maybe?
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
   outputs = {
     self,
     nixpkgs,
+    fenix,
     flake-compat,
     flake-utils,
     rust-overlay,
+    wit-deps,
+    ...
   } @ inputs:
     flake-utils.lib.eachDefaultSystem (
       system: let
-        overlays = [(import rust-overlay)];
+        overlays = [(import rust-overlay) fenix.overlays.default wit-deps.overlays.default];
         pkgs = import nixpkgs {inherit system overlays;};
 
         rust-toolchain = (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml).override {
@@ -190,6 +211,10 @@
           cargo build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn
           cp target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_test.wasm homestar-wasm/fixtures/example_test.wasm
           wasm-tools component new homestar-wasm/fixtures/example_test.wasm -o homestar-wasm/fixtures/example_test_component.wasm
+          cp homestar-wasm/fixtures/example_test.wasm examples/websocket-relay/example_test.wasm
+          cargo build -p homestar-functions-test --target wasm32-wasi --profile release-wasm-fn
+          cp target/wasm32-wasi/release-wasm-fn/homestar_functions_test.wasm homestar-wasm/fixtures/example_test_wasi.wasm
+          wasm-tools component new homestar-wasm/fixtures/example_test_wasi.wasm -o homestar-wasm/fixtures/example_test_wasi_component.wasm --adapt homestar-functions/wasi_snapshot_preview1.wasm
         '';
 
         wasmAdd = pkgs.writeScriptBin "wasm-ex-add" ''
@@ -243,6 +268,7 @@
               # because native build inputs are added to $PATH in the order they're listed here.
               nightly-rustfmt
               rust-toolchain
+              pkgs.wit-deps
               pkg-config
               pre-commit
               diesel-cli

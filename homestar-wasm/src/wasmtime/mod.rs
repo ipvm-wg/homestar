@@ -6,6 +6,7 @@
 
 pub mod config;
 mod error;
+mod host;
 pub mod ipld;
 pub mod limits;
 pub mod world;

@@ -1,6 +1,6 @@
 use crate::utils::{
-    check_for_line_with, kill_homestar, remove_db, retrieve_output, stop_homestar,
-    wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
+    check_for_line_with, kill_homestar, remove_db, retrieve_output, wait_for_socket_connection,
+    ChildGuard, TimeoutFutureExt, BIN_NAME,
 };
 use anyhow::Result;
 use homestar_runtime::{db::Database, Db, Settings};
@@ -12,7 +12,6 @@ use jsonrpsee::{
 };
 use libipld::Cid;
 use once_cell::sync::Lazy;
-use serial_test::file_serial;
 use std::{
     net::Ipv4Addr,
     path::PathBuf,
@@ -26,11 +25,9 @@ const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
 const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
-#[file_serial]
-fn test_libp2p_receipt_gossip_serial() -> Result<()> {
-    const DB1: &str = "test_libp2p_receipt_gossip_serial1.db";
-    const DB2: &str = "test_libp2p_receipt_gossip_serial2.db";
-    let _ = stop_homestar();
+fn test_libp2p_receipt_gossip_integration() -> Result<()> {
+    const DB1: &str = "test_libp2p_receipt_gossip_integration1.db";
+    const DB2: &str = "_test_libp2p_receipt_gossip_integration2.db";
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -45,10 +42,10 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+    let guard1 = ChildGuard::new(homestar_proc1);
 
     let ws_port = 7990;
-    if wait_for_socket_connection(ws_port, 1000).is_err() {
-        let _ = kill_homestar(homestar_proc1, None);
+    if wait_for_socket_connection(ws_port, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -81,10 +78,10 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
+        let guard2 = ChildGuard::new(homestar_proc2);
 
         let ws_port2 = 7991;
-        if wait_for_socket_connection(ws_port2, 1000).is_err() {
-            let _ = kill_homestar(homestar_proc1, None);
+        if wait_for_socket_connection(ws_port2, 100).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
@@ -171,8 +168,8 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
         }
 
         // Collect logs then kill proceses.
-        let dead_proc1 = kill_homestar(homestar_proc1, None);
-        let dead_proc2 = kill_homestar(homestar_proc2, None);
+        let dead_proc1 = kill_homestar(guard1.take(), None);
+        let dead_proc2 = kill_homestar(guard2.take(), None);
 
         // Retrieve logs.
         let stdout1 = retrieve_output(dead_proc1);
@@ -214,8 +211,6 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
 
     remove_db(DB1);
     remove_db(DB2);
-
-    let _ = stop_homestar();
 
     Ok(())
 }

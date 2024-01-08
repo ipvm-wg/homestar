@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 //! [Wasmtime] shim for parsing Wasm components, instantiating
 //! a module, and executing a Wasm function dynamically.
 //!
@@ -13,15 +15,21 @@ use crate::{
 };
 use heck::{ToKebabCase, ToSnakeCase};
 use homestar_core::{
-    bail, consts,
+    bail,
     workflow::{error::ResolveError, input::Args, Input},
 };
-use std::iter;
+use std::{iter, time::Instant};
 use wasmtime::{
     component::{self, Component, Func, Instance, Linker},
     Config, Engine, Store,
 };
 use wit_component::ComponentEncoder;
+
+wasmtime::component::bindgen!({
+    world: "imports",
+    tracing: true,
+    async: true
+});
 
 // One unit of fuel represents around 100k instructions.
 const UNIT_OF_COMPUTE_INSTRUCTIONS: u64 = 100_000;
@@ -29,28 +37,82 @@ const UNIT_OF_COMPUTE_INSTRUCTIONS: u64 = 100_000;
 /// Incoming `state` from host runtime.
 #[allow(missing_debug_implementations)]
 pub struct State {
+    /// Start time of the Wasm module.
+    start_time: Instant,
+    /// Fuel is a measure of how much computation a Wasm module is allowed to
+    /// perform.
     fuel: u64,
+    /// Limits are a set of limits that can be applied to a store, i.e. memory,
+    /// table elements.
     limits: StoreLimitsAsync,
+    /// Context for WASI modules.
+    wasi_ctx: wasmtime_wasi::preview2::WasiCtx,
+    /// WASI table.
+    table: wasmtime_wasi::preview2::Table,
 }
 
 impl Default for State {
     fn default() -> Self {
+        let table = wasmtime_wasi::preview2::Table::new();
+        let wasi_ctx = wasmtime_wasi::preview2::WasiCtxBuilder::new()
+            .inherit_stdout()
+            .inherit_stderr()
+            .build();
         Self {
+            start_time: Instant::now(),
             fuel: u64::MAX,
-            limits: StoreLimitsAsync::new(Some(consts::WASM_MAX_MEMORY as usize), None),
+            limits: StoreLimitsAsync::default(),
+            wasi_ctx,
+            table,
         }
+    }
+}
+
+/// [WasiView] implementation for [State] in order to support WASI component
+/// modules.
+///
+/// [WasiView]: wasmtime_wasi::preview2::WasiView
+impl wasmtime_wasi::preview2::WasiView for State {
+    fn table(&self) -> &wasmtime_wasi::preview2::Table {
+        &self.table
+    }
+
+    fn table_mut(&mut self) -> &mut wasmtime_wasi::preview2::Table {
+        &mut self.table
+    }
+
+    fn ctx(&self) -> &wasmtime_wasi::preview2::WasiCtx {
+        &self.wasi_ctx
+    }
+
+    fn ctx_mut(&mut self) -> &mut wasmtime_wasi::preview2::WasiCtx {
+        &mut self.wasi_ctx
     }
 }
 
 impl State {
     /// Create a new [State] object.
     pub fn new(fuel: u64, limits: StoreLimitsAsync) -> Self {
-        Self { fuel, limits }
+        let table = wasmtime_wasi::preview2::Table::new();
+        let wasi_ctx = wasmtime_wasi::preview2::WasiCtxBuilder::new()
+            .inherit_stdio()
+            .build();
+        Self {
+            start_time: Instant::now(),
+            fuel,
+            limits,
+            wasi_ctx,
+            table,
+        }
     }
 
     /// Set fuel add.
-    pub fn add_fuel(&mut self, fuel: u64) {
+    pub fn set_fuel(&mut self, fuel: u64) {
         self.fuel = fuel
+    }
+
+    pub fn start_time(&self) -> Instant {
+        self.start_time
     }
 }
 
@@ -194,14 +256,20 @@ impl World {
     pub fn default(data: State) -> Result<Env<State>, Error> {
         let config = Self::configure();
         let engine = Engine::new(&config)?;
-        let linker = Self::define_linker(&engine);
+        let mut linker = Self::define_linker(&engine);
+
+        // Add WASI to the linker in order to support WASI modules.
+        // This is a temporary measure until WASI is supported by default and is
+        // unused otherwise.
+        wasmtime_wasi::preview2::command::add_to_linker(&mut linker)?;
+        Imports::add_to_linker(&mut linker, |state: &mut State| state)?;
 
         let mut store = Store::new(&engine, data);
-        store.add_fuel(store.data().fuel)?;
+        store.set_fuel(store.data().fuel)?;
 
         // Configures a `Store` to yield execution of async WebAssembly code
         // periodically and not cause extended polling.
-        store.out_of_fuel_async_yield(u64::MAX, UNIT_OF_COMPUTE_INSTRUCTIONS);
+        store.fuel_async_yield_interval(Some(UNIT_OF_COMPUTE_INSTRUCTIONS))?;
 
         let env = Env::new(engine, linker, store);
         Ok(env)
@@ -220,26 +288,34 @@ impl World {
     ) -> Result<Env<State>, Error> {
         let config = Self::configure();
         let engine = Engine::new(&config)?;
-        let linker = Self::define_linker(&engine);
+        let mut linker = Self::define_linker(&engine);
+
+        // Add WASI to the linker in order to support WASI modules.
+        // This is a temporary measure until WASI is supported by default and is
+        // unused otherwise.
+        wasmtime_wasi::preview2::command::add_to_linker(&mut linker)?;
+        Imports::add_to_linker(&mut linker, |state: &mut State| state)?;
 
         let mut store = Store::new(&engine, data);
         store.limiter_async(|s| &mut s.limits);
-        store.add_fuel(store.data().fuel)?;
+        store.set_fuel(store.data().fuel)?;
 
         // Configures a `Store` to yield execution of async WebAssembly code
         // periodically and not cause extended polling.
-        store.out_of_fuel_async_yield(u64::MAX, UNIT_OF_COMPUTE_INSTRUCTIONS);
+        store.fuel_async_yield_interval(Some(UNIT_OF_COMPUTE_INSTRUCTIONS))?;
 
         // engine clones are shallow (not deep).
         let component = component_from_bytes(&bytes, engine.clone())?;
 
-        let instance = linker.instantiate_async(&mut store, &component).await?;
+        let (_bindings, instance) =
+            Imports::instantiate_async(&mut store, &component, &linker).await?;
 
         let bindings = Self::new(&mut store, &instance, fun_name)?;
-        let mut env = Env::new(engine, linker, store);
-        env.set_bindings(bindings);
-        env.set_instance(instance);
 
+        //let bindings = Self::new(&mut store, &instance, fun_name)?;
+        let mut env = Env::new(engine, linker, store);
+        env.set_instance(instance);
+        env.set_bindings(bindings);
         Ok(env)
     }
 
@@ -260,10 +336,9 @@ impl World {
         // engine clones are shallow (not deep).
         let component = component_from_bytes(&bytes, env.engine.clone())?;
 
-        let instance = env
-            .linker
-            .instantiate_async(&mut env.store, &component)
-            .await?;
+        let (_bindings, instance) =
+            Imports::instantiate_async(&mut env.store, &component, &env.linker).await?;
+
         let bindings = Self::new(&mut env.store, &instance, fun_name)?;
         env.set_instance(instance);
         env.set_bindings(bindings);

@@ -1,0 +1,21 @@
+package homestar:host@0.0.1;
+
+/// Basic helpers interface.
+interface helpers {
+    record time {
+        seconds: u64,
+        milliseconds: u32,
+        nanoseconds: u32,
+    }
+
+    /// Get current time in sub-seconds.
+    get-current-time: func() -> time;
+    /// Basic `print` helper.
+    print: func(msg: string);
+}
+
+world imports {
+    /// https://github.com/WebAssembly/wasi-logging
+    import wasi:logging/logging;
+    import helpers;
+}

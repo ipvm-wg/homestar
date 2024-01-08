@@ -1,9 +1,8 @@
-use crate::utils::{kill_homestar, stop_homestar, wait_for_socket_connection, BIN_NAME};
+use crate::utils::{remove_db, wait_for_socket_connection, BIN_NAME};
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use reqwest::StatusCode;
 use retry::{delay::Exponential, retry, OperationResult};
-use serial_test::file_serial;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
@@ -14,9 +13,8 @@ const METRICS_URL: &str = "http://localhost:4020";
 
 #[cfg(feature = "monitoring")]
 #[test]
-#[file_serial]
-fn test_metrics_serial() -> Result<()> {
-    use crate::utils::remove_db;
+fn test_metrics_integration() -> Result<()> {
+    use crate::utils::ChildGuard;
 
     fn sample_metrics() -> Option<prometheus_parse::Value> {
         let body = retry(
@@ -43,10 +41,9 @@ fn test_metrics_serial() -> Result<()> {
             .map(|sample| sample.value.to_owned())
     }
 
-    const DB: &str = "test_metrics_serial.db";
-    let _ = stop_homestar();
+    const DB: &str = "test_metrics_integration.db";
 
-    let mut homestar_proc = Command::new(BIN.as_os_str())
+    let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
         .arg("tests/fixtures/test_metrics.toml")
@@ -55,9 +52,9 @@ fn test_metrics_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+    let _guard = ChildGuard::new(homestar_proc);
 
-    if wait_for_socket_connection(4020, 1000).is_err() {
-        let _ = kill_homestar(homestar_proc, None);
+    if wait_for_socket_connection(4020, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -81,14 +78,11 @@ fn test_metrics_serial() -> Result<()> {
     });
 
     if sample2.is_err() {
-        homestar_proc.kill().unwrap();
         panic!("Could not generate a diff in sample(s)");
     }
 
     assert_ne!(sample1, sample2.unwrap());
 
-    let _ = kill_homestar(homestar_proc, None);
-    let _ = stop_homestar();
     remove_db(DB);
 
     Ok(())

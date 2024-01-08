@@ -93,6 +93,17 @@ pub enum Output {
     Void,
 }
 
+impl Output {
+    /// Take the first [Wasm value] from the output, unless void.
+    pub fn take(self) -> Option<wasmtime::component::Val> {
+        match self {
+            Output::Value(v) => Some(v),
+            Output::Values(vs) => vs.into_iter().next(),
+            Output::Void => None,
+        }
+    }
+}
+
 impl TryFrom<Output> for Ipld {
     type Error = InterpreterError;
 

@@ -800,7 +800,7 @@ mod test {
         let (tx, rx) = test_utils::event::setup_event_channel(settings.node.clone());
 
         let builder = WorkerBuilder::new(settings.node)
-            .with_event_sender(tx.into())
+            .with_event_sender(tx)
             .with_tasks(vec![task1, task2]);
         let db = builder.db();
         let workflow_cid = builder.workflow_cid();

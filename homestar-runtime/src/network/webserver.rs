@@ -1,6 +1,7 @@
 //! Sets up a webserver for WebSocket and HTTP interaction with clients.
 
 use crate::{
+    db::Database,
     runner,
     runner::{DynamicNodeInfo, StaticNodeInfo, WsSender},
     settings,
@@ -11,11 +12,11 @@ use homestar_core::Workflow;
 use homestar_wasm::io::Arg;
 use http::{
     header::{AUTHORIZATION, CONTENT_TYPE},
-    Method,
+    method::Method,
 };
 use jsonrpsee::{
     self,
-    server::{middleware::ProxyGetRequestLayer, RandomStringIdProvider, ServerHandle},
+    server::{middleware::http::ProxyGetRequestLayer, RandomStringIdProvider, ServerHandle},
 };
 use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
@@ -175,12 +176,14 @@ impl Server {
         &self,
         runner_sender: WsSender,
         metrics_hdl: PrometheusHandle,
+        db: impl Database + 'static,
     ) -> Result<ServerHandle> {
         let module = JsonRpc::new(Context::new(
             metrics_hdl,
             self.evt_notifier.clone(),
             self.workflow_msg_notifier.clone(),
             runner_sender,
+            db,
             self.receiver_timeout,
         ))
         .await?;
@@ -194,10 +197,12 @@ impl Server {
         &self,
         runner_sender: WsSender,
         metrics_hdl: PrometheusHandle,
+        db: impl Database + 'static,
     ) -> Result<ServerHandle> {
         let module = JsonRpc::new(Context::new(
             metrics_hdl,
             runner_sender,
+            db,
             self.receiver_timeout,
         ))
         .await?;
@@ -219,7 +224,10 @@ impl Server {
     }
 
     /// Shared start logic for both WebSocket and HTTP servers.
-    async fn start_inner(&self, module: JsonRpc) -> Result<ServerHandle> {
+    async fn start_inner<DB: Database + 'static>(
+        &self,
+        module: JsonRpc<DB>,
+    ) -> Result<ServerHandle> {
         let addr = self.addr;
         info!(
             subject = "webserver.start",
@@ -241,6 +249,7 @@ impl Server {
                 "/metrics",
                 rpc::METRICS_ENDPOINT,
             )?)
+            .layer(ProxyGetRequestLayer::new("/node", rpc::NODE_INFO_ENDPOINT)?)
             .layer(cors)
             .layer(SetSensitiveRequestHeadersLayer::new(once(AUTHORIZATION)))
             .timeout(self.webserver_timeout);
@@ -249,7 +258,7 @@ impl Server {
 
         let server = jsonrpsee::server::Server::builder()
             .custom_tokio_runtime(runtime_hdl.clone())
-            .set_middleware(middleware)
+            .set_http_middleware(middleware)
             .set_id_provider(Box::new(RandomStringIdProvider::new(16)))
             .set_message_buffer_capacity(self.capacity as u32)
             .build(addr)
@@ -272,7 +281,7 @@ mod test {
     use super::*;
     #[cfg(feature = "websocket-notify")]
     use crate::event_handler::notification::ReceiptNotification;
-    use crate::{channel::AsyncChannel, db::Database, settings::Settings};
+    use crate::{channel::AsyncChannel, settings::Settings, test_utils::db::MemoryDb};
     #[cfg(feature = "websocket-notify")]
     use homestar_core::{
         ipld::DagJson,
@@ -280,11 +289,10 @@ mod test {
         workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
     };
     #[cfg(feature = "websocket-notify")]
-    use jsonrpsee::core::client::{Subscription, SubscriptionClientT};
+    use jsonrpsee::core::client::{error::Error as ClientError, Subscription, SubscriptionClientT};
     #[cfg(feature = "websocket-notify")]
     use jsonrpsee::types::error::ErrorCode;
     use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
-    use libp2p::Multiaddr;
     #[cfg(feature = "websocket-notify")]
     use notifier::{self, Header};
 
@@ -308,9 +316,10 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network().webserver()).unwrap();
+            let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
-            server.start(runner_tx, metrics_hdl).await.unwrap();
+            server.start(runner_tx, metrics_hdl, db).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
             let http_url = format!("http://{}", server.addr);
@@ -324,21 +333,11 @@ mod test {
                 .request(rpc::HEALTH_ENDPOINT, rpc_params![])
                 .await
                 .unwrap();
-            let peer_id =
-                libp2p::PeerId::from_str("12D3KooWRNw2pJC9748Fmq4WNV27HoSTcX3r37132FLkQMrbKAiC")
-                    .unwrap();
-            let static_info = StaticNodeInfo::new(peer_id);
-            assert_eq!(
-                ws_resp,
-                serde_json::json!({"healthy": true, "nodeInfo": {"static": static_info, "dynamic": {"listeners": Vec::<Multiaddr>::new()}}})
-            );
+            assert_eq!(ws_resp, serde_json::json!({"healthy": true }));
             let http_resp = reqwest::get(format!("{}/health", http_url)).await.unwrap();
             assert_eq!(http_resp.status(), 200);
             let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
-            assert_eq!(
-                http_resp,
-                serde_json::json!({"healthy": true, "nodeInfo": {"static": static_info, "dynamic": {"listeners": Vec::<Multiaddr>::new()}}})
-            );
+            assert_eq!(http_resp, serde_json::json!({"healthy": true }));
         });
 
         unsafe { metrics::clear_recorder() }
@@ -350,9 +349,10 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network().webserver()).unwrap();
+            let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
-            server.start(runner_tx, metrics_hdl).await.unwrap();
+            server.start(runner_tx, metrics_hdl, db).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
 
@@ -383,9 +383,10 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network().webserver()).unwrap();
+            let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
-            server.start(runner_tx, metrics_hdl).await.unwrap();
+            server.start(runner_tx, metrics_hdl, db).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
 
@@ -460,14 +461,15 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network().webserver()).unwrap();
+            let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
-            server.start(runner_tx, metrics_hdl).await.unwrap();
+            server.start(runner_tx, metrics_hdl, db).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
 
             let client = WsClientBuilder::default().build(ws_url).await.unwrap();
-            let sub: Result<Subscription<Vec<u8>>, jsonrpsee::core::error::Error> = client
+            let sub: Result<Subscription<Vec<u8>>, ClientError> = client
                 .subscribe(
                     rpc::SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
                     rpc_params![],
@@ -477,7 +479,7 @@ mod test {
 
             assert!(sub.is_err());
 
-            if let Err(jsonrpsee::core::error::Error::Call(err)) = sub {
+            if let Err(ClientError::Call(err)) = sub {
                 let check = ErrorCode::InvalidParams;
                 assert_eq!(err.code(), check.code());
             } else {
@@ -494,9 +496,11 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network().webserver()).unwrap();
+            let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
             let metrics_hdl = metrics_handle(settings).await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
-            server.start(runner_tx, metrics_hdl).await.unwrap();
+
+            server.start(runner_tx, metrics_hdl, db).await.unwrap();
 
             let ws_url = format!("ws://{}", server.addr);
 
@@ -523,7 +527,7 @@ mod test {
 
             let run: serde_json::Value = serde_json::from_str(&run_str).unwrap();
             let client = WsClientBuilder::default().build(ws_url).await.unwrap();
-            let sub: Result<Subscription<Vec<u8>>, jsonrpsee::core::error::Error> = client
+            let sub: Result<Subscription<Vec<u8>>, ClientError> = client
                 .subscribe(
                     rpc::SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
                     rpc_params![run],
@@ -535,7 +539,7 @@ mod test {
 
             // Assure error is not on parse of params, but due to runner
             // timeout (as runner is not available).
-            if let Err(jsonrpsee::core::error::Error::Call(err)) = sub {
+            if let Err(ClientError::Call(err)) = sub {
                 let check = ErrorCode::ServerIsBusy;
                 assert_eq!(err.code(), check.code());
             } else {

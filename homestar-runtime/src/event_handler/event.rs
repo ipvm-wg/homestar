@@ -17,6 +17,7 @@ use crate::{
         pubsub,
         swarm::{CapsuleTag, RequestResponseKey, TopicMessage},
     },
+    runner::DynamicNodeInfo,
     workflow, Db, Receipt,
 };
 use anyhow::Result;
@@ -32,7 +33,11 @@ use libp2p::{
 };
 #[cfg(feature = "websocket-notify")]
 use maplit::btreemap;
-use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    num::NonZeroUsize,
+    sync::Arc,
+};
 #[cfg(all(feature = "ipfs", not(feature = "test-utils")))]
 use tokio::runtime::Handle;
 use tracing::{debug, error, info, warn};
@@ -124,7 +129,7 @@ pub(crate) enum Event {
     /// Discover peers from a rendezvous node.
     DiscoverPeers(PeerId),
     /// Dynamically get listeners for the swarm.
-    GetListeners(AsyncChannelSender<Vec<libp2p::core::Multiaddr>>),
+    GetNodeInfo(AsyncChannelSender<DynamicNodeInfo>),
 }
 
 #[allow(unreachable_patterns)]
@@ -146,9 +151,19 @@ impl Event {
                 event_handler.shutdown().await;
                 let _ = tx.send_async(()).await;
             }
-            Event::GetListeners(tx) => {
+            Event::GetNodeInfo(tx) => {
                 let listeners = event_handler.swarm.listeners().cloned().collect();
-                let _ = tx.send_async(listeners).await;
+                let connections = event_handler.connections.peers.iter().fold(
+                    HashMap::new(),
+                    |mut acc, (k, v)| {
+                        acc.insert(k.to_owned(), v.get_remote_address().to_owned());
+                        acc
+                    },
+                );
+
+                let _ = tx
+                    .send_async(DynamicNodeInfo::new(listeners, connections))
+                    .await;
             }
             Event::FindRecord(record) => record.find(event_handler).await,
             Event::RemoveRecord(record) => record.remove(event_handler).await,

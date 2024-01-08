@@ -1,3 +1,14 @@
+use base64::{engine::general_purpose, Engine};
+#[cfg(target_arch = "wasm32")]
+use homestar::host::helpers::get_current_time;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    io::Cursor,
+};
+#[cfg(target_arch = "wasm32")]
+use wasi::logging::logging::{log, Level};
+
 wit_bindgen::generate!({
     world: "test",
     exports: {
@@ -5,32 +16,57 @@ wit_bindgen::generate!({
     }
 });
 
-use base64::{engine::general_purpose, Engine};
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    io::Cursor,
-};
-
 pub struct Component;
 
 type Matrix = Vec<Vec<u16>>;
 
 impl Guest for Component {
     fn add_one(a: i32) -> i32 {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "add-one");
         a + 1
     }
 
     fn append_string(a: String) -> String {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "append-string");
         let b = "world";
         [a, b.to_string()].join("\n")
     }
 
     fn join_strings(a: String, b: String) -> String {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "join-strings");
         [a, b].join("")
     }
 
+    fn host_fmt_current_time() -> String {
+        #[cfg(target_arch = "wasm32")]
+        {
+            log(Level::Info, "run-fn:host", "host_fmt_current_time");
+            let time = get_current_time();
+            format!(
+                "{:02}:{:02}.{:03}",
+                time.seconds, time.milliseconds, time.nanoseconds
+            )
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let now = std::time::Instant::now();
+            let duration = now.duration_since(now);
+            format!(
+                "{:02}:{:02}.{:03}",
+                duration.as_secs(),
+                duration.subsec_millis(),
+                duration.subsec_nanos()
+            )
+        }
+    }
+
     fn transpose(matrix: Matrix) -> Matrix {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "transpose");
         assert!(!matrix.is_empty());
         let len = matrix[0].len();
         (0..len)
@@ -39,6 +75,8 @@ impl Guest for Component {
     }
 
     fn blur(data: Vec<u8>, sigma: f32) -> Vec<u8> {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "blur");
         let img = image::load_from_memory_with_format(&data, image::ImageFormat::Png).unwrap();
 
         let blurred = img.blur(sigma);
@@ -52,6 +90,8 @@ impl Guest for Component {
     }
 
     fn blur_base64(data: String, sigma: f32) -> Vec<u8> {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "blur-base64");
         let base64_encoded_png = data.replace("data:image/png;base64,", "");
         let decoded = general_purpose::STANDARD
             .decode(base64_encoded_png)
@@ -60,6 +100,8 @@ impl Guest for Component {
     }
 
     fn crop(data: Vec<u8>, x: u32, y: u32, target_width: u32, target_height: u32) -> Vec<u8> {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "crop");
         let mut img = image::load_from_memory_with_format(&data, image::ImageFormat::Png).unwrap();
 
         // Crop this image delimited by the bounding rectangle
@@ -74,6 +116,8 @@ impl Guest for Component {
     }
 
     fn crop_base64(data: String, x: u32, y: u32, target_width: u32, target_height: u32) -> Vec<u8> {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "crop-base64");
         let base64_encoded_png = data.replace("data:image/png;base64,", "");
         let decoded = general_purpose::STANDARD
             .decode(base64_encoded_png)
@@ -82,6 +126,8 @@ impl Guest for Component {
     }
 
     fn grayscale(data: Vec<u8>) -> Vec<u8> {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "grayscale");
         let img = image::load_from_memory_with_format(&data, image::ImageFormat::Png).unwrap();
         let gray = img.grayscale();
 
@@ -93,6 +139,8 @@ impl Guest for Component {
     }
 
     fn grayscale_base64(data: String) -> Vec<u8> {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "grayscale-base64");
         let base64_encoded_png = data.replace("data:image/png;base64,", "");
         let decoded = general_purpose::STANDARD
             .decode(base64_encoded_png)
@@ -101,6 +149,8 @@ impl Guest for Component {
     }
 
     fn rotate90(data: Vec<u8>) -> Vec<u8> {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "rotate90");
         let img = image::load_from_memory_with_format(&data, image::ImageFormat::Png).unwrap();
         let rotated = img.rotate90();
 
@@ -113,6 +163,8 @@ impl Guest for Component {
     }
 
     fn rotate90_base64(data: String) -> Vec<u8> {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "rotate90-base64");
         let base64_encoded_png = data.replace("data:image/png;base64,", "");
         let decoded = general_purpose::STANDARD
             .decode(base64_encoded_png)
@@ -121,6 +173,8 @@ impl Guest for Component {
     }
 
     fn hash(s: String) -> Vec<u8> {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "hash");
         let mut hash = DefaultHasher::new();
         s.hash(&mut hash);
         hash.finish().to_be_bytes().to_vec()

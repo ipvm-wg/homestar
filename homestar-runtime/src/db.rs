@@ -72,6 +72,16 @@ impl Db {
 /// Database trait for working with different Sqlite connection pool and
 /// connection configurations.
 pub trait Database: Send + Sync + Clone {
+    /// Establish a pooled connection to Sqlite database.
+    fn setup_connection_pool(
+        settings: &settings::Node,
+        database_url: Option<String>,
+    ) -> Result<Self>
+    where
+        Self: Sized;
+    /// Get a pooled connection for the database.
+    fn conn(&self) -> Result<Connection>;
+
     /// Set database url.
     ///
     /// Contains a minimal side-effect to set the env if not already set.
@@ -104,15 +114,11 @@ pub trait Database: Send + Sync + Clone {
         Ok(connection)
     }
 
-    /// Establish a pooled connection to Sqlite database.
-    fn setup_connection_pool(
-        settings: &settings::Node,
-        database_url: Option<String>,
-    ) -> Result<Self>
-    where
-        Self: Sized;
-    /// Get a pooled connection for the database.
-    fn conn(&self) -> Result<Connection>;
+    /// Check if the database is up.
+    fn health_check(conn: &mut Connection) -> Result<(), diesel::result::Error> {
+        diesel::sql_query("SELECT 1").execute(conn)?;
+        Ok(())
+    }
 
     /// Commit a receipt to the database, updating two tables
     /// within a transaction.

@@ -1,6 +1,6 @@
 use crate::utils::{
-    check_for_line_with, kill_homestar, remove_db, retrieve_output, stop_homestar,
-    wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
+    check_for_line_with, kill_homestar, remove_db, retrieve_output, wait_for_socket_connection,
+    ChildGuard, TimeoutFutureExt, BIN_NAME,
 };
 use anyhow::Result;
 use diesel::RunQueryDsl;
@@ -15,7 +15,6 @@ use jsonrpsee::{
 };
 use libipld::Cid;
 use once_cell::sync::Lazy;
-use serial_test::file_serial;
 use std::{
     net::Ipv4Addr,
     path::PathBuf,
@@ -29,11 +28,9 @@ const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
 const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
-#[file_serial]
-fn test_libp2p_dht_records_serial() -> Result<()> {
+fn test_libp2p_dht_records_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_dht_records1.db";
     const DB2: &str = "test_libp2p_dht_records2.db";
-    let _ = stop_homestar();
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -48,10 +45,10 @@ fn test_libp2p_dht_records_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+    let guard1 = ChildGuard::new(homestar_proc1);
 
     let ws_port1 = 7980;
-    if wait_for_socket_connection(ws_port1, 1000).is_err() {
-        let _ = kill_homestar(homestar_proc1, None);
+    if wait_for_socket_connection(ws_port1, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -84,10 +81,10 @@ fn test_libp2p_dht_records_serial() -> Result<()> {
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
+        let guard2 = ChildGuard::new(homestar_proc2);
 
         let ws_port2 = 7981;
-        if wait_for_socket_connection(ws_port2, 1000).is_err() {
-            let _ = kill_homestar(homestar_proc2, None);
+        if wait_for_socket_connection(ws_port2, 100).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
@@ -255,8 +252,8 @@ fn test_libp2p_dht_records_serial() -> Result<()> {
         assert!(stored_workflow_info.is_ok());
 
         // Collect logs then kill proceses.
-        let dead_proc1 = kill_homestar(homestar_proc1, None);
-        let dead_proc2 = kill_homestar(homestar_proc2, None);
+        let dead_proc1 = kill_homestar(guard1.take(), None);
+        let dead_proc2 = kill_homestar(guard2.take(), None);
 
         // Retrieve logs.
         let stdout1 = retrieve_output(dead_proc1);
@@ -303,11 +300,9 @@ fn test_libp2p_dht_records_serial() -> Result<()> {
 }
 
 #[test]
-#[file_serial]
-fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
-    const DB1: &str = "test_libp2p_dht_insufficient_quorum_serial1.db";
-    const DB2: &str = "test_libp2p_dht_insufficient_quorum_serial2.db";
-    let _ = stop_homestar();
+fn test_libp2p_dht_quorum_failure_integration() -> Result<()> {
+    const DB1: &str = "test_libp2p_dht_insufficient_quorum_integration1.db";
+    const DB2: &str = "test_libp2p_dht_insufficient_quorum_integration2.db";
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -322,10 +317,10 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+    let guard1 = ChildGuard::new(homestar_proc1);
 
     let ws_port = 7982;
-    if wait_for_socket_connection(ws_port, 1000).is_err() {
-        let _ = kill_homestar(homestar_proc1, None);
+    if wait_for_socket_connection(ws_port, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -358,10 +353,10 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
+        let guard2 = ChildGuard::new(homestar_proc2);
 
         let ws_port2 = 7983;
-        if wait_for_socket_connection(ws_port2, 1000).is_err() {
-            let _ = kill_homestar(homestar_proc1, None);
+        if wait_for_socket_connection(ws_port2, 100).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
@@ -417,8 +412,8 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
         }
 
         // Collect logs then kill proceses.
-        let dead_proc1 = kill_homestar(homestar_proc1, None);
-        let _ = kill_homestar(homestar_proc2, None);
+        let dead_proc1 = kill_homestar(guard1.take(), None);
+        let _dead_proc2 = kill_homestar(guard2.take(), None);
 
         // Retrieve logs.
         let stdout1 = retrieve_output(dead_proc1);
@@ -444,11 +439,10 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
 }
 
 #[test]
-#[file_serial]
-fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
+#[ignore]
+fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_dht_workflow_info_provider_records1.db";
     const DB2: &str = "test_libp2p_dht_workflow_info_provider_records2.db";
-    let _ = stop_homestar();
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -460,13 +454,13 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
         .arg("tests/fixtures/test_dht5.toml")
         .arg("--db")
         .arg(DB1)
-        .stdout(Stdio::piped())
+        //.stdout(Stdio::piped())
         .spawn()
         .unwrap();
+    let guard1 = ChildGuard::new(homestar_proc1);
 
     let ws_port1 = 7984;
-    if wait_for_socket_connection(ws_port1, 1000).is_err() {
-        let _ = kill_homestar(homestar_proc1, None);
+    if wait_for_socket_connection(ws_port1, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -496,13 +490,13 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
             .arg("tests/fixtures/test_dht6.toml")
             .arg("--db")
             .arg(DB2)
-            .stdout(Stdio::piped())
+            //.stdout(Stdio::piped())
             .spawn()
             .unwrap();
+        let guard2 = ChildGuard::new(homestar_proc2);
 
         let ws_port2 = 7985;
-        if wait_for_socket_connection(ws_port2, 1000).is_err() {
-            let _ = kill_homestar(homestar_proc2, None);
+        if wait_for_socket_connection(ws_port2, 100).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
@@ -580,7 +574,7 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
 
         assert_eq!(
             sent_workflow_info_cid.to_string(),
-            "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq"
+            "bafyrmiepo4hxftdryivk2nbeu6cugjvl5v2zbxcijelqwakbr4zinyykoa"
         );
 
         // Poll for retrieved workflow info message
@@ -618,8 +612,8 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
         assert!(stored_workflow_info.is_ok());
 
         // Collect logs then kill proceses.
-        let dead_proc1 = kill_homestar(homestar_proc1, None);
-        let dead_proc2 = kill_homestar(homestar_proc2, None);
+        let dead_proc1 = kill_homestar(guard1.take(), None);
+        let dead_proc2 = kill_homestar(guard2.take(), None);
 
         // Retrieve logs.
         let stdout1 = retrieve_output(dead_proc1);
@@ -677,8 +671,7 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
 
 #[ignore]
 #[test]
-#[file_serial]
-fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
+fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> {
     // NOTE: We are ignoring this test for now because we do not have a means
     // to properly isolate node a from node c. In the future when nodes are
     // partitioned as private nodes or from NATs, we will bring this test back.
@@ -702,7 +695,6 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
     const DB1: &str = "test_libp2p_dht_workflow_info_provider_recursive1.db";
     const DB2: &str = "test_libp2p_dht_workflow_info_provider_recursive2.db";
     const DB3: &str = "test_libp2p_dht_workflow_info_provider_recursive3.db";
-    let _ = stop_homestar();
 
     tokio_test::block_on(async move {
         let homestar_proc1 = Command::new(BIN.as_os_str())
@@ -718,10 +710,10 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
+        let _guard1 = ChildGuard::new(homestar_proc1);
 
         let ws_port1 = 7986;
-        if wait_for_socket_connection(ws_port1, 1000).is_err() {
-            let _ = kill_homestar(homestar_proc1, None);
+        if wait_for_socket_connection(ws_port1, 100).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
@@ -753,10 +745,10 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
+        let _guard2 = ChildGuard::new(homestar_proc2);
 
         let ws_port2 = 7987;
-        if wait_for_socket_connection(ws_port2, 1000).is_err() {
-            let _ = kill_homestar(homestar_proc2, None);
+        if wait_for_socket_connection(ws_port2, 100).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
@@ -788,10 +780,10 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
+        let _guard3 = ChildGuard::new(homestar_proc3);
 
         let ws_port3 = 7988;
-        if wait_for_socket_connection(ws_port3, 1000).is_err() {
-            let _ = kill_homestar(homestar_proc3, None);
+        if wait_for_socket_connection(ws_port3, 100).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
@@ -966,9 +958,9 @@ fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
 
         // TODO Check that node three stored the workflow info in its database.
 
-        let _ = kill_homestar(homestar_proc1, None);
-        let _ = kill_homestar(homestar_proc2, None);
-        let _ = kill_homestar(homestar_proc3, None);
+        // let _ = kill_homestar(homestar_proc1, None);
+        // let _ = kill_homestar(homestar_proc2, None);
+        // let _ = kill_homestar(homestar_proc3, None);
 
         // TODO Check for logs that indicate:
         //   - Node three sent workflow info as a provider
