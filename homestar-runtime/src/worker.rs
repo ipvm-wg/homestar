@@ -564,6 +564,7 @@ mod test {
 
         // first time check DHT for workflow info
         let workflow_info_event = rx.recv_async().await.unwrap();
+        let get_workflow_providers_event = rx.recv_async().await.unwrap();
 
         // we should have received 2 receipts
         let next_run_receipt = rx.recv_async().await.unwrap();
@@ -573,6 +574,11 @@ mod test {
             Event::FindRecord(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
             _ => panic!("Wrong event type"),
         };
+
+        match get_workflow_providers_event {
+            Event::GetProviders(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
+            _ => panic!("Wrong event type"),
+        }
 
         let (next_receipt, _wf_info) = match next_run_receipt {
             Event::CapturedReceipt(Captured {
