@@ -673,9 +673,14 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
     Ok(())
 }
 
+#[ignore]
 #[test]
 #[file_serial]
 fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
+    // NOTE: We are ignoring this test for now because we do not have a means
+    // to properly isolate node a from node c. In the future when nodes are
+    // partitioned as private nodes or from NATs, we will bring this test back.
+    //
     // Start 3 nodes (a, b, c):
     // - a peers with b and c
     // - b peers with a
