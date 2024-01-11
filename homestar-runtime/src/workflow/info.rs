@@ -342,9 +342,9 @@ impl Info {
     /// workflow [Cid].
     pub(crate) async fn gather<'a>(
         workflow_cid: Cid,
-        event_sender: Arc<AsyncChannelSender<Event>>,
+        #[allow(unused)] event_sender: Arc<AsyncChannelSender<Event>>,
         mut conn: Option<Connection>,
-        p2p_provider_timeout: Duration,
+        #[allow(unused)] p2p_provider_timeout: Duration,
     ) -> Result<Self> {
         let workflow_info = match conn
             .as_mut()
@@ -359,7 +359,13 @@ impl Info {
                     "workflow information not available in the database"
                 );
 
-                Self::retrieve_from_provider(workflow_cid, event_sender, p2p_provider_timeout).await
+                Err(anyhow!("Could not retrieve workflow info"))
+
+                // TODO Bring this call back when we have determined how to deal with blocking
+                // behavior that is might cause. We want to avoid blocking the thread where swarm events
+                // are handled.
+                //
+                // Self::retrieve_from_provider(workflow_cid, event_sender, p2p_provider_timeout).await
             }
         }?;
 
