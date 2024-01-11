@@ -11,7 +11,7 @@ slow-timeout = { period = "120s", terminate-after = 2 }
 fail-fast = false
 
 [test-groups]
-serial = { max-threads = 4 }
+serial = { max-threads = 1 }
 
 [[profile.default.overrides]]
 filter = 'test(/_serial$/)'
