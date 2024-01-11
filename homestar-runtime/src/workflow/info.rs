@@ -371,6 +371,8 @@ impl Info {
         Ok(workflow_info)
     }
 
+    // Retrieve [Info] from the DHT and send a [FoundEvent::Workflow] event
+    // if info is found.
     async fn retrieve_from_dht<'a>(
         workflow_cid: Cid,
         event_sender: Arc<AsyncChannelSender<Event>>,
@@ -405,6 +407,8 @@ impl Info {
         }
     }
 
+    // Retrieve [Info] from a provider and send a [FoundEvent::Workflow] event
+    // if info is found.
     async fn retrieve_from_provider<'a>(
         workflow_cid: Cid,
         event_sender: Arc<AsyncChannelSender<Event>>,
