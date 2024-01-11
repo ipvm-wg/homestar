@@ -280,6 +280,7 @@ where
 
                         // TODO Check this event is sent when we've updated the receipt
                         // retrieval mechanism.
+                        #[cfg(feature = "websocket-notify")]
                         let _ = event_sender
                             .send_async(Event::StoredRecord(FoundEvent::Receipt(found)))
                             .await;

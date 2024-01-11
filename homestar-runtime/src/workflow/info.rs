@@ -389,6 +389,7 @@ impl Info {
 
         match rx.recv_deadline(Instant::now() + p2p_workflow_info_timeout) {
             Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event)))) => {
+                #[cfg(feature = "websocket-notify")]
                 let _ = event_sender
                     .send_async(Event::StoredRecord(FoundEvent::Workflow(event.clone())))
                     .await;
@@ -425,6 +426,7 @@ impl Info {
 
         match rx.recv_deadline(Instant::now() + p2p_provider_timeout) {
             Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event)))) => {
+                #[cfg(feature = "websocket-notify")]
                 let _ = event_sender
                     .send_async(Event::StoredRecord(FoundEvent::Workflow(event.clone())))
                     .await;
