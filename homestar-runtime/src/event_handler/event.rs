@@ -3,10 +3,7 @@
 use super::{swarm_event::FoundEvent, EventHandler};
 #[cfg(feature = "websocket-notify")]
 use crate::event_handler::{
-    notification::{
-        self, emit_receipt, swarm::workflow_info_source_label, EventNotificationTyp,
-        SwarmNotification,
-    },
+    notification::{self, emit_receipt, EventNotificationTyp, SwarmNotification},
     swarm_event::{ReceiptEvent, WorkflowInfoEvent},
 };
 #[cfg(feature = "ipfs")]
@@ -176,9 +173,7 @@ impl Event {
                         workflow_info,
                         notification_type,
                     }) => {
-                        if let Some(peer_label) =
-                            workflow_info_source_label(notification_type.clone())
-                        {
+                        if let Some(peer_label) = notification_type.workflow_info_source_label() {
                             notification::emit_event(
                                 event_handler.ws_evt_sender(),
                                 notification_type,

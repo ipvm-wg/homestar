@@ -167,6 +167,20 @@ pub(crate) enum EventNotificationTyp {
     SwarmNotification(SwarmNotification),
 }
 
+impl EventNotificationTyp {
+    pub(crate) fn workflow_info_source_label<'a>(&self) -> Option<&'a str> {
+        match &self {
+            EventNotificationTyp::SwarmNotification(SwarmNotification::ReceivedWorkflowInfo) => {
+                Some("provider")
+            }
+            EventNotificationTyp::SwarmNotification(SwarmNotification::GotWorkflowInfoDht) => {
+                Some("publisher")
+            }
+            _ => None,
+        }
+    }
+}
+
 impl fmt::Display for EventNotificationTyp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
