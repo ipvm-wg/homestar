@@ -16,6 +16,16 @@ pub(crate) enum SwarmNotification {
     IncomingConnectionError,
     PublishedReceiptPubsub,
     ReceivedReceiptPubsub,
+    GotReceiptDht,
+    PutReceiptDht,
+    GotWorkflowInfoDht,
+    PutWorkflowInfoDht,
+    ReceiptQuorumSuccess,
+    ReceiptQuorumFailure,
+    WorkflowInfoQuorumSuccess,
+    WorkflowInfoQuorumFailure,
+    SentWorkflowInfo,
+    ReceivedWorkflowInfo,
 }
 
 impl fmt::Display for SwarmNotification {
@@ -36,6 +46,36 @@ impl fmt::Display for SwarmNotification {
             SwarmNotification::PublishedReceiptPubsub => {
                 write!(f, "publishedReceiptPubsub")
             }
+            SwarmNotification::PutReceiptDht => {
+                write!(f, "putReceiptDht")
+            }
+            SwarmNotification::GotReceiptDht => {
+                write!(f, "gotReceiptDht")
+            }
+            SwarmNotification::PutWorkflowInfoDht => {
+                write!(f, "putWorkflowInfoDht")
+            }
+            SwarmNotification::GotWorkflowInfoDht => {
+                write!(f, "gotWorkflowInfoDht")
+            }
+            SwarmNotification::ReceiptQuorumSuccess => {
+                write!(f, "receiptQuorumSuccess")
+            }
+            SwarmNotification::ReceiptQuorumFailure => {
+                write!(f, "receiptQuorumFailure")
+            }
+            SwarmNotification::WorkflowInfoQuorumSuccess => {
+                write!(f, "workflowInfoQuorumSuccess")
+            }
+            SwarmNotification::WorkflowInfoQuorumFailure => {
+                write!(f, "workflowInfoQuorumFailure")
+            }
+            SwarmNotification::SentWorkflowInfo => {
+                write!(f, "sentWorkflowInfo")
+            }
+            SwarmNotification::ReceivedWorkflowInfo => {
+                write!(f, "receivedWorkflowInfo")
+            }
         }
     }
 }
@@ -52,6 +92,16 @@ impl FromStr for SwarmNotification {
             "incomingConnectionError" => Ok(Self::IncomingConnectionError),
             "receivedReceiptPubsub" => Ok(Self::ReceivedReceiptPubsub),
             "publishedReceiptPubsub" => Ok(Self::PublishedReceiptPubsub),
+            "putReciptDht" => Ok(Self::PutReceiptDht),
+            "gotReceiptDht" => Ok(Self::GotReceiptDht),
+            "putWorkflowInfoDht" => Ok(Self::PutWorkflowInfoDht),
+            "gotWorkflowInfoDht" => Ok(Self::GotWorkflowInfoDht),
+            "receiptQuorumSuccess" => Ok(Self::ReceiptQuorumSuccess),
+            "receiptQuorumFailure" => Ok(Self::ReceiptQuorumFailure),
+            "workflowInfoQuorumSuccess" => Ok(Self::WorkflowInfoQuorumSuccess),
+            "workflowInfoQuorumFailure" => Ok(Self::WorkflowInfoQuorumFailure),
+            "sentWorkflowInfo" => Ok(Self::SentWorkflowInfo),
+            "receivedWorkflowInfo" => Ok(Self::ReceivedWorkflowInfo),
             _ => Err(anyhow!("Missing swarm notification type: {}", ty)),
         }
     }

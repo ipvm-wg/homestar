@@ -46,6 +46,8 @@ pub(crate) struct WorkerBuilder<'a> {
     workflow: Workflow<'a, Arg>,
     /// [Workflow] settings.
     workflow_settings: workflow::Settings,
+    /// Network settings.
+    network_settings: settings::Dht,
 }
 
 /// Utility structure for building out [Worker]s for testing purposes.
@@ -65,6 +67,8 @@ pub(crate) struct WorkerBuilder<'a> {
     workflow: Workflow<'a, Arg>,
     /// [Workflow] settings.
     workflow_settings: workflow::Settings,
+    /// Network settings.
+    network_settings: settings::Dht,
 }
 
 impl<'a> WorkerBuilder<'a> {
@@ -91,29 +95,17 @@ impl<'a> WorkerBuilder<'a> {
         let workflow_cid = workflow.clone().to_cid().unwrap();
 
         #[cfg(feature = "ipfs")]
-        {
-            let ipfs = IpfsCli::new(settings.network.ipfs()).unwrap();
-            Self {
-                db: MemoryDb::setup_connection_pool(&settings, None).unwrap(),
-                event_sender: evt_tx,
-                ipfs: ipfs.clone(),
-                runner_sender: wk_tx,
-                name: Some(workflow_cid.to_string()),
-                workflow,
-                workflow_settings: workflow::Settings::default(),
-            }
-        }
-
-        #[cfg(not(feature = "ipfs"))]
-        {
-            Self {
-                db: MemoryDb::setup_connection_pool(&settings, None).unwrap(),
-                event_sender: evt_tx,
-                runner_sender: wk_tx,
-                name: Some(workflow_cid.to_string()),
-                workflow,
-                workflow_settings: workflow::Settings::default(),
-            }
+        let ipfs = IpfsCli::new(settings.network.ipfs()).unwrap();
+        Self {
+            #[cfg(feature = "ipfs")]
+            ipfs: ipfs.clone(),
+            db: MemoryDb::setup_connection_pool(&settings, None).unwrap(),
+            event_sender: evt_tx,
+            runner_sender: wk_tx,
+            name: Some(workflow_cid.to_string()),
+            workflow,
+            workflow_settings: workflow::Settings::default(),
+            network_settings: settings::Dht::default(),
         }
     }
 
@@ -123,6 +115,7 @@ impl<'a> WorkerBuilder<'a> {
         Worker::new(
             self.workflow,
             self.workflow_settings,
+            self.network_settings,
             self.name,
             self.event_sender.into(),
             self.runner_sender,

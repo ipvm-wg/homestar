@@ -51,7 +51,7 @@ pub(crate) fn retrieve_output(proc: Child) -> String {
 }
 
 /// Check process output for all predicates in any line
-pub(crate) fn check_lines_for(output: String, predicates: Vec<&str>) -> bool {
+pub(crate) fn check_for_line_with(output: String, predicates: Vec<&str>) -> bool {
     output
         .split('\n')
         .map(|line| line_contains(line, &predicates))

@@ -13,8 +13,6 @@ pub struct Settings {
     pub(crate) retry_max_delay: Duration,
     /// Initial delay between retries.
     pub(crate) retry_initial_delay: Duration,
-    /// Timeout for P2P/DHT operations.
-    pub(crate) p2p_timeout: Duration,
     /// Timeout for a given workflow.
     pub(crate) timeout: Duration,
 }
@@ -26,7 +24,6 @@ impl Default for Settings {
             retries: 3,
             retry_max_delay: Duration::new(60, 0),
             retry_initial_delay: Duration::from_millis(500),
-            p2p_timeout: Duration::from_millis(500),
             timeout: Duration::new(3600, 0),
         }
     }
@@ -39,7 +36,6 @@ impl Default for Settings {
             retries: 0,
             retry_max_delay: Duration::new(1, 0),
             retry_initial_delay: Duration::from_millis(50),
-            p2p_timeout: Duration::from_millis(10),
             timeout: Duration::from_secs(3600),
         }
     }

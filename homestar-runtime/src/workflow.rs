@@ -396,8 +396,30 @@ mod test {
             prf::UcanPrf,
             Ability, Input, Task,
         },
+        Unit,
     };
     use std::path::Path;
+
+    #[test]
+    fn ipld_roundtrip_indexed_resources() {
+        let (instruction1, instruction2, _) =
+            test_utils::workflow::related_wasm_instructions::<Unit>();
+
+        let mut index_map = IndexMap::new();
+        index_map.insert(
+            instruction1.clone().to_cid().unwrap(),
+            vec![Resource::Url(instruction1.resource().to_owned())],
+        );
+        index_map.insert(
+            instruction2.clone().to_cid().unwrap(),
+            vec![Resource::Url(instruction2.resource().to_owned())],
+        );
+        let indexed_resources = IndexedResources::new(index_map);
+
+        let ipld = Ipld::from(indexed_resources.clone());
+        let ipld_to_indexed_resources = ipld.try_into().unwrap();
+        assert_eq!(indexed_resources, ipld_to_indexed_resources);
+    }
 
     #[test]
     fn dag_to_dot() {

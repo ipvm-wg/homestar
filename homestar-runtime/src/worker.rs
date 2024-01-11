@@ -17,6 +17,7 @@ use crate::{
     network::swarm::CapsuleTag,
     runner::{ModifiedSet, RunningTaskSet},
     scheduler::ExecutionGraph,
+    settings,
     tasks::{RegisteredTasks, WasmContext},
     workflow::{self, Resource},
     Db, Receipt, TaskScheduler,
@@ -82,6 +83,8 @@ pub(crate) struct Worker<'a, DB: Database> {
     pub(crate) workflow_info: Arc<workflow::Info>,
     /// [Workflow] settings.
     pub(crate) workflow_settings: Arc<workflow::Settings>,
+    /// Network settings.
+    pub(crate) network_settings: Arc<settings::Dht>,
     /// [NaiveDateTime] of when the [Workflow] was started.
     pub(crate) workflow_started: NaiveDateTime,
 }
@@ -97,13 +100,13 @@ where
     pub(crate) async fn new<S: Into<FastStr>>(
         workflow: Workflow<'a, Arg>,
         settings: workflow::Settings,
+        network_settings: settings::Dht,
         // Name would be runner specific, separated from core workflow spec.
         name: Option<S>,
         event_sender: Arc<AsyncChannelSender<Event>>,
         runner_sender: AsyncChannelSender<WorkerMessage>,
         db: DB,
     ) -> Result<Worker<'a, DB>> {
-        let p2p_timeout = settings.p2p_timeout;
         let workflow_len = workflow.len();
         // Need to take ownership here to get the cid.
         let workflow_cid = workflow.to_owned().to_cid()?;
@@ -119,7 +122,7 @@ where
             workflow_len,
             name.clone(),
             graph.indexed_resources.clone(),
-            p2p_timeout,
+            network_settings.clone(),
             event_sender.clone(),
             db.conn()?,
         )
@@ -134,6 +137,7 @@ where
             workflow_info: workflow_info.into(),
             workflow_settings: settings.into(),
             workflow_started: timestamp,
+            network_settings: network_settings.into(),
         })
     }
 
@@ -196,7 +200,7 @@ where
         async fn resolve_cid(
             cid: Cid,
             workflow_cid: Cid,
-            workflow_settings: Arc<workflow::Settings>,
+            network_settings: Arc<settings::Dht>,
             linkmap: Arc<RwLock<IndexMap<Cid, InstructionResult<Arg>>>>,
             resources: Arc<RwLock<IndexMap<Resource, Vec<u8>>>>,
             db: impl Database,
@@ -217,6 +221,7 @@ where
                     cid = cid.to_string(),
                     "found CID in in-memory linkmap"
                 );
+
                 Ok(result.to_owned())
             } else if let Some(bytes) = resources.read().await.get(&Resource::Cid(cid)) {
                 debug!(
@@ -225,6 +230,7 @@ where
                     cid = cid.to_string(),
                     "found CID in map of resources"
                 );
+
                 Ok(InstructionResult::Ok(Arg::Ipld(Ipld::Bytes(
                     bytes.to_vec(),
                 ))))
@@ -238,6 +244,7 @@ where
                             category = "worker.run",
                             "no related instruction receipt found in the DB"
                         );
+
                         let (tx, rx) = AsyncChannel::oneshot();
                         let _ = event_sender
                             .send_async(Event::FindRecord(QueryRecord::with(
@@ -248,18 +255,13 @@ where
                             .await;
 
                         let found = match rx
-                            .recv_deadline(Instant::now() + workflow_settings.p2p_timeout)
+                            .recv_deadline(Instant::now() + network_settings.p2p_receipt_timeout)
                         {
                             Ok(ResponseEvent::Found(Ok(FoundEvent::Receipt(found)))) => found,
                             Ok(ResponseEvent::Found(Err(err))) => {
                                 bail!(ResolveError::UnresolvedCid(format!(
                                     "failure in attempting to find event: {err}"
                                 )))
-                            }
-                            Ok(ResponseEvent::NoPeersAvailable) => {
-                                bail!(ResolveError::UnresolvedCid(
-                                    "no peers available to communicate with".to_string()
-                                ))
                             }
                             Ok(_) => bail!(ResolveError::UnresolvedCid(
                                 "wrong or unexpected event message received".to_string(),
@@ -269,12 +271,20 @@ where
                             ))),
                         };
 
-                        let receipt =
-                            Db::commit_receipt(workflow_cid, found.clone(), conn).unwrap_or(found);
+                        let receipt = Db::commit_receipt(workflow_cid, found.clone().receipt, conn)
+                            .unwrap_or(found.clone().receipt);
                         let found_result = receipt.output_as_arg();
 
                         // Store the result in the linkmap for use in next iterations.
                         insert_into_map(linkmap.clone(), cid, found_result.clone()).await;
+
+                        // TODO Check this event is sent when we've updated the receipt
+                        // retrieval mechanism.
+                        #[cfg(feature = "websocket-notify")]
+                        let _ = event_sender
+                            .send_async(Event::StoredRecord(FoundEvent::Receipt(found)))
+                            .await;
+
                         Ok(found_result)
                     }
                 }
@@ -364,7 +374,7 @@ where
                         let mut wasm_ctx = WasmContext::new(state)?;
 
                         let db = self.db.clone();
-                        let settings = self.workflow_settings.clone();
+                        let network_settings = self.network_settings.clone();
                         let linkmap = scheduler.linkmap.clone();
                         let resources = scheduler.resources.clone();
                         let event_sender = self.event_sender.clone();
@@ -374,7 +384,7 @@ where
                             resolve_cid(
                                 cid,
                                 workflow_cid,
-                                settings.clone(),
+                                network_settings.clone(),
                                 linkmap.clone(),
                                 resources.clone(),
                                 db.clone(),
@@ -555,6 +565,7 @@ mod test {
 
         // first time check DHT for workflow info
         let workflow_info_event = rx.recv_async().await.unwrap();
+        let get_workflow_providers_event = rx.recv_async().await.unwrap();
 
         // we should have received 2 receipts
         let next_run_receipt = rx.recv_async().await.unwrap();
@@ -564,6 +575,11 @@ mod test {
             Event::FindRecord(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
             _ => panic!("Wrong event type"),
         };
+
+        match get_workflow_providers_event {
+            Event::GetProviders(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
+            _ => panic!("Wrong event type"),
+        }
 
         let (next_receipt, _wf_info) = match next_run_receipt {
             Event::CapturedReceipt(Captured {

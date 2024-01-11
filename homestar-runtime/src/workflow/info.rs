@@ -8,9 +8,9 @@ use crate::{
         Event,
     },
     network::swarm::CapsuleTag,
-    Db, Receipt,
+    settings, Db, Receipt,
 };
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Result};
 use chrono::{NaiveDateTime, Utc};
 use diesel::{Associations, Identifiable, Insertable, Queryable, Selectable};
 use faststr::FastStr;
@@ -270,17 +270,16 @@ impl Info {
         DagCborCodec.encode(&capsule)
     }
 
-    /// [Gather] available [Info] from the database or [libp2p] given a
+    /// Retrieve available [Info] from the database or [libp2p] given a
     /// [Workflow], or return a default/new version of [Info] if none is found.
     ///
-    /// [Gather]: Self::gather
     /// [Workflow]: homestar_core::Workflow
     pub(crate) async fn init(
         workflow_cid: Cid,
         workflow_len: u32,
         name: FastStr,
         resources: IndexedResources,
-        p2p_timeout: Duration,
+        network_settings: settings::Dht,
         event_sender: Arc<AsyncChannelSender<Event>>,
         mut conn: Connection,
     ) -> Result<(Self, NaiveDateTime)> {
@@ -310,30 +309,41 @@ impl Info {
                 let result = Db::store_workflow(stored.clone(), &mut conn)?;
                 let workflow_info = Self::default(result);
 
-                // spawn a task to retrieve the workflow info from the
+                // spawn a separate, blocking task to retrieve workflow info from the
                 // network and store it in the database if it finds it.
                 let handle = Handle::current();
-                handle.spawn(Self::retrieve_from_query(
-                    workflow_cid,
-                    p2p_timeout,
-                    event_sender,
-                    Some(conn),
-                    None::<fn(Cid, Option<Connection>) -> Result<Self>>,
-                ));
+                handle.spawn_blocking({
+                    let event_sender = event_sender.clone();
+                    let network_settings = network_settings.clone();
+                    move || {
+                        let handle = Handle::current();
+                        match handle.block_on(Self::retrieve_from_dht(
+                            workflow_cid,
+                            event_sender.clone(),
+                            network_settings.p2p_workflow_info_timeout,
+                        )) {
+                            Ok(workflow_info) => Ok(workflow_info),
+                            Err(_) => handle.block_on(Self::retrieve_from_provider(
+                                workflow_cid,
+                                event_sender,
+                                network_settings.p2p_provider_timeout,
+                            )),
+                        }
+                    }
+                });
 
                 Ok((workflow_info, timestamp))
             }
         }
     }
 
-    /// Gather available [Info] from the database or [libp2p] given a
+    /// Retrieve available [Info] from the database or [libp2p] given a
     /// workflow [Cid].
-    pub(crate) async fn gather<'a>(
+    pub(crate) async fn retrieve<'a>(
         workflow_cid: Cid,
-        p2p_timeout: Duration,
-        event_sender: Arc<AsyncChannelSender<Event>>,
+        #[allow(unused)] event_sender: Arc<AsyncChannelSender<Event>>,
         mut conn: Option<Connection>,
-        handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> Result<Self>>,
+        #[allow(unused)] p2p_provider_timeout: Duration,
     ) -> Result<Self> {
         let workflow_info = match conn
             .as_mut()
@@ -342,32 +352,31 @@ impl Info {
             Some((_name, workflow_info)) => Ok(workflow_info),
             None => {
                 info!(
-                    subject = "workflow.gather.db.check",
+                    subject = "workflow.retrieve.db.check",
                     category = "workflow",
                     cid = workflow_cid.to_string(),
                     "workflow information not available in the database"
                 );
 
-                Self::retrieve_from_query(
-                    workflow_cid,
-                    p2p_timeout,
-                    event_sender,
-                    conn,
-                    handle_timeout_fn,
-                )
-                .await
+                Err(anyhow!("Could not retrieve workflow info"))
+
+                // TODO Bring this call back when we have determined how to deal with blocking
+                // behavior that is might cause. We want to avoid blocking the thread where swarm events
+                // are handled.
+                //
+                // Self::retrieve_from_provider(workflow_cid, event_sender, p2p_provider_timeout).await
             }
         }?;
 
         Ok(workflow_info)
     }
 
-    async fn retrieve_from_query<'a>(
+    // Retrieve [Info] from the DHT and send a [FoundEvent::Workflow] event
+    // if info is found.
+    async fn retrieve_from_dht<'a>(
         workflow_cid: Cid,
-        p2p_timeout: Duration,
         event_sender: Arc<AsyncChannelSender<Event>>,
-        conn: Option<Connection>,
-        handle_timeout_fn: Option<impl FnOnce(Cid, Option<Connection>) -> Result<Info>>,
+        p2p_workflow_info_timeout: Duration,
     ) -> Result<Info> {
         let (tx, rx) = AsyncChannel::oneshot();
         event_sender
@@ -378,15 +387,51 @@ impl Info {
             )))
             .await?;
 
-        match rx.recv_deadline(Instant::now() + p2p_timeout) {
-            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(workflow_info)))) => {
-                // store workflow receipts from info, as we've already stored
-                // the static information.
-                if let Some(mut conn) = conn {
-                    Db::store_workflow_receipts(workflow_cid, &workflow_info.progress, &mut conn)?;
-                }
+        match rx.recv_deadline(Instant::now() + p2p_workflow_info_timeout) {
+            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event)))) => {
+                #[cfg(feature = "websocket-notify")]
+                let _ = event_sender
+                    .send_async(Event::StoredRecord(FoundEvent::Workflow(event.clone())))
+                    .await;
 
-                Ok(workflow_info)
+                Ok(event.workflow_info)
+            }
+            Ok(ResponseEvent::Found(Err(_err))) => {
+                bail!("failed to find workflow info with cid {workflow_cid}")
+            }
+            Ok(event) => {
+                bail!("received unexpected event {event:?} for workflow {workflow_cid}")
+            }
+            Err(_err) => {
+                bail!("timed out while finding workflow info with cid {workflow_cid}")
+            }
+        }
+    }
+
+    // Retrieve [Info] from a provider and send a [FoundEvent::Workflow] event
+    // if info is found.
+    async fn retrieve_from_provider<'a>(
+        workflow_cid: Cid,
+        event_sender: Arc<AsyncChannelSender<Event>>,
+        p2p_provider_timeout: Duration,
+    ) -> Result<Info> {
+        let (tx, rx) = AsyncChannel::oneshot();
+        event_sender
+            .send_async(Event::GetProviders(QueryRecord::with(
+                workflow_cid,
+                CapsuleTag::Workflow,
+                Some(tx),
+            )))
+            .await?;
+
+        match rx.recv_deadline(Instant::now() + p2p_provider_timeout) {
+            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event)))) => {
+                #[cfg(feature = "websocket-notify")]
+                let _ = event_sender
+                    .send_async(Event::StoredRecord(FoundEvent::Workflow(event.clone())))
+                    .await;
+
+                Ok(event.workflow_info)
             }
             Ok(ResponseEvent::Found(Err(err))) => {
                 bail!("failure in attempting to find event: {err}")
@@ -394,11 +439,9 @@ impl Info {
             Ok(event) => {
                 bail!("received unexpected event {event:?} for workflow {workflow_cid}")
             }
-            Err(err) => handle_timeout_fn
-                .map(|f| f(workflow_cid, conn).context(err))
-                .unwrap_or(Err(anyhow!(
-                    "timeout deadline reached for retrieving workflow info"
-                ))),
+            Err(err) => {
+                bail!("timeout deadline reached for retrieving workflow info: {err}")
+            }
         }
     }
 }
@@ -464,7 +507,7 @@ impl TryFrom<Ipld> for Info {
                 .ok_or_else(|| anyhow!("no `progress_count` set"))?
                 .to_owned(),
         )?;
-        let resources = from_ipld(
+        let resources = IndexedResources::try_from(
             map.get(RESOURCES_KEY)
                 .ok_or_else(|| anyhow!("no `resources` set"))?
                 .to_owned(),
@@ -504,6 +547,7 @@ impl DagJson for Info where Ipld: From<Info> {}
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::workflow::Resource;
     use homestar_core::{
         ipld::DagCbor,
         test_utils,
@@ -511,6 +555,7 @@ mod test {
         Workflow,
     };
     use homestar_wasm::io::Arg;
+    use indexmap::IndexMap;
 
     #[test]
     fn ipld_roundtrip_workflow_info() {
@@ -518,21 +563,34 @@ mod test {
         let (instruction1, instruction2, _) =
             test_utils::workflow::related_wasm_instructions::<Arg>();
         let task1 = Task::new(
-            RunInstruction::Expanded(instruction1),
+            RunInstruction::Expanded(instruction1.clone()),
             config.clone().into(),
             UcanPrf::default(),
         );
         let task2 = Task::new(
-            RunInstruction::Expanded(instruction2),
+            RunInstruction::Expanded(instruction2.clone()),
             config.into(),
             UcanPrf::default(),
         );
 
-        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let stored_info = Stored::default(
-            Pointer::new(workflow.clone().to_cid().unwrap()),
-            workflow.len() as i32,
+        let mut index_map = IndexMap::new();
+        index_map.insert(
+            instruction1.clone().to_cid().unwrap(),
+            vec![Resource::Url(instruction1.resource().to_owned())],
         );
+        index_map.insert(
+            instruction2.clone().to_cid().unwrap(),
+            vec![Resource::Url(instruction2.resource().to_owned())],
+        );
+
+        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+        let stored_info = Stored::new_with_resources(
+            Pointer::new(workflow.clone().to_cid().unwrap()),
+            None,
+            workflow.len() as i32,
+            IndexedResources::new(index_map),
+        );
+
         let mut workflow_info = Info::default(stored_info);
         workflow_info.increment_progress(task1.to_cid().unwrap());
         workflow_info.increment_progress(task2.to_cid().unwrap());

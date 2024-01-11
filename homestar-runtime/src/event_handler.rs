@@ -55,7 +55,9 @@ pub(crate) struct EventHandler<DB: Database> {
     receipt_quorum: usize,
     /// Minimum number of peers required to receive workflow information.
     workflow_quorum: usize,
-    /// Timeout for p2p provider requests.
+    /// Timeout for p2p workflow info record requests.
+    p2p_workflow_info_timeout: Duration,
+    /// Timeout for p2p workflow info record requests from a provider.
     p2p_provider_timeout: Duration,
     /// Accessible database instance.
     db: DB,
@@ -101,7 +103,9 @@ pub(crate) struct EventHandler<DB: Database> {
     receipt_quorum: usize,
     /// Minimum number of peers required to receive workflow information.
     workflow_quorum: usize,
-    /// Timeout for p2p provider requests.
+    /// Timeout for p2p workflow info record requests.
+    p2p_workflow_info_timeout: Duration,
+    /// Timeout for p2p workflow info record requests from a provider.
     p2p_provider_timeout: Duration,
     /// Accesible database instance.
     db: DB,
@@ -174,6 +178,7 @@ where
         Self {
             receipt_quorum: settings.libp2p.dht.receipt_quorum,
             workflow_quorum: settings.libp2p.dht.workflow_quorum,
+            p2p_workflow_info_timeout: settings.libp2p.dht.p2p_workflow_info_timeout,
             p2p_provider_timeout: settings.libp2p.dht.p2p_provider_timeout,
             db,
             swarm,
@@ -214,6 +219,7 @@ where
         Self {
             receipt_quorum: settings.libp2p.dht.receipt_quorum,
             workflow_quorum: settings.libp2p.dht.workflow_quorum,
+            p2p_workflow_info_timeout: settings.libp2p.dht.p2p_workflow_info_timeout,
             p2p_provider_timeout: settings.libp2p.dht.p2p_provider_timeout,
             db,
             swarm,

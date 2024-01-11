@@ -6,10 +6,9 @@ use crate::event_handler::notification::{self, EventNotificationTyp, SwarmNotifi
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
-    db::{Connection, Database},
+    db::Database,
     event_handler::{
         cache::{self, CacheData, CacheValue},
-        event::QueryRecord,
         Event, Handler, RequestResponseError,
     },
     libp2p::multiaddr::MultiaddrExt,
@@ -19,24 +18,18 @@ use crate::{
             CapsuleTag, ComposedEvent, PeerDiscoveryInfo, RequestResponseKey, HOMESTAR_PROTOCOL_VER,
         },
     },
-    receipt::{RECEIPT_TAG, VERSION_KEY},
     workflow,
     workflow::WORKFLOW_TAG,
     Db, Receipt,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use homestar_core::{
-    consts,
-    workflow::{Pointer, Receipt as InvocationReceipt},
-};
-use libipld::{Cid, Ipld};
+use libipld::Cid;
+#[cfg(feature = "websocket-notify")]
+use libipld::Ipld;
 use libp2p::{
     gossipsub, identify, kad,
-    kad::{
-        AddProviderOk, BootstrapOk, GetProvidersOk, GetRecordOk, PeerRecord, PutRecordOk,
-        QueryResult,
-    },
+    kad::{AddProviderOk, BootstrapOk, GetProvidersOk, GetRecordOk, PutRecordOk, QueryResult},
     mdns,
     multiaddr::Protocol,
     rendezvous::{self, Namespace, Registration},
@@ -52,6 +45,9 @@ use std::{
 };
 use tracing::{debug, error, info, warn};
 
+pub(crate) mod record;
+pub(crate) use record::*;
+
 const RENDEZVOUS_PROTOCOL_NAME: StreamProtocol = StreamProtocol::new("/rendezvous/1.0.0");
 const RENDEZVOUS_NAMESPACE: &str = "homestar";
 
@@ -59,11 +55,10 @@ const RENDEZVOUS_NAMESPACE: &str = "homestar";
 /// on the DHT.
 #[derive(Debug)]
 pub(crate) enum ResponseEvent {
-    /// Found [PeerRecord] on the DHT.
+    /// Found [libp2p::kad::PeerRecord] on the DHT.
     Found(Result<FoundEvent>),
-    /// No peers available to network with on the DHT.
-    NoPeersAvailable,
     /// Found providers/[PeerId]s on the DHT.
+    #[allow(dead_code)]
     Providers(Result<HashSet<PeerId>>),
 }
 
@@ -72,21 +67,27 @@ pub(crate) enum ResponseEvent {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum FoundEvent {
     /// Found [Receipt] on the DHT.
-    Receipt(Receipt),
+    Receipt(ReceiptEvent),
     /// Found [workflow::Info] on the DHT.
-    Workflow(workflow::Info),
+    Workflow(WorkflowInfoEvent),
 }
 
-/// Trait for handling [PeerRecord]s found on the DHT.
-trait FoundRecord {
-    fn found_record(&self) -> Result<FoundEvent>;
+/// [FoundEvent] variant for receipts found on the DHT.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ReceiptEvent {
+    pub(crate) peer_id: Option<PeerId>,
+    pub(crate) receipt: Receipt,
+    #[cfg(feature = "websocket-notify")]
+    pub(crate) notification_type: EventNotificationTyp,
 }
 
-impl FoundRecord for PeerRecord {
-    fn found_record(&self) -> Result<FoundEvent> {
-        let key_cid = Cid::try_from(self.record.key.as_ref())?;
-        decode_capsule(key_cid, &self.record.value)
-    }
+/// [FoundEvent] variant for workflow info found on the DHT.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct WorkflowInfoEvent {
+    pub(crate) peer_id: Option<PeerId>,
+    pub(crate) workflow_info: workflow::Info,
+    #[cfg(feature = "websocket-notify")]
+    pub(crate) notification_type: EventNotificationTyp,
 }
 
 #[async_trait]
@@ -493,9 +494,9 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                 SwarmNotification::ReceivedReceiptPubsub,
                             ),
                             btreemap! {
-                                "peerId" => propagation_source.to_string(),
-                                "cid" => receipt.cid().to_string(),
-                                "ran" => receipt.ran().to_string()
+                                "publisher" => Ipld::String(propagation_source.to_string()),
+                                "cid" => Ipld::String(receipt.cid().to_string()),
+                                "ran" => Ipld::String(receipt.ran().to_string())
                             },
                         );
                     }
@@ -528,9 +529,21 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 ),
                 QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders {
                     key: _,
-                    providers,
-                    ..
+                    mut providers,
                 })) => {
+                    let _ = providers.remove(event_handler.swarm.local_peer_id());
+
+                    if providers.is_empty() {
+                        return;
+                    }
+
+                    debug!(
+                        subject = "libp2p.kad.get_providers",
+                        category = "handle_swarm_event",
+                        providers = ?providers,
+                        "got workflow info providers"
+                    );
+
                     let Some((key, sender)) = event_handler.query_senders.remove(&id) else {
                         return;
                     };
@@ -569,21 +582,72 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     }
                 }
                 QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
-                    debug!(
-                        subject = "libp2p.kad.get_record.err",
-                        category = "handle_swarm_event",
-                        "found record {:#?}, published by {:?}",
-                        peer_record.record.key,
-                        peer_record.record.publisher
-                    );
                     match peer_record.found_record() {
-                        Ok(event) => {
+                        Ok(decoded_record) => {
                             let Some((_, sender)) = event_handler.query_senders.remove(&id) else {
                                 return;
                             };
 
-                            if let Some(sender) = sender {
-                                let _ = sender.send_async(ResponseEvent::Found(Ok(event))).await;
+                            match decoded_record {
+                                DecodedRecord::Receipt(ReceiptRecord { peer_id, receipt }) => {
+                                    let response_event = ResponseEvent::Found(Ok(
+                                        FoundEvent::Receipt(ReceiptEvent {
+                                            peer_id,
+                                            receipt: receipt.clone(),
+                                            #[cfg(feature = "websocket-notify")]
+                                            notification_type:
+                                                EventNotificationTyp::SwarmNotification(
+                                                    SwarmNotification::GotReceiptDht,
+                                                ),
+                                        }),
+                                    ));
+
+                                    if let Some(sender) = sender {
+                                        let _ = sender.send_async(response_event).await;
+                                    }
+
+                                    debug!(
+                                        subject = "libp2p.kad.get_record",
+                                        category = "handle_swarm_event",
+                                        cid = receipt.cid().to_string(),
+                                        "found receipt record published by {}",
+                                        match peer_id {
+                                            Some(peer) => peer.to_string(),
+                                            None => "unknown peer".to_string(),
+                                        }
+                                    );
+                                }
+                                DecodedRecord::Workflow(WorkflowInfoRecord {
+                                    peer_id,
+                                    workflow_info,
+                                }) => {
+                                    let response_event = ResponseEvent::Found(Ok(
+                                        FoundEvent::Workflow(WorkflowInfoEvent {
+                                            peer_id,
+                                            workflow_info: workflow_info.clone(),
+                                            #[cfg(feature = "websocket-notify")]
+                                            notification_type:
+                                                EventNotificationTyp::SwarmNotification(
+                                                    SwarmNotification::GotWorkflowInfoDht,
+                                                ),
+                                        }),
+                                    ));
+
+                                    if let Some(sender) = sender {
+                                        let _ = sender.send_async(response_event).await;
+                                    }
+
+                                    debug!(
+                                        subject = "libp2p.kad.get_record",
+                                        category = "handle_swarm_event",
+                                        cid = workflow_info.cid().to_string(),
+                                        "found workflow info record published by {}",
+                                        match peer_id {
+                                            Some(peer) => peer.to_string(),
+                                            None => "unknown peer".to_string(),
+                                        }
+                                    );
+                                }
                             }
                         }
                         Err(err) => {
@@ -613,24 +677,18 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     match event_handler.query_senders.remove(&id) {
                         Some((
                             RequestResponseKey {
-                                cid: ref cid_str,
                                 capsule_tag: CapsuleTag::Workflow,
+                                ..
                             },
                             sender,
                         )) => {
-                            let ev_sender = event_handler.sender();
-                            if let Ok(cid) = Cid::try_from(cid_str.as_str()) {
-                                let _ = ev_sender
-                                    .send_async(Event::GetProviders(QueryRecord::with(
-                                        cid,
-                                        CapsuleTag::Workflow,
-                                        sender,
-                                    )))
+                            if let Some(sender) = sender {
+                                let _ = sender
+                                    .send_async(ResponseEvent::Found(Err(err.into())))
                                     .await;
                             }
                         }
                         Some((RequestResponseKey { capsule_tag, .. }, sender)) => {
-                            let _ = event_handler.query_senders.remove(&id);
                             if let Some(sender) = sender {
                                 let _ = sender
                                     .send_async(ResponseEvent::Found(Err(anyhow!(
@@ -652,36 +710,131 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         ),
                     }
                 }
-                QueryResult::PutRecord(Ok(PutRecordOk { key })) => debug!(
-                    subject = "libp2p.kad.put_record",
-                    category = "handle_swarm_event",
-                    "successfully put record {key:#?}"
-                ),
-                QueryResult::PutRecord(Err(err)) => warn!(
-                    subject = "libp2p.kad.put_record.err",
-                    category = "handle_swarm_event",
-                    err=?err,
-                    "error putting record"),
+                QueryResult::PutRecord(Ok(PutRecordOk { .. })) => {
+                    let Some((key, _)) = event_handler.query_senders.remove(&id) else {
+                        return;
+                    };
+
+                    debug!(
+                        subject = "libp2p.kad.put_record",
+                        category = "handle_swarm_event",
+                        cid = key.cid.to_string(),
+                        "quorum success for {} record",
+                        match key.capsule_tag {
+                            CapsuleTag::Receipt => "receipt",
+                            CapsuleTag::Workflow => "workflow info",
+                        }
+                    );
+
+                    #[cfg(feature = "websocket-notify")]
+                    match key.capsule_tag {
+                        CapsuleTag::Receipt => notification::emit_event(
+                            event_handler.ws_evt_sender(),
+                            EventNotificationTyp::SwarmNotification(
+                                SwarmNotification::ReceiptQuorumSuccess,
+                            ),
+                            btreemap! {
+                                "cid" => Ipld::String(key.cid.to_string()),
+                                "quorum" => Ipld::Integer(event_handler.receipt_quorum as i128),
+                            },
+                        ),
+                        CapsuleTag::Workflow => notification::emit_event(
+                            event_handler.ws_evt_sender(),
+                            EventNotificationTyp::SwarmNotification(
+                                SwarmNotification::WorkflowInfoQuorumSuccess,
+                            ),
+                            btreemap! {
+                                "cid" => Ipld::String(key.cid.to_string()),
+                                "quorum" => Ipld::Integer(event_handler.workflow_quorum as i128),
+                            },
+                        ),
+                    }
+                }
+                QueryResult::PutRecord(Err(err)) => {
+                    let Some((key, _)) = event_handler.query_senders.remove(&id) else {
+                        return;
+                    };
+
+                    warn!(
+                      subject = "libp2p.kad.put_record.err",
+                      category = "handle_swarm_event",
+                      err=?err.clone(),
+                      cid = key.cid.to_string(),
+                      "error propagating {} record",
+                      match key.capsule_tag {
+                          CapsuleTag::Receipt => "receipt",
+                          CapsuleTag::Workflow => "workflow info",
+                      }
+                    );
+
+                    #[cfg(feature = "websocket-notify")]
+                    if let kad::PutRecordError::QuorumFailed { success, .. } = err {
+                        match key.capsule_tag {
+                            CapsuleTag::Receipt => notification::emit_event(
+                                event_handler.ws_evt_sender(),
+                                EventNotificationTyp::SwarmNotification(
+                                    SwarmNotification::ReceiptQuorumFailure,
+                                ),
+                                btreemap! {
+                                    "cid" => Ipld::String(key.cid.to_string()),
+                                    "quorum" => Ipld::Integer(event_handler.receipt_quorum as i128),
+                                    "connectedPeers" => Ipld::Integer(event_handler.connections.peers.len() as i128),
+                                    "storedToPeers" => Ipld::List(success.iter().map(|cid| Ipld::String(cid.to_string())).collect())
+                                },
+                            ),
+                            CapsuleTag::Workflow => notification::emit_event(
+                                event_handler.ws_evt_sender(),
+                                EventNotificationTyp::SwarmNotification(
+                                    SwarmNotification::WorkflowInfoQuorumFailure,
+                                ),
+                                btreemap! {
+                                    "cid" => Ipld::String(key.cid.to_string()),
+                                    "quorum" => Ipld::Integer(event_handler.workflow_quorum as i128),
+                                    "connectedPeers" => Ipld::Integer(event_handler.connections.peers.len() as i128),
+                                    "storedToPeers" => Ipld::List(success.iter().map(|cid| Ipld::String(cid.to_string())).collect())
+                                },
+                            ),
+                        }
+                    }
+                }
                 QueryResult::StartProviding(Ok(AddProviderOk { key })) => {
                     // Currently, we don't send anything to the <worker> channel,
                     // once they key is provided.
-                    let _ = event_handler.query_senders.remove(&id);
-                    debug!(
-                        subject = "libp2p.kad.provide_record",
-                        category = "handle_swarm_event",
-                        "successfully providing {key:#?}"
-                    );
+                    if let Some((
+                        RequestResponseKey {
+                            cid: ref cid_str,
+                            capsule_tag: CapsuleTag::Workflow,
+                        },
+                        _,
+                    )) = event_handler.query_senders.remove(&id)
+                    {
+                        debug!(
+                            subject = "libp2p.kad.provide_record",
+                            category = "handle_swarm_event",
+                            cid=%cid_str,
+                            "successfully providing {key:#?}"
+                        );
+                    }
                 }
                 QueryResult::StartProviding(Err(err)) => {
                     // Currently, we don't send anything to the <worker> channel,
                     // once they key is provided.
-                    let _ = event_handler.query_senders.remove(&id);
-                    warn!(
-                        subject = "libp2p.kad.provide_record.err",
-                        category = "handle_swarm_event",
-                        "error providing key: {:#?}",
-                        err.key()
-                    );
+                    if let Some((
+                        RequestResponseKey {
+                            cid: ref cid_str,
+                            capsule_tag: CapsuleTag::Workflow,
+                        },
+                        _,
+                    )) = event_handler.query_senders.remove(&id)
+                    {
+                        warn!(
+                            subject = "libp2p.kad.provide_record.err",
+                            category = "handle_swarm_event",
+                            cid=%cid_str,
+                            "error providing key: {:#?}",
+                            err.key()
+                        );
+                    }
                 }
                 _ => {}
             }
@@ -705,10 +858,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
         }
 
         SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
-            request_response::Event::Message {
-                message,
-                peer: _peer,
-            },
+            request_response::Event::Message { message, peer },
         )) => match message {
             request_response::Message::Request {
                 request, channel, ..
@@ -717,12 +867,11 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 request.capsule_tag.tag(),
             ) {
                 (Ok(cid), WORKFLOW_TAG) => {
-                    match workflow::Info::gather(
+                    match workflow::Info::retrieve(
                         cid,
-                        event_handler.p2p_provider_timeout,
                         event_handler.sender.clone(),
                         event_handler.db.conn().ok(),
-                        None::<fn(Cid, Option<Connection>) -> Result<workflow::Info>>,
+                        event_handler.p2p_provider_timeout,
                     )
                     .await
                     {
@@ -733,6 +882,29 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                                     .behaviour_mut()
                                     .request_response
                                     .send_response(channel, bytes);
+
+                                debug!(subject = "libp2p.req_resp",
+                                      category = "handle_swarm_event",
+                                      cid=?cid,
+                                      peer_id = peer.to_string(),
+                                      "sent workflow info to peer"
+                                );
+
+                                #[cfg(feature = "websocket-notify")]
+                                notification::emit_event(
+                                    event_handler.ws_evt_sender(),
+                                    EventNotificationTyp::SwarmNotification(
+                                        SwarmNotification::SentWorkflowInfo,
+                                    ),
+                                    btreemap! {
+                                        "requestor" => Ipld::String(peer.to_string()),
+                                        "cid" => Ipld::String(workflow_info.cid().to_string()),
+                                        "name" => workflow_info.name.as_ref().map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
+                                        "numTasks" => Ipld::Integer(workflow_info.num_tasks as i128),
+                                        "progress" => Ipld::List(workflow_info.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
+                                        "progressCount" => Ipld::Integer(workflow_info.progress_count as i128),
+                                    },
+                                )
                             } else {
                                 let _ = event_handler
                                     .swarm
@@ -787,9 +959,42 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     event_handler.request_response_senders.remove(&request_id)
                 {
                     if let Ok(cid) = Cid::try_from(key_cid.as_str()) {
-                        match decode_capsule(cid, &response) {
-                            Ok(event) => {
-                                let _ = sender.send_async(ResponseEvent::Found(Ok(event))).await;
+                        match decode_capsule(cid, Some(peer), &response) {
+                            Ok(DecodedRecord::Workflow(WorkflowInfoRecord {
+                                peer_id,
+                                workflow_info,
+                            })) => {
+                                let response_event = ResponseEvent::Found(Ok(
+                                    FoundEvent::Workflow(WorkflowInfoEvent {
+                                        peer_id,
+                                        workflow_info: workflow_info.clone(),
+                                        #[cfg(feature = "websocket-notify")]
+                                        notification_type: EventNotificationTyp::SwarmNotification(
+                                            SwarmNotification::ReceivedWorkflowInfo,
+                                        ),
+                                    }),
+                                ));
+
+                                let _ = sender.send_async(response_event).await;
+
+                                debug!(subject = "libp2p.req_resp",
+                                      category = "handle_swarm_event",
+                                      cid=?cid,
+                                      peer_id = peer.to_string(),
+                                      "received workflow info from peer"
+                                );
+                            }
+                            Ok(DecodedRecord::Receipt(record)) => {
+                                debug!(subject = "libp2p.req_resp.resp.err",
+                                      category = "handle_swarm_event",
+                                      cid = record.receipt.cid().to_string(),
+                                      "received a receipt when workflow info was expected: {request_id}");
+
+                                let _ = sender
+                                    .send_async(ResponseEvent::Found(Err(anyhow!(
+                                        "Found receipt record when workflow info was expected"
+                                    ))))
+                                    .await;
                             }
                             Err(err) => {
                                 warn!(subject = "libp2p.req_resp.resp.err",
@@ -805,6 +1010,17 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 }
             }
         },
+        SwarmEvent::Behaviour(ComposedEvent::RequestResponse(
+            request_response::Event::ResponseSent { peer, .. },
+        )) => {
+            debug!(
+                subject = "libp2p.req_resp.resp_sent",
+                category = "handle_swarm_event",
+                peer_id = peer.to_string(),
+                "response sent with workflow info record"
+            );
+        }
+
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Discovered(list))) => {
             for (peer_id, multiaddr) in list {
                 debug!(
@@ -871,8 +1087,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ListeningOn),
                 btreemap! {
-                    "peerId" => local_peer.to_string(),
-                    "address" => address.to_string()
+                    "peerId" => Ipld::String(local_peer.to_string()),
+                    "address" => Ipld::String(address.to_string())
                 },
             );
         }
@@ -897,8 +1113,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
                 btreemap! {
-                    "peerId" => peer_id.to_string(),
-                    "address" => endpoint.get_remote_address().to_string()
+                    "peerId" => Ipld::String(peer_id.to_string()),
+                    "address" => Ipld::String(endpoint.get_remote_address().to_string())
                 },
             );
         }
@@ -950,8 +1166,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionClosed),
                 btreemap! {
-                    "peerId" => peer_id.to_string(),
-                    "address" => endpoint.get_remote_address().to_string()
+                    "peerId" => Ipld::String(peer_id.to_string()),
+                    "address" => Ipld::String(endpoint.get_remote_address().to_string())
                 },
             );
         }
@@ -973,8 +1189,8 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::OutgoingConnectionError),
                 btreemap! {
-                    "peerId" => peer_id.map_or("Unknown peer".into(), |p| p.to_string()),
-                    "error" => error.to_string()
+                    "peerId" => peer_id.map_or(Ipld::Null, |p| Ipld::String(p.to_string())),
+                    "error" => Ipld::String(error.to_string())
                 },
             );
         }
@@ -997,7 +1213,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 event_handler.ws_evt_sender(),
                 EventNotificationTyp::SwarmNotification(SwarmNotification::IncomingConnectionError),
                 btreemap! {
-                    "error" => error.to_string()
+                    "error" => Ipld::String(error.to_string())
                 },
             );
         }
@@ -1027,108 +1243,5 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                     category = "handle_swarm_event",
                     e=?e,
                     "uncaught event"),
-    }
-}
-
-fn decode_capsule(key_cid: Cid, value: &Vec<u8>) -> Result<FoundEvent> {
-    // If it decodes to an error, return the error.
-    if let Ok((decoded_error, _)) = RequestResponseError::decode(value) {
-        return Err(anyhow!("value returns an error: {decoded_error}"));
-    };
-
-    match serde_ipld_dagcbor::de::from_reader(&**value) {
-        Ok(Ipld::Map(mut map)) => match map.pop_first() {
-            Some((code, Ipld::Map(mut rest))) if code == RECEIPT_TAG => {
-                if rest.remove(VERSION_KEY)
-                    == Some(Ipld::String(consts::INVOCATION_VERSION.to_string()))
-                {
-                    let invocation_receipt = InvocationReceipt::try_from(Ipld::Map(rest))?;
-                    let receipt = Receipt::try_with(Pointer::new(key_cid), &invocation_receipt)?;
-                    Ok(FoundEvent::Receipt(receipt))
-                } else {
-                    Err(anyhow!(
-                        "record version mismatch, current version: {}",
-                        consts::INVOCATION_VERSION
-                    ))
-                }
-            }
-            Some((code, Ipld::Map(rest))) if code == WORKFLOW_TAG => {
-                let workflow_info = workflow::Info::try_from(Ipld::Map(rest))?;
-                Ok(FoundEvent::Workflow(workflow_info))
-            }
-            Some((code, _)) => Err(anyhow!("decode mismatch: {code} is not known")),
-            None => Err(anyhow!("invalid record value")),
-        },
-        Ok(ipld) => Err(anyhow!(
-            "decode mismatch: expected an Ipld map, got {ipld:#?}",
-        )),
-        Err(err) => Err(anyhow!("error deserializing record value: {err}")),
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::{test_utils, workflow};
-    use homestar_core::{
-        ipld::DagCbor,
-        test_utils::workflow as workflow_test_utils,
-        workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
-        Workflow,
-    };
-    use homestar_wasm::io::Arg;
-    use libp2p::{kad::Record, PeerId};
-
-    #[test]
-    fn found_receipt_record() {
-        let (invocation_receipt, receipt) = test_utils::receipt::receipts();
-        let instruction_bytes = receipt.instruction_cid_as_bytes();
-        let bytes = Receipt::invocation_capsule(&invocation_receipt).unwrap();
-        let record = Record::new(instruction_bytes, bytes);
-        let peer_record = PeerRecord {
-            record,
-            peer: Some(PeerId::random()),
-        };
-        if let FoundEvent::Receipt(found_receipt) = peer_record.found_record().unwrap() {
-            assert_eq!(found_receipt, receipt);
-        } else {
-            panic!("Incorrect event type")
-        }
-    }
-
-    #[test]
-    fn found_workflow_record() {
-        let config = Resources::default();
-        let (instruction1, instruction2, _) =
-            workflow_test_utils::related_wasm_instructions::<Arg>();
-        let task1 = Task::new(
-            RunInstruction::Expanded(instruction1.clone()),
-            config.clone().into(),
-            UcanPrf::default(),
-        );
-        let task2 = Task::new(
-            RunInstruction::Expanded(instruction2),
-            config.into(),
-            UcanPrf::default(),
-        );
-
-        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-        let stored_info = workflow::Stored::default(
-            Pointer::new(workflow.clone().to_cid().unwrap()),
-            workflow.len() as i32,
-        );
-        let workflow_info = workflow::Info::default(stored_info);
-        let workflow_cid_bytes = workflow_info.cid_as_bytes();
-        let bytes = workflow_info.capsule().unwrap();
-        let record = Record::new(workflow_cid_bytes, bytes);
-        let peer_record = PeerRecord {
-            record,
-            peer: Some(PeerId::random()),
-        };
-        if let FoundEvent::Workflow(found_workflow) = peer_record.found_record().unwrap() {
-            assert_eq!(found_workflow, workflow_info);
-        } else {
-            panic!("Incorrect event type")
-        }
     }
 }

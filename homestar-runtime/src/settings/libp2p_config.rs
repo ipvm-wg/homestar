@@ -2,7 +2,7 @@
 
 use http::Uri;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DurationSeconds};
+use serde_with::{serde_as, DurationMilliSeconds, DurationSeconds};
 use std::time::Duration;
 
 /// libp2p settings.
@@ -44,8 +44,14 @@ pub(crate) struct Libp2p {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub(crate) struct Dht {
-    /// Timeout for p2p requests for a provided record.
-    #[serde_as(as = "DurationSeconds<u64>")]
+    /// Timeout for p2p receipt record lookups in milliseconds.
+    #[serde_as(as = "DurationMilliSeconds<u64>")]
+    pub(crate) p2p_receipt_timeout: Duration,
+    /// Timeout for p2p workflow info lookups in milliseconds.
+    #[serde_as(as = "DurationMilliSeconds<u64>")]
+    pub(crate) p2p_workflow_info_timeout: Duration,
+    /// Timeout for p2p provider workflow info lookups in milliseconds.
+    #[serde_as(as = "DurationMilliSeconds<u64>")]
     pub(crate) p2p_provider_timeout: Duration,
     /// Quorum for receipt records on the DHT.
     pub(crate) receipt_quorum: usize,
@@ -135,6 +141,11 @@ impl Default for Libp2p {
 }
 
 impl Libp2p {
+    /// DHT settings getter.
+    pub(crate) fn dht(&self) -> &Dht {
+        &self.dht
+    }
+
     /// Pub/sub settings getter.
     pub(crate) fn pubsub(&self) -> &Pubsub {
         &self.pubsub
@@ -144,7 +155,9 @@ impl Libp2p {
 impl Default for Dht {
     fn default() -> Self {
         Self {
-            p2p_provider_timeout: Duration::new(30, 0),
+            p2p_receipt_timeout: Duration::from_millis(500),
+            p2p_workflow_info_timeout: Duration::from_millis(500),
+            p2p_provider_timeout: Duration::from_millis(10000),
             receipt_quorum: 2,
             workflow_quorum: 3,
         }

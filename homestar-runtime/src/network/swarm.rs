@@ -79,7 +79,11 @@ pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBe
                 ),
                 {
                     let mut cfg = kad::Config::default();
+                    // Set max packet size for records put to the DHT.
+                    // Currently set to 2gb.
                     cfg.set_max_packet_size(10 * 1024 * 1024);
+                    // Only add peers to the routing table manually.
+                    cfg.set_kbucket_inserts(kad::BucketInserts::Manual);
                     cfg
                 },
             ),

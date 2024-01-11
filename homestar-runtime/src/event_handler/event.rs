@@ -1,15 +1,18 @@
 //! Internal [Event] type and [Handler] implementation.
 
+#[cfg(feature = "websocket-notify")]
+use super::swarm_event::FoundEvent;
 use super::EventHandler;
 #[cfg(feature = "websocket-notify")]
-use crate::event_handler::notification::{
-    self, emit_receipt, EventNotificationTyp, SwarmNotification,
+use crate::event_handler::{
+    notification::{self, emit_receipt, EventNotificationTyp, SwarmNotification},
+    swarm_event::{ReceiptEvent, WorkflowInfoEvent},
 };
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
     db::Database,
-    event_handler::{channel::AsyncChannelSender, Handler, P2PSender, ResponseEvent},
+    event_handler::{channel::AsyncChannelSender, Handler, P2PSender},
     network::{
         pubsub,
         swarm::{CapsuleTag, RequestResponseKey, TopicMessage},
@@ -32,7 +35,7 @@ use maplit::btreemap;
 use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
 #[cfg(all(feature = "ipfs", not(feature = "test-utils")))]
 use tokio::runtime::Handle;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 const RENDEZVOUS_NAMESPACE: &str = "homestar";
 
@@ -105,6 +108,9 @@ pub(crate) enum Event {
     FindRecord(QueryRecord),
     /// Remove a given record from the DHT, e.g. a [Receipt].
     RemoveRecord(QueryRecord),
+    /// [Receipt] or [workflow::Info] stored event.
+    #[cfg(feature = "websocket-notify")]
+    StoredRecord(FoundEvent),
     /// Outbound request event to pull data from peers.
     OutboundRequest(PeerRequest),
     /// Get providers for a record in the DHT, e.g. workflow information.
@@ -146,6 +152,42 @@ impl Event {
             }
             Event::FindRecord(record) => record.find(event_handler).await,
             Event::RemoveRecord(record) => record.remove(event_handler).await,
+            #[cfg(feature = "websocket-notify")]
+            Event::StoredRecord(event) => match event {
+                FoundEvent::Receipt(ReceiptEvent {
+                    peer_id,
+                    receipt,
+                    notification_type,
+                }) => notification::emit_event(
+                    event_handler.ws_evt_sender(),
+                    notification_type,
+                    btreemap! {
+                        "publisher" => peer_id.map_or(Ipld::Null, |peer_id| Ipld::String(peer_id.to_string())),
+                        "cid" => Ipld::String(receipt.cid().to_string()),
+                        "ran" => Ipld::String(receipt.ran().to_string())
+                    },
+                ),
+                FoundEvent::Workflow(WorkflowInfoEvent {
+                    peer_id,
+                    workflow_info,
+                    notification_type,
+                }) => {
+                    if let Some(peer_label) = notification_type.workflow_info_source_label() {
+                        notification::emit_event(
+                            event_handler.ws_evt_sender(),
+                            notification_type,
+                            btreemap! {
+                                peer_label => peer_id.map_or(Ipld::Null, |peer_id| Ipld::String(peer_id.to_string())),
+                                "cid" => Ipld::String(workflow_info.cid().to_string()),
+                                "name" => workflow_info.name.map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
+                                "numTasks" => Ipld::Integer(workflow_info.num_tasks as i128),
+                                "progress" => Ipld::List(workflow_info.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
+                                "progressCount" => Ipld::Integer(workflow_info.progress_count as i128),
+                            },
+                        )
+                    }
+                }
+            },
             Event::OutboundRequest(PeerRequest {
                 peer,
                 request,
@@ -171,7 +213,6 @@ impl Event {
                     .map_err(anyhow::Error::new)?;
 
                 let key = RequestResponseKey::new(cid.to_string().into(), capsule_tag);
-
                 event_handler.query_senders.insert(query_id, (key, sender));
             }
             Event::Providers(Ok((providers, key, sender))) => {
@@ -306,8 +347,8 @@ impl Captured {
                             SwarmNotification::PublishedReceiptPubsub,
                         ),
                         btreemap! {
-                            "cid" => receipt.cid().to_string(),
-                            "ran" => receipt.ran().to_string()
+                            "cid" => Ipld::String(receipt.cid().to_string()),
+                            "ran" => Ipld::String(receipt.ran().to_string())
                         },
                     );
                 }
@@ -337,7 +378,7 @@ impl Captured {
         };
 
         if let Ok(receipt_bytes) = Receipt::invocation_capsule(&invocation_receipt) {
-            let _id = event_handler
+            event_handler
                 .swarm
                 .behaviour_mut()
                 .kademlia
@@ -345,17 +386,44 @@ impl Captured {
                     Record::new(instruction_bytes, receipt_bytes.to_vec()),
                     receipt_quorum,
                 )
-                .map_err(|err| {
-                    warn!(subject = "libp2p.put_record.err",
+                .map_or_else(
+                    |err| {
+                        warn!(subject = "libp2p.put_record.err",
                           category = "publish_event",
                           err=?err,
                           "receipt not PUT onto DHT")
-                });
+                    },
+                    |query_id| {
+                        let key = RequestResponseKey::new(
+                            receipt.cid().to_string().into(),
+                            CapsuleTag::Receipt,
+                        );
+                        event_handler.query_senders.insert(query_id, (key, None));
+
+                        debug!(
+                            subject = "libp2p.put_record",
+                            category = "publish_event",
+                            "receipt PUT onto DHT"
+                        );
+
+                        #[cfg(feature = "websocket-notify")]
+                        notification::emit_event(
+                            event_handler.ws_evt_sender(),
+                            EventNotificationTyp::SwarmNotification(
+                                SwarmNotification::PutReceiptDht,
+                            ),
+                            btreemap! {
+                                "cid" => Ipld::String(receipt.cid().to_string()),
+                                "ran" => Ipld::String(receipt.ran().to_string())
+                            },
+                        );
+                    },
+                );
 
             Arc::make_mut(&mut self.workflow).increment_progress(receipt_cid);
             let workflow_cid_bytes = self.workflow.cid_as_bytes();
             if let Ok(workflow_bytes) = self.workflow.capsule() {
-                let _id = event_handler
+                event_handler
                     .swarm
                     .behaviour_mut()
                     .kademlia
@@ -363,12 +431,42 @@ impl Captured {
                         Record::new(workflow_cid_bytes, workflow_bytes),
                         workflow_quorum,
                     )
-                    .map_err(|err| {
-                        warn!(subject = "libp2p.put_record.err",
+                    .map_or_else(
+                        |err| {
+                            warn!(subject = "libp2p.put_record.err",
                                          category = "publish_event",
                                          err=?err,
                                          "workflow information not PUT onto DHT")
-                    });
+                        },
+                        |query_id| {
+                            let key = RequestResponseKey::new(
+                                self.workflow.cid().to_string().into(),
+                                CapsuleTag::Workflow,
+                            );
+                            event_handler.query_senders.insert(query_id, (key, None));
+
+                            debug!(
+                                subject = "libp2p.put_record",
+                                category = "publish_event",
+                                "workflow info PUT onto DHT"
+                            );
+
+                            #[cfg(feature = "websocket-notify")]
+                            notification::emit_event(
+                                event_handler.ws_evt_sender(),
+                                EventNotificationTyp::SwarmNotification(
+                                    SwarmNotification::PutWorkflowInfoDht,
+                                ),
+                                btreemap! {
+                                    "cid" => Ipld::String(self.workflow.cid().to_string()),
+                                    "name" => self.workflow.name.as_ref().map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
+                                    "numTasks" => Ipld::Integer(self.workflow.num_tasks as i128),
+                                    "progress" => Ipld::List(self.workflow.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
+                                    "progressCount" => Ipld::Integer(self.workflow.progress_count as i128),
+                                },
+                            )
+                        },
+                    );
             } else {
                 error!(
                     subject = "libp2p.put_record.err",
@@ -457,8 +555,8 @@ impl Replay {
                                 SwarmNotification::PublishedReceiptPubsub,
                             ),
                             btreemap! {
-                                "cid" => receipt.cid().to_string(),
-                                "ran" => receipt.ran().to_string()
+                                "cid" => Ipld::String(receipt.cid().to_string()),
+                                "ran" => Ipld::String(receipt.ran().to_string())
                             },
                         );
                     })
@@ -490,14 +588,6 @@ impl QueryRecord {
     where
         DB: Database,
     {
-        if event_handler.connections.peers.is_empty() {
-            if let Some(sender) = self.sender {
-                let _ = sender.send_async(ResponseEvent::NoPeersAvailable).await;
-            }
-
-            return;
-        }
-
         let id = event_handler
             .swarm
             .behaviour_mut()
@@ -512,14 +602,6 @@ impl QueryRecord {
     where
         DB: Database,
     {
-        if event_handler.connections.peers.is_empty() {
-            if let Some(sender) = self.sender {
-                let _ = sender.send_async(ResponseEvent::NoPeersAvailable).await;
-            }
-
-            return;
-        }
-
         event_handler
             .swarm
             .behaviour_mut()
@@ -537,14 +619,6 @@ impl QueryRecord {
     where
         DB: Database,
     {
-        if event_handler.connections.peers.is_empty() {
-            if let Some(sender) = self.sender {
-                let _ = sender.send_async(ResponseEvent::NoPeersAvailable).await;
-            }
-
-            return;
-        }
-
         let id = event_handler
             .swarm
             .behaviour_mut()

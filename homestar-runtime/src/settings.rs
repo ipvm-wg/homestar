@@ -15,7 +15,7 @@ use std::{
 
 mod libp2p_config;
 mod pubkey_config;
-pub(crate) use libp2p_config::{Libp2p, Pubsub};
+pub(crate) use libp2p_config::{Dht, Libp2p, Pubsub};
 pub(crate) use pubkey_config::PubkeyConfig;
 
 #[cfg(target_os = "windows")]
@@ -394,7 +394,7 @@ mod test {
     #[test]
     fn default_config() {
         let settings = Settings::load().unwrap();
-        let default_config = Settings::build(Some("fixtures/defaults.toml".into()))
+        let default_config = Settings::build(Some("config/defaults.toml".into()))
             .expect("default settings file in test fixtures");
         assert_eq!(settings, default_config);
     }

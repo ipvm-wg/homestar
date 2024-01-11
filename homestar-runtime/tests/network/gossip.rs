@@ -1,5 +1,5 @@
 use crate::utils::{
-    check_lines_for, kill_homestar, remove_db, retrieve_output, stop_homestar,
+    check_for_line_with, kill_homestar, remove_db, retrieve_output, stop_homestar,
     wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
 };
 use anyhow::Result;
@@ -28,9 +28,10 @@ const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 #[test]
 #[file_serial]
 fn test_libp2p_receipt_gossip_serial() -> Result<()> {
-    const DB1: &str = "homestar_test_libp2p_receipt_gossip_serial1.db";
-    const DB2: &str = "homestar_test_libp2p_receipt_gossip_serial2.db";
+    const DB1: &str = "test_libp2p_receipt_gossip_serial1.db";
+    const DB2: &str = "test_libp2p_receipt_gossip_serial2.db";
     let _ = stop_homestar();
+
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
@@ -116,7 +117,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             .await
             .unwrap();
 
-        // Run test workflow
+        // Run test workflow on node one
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
@@ -125,9 +126,8 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 
-        // Poll for published and received receipt messages
+        // Poll for published receipt messages
         let mut published_cids: Vec<Cid> = vec![];
-        let mut received_cids: Vec<Cid> = vec![];
         loop {
             if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
@@ -143,6 +143,14 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
                 panic!("Node one did not publish receipt in time.")
             }
 
+            if published_cids.len() == 2 {
+                break;
+            }
+        }
+
+        // Poll for received receipt messages
+        let mut received_cids: Vec<Cid> = vec![];
+        loop {
             if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
@@ -157,7 +165,7 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
                 panic!("Node two did not receive receipt in time.")
             }
 
-            if published_cids.len() == 2 && received_cids.len() == 2 {
+            if received_cids.len() == 2 {
                 break;
             }
         }
@@ -172,10 +180,10 @@ fn test_libp2p_receipt_gossip_serial() -> Result<()> {
 
         // Check node one published a receipt
         let message_published =
-            check_lines_for(stdout1, vec!["message published on receipts topic"]);
+            check_for_line_with(stdout1, vec!["message published on receipts topic"]);
 
         // Check node two received a receipt from node one
-        let message_received = check_lines_for(
+        let message_received = check_for_line_with(
             stdout2,
             vec![
                 "message received on receipts topic",
