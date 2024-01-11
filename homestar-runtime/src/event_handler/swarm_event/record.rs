@@ -38,14 +38,20 @@ pub(crate) enum DecodedRecord {
 /// [DecodedRecord] variant for receipts found on DHT.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ReceiptRecord {
+    /// The [PeerId] of the peer from whom the record was retrieved. `None` if the record
+    /// was retrieved from local storage.
     pub(crate) peer_id: Option<PeerId>,
+    /// The retrieved [Receipt].
     pub(crate) receipt: Receipt,
 }
 
 /// [DecodedRecord] variant for workflow info found on DHT.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct WorkflowInfoRecord {
+    /// The [PeerId] of the peer from whom the record was retrieved. `None` if the record
+    /// was retrieved from local storage.
     pub(crate) peer_id: Option<PeerId>,
+    /// The retrieved [workflow::Info].
     pub(crate) workflow_info: workflow::Info,
 }
 
