@@ -46,9 +46,7 @@ use std::{
 use tracing::{debug, error, info, warn};
 
 pub(crate) mod record;
-pub(crate) use record::{
-    decode_capsule, DecodedRecord, FoundRecord, ReceiptRecord, WorkflowInfoRecord,
-};
+pub(crate) use record::*;
 
 const RENDEZVOUS_PROTOCOL_NAME: StreamProtocol = StreamProtocol::new("/rendezvous/1.0.0");
 const RENDEZVOUS_NAMESPACE: &str = "homestar";
@@ -543,7 +541,6 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         subject = "libp2p.kad.get_providers",
                         category = "handle_swarm_event",
                         providers = ?providers,
-
                         "got workflow info providers"
                     );
 
