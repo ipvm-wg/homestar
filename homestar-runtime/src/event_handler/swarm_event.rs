@@ -867,7 +867,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                 request.capsule_tag.tag(),
             ) {
                 (Ok(cid), WORKFLOW_TAG) => {
-                    match workflow::Info::gather(
+                    match workflow::Info::retrieve(
                         cid,
                         event_handler.sender.clone(),
                         event_handler.db.conn().ok(),

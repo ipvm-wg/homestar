@@ -270,10 +270,9 @@ impl Info {
         DagCborCodec.encode(&capsule)
     }
 
-    /// [Gather] available [Info] from the database or [libp2p] given a
+    /// Retrieve available [Info] from the database or [libp2p] given a
     /// [Workflow], or return a default/new version of [Info] if none is found.
     ///
-    /// [Gather]: Self::gather
     /// [Workflow]: homestar_core::Workflow
     pub(crate) async fn init(
         workflow_cid: Cid,
@@ -310,7 +309,7 @@ impl Info {
                 let result = Db::store_workflow(stored.clone(), &mut conn)?;
                 let workflow_info = Self::default(result);
 
-                // spawn a task to retrieve the workflow info from the
+                // spawn a separate, blocking task to retrieve workflow info from the
                 // network and store it in the database if it finds it.
                 let handle = Handle::current();
                 handle.spawn_blocking({
@@ -338,9 +337,9 @@ impl Info {
         }
     }
 
-    /// Gather available [Info] from the database or [libp2p] given a
+    /// Retrieve available [Info] from the database or [libp2p] given a
     /// workflow [Cid].
-    pub(crate) async fn gather<'a>(
+    pub(crate) async fn retrieve<'a>(
         workflow_cid: Cid,
         #[allow(unused)] event_sender: Arc<AsyncChannelSender<Event>>,
         mut conn: Option<Connection>,
@@ -353,7 +352,7 @@ impl Info {
             Some((_name, workflow_info)) => Ok(workflow_info),
             None => {
                 info!(
-                    subject = "workflow.gather.db.check",
+                    subject = "workflow.retrieve.db.check",
                     category = "workflow",
                     cid = workflow_cid.to_string(),
                     "workflow information not available in the database"
