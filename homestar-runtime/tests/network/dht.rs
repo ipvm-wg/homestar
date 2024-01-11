@@ -544,8 +544,10 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 
-        // TODO Should not fail with this timeout present
-        // tokio::time::sleep(Duration::from_secs(5)).await
+        // We want node two to request workflow info directly from node one
+        // because of timeouts not because workflow info was missing from the
+        // DHT, so we give node one time to put add workflow info to the DHT.
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         // Run the same workflow run on node two.
         // Node two should be request workflow info from
