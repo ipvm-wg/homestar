@@ -1,7 +1,7 @@
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_daemon;
 use crate::utils::{
-    remove_db, wait_for_socket_connection, wait_for_socket_connection_v6, ChildGuard, BIN_NAME,
+    wait_for_socket_connection, wait_for_socket_connection_v6, ChildGuard, FileGuard, BIN_NAME,
 };
 use anyhow::Result;
 use assert_cmd::prelude::*;
@@ -94,6 +94,7 @@ fn test_server_not_running_integration() -> Result<()> {
 #[test]
 fn test_server_integration() -> Result<()> {
     const DB: &str = "test_server_integration.db";
+    let _guard = FileGuard::new(DB);
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -142,14 +143,13 @@ fn test_server_integration() -> Result<()> {
                 .or(predicate::str::contains("No connection could be made")),
         );
 
-    remove_db(DB);
-
     Ok(())
 }
 
 #[test]
 fn test_workflow_run_integration() -> Result<()> {
     const DB: &str = "test_workflow_run_integration.db";
+    let _guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -195,8 +195,6 @@ fn test_workflow_run_integration() -> Result<()> {
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
 
-    remove_db(DB);
-
     Ok(())
 }
 
@@ -204,6 +202,7 @@ fn test_workflow_run_integration() -> Result<()> {
 #[cfg(not(windows))]
 fn test_daemon_integration() -> Result<()> {
     const DB: &str = "test_daemon_integration.db";
+    let _guard = FileGuard::new(DB);
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -231,14 +230,13 @@ fn test_daemon_integration() -> Result<()> {
         .stdout(predicate::str::contains("pong"));
 
     let _ = kill_homestar_daemon();
-    remove_db(DB);
-
     Ok(())
 }
 
 #[test]
 fn test_server_v4_integration() -> Result<()> {
     const DB: &str = "test_server_v4_integration.db";
+    let _guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -265,8 +263,6 @@ fn test_server_v4_integration() -> Result<()> {
         .success()
         .stdout(predicate::str::contains("127.0.0.1"))
         .stdout(predicate::str::contains("pong"));
-
-    remove_db(DB);
 
     Ok(())
 }

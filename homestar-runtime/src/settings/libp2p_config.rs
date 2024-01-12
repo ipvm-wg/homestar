@@ -16,6 +16,8 @@ pub(crate) struct Libp2p {
     pub(crate) announce_addresses: Vec<libp2p::Multiaddr>,
     /// Kademlia DHT Settings
     pub(crate) dht: Dht,
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) idle_connection_timeout: Duration,
     /// Address for [Swarm] to listen on.
     ///
     /// [Swarm]: libp2p::swarm::Swarm
@@ -128,6 +130,8 @@ impl Default for Libp2p {
         Self {
             announce_addresses: Vec::new(),
             dht: Dht::default(),
+            // https://github.com/libp2p/rust-libp2p/pull/4967
+            idle_connection_timeout: Duration::new(10, 0),
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             max_connected_peers: 32,
             max_announce_addresses: 10,

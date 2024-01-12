@@ -1,6 +1,6 @@
 use crate::utils::{
-    check_for_line_with, count_lines_where, kill_homestar, remove_db, retrieve_output,
-    wait_for_socket_connection, wait_for_socket_connection_v6, ChildGuard, BIN_NAME,
+    check_for_line_with, count_lines_where, kill_homestar, retrieve_output,
+    wait_for_socket_connection, wait_for_socket_connection_v6, ChildGuard, FileGuard, BIN_NAME,
 };
 use anyhow::Result;
 use libp2p::Multiaddr;
@@ -25,6 +25,7 @@ static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME))
 #[test]
 fn test_libp2p_generates_peer_id_integration() -> Result<()> {
     const DB: &str = "test_libp2p_generates_peer_id_integration.db";
+    let _guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -53,14 +54,13 @@ fn test_libp2p_generates_peer_id_integration() -> Result<()> {
 
     assert!(logs_expected);
 
-    remove_db(DB);
-
     Ok(())
 }
 
 #[test]
 fn test_libp2p_listens_on_address_integration() -> Result<()> {
     const DB: &str = "test_libp2p_listens_on_address_integration.db";
+    let _guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -90,14 +90,13 @@ fn test_libp2p_listens_on_address_integration() -> Result<()> {
 
     assert!(logs_expected);
 
-    remove_db(DB);
-
     Ok(())
 }
 
 #[test]
 fn test_rpc_listens_on_address_integration() -> Result<()> {
     const DB: &str = "test_rpc_listens_on_address_integration.db";
+    let _guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -120,14 +119,13 @@ fn test_rpc_listens_on_address_integration() -> Result<()> {
 
     assert!(logs_expected);
 
-    remove_db(DB);
-
     Ok(())
 }
 
 #[test]
 fn test_websocket_listens_on_address_integration() -> Result<()> {
     const DB: &str = "test_websocket_listens_on_address_integration.db";
+    let _guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -150,8 +148,6 @@ fn test_websocket_listens_on_address_integration() -> Result<()> {
 
     assert!(logs_expected);
 
-    remove_db(DB);
-
     Ok(())
 }
 
@@ -159,6 +155,9 @@ fn test_websocket_listens_on_address_integration() -> Result<()> {
 fn test_libp2p_connect_known_peers_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_connect_known_peers_integration1.db";
     const DB2: &str = "test_libp2p_connect_known_peers_integration2.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
 
     // Start two nodes configured to listen at 127.0.0.1 each with their own port.
     // The nodes are configured to dial each other through the node_addresses config.
@@ -296,9 +295,6 @@ fn test_libp2p_connect_known_peers_integration() -> Result<()> {
     assert!(one_in_dht_routing_table);
     assert!(two_connected_to_one);
 
-    remove_db(DB1);
-    remove_db(DB2);
-
     Ok(())
 }
 
@@ -306,6 +302,9 @@ fn test_libp2p_connect_known_peers_integration() -> Result<()> {
 fn test_libp2p_connect_after_mdns_discovery_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_connect_after_mdns_discovery_integration1.db";
     const DB2: &str = "test_libp2p_connect_after_mdns_discovery_integration2.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
 
     // Start two nodes each configured to listen at 0.0.0.0 with no known peers.
     // The nodes are configured with port 0 to allow the OS to select a port.
@@ -417,9 +416,6 @@ fn test_libp2p_connect_after_mdns_discovery_integration() -> Result<()> {
     assert!(one_addded_to_dht);
     assert!(one_in_dht_routing_table);
 
-    remove_db(DB1);
-    remove_db(DB2);
-
     Ok(())
 }
 
@@ -428,6 +424,10 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_connect_rendezvous_discovery_integration1.db";
     const DB2: &str = "test_libp2p_connect_rendezvous_discovery_integration2.db";
     const DB3: &str = "test_libp2p_connect_rendezvous_discovery_integration3.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
+    let _guard3 = FileGuard::new(DB3);
 
     // Start a rendezvous server
     let rendezvous_server = Command::new(BIN.as_os_str())
@@ -554,10 +554,6 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
     assert!(one_in_dht_routing_table);
     assert!(two_connected_to_one);
 
-    remove_db(DB1);
-    remove_db(DB2);
-    remove_db(DB3);
-
     Ok(())
 }
 
@@ -565,6 +561,9 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
 fn test_libp2p_disconnect_mdns_discovery_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_disconnect_mdns_discovery_integration1.db";
     const DB2: &str = "test_libp2p_disconnect_mdns_discovery_integration2.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
 
     // Start two nodes each configured to listen at 0.0.0.0 with no known peers.
     // The nodes are configured with port 0 to allow the OS to select a port.
@@ -636,9 +635,6 @@ fn test_libp2p_disconnect_mdns_discovery_integration() -> Result<()> {
     assert!(two_disconnected_from_one);
     assert!(two_removed_from_dht_table);
 
-    remove_db(DB1);
-    remove_db(DB2);
-
     Ok(())
 }
 
@@ -646,6 +642,9 @@ fn test_libp2p_disconnect_mdns_discovery_integration() -> Result<()> {
 fn test_libp2p_disconnect_known_peers_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_disconnect_known_peers_integration1.db";
     const DB2: &str = "test_libp2p_disconnect_known_peers_integration2.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
 
     // Start two nodes configured to listen at 127.0.0.1 each with their own port.
     // The nodes are configured to dial each other through the node_addresses config.
@@ -717,9 +716,6 @@ fn test_libp2p_disconnect_known_peers_integration() -> Result<()> {
     assert!(two_disconnected_from_one);
     assert!(!two_removed_from_dht_table);
 
-    remove_db(DB1);
-    remove_db(DB2);
-
     Ok(())
 }
 
@@ -728,6 +724,10 @@ fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_disconnect_rendezvous_discovery_integration1.db";
     const DB2: &str = "test_libp2p_disconnect_rendezvous_discovery_integration2.db";
     const DB3: &str = "test_libp2p_disconnect_rendezvous_discovery_integration3.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
+    let _guard3 = FileGuard::new(DB3);
 
     // Start a rendezvous server
     let rendezvous_server = Command::new(BIN.as_os_str())
@@ -824,10 +824,6 @@ fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
     assert!(two_disconnected_from_one);
     assert!(two_removed_from_dht_table);
 
-    remove_db(DB1);
-    remove_db(DB2);
-    remove_db(DB3);
-
     Ok(())
 }
 
@@ -835,6 +831,9 @@ fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
 fn test_libp2p_rendezvous_renew_registration_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_rendezvous_renew_registration_integration1.db";
     const DB2: &str = "test_libp2p_rendezvous_renew_registration_integration2.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
 
     // Start a rendezvous server
     let rendezvous_server = Command::new(BIN.as_os_str())
@@ -906,9 +905,6 @@ fn test_libp2p_rendezvous_renew_registration_integration() -> Result<()> {
     assert!(server_registration_count > 1);
     assert!(client_registration_count > 1);
 
-    remove_db(DB1);
-    remove_db(DB2);
-
     Ok(())
 }
 
@@ -916,6 +912,9 @@ fn test_libp2p_rendezvous_renew_registration_integration() -> Result<()> {
 fn test_libp2p_rendezvous_rediscovery_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_rendezvous_rediscovery_integration1.db";
     const DB2: &str = "test_libp2p_rendezvous_rediscovery_integration2.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
 
     // Start a rendezvous server
     let rendezvous_server = Command::new(BIN.as_os_str())
@@ -986,9 +985,6 @@ fn test_libp2p_rendezvous_rediscovery_integration() -> Result<()> {
     assert!(server_discovery_count > 1);
     assert!(client_discovery_count > 1);
 
-    remove_db(DB1);
-    remove_db(DB2);
-
     Ok(())
 }
 
@@ -997,6 +993,10 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_rendezvous_rediscover_on_expiration_integration1.db";
     const DB2: &str = "test_libp2p_rendezvous_rediscover_on_expiration_integration2.db";
     const DB3: &str = "test_libp2p_rendezvous_rediscover_on_expiration_integration3.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
+    let _guard3 = FileGuard::new(DB3);
 
     // Start a rendezvous server
     let rendezvous_server = Command::new(BIN.as_os_str())
@@ -1094,10 +1094,6 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
 
     assert!(server_discovery_count > 1);
     assert!(client_discovery_count > 1);
-
-    remove_db(DB1);
-    remove_db(DB2);
-    remove_db(DB3);
 
     Ok(())
 }

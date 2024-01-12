@@ -50,11 +50,19 @@ pub(crate) type Connection =
 
 /// The database object, which wraps an inner [Arc] to the connection pool.
 #[derive(Debug)]
-pub struct Db(Arc<Pool>);
+pub struct Db {
+    /// The [Arc]'ed connection pool.
+    pub(crate) pool: Arc<Pool>,
+    /// The database URL.
+    pub(crate) url: String,
+}
 
 impl Clone for Db {
     fn clone(&self) -> Self {
-        Db(Arc::clone(&self.0))
+        Self {
+            pool: Arc::clone(&self.pool),
+            url: self.url.clone(),
+        }
     }
 }
 
@@ -334,7 +342,7 @@ impl Database for Db {
         });
 
         Self::setup(&database_url)?;
-        let manager = r2d2::ConnectionManager::<SqliteConnection>::new(database_url);
+        let manager = r2d2::ConnectionManager::<SqliteConnection>::new(database_url.clone());
 
         // setup PRAGMAs
         manager
@@ -351,11 +359,15 @@ impl Database for Db {
             .connection_customizer(Box::new(ConnectionCustomizer))
             .build(manager)
             .expect("DATABASE_URL must be set to an SQLite DB file");
-        Ok(Db(Arc::new(pool)))
+
+        Ok(Db {
+            pool: Arc::new(pool),
+            url: database_url,
+        })
     }
 
     fn conn(&self) -> Result<Connection> {
-        let conn = self.0.get()?;
+        let conn = self.pool.get()?;
         Ok(conn)
     }
 }

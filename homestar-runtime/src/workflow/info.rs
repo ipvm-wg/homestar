@@ -17,13 +17,11 @@ use faststr::FastStr;
 use homestar_core::{ipld::DagJson, workflow::Pointer};
 use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Cid, Ipld};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::BTreeMap,
-    fmt,
-    sync::Arc,
-    time::{Duration, Instant},
+use std::{collections::BTreeMap, fmt, sync::Arc, time::Duration};
+use tokio::{
+    runtime::Handle,
+    time::{timeout_at, Instant},
 };
-use tokio::runtime::Handle;
 use tracing::info;
 
 /// [Workflow] header tag, for sharing workflow information over libp2p.
@@ -309,25 +307,26 @@ impl Info {
                 let result = Db::store_workflow(stored.clone(), &mut conn)?;
                 let workflow_info = Self::default(result);
 
-                // spawn a separate, blocking task to retrieve workflow info from the
+                // spawn a separate task to retrieve workflow info from the
                 // network and store it in the database if it finds it.
                 let handle = Handle::current();
-                handle.spawn_blocking({
-                    let event_sender = event_sender.clone();
-                    let network_settings = network_settings.clone();
-                    move || {
-                        let handle = Handle::current();
-                        match handle.block_on(Self::retrieve_from_dht(
-                            workflow_cid,
-                            event_sender.clone(),
-                            network_settings.p2p_workflow_info_timeout,
-                        )) {
-                            Ok(workflow_info) => Ok(workflow_info),
-                            Err(_) => handle.block_on(Self::retrieve_from_provider(
+
+                handle.spawn(async move {
+                    match Self::retrieve_from_dht(
+                        workflow_cid,
+                        event_sender.clone(),
+                        network_settings.p2p_workflow_info_timeout,
+                    )
+                    .await
+                    {
+                        Ok(workflow_info) => Ok(workflow_info),
+                        Err(_) => {
+                            Self::retrieve_from_provider(
                                 workflow_cid,
                                 event_sender,
                                 network_settings.p2p_provider_timeout,
-                            )),
+                            )
+                            .await
                         }
                     }
                 });
@@ -358,13 +357,7 @@ impl Info {
                     "workflow information not available in the database"
                 );
 
-                Err(anyhow!("Could not retrieve workflow info"))
-
-                // TODO Bring this call back when we have determined how to deal with blocking
-                // behavior that is might cause. We want to avoid blocking the thread where swarm events
-                // are handled.
-                //
-                // Self::retrieve_from_provider(workflow_cid, event_sender, p2p_provider_timeout).await
+                Self::retrieve_from_provider(workflow_cid, event_sender, p2p_provider_timeout).await
             }
         }?;
 
@@ -387,8 +380,8 @@ impl Info {
             )))
             .await?;
 
-        match rx.recv_deadline(Instant::now() + p2p_workflow_info_timeout) {
-            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event)))) => {
+        match timeout_at(Instant::now() + p2p_workflow_info_timeout, rx.recv_async()).await {
+            Ok(Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event))))) => {
                 #[cfg(feature = "websocket-notify")]
                 let _ = event_sender
                     .send_async(Event::StoredRecord(FoundEvent::Workflow(event.clone())))
@@ -396,14 +389,19 @@ impl Info {
 
                 Ok(event.workflow_info)
             }
-            Ok(ResponseEvent::Found(Err(_err))) => {
+            Ok(Ok(ResponseEvent::Found(Err(_err)))) => {
                 bail!("failed to find workflow info with cid {workflow_cid}")
             }
-            Ok(event) => {
+            Ok(Ok(event)) => {
                 bail!("received unexpected event {event:?} for workflow {workflow_cid}")
             }
-            Err(_err) => {
-                bail!("timed out while finding workflow info with cid {workflow_cid}")
+            Ok(Err(err)) => {
+                bail!("unexpected error while retrieving workflow info: {err}")
+            }
+            Err(_) => {
+                bail!(
+                    "timeout deadline reached while finding workflow info with cid {workflow_cid}"
+                )
             }
         }
     }
@@ -424,8 +422,8 @@ impl Info {
             )))
             .await?;
 
-        match rx.recv_deadline(Instant::now() + p2p_provider_timeout) {
-            Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event)))) => {
+        match timeout_at(Instant::now() + p2p_provider_timeout, rx.recv_async()).await {
+            Ok(Ok(ResponseEvent::Found(Ok(FoundEvent::Workflow(event))))) => {
                 #[cfg(feature = "websocket-notify")]
                 let _ = event_sender
                     .send_async(Event::StoredRecord(FoundEvent::Workflow(event.clone())))
@@ -433,14 +431,19 @@ impl Info {
 
                 Ok(event.workflow_info)
             }
-            Ok(ResponseEvent::Found(Err(err))) => {
+            Ok(Ok(ResponseEvent::Found(Err(err)))) => {
                 bail!("failure in attempting to find event: {err}")
             }
-            Ok(event) => {
+            Ok(Ok(event)) => {
                 bail!("received unexpected event {event:?} for workflow {workflow_cid}")
             }
-            Err(err) => {
-                bail!("timeout deadline reached for retrieving workflow info: {err}")
+            Ok(Err(err)) => {
+                bail!("unexpected error while retrieving workflow info: {err}")
+            }
+            Err(_) => {
+                bail!(
+                    "timeout deadline reached while finding workflow info with cid {workflow_cid}"
+                )
             }
         }
     }

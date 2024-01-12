@@ -18,6 +18,7 @@ use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    str::FromStr,
     time::Duration,
 };
 #[cfg(not(windows))]
@@ -88,6 +89,38 @@ impl Drop for ChildGuard {
                     eprintln!("Could not kill child process: {e}");
                 }
             }
+        };
+    }
+}
+
+pub struct FileGuard {
+    guard: Option<PathBuf>,
+}
+
+#[allow(dead_code)]
+impl FileGuard {
+    /// Create a new [FileGuard] from a path.
+    pub(crate) fn new(path: &str) -> Self {
+        Self {
+            guard: Some(PathBuf::from_str(path).unwrap()),
+        }
+    }
+
+    /// Take the path from the [FileGuard] and return the path as a [String].
+    pub(crate) fn take(mut self) -> String {
+        self.guard
+            .take()
+            .expect("Failed to take the inner `PathBuf`")
+            .display()
+            .to_string()
+    }
+}
+
+impl Drop for FileGuard {
+    fn drop(&mut self) {
+        if let Some(path) = self.guard.take() {
+            let path = path.display().to_string();
+            remove_db(&path);
         };
     }
 }

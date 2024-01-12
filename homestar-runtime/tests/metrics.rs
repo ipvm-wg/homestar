@@ -1,4 +1,4 @@
-use crate::utils::{remove_db, wait_for_socket_connection, BIN_NAME};
+use crate::utils::{wait_for_socket_connection, ChildGuard, FileGuard, BIN_NAME};
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use reqwest::StatusCode;
@@ -14,8 +14,6 @@ const METRICS_URL: &str = "http://localhost:4020";
 #[cfg(feature = "monitoring")]
 #[test]
 fn test_metrics_integration() -> Result<()> {
-    use crate::utils::ChildGuard;
-
     fn sample_metrics() -> Option<prometheus_parse::Value> {
         let body = retry(
             Exponential::from_millis(500).take(20),
@@ -42,6 +40,7 @@ fn test_metrics_integration() -> Result<()> {
     }
 
     const DB: &str = "test_metrics_integration.db";
+    let _guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -82,8 +81,6 @@ fn test_metrics_integration() -> Result<()> {
     }
 
     assert_ne!(sample1, sample2.unwrap());
-
-    remove_db(DB);
 
     Ok(())
 }

@@ -562,66 +562,32 @@ mod test {
         assert_eq!(running_tasks.len(), 1);
         assert!(running_tasks.contains_key(&worker_workflow_cid));
         assert_eq!(running_tasks.get(&worker_workflow_cid).unwrap().len(), 2);
+        let mut conn = db.conn().unwrap();
 
-        // first time check DHT for workflow info
-        let workflow_info_event = rx.recv_async().await.unwrap();
-        let get_workflow_providers_event = rx.recv_async().await.unwrap();
-
-        // we should have received 2 receipts
-        let next_run_receipt = rx.recv_async().await.unwrap();
-        let next_next_run_receipt = rx.recv_async().await.unwrap();
-
-        match workflow_info_event {
-            Event::FindRecord(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
-            _ => panic!("Wrong event type"),
-        };
-
-        match get_workflow_providers_event {
-            Event::GetProviders(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
-            _ => panic!("Wrong event type"),
+        while let Ok(event) = rx.recv_async().await {
+            match event {
+                Event::FindRecord(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
+                Event::GetProviders(QueryRecord { cid, .. }) => {
+                    assert_eq!(cid, worker_workflow_cid)
+                }
+                Event::CapturedReceipt(Captured { receipt, .. }) => {
+                    let stored = workflow::Stored::default(Pointer::new(workflow_cid), 2);
+                    let mut info = workflow::Info::default(stored);
+                    info.increment_progress(receipt);
+                    let (_, workflow_info) =
+                        MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
+                    assert_eq!(info.progress_count, workflow_info.progress_count);
+                }
+                _ => panic!("Wrong event type"),
+            }
         }
 
-        let (next_receipt, _wf_info) = match next_run_receipt {
-            Event::CapturedReceipt(Captured {
-                receipt: next_receipt,
-                ..
-            }) => {
-                let stored = workflow::Stored::default(Pointer::new(workflow_cid), 2);
-                let mut info = workflow::Info::default(stored);
-                info.increment_progress(next_receipt);
-
-                (next_receipt, info)
-            }
-            _ => panic!("Wrong event type"),
-        };
-
-        let (_next_next_receipt, wf_info) = match next_next_run_receipt {
-            Event::CapturedReceipt(Captured {
-                receipt: next_next_receipt,
-                ..
-            }) => {
-                let stored = workflow::Stored::default(Pointer::new(workflow_cid), 2);
-                let mut info = workflow::Info::default(stored);
-                info.increment_progress(next_next_receipt);
-
-                assert_ne!(next_next_receipt, next_receipt);
-
-                (next_next_receipt, info)
-            }
-            _ => panic!("Wrong event type"),
-        };
-
-        assert!(rx.recv_async().await.is_err());
-
-        let mut conn = db.conn().unwrap();
         let (_, workflow_info) = MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
 
         assert_eq!(workflow_info.num_tasks, 2);
         assert_eq!(workflow_info.cid, workflow_cid);
         assert_eq!(workflow_info.progress.len(), 2);
         assert_eq!(workflow_info.resources.len(), 2);
-        assert_eq!(wf_info.progress_count, 2);
-        assert_eq!(wf_info.progress_count, workflow_info.progress_count);
     }
 
     #[homestar_runtime_proc_macro::db_async_test]

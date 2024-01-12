@@ -1,6 +1,6 @@
 use crate::utils::{
-    check_for_line_with, kill_homestar, remove_db, retrieve_output, wait_for_socket_connection,
-    ChildGuard, TimeoutFutureExt, BIN_NAME,
+    check_for_line_with, kill_homestar, retrieve_output, wait_for_socket_connection, ChildGuard,
+    FileGuard, TimeoutFutureExt, BIN_NAME,
 };
 use anyhow::Result;
 use homestar_runtime::{db::Database, Db, Settings};
@@ -28,6 +28,9 @@ const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 fn test_libp2p_receipt_gossip_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_receipt_gossip_integration1.db";
     const DB2: &str = "_test_libp2p_receipt_gossip_integration2.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -208,9 +211,6 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
 
         assert_eq!(stored_receipts.len(), 2)
     });
-
-    remove_db(DB1);
-    remove_db(DB2);
 
     Ok(())
 }

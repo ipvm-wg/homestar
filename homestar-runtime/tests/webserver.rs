@@ -1,4 +1,4 @@
-use crate::utils::{remove_db, wait_for_socket_connection, ChildGuard, TimeoutFutureExt, BIN_NAME};
+use crate::utils::{wait_for_socket_connection, ChildGuard, FileGuard, TimeoutFutureExt, BIN_NAME};
 use anyhow::Result;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
@@ -22,7 +22,7 @@ const AWAIT_CID: &str = "bafyrmic5cqdtkpyu6kourpodsupskhgfc4xuuu6df4elgybu3avg2s
 #[test]
 fn test_workflow_run_integration() -> Result<()> {
     const DB: &str = "ws_homestar_test_workflow_run.db";
-    let _ = fs::remove_file(DB);
+    let _guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -180,8 +180,6 @@ fn test_workflow_run_integration() -> Result<()> {
             }
         }
     });
-
-    remove_db(DB);
 
     Ok(())
 }

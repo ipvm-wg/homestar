@@ -1,6 +1,6 @@
 use crate::utils::{
-    check_for_line_with, kill_homestar, remove_db, retrieve_output, wait_for_socket_connection,
-    ChildGuard, TimeoutFutureExt, BIN_NAME,
+    check_for_line_with, kill_homestar, retrieve_output, wait_for_socket_connection, ChildGuard,
+    FileGuard, TimeoutFutureExt, BIN_NAME,
 };
 use anyhow::Result;
 use diesel::RunQueryDsl;
@@ -31,6 +31,9 @@ const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 fn test_libp2p_dht_records_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_dht_records1.db";
     const DB2: &str = "test_libp2p_dht_records2.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -293,9 +296,6 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         assert!(retrieved_workflow_info_logged);
     });
 
-    remove_db(DB1);
-    remove_db(DB2);
-
     Ok(())
 }
 
@@ -303,6 +303,9 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
 fn test_libp2p_dht_quorum_failure_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_dht_insufficient_quorum_integration1.db";
     const DB2: &str = "test_libp2p_dht_insufficient_quorum_integration2.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -432,17 +435,16 @@ fn test_libp2p_dht_quorum_failure_integration() -> Result<()> {
         assert!(workflow_info_quorum_failure_logged);
     });
 
-    remove_db(DB1);
-    remove_db(DB2);
-
     Ok(())
 }
 
 #[test]
-#[ignore]
 fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_dht_workflow_info_provider_records1.db";
     const DB2: &str = "test_libp2p_dht_workflow_info_provider_records2.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -454,7 +456,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         .arg("tests/fixtures/test_dht5.toml")
         .arg("--db")
         .arg(DB1)
-        //.stdout(Stdio::piped())
+        .stdout(Stdio::piped())
         .spawn()
         .unwrap();
     let guard1 = ChildGuard::new(homestar_proc1);
@@ -490,7 +492,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             .arg("tests/fixtures/test_dht6.toml")
             .arg("--db")
             .arg(DB2)
-            //.stdout(Stdio::piped())
+            .stdout(Stdio::piped())
             .spawn()
             .unwrap();
         let guard2 = ChildGuard::new(homestar_proc2);
@@ -597,7 +599,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
 
         assert_eq!(
             received_workflow_info_cid.to_string(),
-            "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq"
+            "bafyrmiepo4hxftdryivk2nbeu6cugjvl5v2zbxcijelqwakbr4zinyykoa"
         );
 
         // Check database for workflow info
@@ -624,7 +626,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             stdout1.clone(),
             vec![
                 "successfully providing",
-                "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq",
+                "bafyrmiepo4hxftdryivk2nbeu6cugjvl5v2zbxcijelqwakbr4zinyykoa",
             ],
         );
 
@@ -643,7 +645,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             vec![
                 "sent workflow info to peer",
                 "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
-                "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq",
+                "bafyrmiepo4hxftdryivk2nbeu6cugjvl5v2zbxcijelqwakbr4zinyykoa",
             ],
         );
 
@@ -653,7 +655,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             vec![
                 "received workflow info from peer",
                 "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
-                "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq",
+                "bafyrmiepo4hxftdryivk2nbeu6cugjvl5v2zbxcijelqwakbr4zinyykoa",
             ],
         );
 
@@ -662,9 +664,6 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         assert!(sent_workflow_info_logged);
         assert!(received_workflow_info_logged);
     });
-
-    remove_db(DB1);
-    remove_db(DB2);
 
     Ok(())
 }
@@ -695,6 +694,10 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
     const DB1: &str = "test_libp2p_dht_workflow_info_provider_recursive1.db";
     const DB2: &str = "test_libp2p_dht_workflow_info_provider_recursive2.db";
     const DB3: &str = "test_libp2p_dht_workflow_info_provider_recursive3.db";
+
+    let _guard1 = FileGuard::new(DB1);
+    let _guard2 = FileGuard::new(DB2);
+    let _guard3 = FileGuard::new(DB3);
 
     tokio_test::block_on(async move {
         let homestar_proc1 = Command::new(BIN.as_os_str())
@@ -967,10 +970,6 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
         //   - Node one received workflow info from node two provider
         //   - Node one forwarded workflow info to node three
         //   - Node three received the workflow info from node one
-
-        remove_db(DB1);
-        remove_db(DB2);
-        remove_db(DB3);
     });
 
     Ok(())
