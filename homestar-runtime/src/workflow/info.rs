@@ -310,7 +310,6 @@ impl Info {
                 // spawn a separate task to retrieve workflow info from the
                 // network and store it in the database if it finds it.
                 let handle = Handle::current();
-
                 handle.spawn(async move {
                     match Self::retrieve_from_dht(
                         workflow_cid,
