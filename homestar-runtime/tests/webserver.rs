@@ -22,7 +22,7 @@ const AWAIT_CID: &str = "bafyrmic5cqdtkpyu6kourpodsupskhgfc4xuuu6df4elgybu3avg2s
 #[test]
 fn test_workflow_run_integration() -> Result<()> {
     const DB: &str = "ws_homestar_test_workflow_run.db";
-    let _guard = FileGuard::new(DB);
+    let _db_guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -33,7 +33,7 @@ fn test_workflow_run_integration() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let _guard = ChildGuard::new(homestar_proc);
+    let _proc_guard = ChildGuard::new(homestar_proc);
 
     let ws_port = 8061;
     if wait_for_socket_connection(ws_port, 100).is_err() {

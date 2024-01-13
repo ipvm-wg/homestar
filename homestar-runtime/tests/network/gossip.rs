@@ -29,8 +29,8 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_receipt_gossip_integration1.db";
     const DB2: &str = "_test_libp2p_receipt_gossip_integration2.db";
 
-    let _guard1 = FileGuard::new(DB1);
-    let _guard2 = FileGuard::new(DB2);
+    let _db_guard1 = FileGuard::new(DB1);
+    let _db_guard2 = FileGuard::new(DB2);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -45,7 +45,7 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let guard1 = ChildGuard::new(homestar_proc1);
+    let proc_guard1 = ChildGuard::new(homestar_proc1);
 
     let ws_port = 7990;
     if wait_for_socket_connection(ws_port, 100).is_err() {
@@ -81,7 +81,7 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
-        let guard2 = ChildGuard::new(homestar_proc2);
+        let proc_guard2 = ChildGuard::new(homestar_proc2);
 
         let ws_port2 = 7991;
         if wait_for_socket_connection(ws_port2, 100).is_err() {
@@ -171,8 +171,8 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
         }
 
         // Collect logs then kill proceses.
-        let dead_proc1 = kill_homestar(guard1.take(), None);
-        let dead_proc2 = kill_homestar(guard2.take(), None);
+        let dead_proc1 = kill_homestar(proc_guard1.take(), None);
+        let dead_proc2 = kill_homestar(proc_guard2.take(), None);
 
         // Retrieve logs.
         let stdout1 = retrieve_output(dead_proc1);

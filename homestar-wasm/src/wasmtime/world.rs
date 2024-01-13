@@ -106,7 +106,7 @@ impl State {
         }
     }
 
-    /// Set fuel add.
+    /// Set fuel.
     pub fn set_fuel(&mut self, fuel: u64) {
         self.fuel = fuel
     }

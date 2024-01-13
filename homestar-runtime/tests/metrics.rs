@@ -40,7 +40,7 @@ fn test_metrics_integration() -> Result<()> {
     }
 
     const DB: &str = "test_metrics_integration.db";
-    let _guard = FileGuard::new(DB);
+    let _db_guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -51,7 +51,7 @@ fn test_metrics_integration() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let _guard = ChildGuard::new(homestar_proc);
+    let _proc_guard = ChildGuard::new(homestar_proc);
 
     if wait_for_socket_connection(4020, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");

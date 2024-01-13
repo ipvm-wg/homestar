@@ -564,10 +564,19 @@ mod test {
         assert_eq!(running_tasks.get(&worker_workflow_cid).unwrap().len(), 2);
         let mut conn = db.conn().unwrap();
 
+        let mut find_record = false;
+        let mut get_providers = false;
+        let mut captured_receipt = false;
+        let mut receipts_cnt = 0;
+
         while let Ok(event) = rx.recv_async().await {
             match event {
-                Event::FindRecord(QueryRecord { cid, .. }) => assert_eq!(cid, worker_workflow_cid),
+                Event::FindRecord(QueryRecord { cid, .. }) => {
+                    find_record = true;
+                    assert_eq!(cid, worker_workflow_cid)
+                }
                 Event::GetProviders(QueryRecord { cid, .. }) => {
+                    get_providers = true;
                     assert_eq!(cid, worker_workflow_cid)
                 }
                 Event::CapturedReceipt(Captured { receipt, .. }) => {
@@ -577,10 +586,19 @@ mod test {
                     let (_, workflow_info) =
                         MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
                     assert_eq!(info.progress_count, workflow_info.progress_count);
+                    if receipts_cnt == 1 {
+                        captured_receipt = true;
+                    } else {
+                        receipts_cnt += 1;
+                    }
                 }
                 _ => panic!("Wrong event type"),
             }
         }
+
+        assert!(find_record);
+        assert!(get_providers);
+        assert!(captured_receipt);
 
         let (_, workflow_info) = MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
 

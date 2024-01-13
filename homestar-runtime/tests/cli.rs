@@ -94,7 +94,7 @@ fn test_server_not_running_integration() -> Result<()> {
 #[test]
 fn test_server_integration() -> Result<()> {
     const DB: &str = "test_server_integration.db";
-    let _guard = FileGuard::new(DB);
+    let _db_guard = FileGuard::new(DB);
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -113,7 +113,7 @@ fn test_server_integration() -> Result<()> {
         .spawn()
         .unwrap();
 
-    let _guard = ChildGuard::new(homestar_proc);
+    let _proc_guard = ChildGuard::new(homestar_proc);
 
     if wait_for_socket_connection_v6(9837, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");
@@ -149,7 +149,7 @@ fn test_server_integration() -> Result<()> {
 #[test]
 fn test_workflow_run_integration() -> Result<()> {
     const DB: &str = "test_workflow_run_integration.db";
-    let _guard = FileGuard::new(DB);
+    let _db_guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -160,7 +160,7 @@ fn test_workflow_run_integration() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let _guard = ChildGuard::new(homestar_proc);
+    let _proc_guard = ChildGuard::new(homestar_proc);
 
     if wait_for_socket_connection_v6(9840, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");
@@ -202,7 +202,7 @@ fn test_workflow_run_integration() -> Result<()> {
 #[cfg(not(windows))]
 fn test_daemon_integration() -> Result<()> {
     const DB: &str = "test_daemon_integration.db";
-    let _guard = FileGuard::new(DB);
+    let _db_guard = FileGuard::new(DB);
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -236,7 +236,7 @@ fn test_daemon_integration() -> Result<()> {
 #[test]
 fn test_server_v4_integration() -> Result<()> {
     const DB: &str = "test_server_v4_integration.db";
-    let _guard = FileGuard::new(DB);
+    let _db_guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -247,7 +247,7 @@ fn test_server_v4_integration() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let _guard = ChildGuard::new(homestar_proc);
+    let _proc_guard = ChildGuard::new(homestar_proc);
 
     if wait_for_socket_connection(9000, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
