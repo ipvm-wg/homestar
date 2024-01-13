@@ -576,7 +576,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
 
         assert_eq!(
             sent_workflow_info_cid.to_string(),
-            "bafyrmiepo4hxftdryivk2nbeu6cugjvl5v2zbxcijelqwakbr4zinyykoa"
+            "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4"
         );
 
         // Poll for retrieved workflow info message
@@ -599,7 +599,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
 
         assert_eq!(
             received_workflow_info_cid.to_string(),
-            "bafyrmiepo4hxftdryivk2nbeu6cugjvl5v2zbxcijelqwakbr4zinyykoa"
+            "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4"
         );
 
         // Check database for workflow info
