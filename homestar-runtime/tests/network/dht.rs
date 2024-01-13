@@ -961,10 +961,6 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
 
         // TODO Check that node three stored the workflow info in its database.
 
-        // let _ = kill_homestar(homestar_proc1, None);
-        // let _ = kill_homestar(homestar_proc2, None);
-        // let _ = kill_homestar(homestar_proc3, None);
-
         // TODO Check for logs that indicate:
         //   - Node three sent workflow info as a provider
         //   - Node one received workflow info from node two provider
