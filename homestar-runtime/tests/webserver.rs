@@ -17,7 +17,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const SUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "subscribe_run_workflow";
 const UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "unsubscribe_run_workflow";
-const AWAIT_CID: &str = "bafyrmic5cqdtkpyu6kourpodsupskhgfc4xuuu6df4elgybu3avg2se2ja";
+const AWAIT_CID: &str = "bafyrmiga45pxzlihf726utrixg7a5zavauggtqqkqnc6bzybr7icpbdu6a";
 
 #[test]
 fn test_workflow_run_integration() -> Result<()> {

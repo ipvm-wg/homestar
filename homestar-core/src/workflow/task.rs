@@ -190,7 +190,7 @@ mod test {
             (
                 "rsc".into(),
                 Ipld::String(
-                    "ipfs://bafybeihykuzis3bwavlvcghn3uglsimt5bzimqmyonpkft5aighnwk22mm".into(),
+                    "ipfs://bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4".into(),
                 ),
             ),
             ("op".into(), Ipld::String("ipld/fun".to_string())),

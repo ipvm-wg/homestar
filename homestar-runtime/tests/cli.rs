@@ -175,7 +175,7 @@ fn test_workflow_run_integration() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafybeihykuzis3bwavlvcghn3uglsimt5bzimqmyonpkft5aighnwk22mm",
+            "ipfs://bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
@@ -190,7 +190,7 @@ fn test_workflow_run_integration() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafybeihykuzis3bwavlvcghn3uglsimt5bzimqmyonpkft5aighnwk22mm",
+            "ipfs://bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
