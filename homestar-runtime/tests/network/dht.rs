@@ -626,7 +626,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             stdout1.clone(),
             vec![
                 "successfully providing",
-                "bafyrmiepo4hxftdryivk2nbeu6cugjvl5v2zbxcijelqwakbr4zinyykoa",
+                "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4",
             ],
         );
 
@@ -645,7 +645,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             vec![
                 "sent workflow info to peer",
                 "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
-                "bafyrmiepo4hxftdryivk2nbeu6cugjvl5v2zbxcijelqwakbr4zinyykoa",
+                "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4",
             ],
         );
 
@@ -655,7 +655,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             vec![
                 "received workflow info from peer",
                 "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
-                "bafyrmiepo4hxftdryivk2nbeu6cugjvl5v2zbxcijelqwakbr4zinyykoa",
+                "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4",
             ],
         );
 
