@@ -111,6 +111,7 @@ impl State {
         self.fuel = fuel
     }
 
+    /// Initial time from instantiation.
     pub fn start_time(&self) -> Instant {
         self.start_time
     }

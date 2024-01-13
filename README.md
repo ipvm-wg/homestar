@@ -65,9 +65,9 @@ If you're looking to help develop `Homestar`, please dive right into our
 [development](./DEVELOPMENT.md) guide.
 
 Otherwise, the easiest way to get started and see `Homestar` in action is to
-follow-along and run our image-processing
-[websocket relay](./examples/websocket-relay) example, which integrates
-`Homestar` with a browser application to run a
+follow-along with our [examples](./examples). To start, try out our
+image-processing [websocket relay](./examples/websocket-relay) example, which
+integrates `Homestar` with a browser application to run a
 statically-configured workflow. The associated `README.md` walks through
 what to install (i.e. `rust`, `node/npm`, `ipfs`), what commands
 to run, and embeds a video demonstrating its usage.
