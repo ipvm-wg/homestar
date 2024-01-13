@@ -90,11 +90,16 @@ jobs:
       - name: Run Linter
         run: cargo clippy --all -- -D warnings
 
-      - name: Verify Publishing of crates
-        uses: katyo/publish-crates@v2
-        if: ${{ matrix.rust-toolchain == 'stable' && github.event_name == 'push' }}
-        with:
-          dry-run: true
+      # TODO: turn-on after first release for test dry-runs
+      # - name: Install cargo-release
+      #   if: ${{ matrix.rust-toolchain == 'stable' && github.event_name == 'push' }}
+      #   uses: taiki-e/install-action@v2
+      #   with:
+      #     tool: cargo-release
+
+      # - name: Dry-run cargo release
+      #   if: ${{ matrix.rust-toolchain == 'stable' && github.event_name == 'push' }}
+      #   run: cargo release --workspace
 
       # Only "test" release build on push event.
       - name: Test Release

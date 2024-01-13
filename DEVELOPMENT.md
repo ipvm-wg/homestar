@@ -10,6 +10,7 @@
 - [Pre-commit Hook](#pre-commit-hook)
 - [Recommended Development Flow](#recommended-development-flow)
 - [Conventional Commits](#conventional-commits)
+- [Non-Rust Dependencies](#non-rust-dependencies)
 
 ## Building and Running the Project
 
@@ -94,6 +95,7 @@ with `experimental` and `buildkit` set to `true`, for example:
   ```
 
 ## Nix
+
 This repository contains a [Nix flake][nix-flake] that initiates both the Rust
 toolchain set in [rust-toolchain.toml](./rust-toolchain.toml) and a
 [pre-commit hook](#pre-commit-hook). It also installs
@@ -159,6 +161,27 @@ a type of `fix`, `feat`, `docs`, `ci`, `refactor`, etc..., structured like so:
 [optional footer(s)]
 ```
 
+## Non-Rust Dependencies
+
+### wit-deps
+
+We are using [wit-deps][wit-deps] to track [WIT][wit] dependencies/interfaces,
+which is installed by default in our [Nix flake](#nix) or can be
+installed separately with `cargo install`.
+
+To see an example of `wit-deps` in action, view our
+[host helpers](./homestar-wasm/wit/helpers.wit), where we import
+the [wasi-logging][wasi-logging] interface. We track this dependency in our
+[`deps.toml`](./homestar-wasm/wit/deps.toml) file:
+
+```toml
+logging = "https://github.com/WebAssembly/wasi-logging/archive/main.tar.gz"
+```
+
+To update packages, we can run `wit-deps` within the [homestar-wasm](./homestar-wasm)
+directory.
+
+
 [buildx]: https://docs.docker.com/engine/reference/commandline/buildx/
 [cargo-expand]: https://github.com/dtolnay/cargo-expand
 [cargo-nextest]: https://nexte.st/index.html
@@ -174,4 +197,6 @@ a type of `fix`, `feat`, `docs`, `ci`, `refactor`, etc..., structured like so:
 [nix-flake]: https://nixos.wiki/wiki/Flakes
 [pre-commit]: https://pre-commit.com/
 [tokio-console]: https://github.com/tokio-rs/console
+[wit]: https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md
 [wit-bindgen]: https://github.com/bytecodealliance/wit-bindgen
+[wit-deps]: https://github.com/bytecodealliance/wit-deps
