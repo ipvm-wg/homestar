@@ -586,11 +586,8 @@ mod test {
                     let (_, workflow_info) =
                         MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
                     assert_eq!(info.progress_count, workflow_info.progress_count);
-                    if receipts_cnt == 1 {
-                        captured_receipt = true;
-                    } else {
-                        receipts_cnt += 1;
-                    }
+                    captured_receipt = true;
+                    receipts_cnt += 1;
                 }
                 _ => panic!("Wrong event type"),
             }
@@ -599,6 +596,7 @@ mod test {
         assert!(find_record);
         assert!(get_providers);
         assert!(captured_receipt);
+        assert_eq!(receipts_cnt, 2);
 
         let (_, workflow_info) = MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
 
