@@ -1,5 +1,5 @@
 use crate::utils::{
-    kill_homestar, remove_db, stop_homestar, wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
+    kill_homestar, wait_for_socket_connection, ChildGuard, FileGuard, TimeoutFutureExt, BIN_NAME,
 };
 use anyhow::Result;
 use jsonrpsee::{
@@ -8,7 +8,6 @@ use jsonrpsee::{
     ws_client::WsClientBuilder,
 };
 use once_cell::sync::Lazy;
-use serial_test::file_serial;
 use std::{
     net::Ipv4Addr,
     path::PathBuf,
@@ -21,11 +20,12 @@ const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
 const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
-#[file_serial]
-fn test_connection_notifications_serial() -> Result<()> {
-    const DB1: &str = "test_connection_notifications_serial1.db";
-    const DB2: &str = "test_connection_notifications_serial2.db";
-    let _ = stop_homestar();
+fn test_connection_notifications_integration() -> Result<()> {
+    const DB1: &str = "test_connection_notifications_integration1.db";
+    const DB2: &str = "test_connection_notifications_integration2.db";
+
+    let _db_guard1 = FileGuard::new(DB1);
+    let _db_guard2 = FileGuard::new(DB2);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -40,10 +40,10 @@ fn test_connection_notifications_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+    let _proc_guard1 = ChildGuard::new(homestar_proc1);
 
     let ws_port = 8022;
-    if wait_for_socket_connection(8022, 1000).is_err() {
-        let _ = kill_homestar(homestar_proc1, None);
+    if wait_for_socket_connection(8022, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -79,6 +79,7 @@ fn test_connection_notifications_serial() -> Result<()> {
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
+        let proc_guard2 = ChildGuard::new(homestar_proc2);
 
         // Poll for connection established message
         loop {
@@ -94,7 +95,7 @@ fn test_connection_notifications_serial() -> Result<()> {
             }
         }
 
-        let _ = kill_homestar(homestar_proc2, None);
+        let _ = kill_homestar(proc_guard2.take(), None);
 
         // Poll for connection closed message
         loop {
@@ -110,9 +111,20 @@ fn test_connection_notifications_serial() -> Result<()> {
             }
         }
 
-        let _ = kill_homestar(homestar_proc1, None);
-        remove_db(DB1);
-        remove_db(DB2);
+        // Check node endpoint to match
+        let http_url = format!("http://localhost:{}", 8022);
+        let http_resp = reqwest::get(format!("{}/node", http_url)).await.unwrap();
+        assert_eq!(http_resp.status(), 200);
+        let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
+        assert_eq!(
+            http_resp,
+            serde_json::json!({
+                "nodeInfo": {
+                    "static": {"peer_id": "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN"},
+                    "dynamic": {"listeners": ["/ip4/127.0.0.1/tcp/7010"], "connections": {}}
+                }
+            })
+        );
     });
 
     Ok(())

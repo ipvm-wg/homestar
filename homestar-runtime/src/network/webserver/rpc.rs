@@ -6,7 +6,7 @@ use super::notifier::{self, Header, Notifier, SubscriptionTyp};
 use super::{listener, prom::PrometheusData, Message};
 #[cfg(feature = "websocket-notify")]
 use crate::channel::AsyncChannel;
-use crate::runner::WsSender;
+use crate::{db::Database, runner::WsSender};
 #[cfg(feature = "websocket-notify")]
 use anyhow::anyhow;
 use anyhow::Result;
@@ -45,6 +45,8 @@ use tracing::{error, warn};
 pub(crate) const HEALTH_ENDPOINT: &str = "health";
 /// Metrics endpoint for prometheus / openmetrics polling.
 pub(crate) const METRICS_ENDPOINT: &str = "metrics";
+/// Node information endpoint.
+pub(crate) const NODE_INFO_ENDPOINT: &str = "node";
 /// Run a workflow and subscribe to that workflow's events.
 #[cfg(feature = "websocket-notify")]
 pub(crate) const SUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "subscribe_run_workflow";
@@ -60,7 +62,8 @@ pub(crate) const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_networ
 
 /// Context for RPC methods.
 #[cfg(feature = "websocket-notify")]
-pub(crate) struct Context {
+pub(crate) struct Context<DB: Database> {
+    db: DB,
     metrics_hdl: PrometheusHandle,
     evt_notifier: Notifier<notifier::Message>,
     workflow_msg_notifier: Notifier<notifier::Message>,
@@ -72,13 +75,17 @@ pub(crate) struct Context {
 /// Context for RPC methods.
 #[allow(dead_code)]
 #[cfg(not(feature = "websocket-notify"))]
-pub(crate) struct Context {
+pub(crate) struct Context<DB: Database> {
+    db: DB,
     metrics_hdl: PrometheusHandle,
     runner_sender: WsSender,
     receiver_timeout: Duration,
 }
 
-impl Context {
+impl<DB> Context<DB>
+where
+    DB: Database,
+{
     /// Create a new [Context] instance.
     #[cfg(feature = "websocket-notify")]
     #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
@@ -87,9 +94,11 @@ impl Context {
         evt_notifier: Notifier<notifier::Message>,
         workflow_msg_notifier: Notifier<notifier::Message>,
         runner_sender: WsSender,
+        db: DB,
         receiver_timeout: Duration,
     ) -> Self {
         Self {
+            db,
             metrics_hdl,
             evt_notifier,
             workflow_msg_notifier,
@@ -104,9 +113,11 @@ impl Context {
     pub(crate) fn new(
         metrics_hdl: PrometheusHandle,
         runner_sender: WsSender,
+        db: DB,
         receiver_timeout: Duration,
     ) -> Self {
         Self {
+            db,
             metrics_hdl,
             runner_sender,
             receiver_timeout,
@@ -115,63 +126,43 @@ impl Context {
 }
 
 /// [RpcModule] wrapper.
-pub(crate) struct JsonRpc(RpcModule<Context>);
+pub(crate) struct JsonRpc<DB: Database>(RpcModule<Context<DB>>);
 
-impl JsonRpc {
+impl<DB> JsonRpc<DB>
+where
+    DB: Database + 'static,
+{
     /// Create a new [JsonRpc] instance, registering methods on initialization.
-    pub(crate) async fn new(ctx: Context) -> Result<Self> {
+    pub(crate) async fn new(ctx: Context<DB>) -> Result<Self> {
         let module = Self::register(ctx).await?;
         Ok(Self(module))
     }
 
     /// Get a reference to the inner [RpcModule].
     #[allow(dead_code)]
-    pub(crate) fn inner(&self) -> &RpcModule<Context> {
+    pub(crate) fn inner(&self) -> &RpcModule<Context<DB>> {
         &self.0
     }
 
     /// Get and take ownership of the inner [RpcModule].
-    pub(crate) fn into_inner(self) -> RpcModule<Context> {
+    pub(crate) fn into_inner(self) -> RpcModule<Context<DB>> {
         self.0
     }
 
-    async fn register(ctx: Context) -> Result<RpcModule<Context>> {
+    async fn register(ctx: Context<DB>) -> Result<RpcModule<Context<DB>>> {
         let mut module = RpcModule::new(ctx);
 
-        #[cfg(not(test))]
         module.register_async_method(HEALTH_ENDPOINT, |_, ctx| async move {
-            let (tx, rx) = crate::channel::AsyncChannel::oneshot();
-            ctx.runner_sender
-                .send_async((Message::GetNodeInfo, Some(tx)))
-                .await
-                .map_err(|err| internal_err(err.to_string()))?;
-
-            if let Ok(Message::AckNodeInfo((static_info, dyn_info))) =
-                rx.recv_deadline(std::time::Instant::now() + ctx.receiver_timeout)
-            {
-                Ok(serde_json::json!({ "healthy": true, "nodeInfo": {
-                    "static": static_info, "dynamic": dyn_info}}))
-            } else {
-                error!(
-                    subject = "call.health",
-                    category = "jsonrpc.call",
-                    sub = HEALTH_ENDPOINT,
-                    "did not acknowledge message in time"
-                );
-                Err(internal_err("failed to get node information".to_string()))
+            match ctx.db.conn() {
+                Ok(mut conn) => {
+                    if DB::health_check(&mut conn).is_ok() {
+                        Ok(serde_json::json!({"healthy": true}))
+                    } else {
+                        Err(internal_err("database query is unreachable".to_string()))
+                    }
+                }
+                Err(err) => Err(internal_err(err.to_string())),
             }
-        })?;
-
-        #[cfg(test)]
-        module.register_async_method(HEALTH_ENDPOINT, |_, _| async move {
-            use crate::runner::{DynamicNodeInfo, StaticNodeInfo};
-            use std::str::FromStr;
-            let peer_id =
-                libp2p::PeerId::from_str("12D3KooWRNw2pJC9748Fmq4WNV27HoSTcX3r37132FLkQMrbKAiC")
-                    .unwrap();
-            Ok::<serde_json::Value, ErrorObject<'_>>(serde_json::json!({
-                "healthy": true, "nodeInfo": {"static": StaticNodeInfo::new(peer_id), "dynamic": DynamicNodeInfo::new(vec![])},
-            }))
         })?;
 
         module.register_async_method(METRICS_ENDPOINT, |params, ctx| async move {
@@ -188,6 +179,30 @@ impl JsonRpc {
                     }),
                 Err(_) => PrometheusData::from_string(&render)
                     .map_err(|err| internal_err(format!("failed to render metrics: {:#?}", err))),
+            }
+        })?;
+
+        #[cfg(not(test))]
+        module.register_async_method(NODE_INFO_ENDPOINT, |_, ctx| async move {
+            let (tx, rx) = crate::channel::AsyncChannel::oneshot();
+            ctx.runner_sender
+                .send_async((Message::GetNodeInfo, Some(tx)))
+                .await
+                .map_err(|err| internal_err(err.to_string()))?;
+
+            if let Ok(Message::AckNodeInfo((static_info, dyn_info))) =
+                rx.recv_deadline(std::time::Instant::now() + ctx.receiver_timeout)
+            {
+                Ok(serde_json::json!({
+                    "nodeInfo": {"static": static_info, "dynamic": dyn_info}}))
+            } else {
+                error!(
+                    subject = "call.node",
+                    category = "jsonrpc.call",
+                    sub = NODE_INFO_ENDPOINT,
+                    "did not acknowledge message in time"
+                );
+                Err(internal_err("failed to get node information".to_string()))
             }
         })?;
 
@@ -322,7 +337,7 @@ impl JsonRpc {
     async fn handle_workflow_subscription(
         mut sink: SubscriptionSink,
         mut stream: BroadcastStream<notifier::Message>,
-        ctx: Arc<Context>,
+        ctx: Arc<Context<DB>>,
     ) -> Result<()> {
         let rt_hdl = Handle::current();
         rt_hdl.spawn(async move {

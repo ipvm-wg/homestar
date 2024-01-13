@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 #[cfg(not(windows))]
 use assert_cmd::prelude::*;
 use chrono::{DateTime, FixedOffset};
@@ -17,7 +17,8 @@ use std::{
     future::Future,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
-    process::{Child, Command, Stdio},
+    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    str::FromStr,
     time::Duration,
 };
 #[cfg(not(windows))]
@@ -31,7 +32,101 @@ pub(crate) const BIN_NAME: &str = "homestar";
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
+pub struct ChildGuard {
+    guard: Option<Child>,
+}
+
+#[allow(dead_code)]
+impl ChildGuard {
+    /// Create a new [ChildGuard] from a [Child] process.
+    pub(crate) fn new(child: Child) -> Self {
+        Self { guard: Some(child) }
+    }
+
+    /// Take the [Child] process from the [ChildGuard].
+    pub(crate) fn take(mut self) -> Child {
+        self.guard.take().expect("Failed to take the `Child`")
+    }
+
+    /// Take the [Child] process from the [ChildGuard] and return the [ChildStdin].
+    pub(crate) fn stdin(&mut self) -> Option<ChildStdin> {
+        match &mut self.guard {
+            Some(child) => child.stdin.take(),
+            None => None,
+        }
+    }
+
+    /// Take the [Child] process from the [ChildGuard] and return the [ChildStdout].
+    pub(crate) fn stdout(&mut self) -> Option<ChildStdout> {
+        match &mut self.guard {
+            Some(child) => child.stdout.take(),
+            None => None,
+        }
+    }
+
+    /// Wait for the [Child] process to exit and return the [std::process::Output].
+    pub(crate) fn wait_with_output(self) -> std::io::Result<std::process::Output> {
+        self.take().wait_with_output()
+    }
+
+    /// Wait for the [Child] process to exit and return if successful.
+    pub(crate) fn wait_with_result(self) -> Result<()> {
+        let out = self.wait_with_output()?;
+
+        if out.status.success() {
+            Ok(())
+        } else {
+            bail!("{}", String::from_utf8_lossy(&out.stderr))
+        }
+    }
+}
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.guard.take() {
+            if matches!(child.try_wait(), Ok(None)) {
+                if let Err(e) = child.kill() {
+                    eprintln!("Could not kill child process: {e}");
+                }
+            }
+        };
+    }
+}
+
+pub struct FileGuard {
+    guard: Option<PathBuf>,
+}
+
+#[allow(dead_code)]
+impl FileGuard {
+    /// Create a new [FileGuard] from a path.
+    pub(crate) fn new(path: &str) -> Self {
+        Self {
+            guard: Some(PathBuf::from_str(path).unwrap()),
+        }
+    }
+
+    /// Take the path from the [FileGuard] and return the path as a [String].
+    pub(crate) fn take(mut self) -> String {
+        self.guard
+            .take()
+            .expect("Failed to take the inner `PathBuf`")
+            .display()
+            .to_string()
+    }
+}
+
+impl Drop for FileGuard {
+    fn drop(&mut self) {
+        if let Some(path) = self.guard.take() {
+            let path = path.display().to_string();
+            remove_db(&path);
+        };
+    }
+}
+
 /// Stop the Homestar server/binary.
+#[allow(dead_code)]
 pub(crate) fn stop_homestar() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("stop")

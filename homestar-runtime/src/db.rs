@@ -50,11 +50,19 @@ pub(crate) type Connection =
 
 /// The database object, which wraps an inner [Arc] to the connection pool.
 #[derive(Debug)]
-pub struct Db(Arc<Pool>);
+pub struct Db {
+    /// The [Arc]'ed connection pool.
+    pub(crate) pool: Arc<Pool>,
+    /// The database URL.
+    pub(crate) url: String,
+}
 
 impl Clone for Db {
     fn clone(&self) -> Self {
-        Db(Arc::clone(&self.0))
+        Self {
+            pool: Arc::clone(&self.pool),
+            url: self.url.clone(),
+        }
     }
 }
 
@@ -72,6 +80,16 @@ impl Db {
 /// Database trait for working with different Sqlite connection pool and
 /// connection configurations.
 pub trait Database: Send + Sync + Clone {
+    /// Establish a pooled connection to Sqlite database.
+    fn setup_connection_pool(
+        settings: &settings::Node,
+        database_url: Option<String>,
+    ) -> Result<Self>
+    where
+        Self: Sized;
+    /// Get a pooled connection for the database.
+    fn conn(&self) -> Result<Connection>;
+
     /// Set database url.
     ///
     /// Contains a minimal side-effect to set the env if not already set.
@@ -104,15 +122,11 @@ pub trait Database: Send + Sync + Clone {
         Ok(connection)
     }
 
-    /// Establish a pooled connection to Sqlite database.
-    fn setup_connection_pool(
-        settings: &settings::Node,
-        database_url: Option<String>,
-    ) -> Result<Self>
-    where
-        Self: Sized;
-    /// Get a pooled connection for the database.
-    fn conn(&self) -> Result<Connection>;
+    /// Check if the database is up.
+    fn health_check(conn: &mut Connection) -> Result<(), diesel::result::Error> {
+        diesel::sql_query("SELECT 1").execute(conn)?;
+        Ok(())
+    }
 
     /// Commit a receipt to the database, updating two tables
     /// within a transaction.
@@ -328,7 +342,7 @@ impl Database for Db {
         });
 
         Self::setup(&database_url)?;
-        let manager = r2d2::ConnectionManager::<SqliteConnection>::new(database_url);
+        let manager = r2d2::ConnectionManager::<SqliteConnection>::new(database_url.clone());
 
         // setup PRAGMAs
         manager
@@ -345,11 +359,15 @@ impl Database for Db {
             .connection_customizer(Box::new(ConnectionCustomizer))
             .build(manager)
             .expect("DATABASE_URL must be set to an SQLite DB file");
-        Ok(Db(Arc::new(pool)))
+
+        Ok(Db {
+            pool: Arc::new(pool),
+            url: database_url,
+        })
     }
 
     fn conn(&self) -> Result<Connection> {
-        let conn = self.0.get()?;
+        let conn = self.pool.get()?;
         Ok(conn)
     }
 }

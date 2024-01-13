@@ -229,9 +229,9 @@ impl Runner {
 
         let (ws_receiver, ws_hdl) = {
             let (mpsc_ws_tx, mpsc_ws_rx) = Self::setup_ws_mpsc_channel(message_buffer_len);
-            let ws_hdl = self
-                .runtime
-                .block_on(self.webserver.start(mpsc_ws_tx, metrics_hdl))?;
+            let ws_hdl =
+                self.runtime
+                    .block_on(self.webserver.start(mpsc_ws_tx, metrics_hdl, db.clone()))?;
             (mpsc_ws_rx, ws_hdl)
         };
 
@@ -319,11 +319,11 @@ impl Runner {
                                        category = "jsonrpc",
                                        "getting node info");
                                 let (tx, rx) = AsyncChannel::oneshot();
-                                let _ = self.event_sender.send_async(Event::GetListeners(tx)).await;
-                                let dyn_node_info = if let Ok(listeners) = rx.recv_deadline(Instant::now() + self.settings.node.network.webserver.timeout) {
-                                    DynamicNodeInfo::new(listeners)
+                                let _ = self.event_sender.send_async(Event::GetNodeInfo(tx)).await;
+                                let dyn_node_info = if let Ok(info) = rx.recv_deadline(Instant::now() + self.settings.node.network.webserver.timeout) {
+                                    info
                                 } else {
-                                    DynamicNodeInfo::new(vec![])
+                                    DynamicNodeInfo::default()
                                 };
                                 let _ = oneshot_tx.send_async(webserver::Message::AckNodeInfo((self.node_info.clone(), dyn_node_info))).await;
                             }
@@ -801,7 +801,10 @@ struct Channels {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{network::rpc::Client, test_utils::WorkerBuilder};
+    use crate::{
+        network::rpc::Client,
+        test_utils::{db::MemoryDb, WorkerBuilder},
+    };
     use homestar_core::test_utils as core_test_utils;
     use rand::thread_rng;
     use std::net::SocketAddr;
@@ -813,6 +816,7 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
         let (tx, _rx) = Runner::setup_rpc_channel(1);
         let (runner_tx, _runner_rx) = Runner::setup_ws_mpsc_channel(1);
+        let db = MemoryDb::setup_connection_pool(&settings.node(), None).unwrap();
         let rpc_server = rpc::Server::new(settings.node.network(), Arc::new(tx));
         let rpc_sender = rpc_server.sender();
 
@@ -835,7 +839,7 @@ mod test {
 
             let ws_hdl = runner
                 .webserver
-                .start(runner_tx, metrics_hdl)
+                .start(runner_tx, metrics_hdl, db)
                 .await
                 .unwrap();
             let _stream = TcpStream::connect(addr).await.expect("Connection error");

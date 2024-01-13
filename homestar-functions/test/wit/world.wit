@@ -1,0 +1,21 @@
+package homestar-functions:test;
+
+world test {
+    import wasi:logging/logging;
+    import homestar:host/helpers@0.0.1;
+
+    export add-one: func(a: s32) -> s32;
+    export append-string: func(a: string) -> string;
+    export join-strings: func(a: string, b: string) -> string;
+    export host-fmt-current-time: func() -> string;
+    export transpose: func(matrix: list<list<u16>>) -> list<list<u16>>;
+    export blur: func(data: list<u8>, sigma: float32) -> list<u8>;
+    export blur-base64: func(data: string, sigma: float32) -> list<u8>;
+    export crop: func(data: list<u8>, x: u32, y: u32, target-width: u32, target-height: u32) -> list<u8>;
+    export crop-base64: func(data: string, x: u32, y: u32, target-width: u32, target-height: u32) -> list<u8>;
+    export grayscale: func(data: list<u8>) -> list<u8>;
+    export grayscale-base64: func(data: string) -> list<u8>;
+    export rotate90: func(data: list<u8>) -> list<u8>;
+    export rotate90-base64: func(data: string) -> list<u8>;
+    export hash: func(data: string) -> list<u8>;
+}

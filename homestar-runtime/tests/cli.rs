@@ -1,14 +1,12 @@
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_daemon;
 use crate::utils::{
-    kill_homestar, remove_db, stop_homestar, wait_for_socket_connection,
-    wait_for_socket_connection_v6, BIN_NAME,
+    wait_for_socket_connection, wait_for_socket_connection_v6, ChildGuard, FileGuard, BIN_NAME,
 };
 use anyhow::Result;
 use assert_cmd::prelude::*;
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
-use serial_test::file_serial;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
@@ -17,10 +15,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
 #[test]
-#[file_serial]
-fn test_help_serial() -> Result<()> {
-    let _ = stop_homestar();
-
+fn test_help_integration() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("help")
         .assert()
@@ -43,16 +38,11 @@ fn test_help_serial() -> Result<()> {
         .stdout(predicate::str::contains("help"))
         .stdout(predicate::str::contains("version"));
 
-    let _ = stop_homestar();
-
     Ok(())
 }
 
 #[test]
-#[file_serial]
-fn test_version_serial() -> Result<()> {
-    let _ = stop_homestar();
-
+fn test_version_integration() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("--version")
         .assert()
@@ -63,16 +53,11 @@ fn test_version_serial() -> Result<()> {
             env!("CARGO_PKG_VERSION")
         )));
 
-    let _ = stop_homestar();
-
     Ok(())
 }
 
 #[test]
-#[file_serial]
-fn test_server_not_running_serial() -> Result<()> {
-    let _ = stop_homestar();
-
+fn test_server_not_running_integration() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("ping")
         .assert()
@@ -103,16 +88,13 @@ fn test_server_not_running_serial() -> Result<()> {
                     .or(predicate::str::contains("No connection could be made"))),
         );
 
-    let _ = stop_homestar();
-
     Ok(())
 }
 
 #[test]
-#[file_serial]
-fn test_server_serial() -> Result<()> {
-    const DB: &str = "test_server_serial.db";
-    let _ = stop_homestar();
+fn test_server_integration() -> Result<()> {
+    const DB: &str = "test_server_integration.db";
+    let _db_guard = FileGuard::new(DB);
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -131,8 +113,9 @@ fn test_server_serial() -> Result<()> {
         .spawn()
         .unwrap();
 
-    if wait_for_socket_connection_v6(9837, 1000).is_err() {
-        let _ = kill_homestar(homestar_proc, None);
+    let _proc_guard = ChildGuard::new(homestar_proc);
+
+    if wait_for_socket_connection_v6(9837, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -160,21 +143,13 @@ fn test_server_serial() -> Result<()> {
                 .or(predicate::str::contains("No connection could be made")),
         );
 
-    let _ = Command::new(BIN.as_os_str()).arg("stop").output();
-
-    let _ = kill_homestar(homestar_proc, None);
-    let _ = stop_homestar();
-    remove_db(DB);
-
     Ok(())
 }
 
 #[test]
-#[file_serial]
-fn test_workflow_run_serial() -> Result<()> {
-    const DB: &str = "test_workflow_run_serial.db";
-
-    let _ = stop_homestar();
+fn test_workflow_run_integration() -> Result<()> {
+    const DB: &str = "test_workflow_run_integration.db";
+    let _db_guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -185,9 +160,9 @@ fn test_workflow_run_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+    let _proc_guard = ChildGuard::new(homestar_proc);
 
-    if wait_for_socket_connection_v6(9840, 1000).is_err() {
-        let _ = kill_homestar(homestar_proc, None);
+    if wait_for_socket_connection_v6(9840, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -200,7 +175,7 @@ fn test_workflow_run_serial() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafybeig6u35v6t3f4j3zgz2jvj4erd45fbkeolioaddu3lmu6uxm3ilb7a",
+            "ipfs://bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
@@ -215,25 +190,19 @@ fn test_workflow_run_serial() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafybeig6u35v6t3f4j3zgz2jvj4erd45fbkeolioaddu3lmu6uxm3ilb7a",
+            "ipfs://bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
-
-    let _ = Command::new(BIN.as_os_str()).arg("stop").output();
-    let _ = kill_homestar(homestar_proc, None);
-    let _ = stop_homestar();
-    remove_db(DB);
 
     Ok(())
 }
 
 #[test]
-#[file_serial]
 #[cfg(not(windows))]
-fn test_daemon_serial() -> Result<()> {
-    const DB: &str = "test_daemon_serial.db";
-    let _ = stop_homestar();
+fn test_daemon_integration() -> Result<()> {
+    const DB: &str = "test_daemon_integration.db";
+    let _db_guard = FileGuard::new(DB);
 
     Command::new(BIN.as_os_str())
         .arg("start")
@@ -245,7 +214,7 @@ fn test_daemon_serial() -> Result<()> {
         .assert()
         .success();
 
-    if wait_for_socket_connection(9000, 1000).is_err() {
+    if wait_for_socket_connection(9000, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -260,18 +229,14 @@ fn test_daemon_serial() -> Result<()> {
         .stdout(predicate::str::contains("127.0.0.1"))
         .stdout(predicate::str::contains("pong"));
 
-    let _ = stop_homestar();
     let _ = kill_homestar_daemon();
-    remove_db(DB);
-
     Ok(())
 }
 
 #[test]
-#[file_serial]
-fn test_server_v4_serial() -> Result<()> {
-    const DB: &str = "test_server_v4_serial.db";
-    let _ = stop_homestar();
+fn test_server_v4_integration() -> Result<()> {
+    const DB: &str = "test_server_v4_integration.db";
+    let _db_guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -282,9 +247,9 @@ fn test_server_v4_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+    let _proc_guard = ChildGuard::new(homestar_proc);
 
     if wait_for_socket_connection(9000, 1000).is_err() {
-        let _ = kill_homestar(homestar_proc, None);
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -298,11 +263,6 @@ fn test_server_v4_serial() -> Result<()> {
         .success()
         .stdout(predicate::str::contains("127.0.0.1"))
         .stdout(predicate::str::contains("pong"));
-
-    let _ = Command::new(BIN.as_os_str()).arg("stop").output();
-    let _ = kill_homestar(homestar_proc, None);
-    let _ = stop_homestar();
-    remove_db(DB);
 
     Ok(())
 }

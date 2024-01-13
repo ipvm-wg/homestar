@@ -1,0 +1,6 @@
+package homestar-functions:add;
+
+world add {
+    export add-one: func(input: s32) -> s32;
+    export add-two: func(input: s32) -> s32;
+}

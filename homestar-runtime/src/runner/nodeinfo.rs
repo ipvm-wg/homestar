@@ -2,6 +2,7 @@
 
 use libp2p::{Multiaddr, PeerId};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Static node information available at startup.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,15 +26,20 @@ impl StaticNodeInfo {
 
 /// Dynamic node information available through events
 /// at runtime.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub(crate) struct DynamicNodeInfo {
     /// Listeners for the node.
     pub(crate) listeners: Vec<Multiaddr>,
+    /// Connections for the node.
+    pub(crate) connections: HashMap<PeerId, Multiaddr>,
 }
 
 impl DynamicNodeInfo {
     /// Create an instance of [DynamicNodeInfo].
-    pub(crate) fn new(listeners: Vec<Multiaddr>) -> Self {
-        Self { listeners }
+    pub(crate) fn new(listeners: Vec<Multiaddr>, connections: HashMap<PeerId, Multiaddr>) -> Self {
+        Self {
+            listeners,
+            connections,
+        }
     }
 }

@@ -14,7 +14,7 @@ use std::sync::Arc;
 pub(crate) struct Fetch;
 
 #[cfg(any(test, feature = "test-utils"))]
-const WASM_CID: &str = "bafybeig6u35v6t3f4j3zgz2jvj4erd45fbkeolioaddu3lmu6uxm3ilb7a";
+const WASM_CID: &str = "bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4";
 #[cfg(any(test, feature = "test-utils"))]
 const CAT_CID: &str = "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm";
 

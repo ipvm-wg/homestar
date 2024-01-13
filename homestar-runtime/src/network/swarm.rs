@@ -127,7 +127,8 @@ pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBe
             ),
         },
         peer_id,
-        swarm::Config::with_tokio_executor(),
+        swarm::Config::with_tokio_executor()
+            .with_idle_connection_timeout(settings.libp2p.idle_connection_timeout),
     );
 
     init(&mut swarm, settings)?;

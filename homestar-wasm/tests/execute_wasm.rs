@@ -73,10 +73,7 @@ async fn test_execute_wasm_underscore() {
     let mut env = World::instantiate(wasm, "add_one", State::default())
         .await
         .unwrap();
-    let res = env
-        .execute(ipld.parse().unwrap().try_into().unwrap())
-        .await
-        .unwrap();
+    let res = env.execute(ipld.parse().unwrap().into()).await.unwrap();
     assert_eq!(res, Output::Value(wasmtime::component::Val::S32(2)));
 }
 
@@ -91,10 +88,7 @@ async fn test_execute_wasm_hyphen() {
     let mut env = World::instantiate(wasm, "add-one", State::default())
         .await
         .unwrap();
-    let res = env
-        .execute(ipld.parse().unwrap().try_into().unwrap())
-        .await
-        .unwrap();
+    let res = env.execute(ipld.parse().unwrap().into()).await.unwrap();
     assert_eq!(res, Output::Value(wasmtime::component::Val::S32(11)));
 }
 
@@ -120,10 +114,7 @@ async fn test_append_string() {
         .await
         .unwrap();
 
-    let res = env
-        .execute(ipld.parse().unwrap().try_into().unwrap())
-        .await
-        .unwrap();
+    let res = env.execute(ipld.parse().unwrap().into()).await.unwrap();
 
     assert_eq!(
         res,
@@ -134,7 +125,7 @@ async fn test_append_string() {
 }
 
 #[tokio::test]
-async fn test_rotate_base64() {
+async fn test_crop_base64_wasi() {
     let img_uri = r#"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAG9SURBVHgBrVRLTgJBEK3qaYhLtiZGxxMoN8CdISTiCYSEmLgSTkA8AXFFAgv0BkNMDDu4gXAC2vhhy9IIU2X1CGb4T5CXzCRd3f26Xv0QBOna+ykiVJjBha2A3XhMlbz8vsFsdeCOtP/CAAn4H4bAcKbGMarsgMwiYVUqIj6FHYERXBU2oHV7BYI95HsH6VKk5eUzkw0TPqfDCwK400iGWDXmw+BrJ9mSoE/X59VBZ2/vazjy4xIyzk3tat6Tp8Kh54+d5J8HgRZuhsksWjf7xssfD5npNaxsXvLV9PDz9cGxlSaB7sopA0uQbfQlEeoorAalBvvC5E4IO1KLj0L2ABGQqb+lCLAd8sgsSI5KFtxHXii3GUJxPZWuf5QhIgici7WEwavAKSsFNsB2mCQru5HQFqfW2sAGSLveLuuwBULR7X77fluSlYMVyNQ+LVlx2Z6ec8+TXzOunY5XmK07C1smo3GsTEDFFW/Nls2vBYwtH/G0R9I1gYlUAh04kSzk1g4SuasXjCJZLuWCfVbTg8AEkaAQl3fBViDuKemM0ropExWWg2K6iHYhk8NVMmhF2FazUUiMhKQkXdb9AfsesrssluqmAAAAAElFTkSuQmCC"#;
     let ipld = Input::Ipld(Ipld::Map(BTreeMap::from([
         ("func".into(), Ipld::String("crop-base64".to_string())),
@@ -150,14 +141,37 @@ async fn test_rotate_base64() {
         ),
     ])));
 
-    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
+    let wasm = fs::read(fixtures("example_test_wasi_component.wasm")).unwrap();
     let mut env = World::instantiate(wasm, "crop-base64", State::default())
         .await
         .unwrap();
 
-    let res = env.execute(ipld.parse().unwrap().try_into().unwrap()).await;
-
+    let res = env.execute(ipld.parse().unwrap().into()).await;
     assert!(res.is_ok());
+}
+
+#[tokio::test]
+async fn test_host_funs_wasi() {
+    let ipld = Input::Ipld(Ipld::Map(BTreeMap::from([
+        (
+            "func".into(),
+            Ipld::String("host_fmt_current_time".to_string()),
+        ),
+        ("args".into(), Ipld::List(vec![])),
+    ])));
+
+    let wasm = fs::read(fixtures("example_test_wasi_component.wasm")).unwrap();
+    let mut env = World::instantiate(wasm, "host_fmt_current_time", State::default())
+        .await
+        .unwrap();
+
+    let res = env
+        .execute(ipld.parse().unwrap().into())
+        .await
+        .unwrap()
+        .take()
+        .unwrap();
+    assert!(matches!(res, wasmtime::component::Val::String(_)));
 }
 
 #[tokio::test]
@@ -177,10 +191,7 @@ async fn test_matrix_transpose() {
         .await
         .unwrap();
 
-    let transposed = env
-        .execute(ipld.parse().unwrap().try_into().unwrap())
-        .await
-        .unwrap();
+    let transposed = env.execute(ipld.parse().unwrap().into()).await.unwrap();
 
     let transposed_ipld = Ipld::try_from(transposed).unwrap();
 
@@ -192,7 +203,7 @@ async fn test_matrix_transpose() {
     ])));
 
     let retransposed = env
-        .execute(ipld_transposed_map.parse().unwrap().try_into().unwrap())
+        .execute(ipld_transposed_map.parse().unwrap().into())
         .await
         .unwrap();
 
@@ -300,10 +311,7 @@ async fn test_execute_wasms_in_seq_with_threaded_result() {
         ("func".into(), Ipld::String("join-strings".to_string())),
         (
             "args".into(),
-            Ipld::List(vec![
-                Ipld::try_from(promise).unwrap(),
-                Ipld::String("about".to_string()),
-            ]),
+            Ipld::List(vec![Ipld::from(promise), Ipld::String("about".to_string())]),
         ),
     ])));
 
@@ -314,7 +322,7 @@ async fn test_execute_wasms_in_seq_with_threaded_result() {
         .unwrap();
 
     let res = env
-        .execute(ipld_step_1.parse().unwrap().try_into().unwrap())
+        .execute(ipld_step_1.parse().unwrap().into())
         .await
         .unwrap();
 
@@ -327,7 +335,7 @@ async fn test_execute_wasms_in_seq_with_threaded_result() {
         .await
         .unwrap();
 
-    let parsed: Args<Arg> = ipld_step_2.parse().unwrap().try_into().unwrap();
+    let parsed: Args<Arg> = ipld_step_2.parse().unwrap().into();
 
     // Short-circuit resolve with known value.
     let resolved = parsed
@@ -372,10 +380,7 @@ async fn test_execute_wasms_with_multiple_inits() {
         ("func".into(), Ipld::String("join-strings".to_string())),
         (
             "args".into(),
-            Ipld::List(vec![
-                Ipld::try_from(promise).unwrap(),
-                Ipld::String("about".to_string()),
-            ]),
+            Ipld::List(vec![Ipld::from(promise), Ipld::String("about".to_string())]),
         ),
     ])));
 
@@ -386,7 +391,7 @@ async fn test_execute_wasms_with_multiple_inits() {
         .unwrap();
 
     let res = env
-        .execute(ipld_step_1.parse().unwrap().try_into().unwrap())
+        .execute(ipld_step_1.parse().unwrap().into())
         .await
         .unwrap();
 
@@ -399,7 +404,7 @@ async fn test_execute_wasms_with_multiple_inits() {
         .await
         .unwrap();
 
-    let parsed: Args<Arg> = ipld_step_2.parse().unwrap().try_into().unwrap();
+    let parsed: Args<Arg> = ipld_step_2.parse().unwrap().into();
 
     // Short-circuit resolve with known value.
     let resolved = parsed

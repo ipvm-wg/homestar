@@ -33,23 +33,22 @@ serde = { workspace = true }
 stacker = "0.1"
 thiserror = { workspace = true }
 tracing = { workspace = true }
-wasi-common = { version = "11.0", default-features = false }
-wasmparser = "0.116"
-wasmtime = { version = "14.0", default-features = false, features = [
+wasmparser = "0.118"
+wasmtime = { version = "16.0", default-features = false, features = [
   "async",
   "component-model",
   "cranelift",
   "parallel-compilation",
   "pooling-allocator",
-  "vtune",
   "wat",
 ] }
-wasmtime-component-util = "14.0"
-wasmtime-wasi = { version = "11.0", default-features = false, features = [
+wasmtime-component-util = "16.0"
+wasmtime-wasi = { version = "16.0", default-features = false, features = [
   "tokio",
+  "preview1-on-preview2",
 ] }
 wat = "1.0"
-wit-component = "0.17"
+wit-component = "0.19"
 
 [dev-dependencies]
 criterion = "0.5"

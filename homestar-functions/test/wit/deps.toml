@@ -1,0 +1,2 @@
+helpers = "../../../homestar-wasm/wit"
+logging = "https://github.com/WebAssembly/wasi-logging/archive/main.tar.gz"

@@ -1,6 +1,4 @@
-use crate::utils::{
-    kill_homestar, remove_db, stop_homestar, wait_for_socket_connection, TimeoutFutureExt, BIN_NAME,
-};
+use crate::utils::{wait_for_socket_connection, ChildGuard, FileGuard, TimeoutFutureExt, BIN_NAME};
 use anyhow::Result;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
@@ -8,7 +6,6 @@ use jsonrpsee::{
     ws_client::WsClientBuilder,
 };
 use once_cell::sync::Lazy;
-use serial_test::file_serial;
 use std::{
     fs,
     net::Ipv4Addr,
@@ -20,14 +17,12 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const SUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "subscribe_run_workflow";
 const UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "unsubscribe_run_workflow";
-const AWAIT_CID: &str = "bafyrmih5bwjinspvn5ktpcaxqvvxkmhxrznhuu3qqmu45jnpmo3ab72vaq";
+const AWAIT_CID: &str = "bafyrmiga45pxzlihf726utrixg7a5zavauggtqqkqnc6bzybr7icpbdu6a";
 
 #[test]
-#[file_serial]
-fn test_workflow_run_serial() -> Result<()> {
+fn test_workflow_run_integration() -> Result<()> {
     const DB: &str = "ws_homestar_test_workflow_run.db";
-    let _ = stop_homestar();
-    let _ = fs::remove_file(DB);
+    let _db_guard = FileGuard::new(DB);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
@@ -38,10 +33,10 @@ fn test_workflow_run_serial() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
+    let _proc_guard = ChildGuard::new(homestar_proc);
 
     let ws_port = 8061;
-    if wait_for_socket_connection(ws_port, 1000).is_err() {
-        let _ = kill_homestar(homestar_proc, None);
+    if wait_for_socket_connection(ws_port, 100).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -185,11 +180,6 @@ fn test_workflow_run_serial() -> Result<()> {
             }
         }
     });
-
-    let _ = Command::new(BIN.as_os_str()).arg("stop").output();
-    let _ = kill_homestar(homestar_proc, None);
-    let _ = stop_homestar();
-    remove_db(DB);
 
     Ok(())
 }
