@@ -17,7 +17,7 @@ authors = [
 edition = "2021"
 license = "Apache"
 repository = "https://github.com/ipvm-wg/homestar"
-rust-version = "1.72.0"
+rust-version = "1.73.0"
 version = "0.1.0"
 
 [workspace.dependencies]
