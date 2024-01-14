@@ -37,10 +37,10 @@ jobs:
               - '**/Cargo.*'
               - '**/src/**'
               - '**/tests/**'
-              - '**/config/**'
               - '**/build.rs'
               - '**/migrations/**'
               - '**/fixtures/**'
+              - '**/wit/**'
             deny:
               - 'deny.toml'
 
@@ -54,7 +54,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        rust-toolchain: [stable, nightly]
+        rust-toolchain: [stable, nightly, 1.73.0]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository

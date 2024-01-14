@@ -8,5 +8,7 @@
 !**/config
 !**/migrations
 !diesel.toml
+!**/wit
 
 homestar-functions/src
+homestar-functions/**/wit

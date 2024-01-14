@@ -55,6 +55,7 @@ impl<T> Clone for Link<T> {
 impl<T> Copy for Link<T> {}
 
 impl<T> PartialEq for Link<T> {
+    #[allow(unknown_lints, clippy::unconditional_recursion)] // false positive
     fn eq(&self, other: &Self) -> bool {
         self.cid.eq(other.cid())
     }

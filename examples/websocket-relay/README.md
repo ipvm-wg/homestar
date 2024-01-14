@@ -73,7 +73,7 @@ homestar start --db homestar.db
 ```
 
 Running `homestar` via `cargo run` requires a minimum Rust version of
-`1.70.0`. If you've got an older install of rust, update it with
+`1.73.0`. If you've got an older install of rust, update it with
 `rustup update`.
 
 You do not have to start Kubo (IPFS) on your own. The example will do this
