@@ -1,7 +1,9 @@
+use crate::make_config;
 use crate::utils::{
     check_for_line_with, kill_homestar, retrieve_output, wait_for_socket_connection, ChildGuard,
-    FileGuard, TimeoutFutureExt, BIN_NAME,
+    FileGuard, TimeoutFutureExt, BIN_NAME, TestConfig
 };
+use ::function_name::named;
 use anyhow::Result;
 use homestar_runtime::{db::Database, Db, Settings};
 use itertools::Itertools;
@@ -25,12 +27,48 @@ const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
 const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
+#[named]
 fn test_libp2p_receipt_gossip_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_receipt_gossip_integration1.db";
     const DB2: &str = "test_libp2p_receipt_gossip_integration2.db";
 
     let _db_guard1 = FileGuard::new(DB1);
     let _db_guard2 = FileGuard::new(DB2);
+
+    let toml_val = toml::toml! {
+        [node]
+
+        [node.monitoring]
+        process_collector_interval = 500
+        console_subscriber_port = 5550
+
+        [node.network.keypair_config]
+        existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }
+
+        [node.network.libp2p]
+        listen_address = "/ip4/127.0.0.1/tcp/7020"
+        node_addresses = [
+            "/ip4/127.0.0.1/tcp/7021/p2p/16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+        ]
+
+        [node.network.libp2p.mdns]
+        enable = false
+
+        [node.network.libp2p.rendezvous]
+        enable_client = false
+
+        [node.network.metrics]
+        port = 3990
+
+        [node.network.rpc]
+        port = 9790
+
+        [node.network.webserver]
+        port = 7990
+    };
+
+    let test_config = make_config!(function_name!(), toml_val);
+    let _ = test_config.create_fixture();
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -39,7 +77,7 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_gossip1.toml")
+        .arg(&test_config.name)
         .arg("--db")
         .arg(DB1)
         .stdout(Stdio::piped())
@@ -68,6 +106,43 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
             .await
             .unwrap();
 
+        let toml_val_2 = toml::toml! {
+            [node]
+
+            [node.monitoring]
+            process_collector_interval = 500
+            console_subscriber_port = 5551
+
+            [node.network.keypair_config]
+            existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }
+
+            [node.network.libp2p]
+            listen_address = "/ip4/127.0.0.1/tcp/7021"
+            node_addresses = [
+                "/ip4/127.0.0.1/tcp/7020/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+            ]
+
+            [node.network.libp2p.mdns]
+            enable = false
+
+            [node.network.metrics]
+            port = 3991
+
+            [node.network.libp2p.rendezvous]
+            enable_client = false
+
+            [node.network.rpc]
+            port = 9791
+
+            [node.network.webserver]
+            port = 7991
+        };
+
+        // Should probably figure out how to deal with tests with two configs
+        // currently generates the same name.
+        let test_config_2 = make_config!(concat!(function_name!(), "2"), toml_val_2);
+        let _ = test_config_2.create_fixture();
+
         let homestar_proc2 = Command::new(BIN.as_os_str())
             .env(
                 "RUST_LOG",
@@ -75,7 +150,7 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
             )
             .arg("start")
             .arg("-c")
-            .arg("tests/fixtures/test_gossip2.toml")
+            .arg(&test_config_2.name)
             .arg("--db")
             .arg(DB2)
             .stdout(Stdio::piped())
