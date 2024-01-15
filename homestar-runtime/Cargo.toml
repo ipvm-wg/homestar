@@ -90,7 +90,7 @@ jsonrpsee = { version = "0.21", default-features = false, features = [
   "server",
 ] }
 libipld = { workspace = true }
-libp2p = { version = "0.52", default-features = false, features = [
+libp2p = { version = "0.53", default-features = false, features = [
   "kad",
   "request-response",
   "rendezvous",
