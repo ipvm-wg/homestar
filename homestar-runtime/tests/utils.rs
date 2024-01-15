@@ -12,8 +12,11 @@ use predicates::prelude::*;
 #[cfg(not(windows))]
 use retry::delay::Fixed;
 use retry::{delay::Exponential, retry};
+use serde::Serialize;
+use std::io::Write;
 use std::{
-    fs,
+    env, fs,
+    fs::File,
     future::Future,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
@@ -319,3 +322,52 @@ pub(crate) trait TimeoutFutureExt<T>: Future<Output = T> + Sized {
 }
 
 impl<T, U> TimeoutFutureExt<T> for U where U: Future<Output = T> + Sized {}
+
+#[derive(Serialize)]
+pub(crate) struct TestConfig {
+    pub name: String,
+    pub toml_config: toml::Table,
+}
+
+impl TestConfig {
+    pub fn create_fixture(&self) -> &Self {
+        let file_path = env::current_dir().unwrap();
+        let mut write_file = File::create(file_path.join(&self.name)).unwrap();
+        write_file
+            .write_all(toml::to_string(&self.toml_config).unwrap().as_bytes())
+            .unwrap();
+        self
+    }
+}
+
+impl Drop for TestConfig {
+    fn drop(&mut self) {
+        let file_path = env::current_dir().unwrap();
+        fs::remove_file(file_path.join(&self.name)).unwrap();
+    }
+}
+#[macro_export]
+macro_rules! make_config {
+    // No args just generates the default config for homestar
+    () => {{
+        let name = concat!("tests/fixtures/", function_name!(), ".toml");
+        TestConfig {
+            name: name.to_string(),
+            toml_config: "".to_string(),
+        }
+    }};
+    ($toml:expr) => {{
+        let name = concat!("tests/fixtures/", function_name!(), ".toml");
+        TestConfig {
+            name: name.to_string();
+            toml_config: $toml
+        }
+    }};
+    ($name:expr, $toml:expr) => {{
+        let name = concat!("tests/fixtures/", $name, ".toml");
+        TestConfig {
+            name: name.to_string(),
+            toml_config: $toml,
+        }
+    }};
+}
