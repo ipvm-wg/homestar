@@ -2,9 +2,16 @@
 //
 // [swarm]: libp2p_swarm::Swarm
 
+use crate::api::TaggedSchema;
 use anyhow::anyhow;
+use chrono::prelude::Utc;
+use homestar_core::ipld::DagJson;
+use libipld::{serde::from_ipld, Ipld};
+use libp2p::{Multiaddr, PeerId};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
+
+use std::{collections::BTreeMap, fmt, str::FromStr};
 
 // Swarm notification types sent to clients
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -104,5 +111,51 @@ impl FromStr for SwarmNotification {
             "receivedWorkflowInfo" => Ok(Self::ReceivedWorkflowInfo),
             _ => Err(anyhow!("Missing swarm notification type: {}", ty)),
         }
+    }
+}
+
+/// Network notification type.
+#[derive(Clone, JsonSchema, Debug)]
+#[schemars(rename = "network")]
+pub enum NetworkNotification {
+    /// Connection established notification.
+    #[schemars(rename = "connectionEstablished")]
+    ConnnectionEstablished(ConnectionEstablished),
+    /// Connection closed notification.
+    #[schemars(rename = "connectionClosed")]
+    ConnnectionClosed(ConnectionClosed),
+}
+
+#[derive(JsonSchema, Debug, Clone)]
+#[schemars(rename = "connectionEstablished")]
+pub struct ConnectionEstablished {
+    #[schemars(schema_with = "ConnectionEstablished::make_tag_schema")]
+    tag: String,
+    timestamp: i64,
+    #[schemars(rename = "peerId")]
+    peer_id: String,
+    address: String,
+}
+
+impl TaggedSchema for ConnectionEstablished {
+    fn tag() -> String {
+        "network:connectionEstablished".to_string()
+    }
+}
+
+#[derive(JsonSchema, Debug, Clone)]
+#[schemars(rename = "connectionClosed")]
+pub struct ConnectionClosed {
+    #[schemars(schema_with = "ConnectionClosed::make_tag_schema")]
+    tag: String,
+    timestamp: i64,
+    #[schemars(rename = "peerId")]
+    peer_id: String,
+    address: String,
+}
+
+impl TaggedSchema for ConnectionClosed {
+    fn tag() -> String {
+        "network:connectionClosed".to_string()
     }
 }

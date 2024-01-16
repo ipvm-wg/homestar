@@ -24,6 +24,13 @@ path = "src/main.rs"
 doc = false
 bench = false
 
+[[bin]]
+name = "schemas"
+path = "schemas/generate.rs"
+bench = false
+doc = false
+test = false
+
 [[test]]
 name = "integration"
 path = "tests/main.rs"
@@ -127,6 +134,7 @@ reqwest = { version = "0.11", default-features = false, features = [
   "blocking",
   "json",
 ] }
+schemars = "0.8.16"
 sec1 = { version = "0.7", default-features = false, features = ["pem"] }
 semver = { version = "1.0", default-features = false }
 serde = { workspace = true }

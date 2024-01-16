@@ -49,6 +49,7 @@
 //! [tokio console]: https://github.com/tokio-rs/console/tree/main/tokio-console
 //! [Wasmtime]: https://github.com/bytecodealliance/wasmtime
 
+mod api;
 pub mod channel;
 pub mod cli;
 pub mod daemon;
@@ -68,10 +69,12 @@ pub mod test_utils;
 mod worker;
 pub mod workflow;
 
+pub(crate) use api::TaggedSchema;
 pub use db::Db;
 pub(crate) mod libp2p;
 pub use logger::*;
 pub(crate) mod metrics;
+pub use event_handler::notification::swarm::NetworkNotification;
 #[allow(unused_imports)]
 pub(crate) use event_handler::EventHandler;
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};
