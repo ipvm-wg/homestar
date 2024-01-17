@@ -320,26 +320,24 @@ impl Drop for TestConfig {
 }
 #[macro_export]
 macro_rules! make_config {
-    // No args just generates the default config for homestar
-    () => {{
-        let name = concat!("tests/fixtures/", function_name!(), ".toml");
-        TestConfig {
-            name: name.to_string(),
-            toml_config: "".to_string(),
-        }
-    }};
+    // For tests where all you want to do is write toml.
     ($toml:expr) => {{
         let name = concat!("tests/fixtures/", function_name!(), ".toml");
-        TestConfig {
-            name: name.to_string();
-            toml_config: $toml
-        }
+        let toml = $toml.parse::<toml::Table>().unwrap();
+        let test_config = TestConfig {
+            name: name.to_string(),
+            toml_config: toml,
+        };
+        test_config.create_fixture();
+        test_config
     }};
+    // For some finer control over the config
     ($name:expr, $toml:expr) => {{
-        let name = concat!("tests/fixtures/", $name, ".toml");
+        let name = concat!("tests/fixtures/", function_name!(), $name, ".toml");
+        let toml = $toml.parse::<toml::Table>().unwrap();
         TestConfig {
             name: name.to_string(),
-            toml_config: $toml,
+            toml_config: toml,
         }
     }};
 }

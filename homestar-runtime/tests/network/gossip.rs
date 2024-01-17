@@ -1,7 +1,7 @@
 use crate::make_config;
 use crate::utils::{
     check_for_line_with, kill_homestar, retrieve_output, wait_for_socket_connection, ChildGuard,
-    FileGuard, TimeoutFutureExt, BIN_NAME, TestConfig
+    FileGuard, TestConfig, TimeoutFutureExt, BIN_NAME,
 };
 use ::function_name::named;
 use anyhow::Result;
@@ -35,7 +35,7 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
     let _db_guard1 = FileGuard::new(DB1);
     let _db_guard2 = FileGuard::new(DB2);
 
-    let toml_val = toml::toml! {
+    let toml = r#"
         [node]
 
         [node.monitoring]
@@ -65,10 +65,9 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
 
         [node.network.webserver]
         port = 7990
-    };
+    "#;
 
-    let test_config = make_config!(function_name!(), toml_val);
-    let _ = test_config.create_fixture();
+    let test_config = make_config!(toml);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -106,7 +105,7 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
             .await
             .unwrap();
 
-        let toml_val_2 = toml::toml! {
+        let toml_val_2 = r#"
             [node]
 
             [node.monitoring]
@@ -136,11 +135,9 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
 
             [node.network.webserver]
             port = 7991
-        };
+        "#;
 
-        // Should probably figure out how to deal with tests with two configs
-        // currently generates the same name.
-        let test_config_2 = make_config!(concat!(function_name!(), "2"), toml_val_2);
+        let test_config_2 = make_config!("gossip_2", toml_val_2);
         let _ = test_config_2.create_fixture();
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
