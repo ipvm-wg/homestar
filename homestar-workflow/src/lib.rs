@@ -2,7 +2,7 @@
 #![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![deny(unreachable_pub)]
 
-//! `homestar-workflow` is an underlying foundation for homestar
+//! `homestar-workflow` is the underlying foundation for homestar
 //! packages, implementing workflow-centric [IPVM]
 //! features, among other useful library components.
 //!
