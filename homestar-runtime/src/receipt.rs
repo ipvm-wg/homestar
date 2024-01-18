@@ -41,7 +41,7 @@ const PROOF_KEY: &str = "prf";
 
 /// Receipt for [Invocation], including it's own [Cid] and a [Cid] for an [Instruction].
 ///
-/// `@See` [homestar_invocation::Receipt] for more info on some internal
+/// See [homestar_invocation::Receipt] for more info on some internal
 /// fields.
 ///
 /// [Invocation]: homestar_invocation::Invocation
