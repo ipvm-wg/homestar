@@ -19,6 +19,7 @@ impl Timestamp for i64 {
 
 /// Health status of the server and database connection.
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[schemars(rename = "health")]
 pub struct Health {
     /// Health status.
     pub healthy: bool,
