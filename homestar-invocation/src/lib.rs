@@ -46,7 +46,6 @@ pub mod unit;
 
 pub use consts::*;
 pub use error::Error;
-//pub use instruction_result::*;
 pub use invocation::Invocation;
 pub use pointer::Pointer;
 pub use receipt::Receipt;
