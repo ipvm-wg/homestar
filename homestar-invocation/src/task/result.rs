@@ -40,7 +40,7 @@ pub enum Result<T> {
     Just(T),
 }
 
-/// Resultant output of an executed [Instruction].
+/// Output of an executed [Instruction].
 ///
 /// [Instruction]: super::Instruction
 #[cfg(not(feature = "diesel"))]
