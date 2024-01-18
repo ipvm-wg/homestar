@@ -129,33 +129,17 @@ pub enum NetworkNotification {
 #[derive(JsonSchema, Debug, Clone)]
 #[schemars(rename = "connectionEstablished")]
 pub struct ConnectionEstablished {
-    #[schemars(schema_with = "ConnectionEstablished::make_tag_schema")]
-    tag: String,
     timestamp: i64,
     #[schemars(rename = "peerId")]
     peer_id: String,
     address: String,
-}
-
-impl TaggedSchema for ConnectionEstablished {
-    fn tag() -> String {
-        "network:connectionEstablished".to_string()
-    }
 }
 
 #[derive(JsonSchema, Debug, Clone)]
 #[schemars(rename = "connectionClosed")]
 pub struct ConnectionClosed {
-    #[schemars(schema_with = "ConnectionClosed::make_tag_schema")]
-    tag: String,
     timestamp: i64,
     #[schemars(rename = "peerId")]
     peer_id: String,
     address: String,
-}
-
-impl TaggedSchema for ConnectionClosed {
-    fn tag() -> String {
-        "network:connectionClosed".to_string()
-    }
 }

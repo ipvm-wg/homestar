@@ -49,7 +49,6 @@
 //! [tokio console]: https://github.com/tokio-rs/console/tree/main/tokio-console
 //! [Wasmtime]: https://github.com/bytecodealliance/wasmtime
 
-mod api;
 pub mod channel;
 pub mod cli;
 pub mod daemon;
