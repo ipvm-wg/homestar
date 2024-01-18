@@ -131,7 +131,7 @@
 
         docAll = pkgs.writeScriptBin "doc-all" ''
           #!${pkgs.stdenv.shell}
-          cargo doc --workspace --document-private-items --open
+          cargo doc --workspace --all-features --document-private-items --open
         '';
 
         dockerBuild = arch:

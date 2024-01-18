@@ -49,6 +49,7 @@ pub(crate) mod response;
 pub(crate) use error::Error;
 pub(crate) use nodeinfo::{DynamicNodeInfo, StaticNodeInfo};
 
+/// Name of the thread used for the [Runner] / runtime.
 #[cfg(not(test))]
 const HOMESTAR_THREAD: &str = "homestar-runtime";
 
@@ -786,6 +787,7 @@ fn find_receipt_info_by_pointers(
     Ok(receipt_info)
 }
 
+/// Internal Workflow data used for wrapper.
 struct WorkflowData {
     info: Arc<workflow::Info>,
     name: FastStr,
@@ -793,6 +795,7 @@ struct WorkflowData {
     replayed_receipt_info: Vec<WorkflowReceiptInfo>,
 }
 
+/// Channels for sending messages to/from the RPC server and the runner.
 #[derive(Debug)]
 struct Channels {
     rpc: Arc<AsyncChannelSender<rpc::ServerMessage>>,
