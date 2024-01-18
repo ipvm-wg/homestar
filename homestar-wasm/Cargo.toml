@@ -2,8 +2,8 @@
 name = "homestar-wasm"
 version = { workspace = true }
 description = "Homestar Wasm / Wasmtime implementation and IPLD <=> WIT interpreter"
-keywords = ["wasm", "wasmtime", "wit", "ipld", "ipvm"]
-categories = ["wasm", "execution-engines"]
+keywords = ["ipld", "ipvm", "wasm", "wasmtime", "wit"]
+categories = { workspace = true }
 license = { workspace = true }
 readme = "README.md"
 edition = { workspace = true }
@@ -25,7 +25,7 @@ async-trait = { workspace = true }
 atomic_refcell = { workspace = true }
 enum-as-inner = { workspace = true }
 heck = "0.4"
-homestar-core = { version = "0.1", path = "../homestar-core" }
+homestar-invocation = { version = "0.1", path = "../homestar-invocation" }
 itertools = { workspace = true }
 libipld = { workspace = true }
 rust_decimal = { version = "1.33", default-features = false }
@@ -57,7 +57,7 @@ tokio = { workspace = true }
 
 [features]
 default = ["wasmtime/default"]
-dev = []
+test-utils = []
 
 [package.metadata.docs.rs]
 all-features = true

@@ -19,7 +19,7 @@ host = "127.0.0.1"
 port = 5001
 
 [node.network.libp2p]
-idle_connection_timeout = 10
+idle_connection_timeout = 60
 listen_address = "/ip4/0.0.0.0/tcp/0"
 node_addresses = []
 announce_addresses = []
@@ -43,7 +43,6 @@ discovery_interval = 600
 enable = true
 duplication_cache_time = 1
 heartbeat = 60
-idle_timeout = 86400
 max_transmit_size = 10485760
 mesh_n_low = 1
 mesh_n_high = 10

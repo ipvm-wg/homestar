@@ -21,9 +21,6 @@ use std::{
     str::FromStr,
     time::Duration,
 };
-#[cfg(not(windows))]
-use sysinfo::PidExt;
-use sysinfo::{ProcessExt, SystemExt};
 use tokio::time::{timeout, Timeout};
 use wait_timeout::ChildExt;
 
@@ -224,46 +221,21 @@ pub(crate) fn kill_homestar(mut homestar_proc: Child, timeout: Option<Duration>)
 /// Kill the Homestar proc running as a daemon.
 #[cfg(not(windows))]
 pub(crate) fn kill_homestar_daemon() -> Result<()> {
-    let system = sysinfo::System::new_all();
-    let pid = system
-        .processes_by_exact_name(BIN_NAME)
-        .collect::<Vec<_>>()
-        .first()
-        .map(|p| p.pid().as_u32())
-        .unwrap_or(
-            std::fs::read_to_string("/tmp/homestar.pid")
-                .expect("Should have a PID file")
-                .trim()
-                .parse::<u32>()
-                .unwrap(),
-        );
+    let pid = std::fs::read_to_string("/tmp/homestar.pid")
+        .expect("Should have a PID file")
+        .trim()
+        .parse::<u32>()
+        .unwrap();
 
-    let _result = signal::kill(Pid::from_raw(pid.try_into().unwrap()), Signal::SIGTERM);
-    let _result = retry(Fixed::from_millis(1000).take(5), || {
+    rm_rf::ensure_removed("/tmp/homestar.pid").unwrap();
+    signal::kill(Pid::from_raw(pid.try_into().unwrap()), Signal::SIGTERM).unwrap();
+    retry(Fixed::from_millis(1000).take(5), || {
         Command::new(BIN.as_os_str())
             .arg("ping")
             .assert()
             .try_failure()
-    });
-
-    Ok(())
-}
-
-/// Kill the Homestar proc running as a daemon.
-#[allow(dead_code)]
-#[cfg(windows)]
-pub(crate) fn kill_homestar_daemon() -> Result<()> {
-    let system = sysinfo::System::new_all();
-    let pid = system
-        .processes_by_exact_name(format!("{}.exe", BIN_NAME).as_str())
-        .collect::<Vec<_>>()
-        .first()
-        .map(|x| x.pid())
-        .unwrap();
-
-    if let Some(process) = system.process(pid) {
-        process.kill();
-    };
+    })
+    .unwrap();
 
     Ok(())
 }

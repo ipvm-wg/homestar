@@ -17,7 +17,7 @@ use libp2p::{
     identify,
     kad::{
         self,
-        record::store::{MemoryStore, MemoryStoreConfig},
+        store::{MemoryStore, MemoryStoreConfig},
     },
     mdns,
     multiaddr::Protocol,

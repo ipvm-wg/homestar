@@ -85,6 +85,7 @@ pub struct Monitoring {
     pub console_subscriber_port: u16,
     /// Monitoring collection interval in milliseconds.
     #[cfg(feature = "monitoring")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "monitoring")))]
     #[serde_as(as = "DurationMilliSeconds<u64>")]
     pub process_collector_interval: Duration,
 }
@@ -109,6 +110,7 @@ pub struct Network {
     pub(crate) poll_cache_interval: Duration,
     /// IPFS settings.
     #[cfg(feature = "ipfs")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     pub(crate) ipfs: Ipfs,
     /// Webserver settings
     pub(crate) webserver: Webserver,
@@ -116,6 +118,7 @@ pub struct Network {
 
 /// IPFS Settings
 #[cfg(feature = "ipfs")]
+#[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -212,6 +215,7 @@ impl Default for Database {
 }
 
 #[cfg(feature = "monitoring")]
+#[cfg_attr(docsrs, doc(cfg(feature = "monitoring")))]
 impl Default for Monitoring {
     fn default() -> Self {
         Self {
@@ -240,6 +244,7 @@ impl Default for Network {
             keypair_config: PubkeyConfig::Random,
             poll_cache_interval: Duration::from_millis(1000),
             #[cfg(feature = "ipfs")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
             ipfs: Default::default(),
             webserver: Webserver::default(),
         }
@@ -249,6 +254,7 @@ impl Default for Network {
 impl Network {
     /// IPFS settings.
     #[cfg(feature = "ipfs")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     pub(crate) fn ipfs(&self) -> &Ipfs {
         &self.ipfs
     }
@@ -265,6 +271,7 @@ impl Network {
 }
 
 #[cfg(feature = "ipfs")]
+#[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
 impl Default for Ipfs {
     fn default() -> Self {
         Self {

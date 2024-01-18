@@ -43,7 +43,7 @@ fn test_connection_notifications_integration() -> Result<()> {
     let _proc_guard1 = ChildGuard::new(homestar_proc1);
 
     let ws_port = 8022;
-    if wait_for_socket_connection(8022, 100).is_err() {
+    if wait_for_socket_connection(8022, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -87,7 +87,7 @@ fn test_connection_notifications_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionEstablished".to_string() {
+                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
                     break;
                 }
             } else {
@@ -103,7 +103,7 @@ fn test_connection_notifications_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionClosed".to_string() {
+                if json["type"].as_str().unwrap() == "network:connectionClosed" {
                     break;
                 }
             } else {

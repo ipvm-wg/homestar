@@ -36,7 +36,7 @@ fn test_workflow_run_integration() -> Result<()> {
     let _proc_guard = ChildGuard::new(homestar_proc);
 
     let ws_port = 8061;
-    if wait_for_socket_connection(ws_port, 100).is_err() {
+    if wait_for_socket_connection(ws_port, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 

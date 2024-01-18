@@ -37,15 +37,15 @@ pub(crate) enum ServerMessage {
     GracefulShutdown(AsyncChannelSender<()>),
     /// Message sent to start a [Workflow] run by reading a [Workflow] file.
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     Run((Option<FastStr>, ReadWorkflow)),
     /// Acknowledgement of a [Workflow] run.
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     RunAck(Box<response::AckWorkflow>),
     /// Error attempting to run a [Workflow].
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     RunErr(runner::Error),
     /// For skipping server messages.
     Skip,
@@ -259,7 +259,7 @@ impl Client {
 
     /// Run a [Workflow].
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     pub async fn run(
         &self,
         name: Option<FastStr>,

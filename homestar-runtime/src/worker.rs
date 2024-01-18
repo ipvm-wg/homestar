@@ -1,7 +1,7 @@
 //! Worker that runs a [Workflow]'s tasks scheduled by the [TaskScheduler] and
 //! sends [Event]'s to the [EventHandler].
 //!
-//! [Workflow]: homestar_core::Workflow
+//! [Workflow]: homestar_workflow::Workflow
 //! [EventHandler]: crate::EventHandler
 
 #[cfg(feature = "websocket-notify")]
@@ -15,6 +15,7 @@ use crate::{
         Event,
     },
     network::swarm::CapsuleTag,
+    receipt::metadata::{REPLAYED_KEY, WORKFLOW_KEY, WORKFLOW_NAME_KEY},
     runner::{ModifiedSet, RunningTaskSet},
     scheduler::ExecutionGraph,
     settings,
@@ -27,21 +28,15 @@ use chrono::NaiveDateTime;
 use faststr::FastStr;
 use fnv::FnvHashSet;
 use futures::{future::BoxFuture, FutureExt};
-use homestar_core::{
-    bail,
-    ipld::DagCbor,
-    workflow::{
-        error::ResolveError,
-        prf::UcanPrf,
-        receipt::metadata::{OP_KEY, REPLAYED_KEY, WORKFLOW_KEY, WORKFLOW_NAME_KEY},
-        InstructionResult, LinkMap, Pointer, Receipt as InvocationReceipt,
-    },
-    Workflow,
+use homestar_invocation::{
+    authority::UcanPrf, bail, error::ResolveError, ipld::DagCbor, receipt::metadata::OP_KEY, task,
+    Pointer, Receipt as InvocationReceipt,
 };
 use homestar_wasm::{
     io::{Arg, Output},
     wasmtime::State,
 };
+use homestar_workflow::{LinkMap, Workflow};
 use indexmap::IndexMap;
 use libipld::{Cid, Ipld};
 use std::{collections::BTreeMap, sync::Arc, time::Instant};
@@ -151,13 +146,13 @@ where
     ///
     /// [Instruction] [Cid]s being awaited on are resolved via 3 lookups:
     ///   * a check in the [LinkMap], which is an in-memory cache of resolved
-    ///     [InstructionResult]s (this may have been pre-filled out by
+    ///     [task::Result]s (this may have been pre-filled out by
     ///     scheduler initialization);
     ///   * a check in the database, which may have been updated at the point of
     ///   execution;
     ///   * a [Swarm]/DHT query to find the [Receipt] in the network.
     ///
-    /// [Instruction]: homestar_core::workflow::Instruction
+    /// [Instruction]: homestar_invocation::task::Instruction
     /// [Swarm]: crate::network::swarm
     pub(crate) async fn run<F>(self, running_tasks: Arc<RunningTaskSet>, fetch_fn: F) -> Result<()>
     where
@@ -201,11 +196,11 @@ where
             cid: Cid,
             workflow_cid: Cid,
             network_settings: Arc<settings::Dht>,
-            linkmap: Arc<RwLock<IndexMap<Cid, InstructionResult<Arg>>>>,
+            linkmap: Arc<RwLock<LinkMap<task::Result<Arg>>>>,
             resources: Arc<RwLock<IndexMap<Resource, Vec<u8>>>>,
             db: impl Database,
             event_sender: Arc<AsyncChannelSender<Event>>,
-        ) -> Result<InstructionResult<Arg>, ResolveError> {
+        ) -> Result<task::Result<Arg>, ResolveError> {
             info!(
                 subject = "worker.resolve_cid",
                 category = "worker.run",
@@ -231,9 +226,7 @@ where
                     "found CID in map of resources"
                 );
 
-                Ok(InstructionResult::Ok(Arg::Ipld(Ipld::Bytes(
-                    bytes.to_vec(),
-                ))))
+                Ok(task::Result::Ok(Arg::Ipld(Ipld::Bytes(bytes.to_vec()))))
             } else {
                 let conn = &mut db.conn()?;
                 match Db::find_instruction_by_cid(cid, conn) {
@@ -457,7 +450,7 @@ where
                 let output_to_store = Ipld::try_from(executed)?;
                 let invocation_receipt = InvocationReceipt::new(
                     invocation_ptr,
-                    InstructionResult::Ok(output_to_store),
+                    task::Result::Ok(output_to_store),
                     receipt_meta,
                     None,
                     UcanPrf::default(),
@@ -523,12 +516,10 @@ mod test {
         test_utils::{self, db::MemoryDb, WorkerBuilder},
         workflow::{self, IndexedResources},
     };
-    use homestar_core::{
-        ipld::DagCbor,
-        test_utils::workflow as workflow_test_utils,
-        workflow::{
-            config::Resources, instruction::RunInstruction, prf::UcanPrf, Invocation, Task,
-        },
+    use homestar_invocation::{
+        authority::UcanPrf,
+        task::{instruction::RunInstruction, Resources},
+        Invocation, Task,
     };
 
     #[homestar_runtime_proc_macro::db_async_test]
@@ -612,7 +603,7 @@ mod test {
 
         let config = Resources::default();
         let (instruction1, instruction2, _) =
-            workflow_test_utils::related_wasm_instructions::<Arg>();
+            homestar_invocation::test_utils::related_wasm_instructions::<Arg>();
 
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1.clone()),
@@ -628,7 +619,7 @@ mod test {
 
         let invocation_receipt = InvocationReceipt::new(
             Invocation::new(task1.clone()).try_into().unwrap(),
-            InstructionResult::Ok(Ipld::Integer(4)),
+            task::Result::Ok(Ipld::Integer(4)),
             Ipld::Null,
             None,
             UcanPrf::default(),
@@ -739,7 +730,7 @@ mod test {
 
         let config = Resources::default();
         let (instruction1, instruction2, _) =
-            workflow_test_utils::related_wasm_instructions::<Arg>();
+            homestar_invocation::test_utils::related_wasm_instructions::<Arg>();
 
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1.clone()),
@@ -755,7 +746,7 @@ mod test {
 
         let invocation_receipt1 = InvocationReceipt::new(
             Invocation::new(task1.clone()).try_into().unwrap(),
-            InstructionResult::Ok(Ipld::Integer(4)),
+            task::Result::Ok(Ipld::Integer(4)),
             Ipld::Null,
             None,
             UcanPrf::default(),
@@ -768,7 +759,7 @@ mod test {
 
         let invocation_receipt2 = InvocationReceipt::new(
             Invocation::new(task2.clone()).try_into().unwrap(),
-            InstructionResult::Ok(Ipld::Integer(44)),
+            task::Result::Ok(Ipld::Integer(44)),
             Ipld::Null,
             None,
             UcanPrf::default(),

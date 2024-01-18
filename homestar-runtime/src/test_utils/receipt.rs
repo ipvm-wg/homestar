@@ -3,9 +3,8 @@
 //! [receipts]: crate::Receipt
 
 use crate::Receipt;
-use homestar_core::{
-    test_utils,
-    workflow::{prf::UcanPrf, receipt::Receipt as InvocationReceipt, InstructionResult, Pointer},
+use homestar_invocation::{
+    authority::UcanPrf, receipt::Receipt as InvocationReceipt, task, test_utils, Pointer,
 };
 use libipld::{
     cid::Cid,
@@ -18,7 +17,7 @@ const RAW: u64 = 0x55;
 
 /// Return both a `mocked` [Ucan Invocation Receipt] and a runtime [Receipt]
 ///
-/// [UCAN Invocation Receipt]: homestar_core::workflow::Receipt
+/// [UCAN Invocation Receipt]: homestar_invocation::Receipt
 #[allow(dead_code)]
 pub(crate) fn receipts() -> (InvocationReceipt<Ipld>, Receipt) {
     let h = Code::Blake3_256.digest(b"beep boop");
@@ -26,15 +25,13 @@ pub(crate) fn receipts() -> (InvocationReceipt<Ipld>, Receipt) {
     let link: Link<Cid> = Link::new(cid);
     let local = InvocationReceipt::new(
         Pointer::new_from_link(link),
-        InstructionResult::Ok(Ipld::Bool(true)),
+        task::Result::Ok(Ipld::Bool(true)),
         Ipld::Null,
         None,
         UcanPrf::default(),
     );
     let receipt = Receipt::try_with(
-        test_utils::workflow::instruction::<Ipld>()
-            .try_into()
-            .unwrap(),
+        test_utils::instruction::<Ipld>().try_into().unwrap(),
         &local,
     )
     .unwrap();

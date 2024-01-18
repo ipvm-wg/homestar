@@ -39,10 +39,7 @@ use libp2p::{
 };
 #[cfg(feature = "websocket-notify")]
 use maplit::btreemap;
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-};
+use std::collections::{HashMap, HashSet};
 use tracing::{debug, error, info, warn};
 
 pub(crate) mod record;
@@ -78,6 +75,7 @@ pub(crate) struct ReceiptEvent {
     pub(crate) peer_id: Option<PeerId>,
     pub(crate) receipt: Receipt,
     #[cfg(feature = "websocket-notify")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
     pub(crate) notification_type: EventNotificationTyp,
 }
 
@@ -87,13 +85,13 @@ pub(crate) struct WorkflowInfoEvent {
     pub(crate) peer_id: Option<PeerId>,
     pub(crate) workflow_info: workflow::Info,
     #[cfg(feature = "websocket-notify")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
     pub(crate) notification_type: EventNotificationTyp,
 }
 
 #[async_trait]
-impl<THandlerErr, DB> Handler<THandlerErr, DB> for SwarmEvent<ComposedEvent, THandlerErr>
+impl<DB> Handler<DB> for SwarmEvent<ComposedEvent>
 where
-    THandlerErr: fmt::Debug + Send,
     DB: Database + Sync,
 {
     #[cfg(feature = "ipfs")]
@@ -108,8 +106,8 @@ where
     }
 }
 
-async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
-    event: SwarmEvent<ComposedEvent, THandlerErr>,
+async fn handle_swarm_event<DB: Database>(
+    event: SwarmEvent<ComposedEvent>,
     event_handler: &mut EventHandler<DB>,
 ) {
     match event {
@@ -213,7 +211,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         }
                     }
                 }
-                identify::Event::Pushed { peer_id } => debug!(
+                identify::Event::Pushed { peer_id, .. } => debug!(
                     subject = "libp2p.identify.pushed",
                     category = "handle_swarm_event",
                     peer_id = peer_id.to_string(),
@@ -1059,7 +1057,7 @@ async fn handle_swarm_event<THandlerErr: fmt::Debug + Send, DB: Database>(
                         peer_id = peer_id.to_string(),
                         "mDNS discover peer has expired"
                     );
-                    if mdns.has_node(&peer_id) {
+                    if mdns.discovered_nodes().any(|id| id == &peer_id) {
                         behaviour.kademlia.remove_address(&peer_id, &multiaddr);
                         debug!(
                             subject = "libp2p.mdns.expired",

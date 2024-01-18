@@ -21,3 +21,5 @@ tracing = "0.1"
 [[bin]]
 name = "example-websocket-relay"
 path = "src/main.rs"
+doc = false
+test = false

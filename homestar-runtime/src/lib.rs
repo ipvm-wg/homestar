@@ -3,19 +3,51 @@
 #![deny(unreachable_pub)]
 
 //! homestar-runtime is a determistic Wasm runtime and effectful workflow/job
-//! system intended to be embedded inside or run alongside IPFS.
+//! system intended to be embedded inside or run alongside IPFS or another
+//! content-addressable store.
 //!
 //! You can find a more complete description [here].
 //!
+//! ## Related crates/packages:
 //!
-//! Related crates/packages:
-//!
-//! - [homestar-core]
+//! - [homestar-invocation]
 //! - [homestar-wasm]
+//! - [homestar-workflow]
 //!
-//! [here]: <https://github.com/ipvm-wg/spec>
-//! [homestar-core]: homestar_core
-//! [homestar-wasm]: homestar_wasm
+//! ## Getting Started
+//!
+//! For getting started with Homestar in general, please check out our
+//! [README] and [Quickstart] guide.
+//!
+//! ## Feature flags
+//!
+//! - `default`: Enables the default set of features.
+//! - `dev`: Enables a dev-friendly, lighter set of features for development.
+//! - `ansi-logs`: Enables ANSI color codes in logs.
+//! - `console`: Enables [tokio console] debugging.
+//! - `ipfs`: Enables [IPFS]-related integration and settings.
+//! - `monitoring`: Enables node monitoring-related features and dependencies.
+//! - `profile`: Enables profiling-related features and dependencies.
+//! - `test-utils`: Enables utilities for unit testing and benchmarking.
+//! - `wasmtime-default`: Enables the default set of features for the embedded
+//!                       [Wasmtime] runtime.
+//! - `websocket-notify`: Enables websocket notifications.
+//!
+//! ## Examples
+//!
+//! Check out our [examples] directory to explore some Homestar
+//! scenarios and see the system in action.
+//!
+//! [examples]: https://github.com/ipvm-wg/homestar/tree/main/examples
+//! [here]: https://github.com/ipvm-wg/spec
+//! [homestar-invocation]: https://docs.rs/homestar-invocation
+//! [homestar-workflow]: https://docs.rs/homestar-workflow
+//! [homestar-wasm]: https://docs.rs/homestar-wasm
+//! [IPFS]: https://ipfs.tech
+//! [Quickstart]: https://github.com/ipvm-wg/homestar/blob/main/README.md#quickstart
+//! [README]: https://github.com/ipvm-wg/homestar/blob/main/README.md
+//! [tokio console]: https://github.com/tokio-rs/console/tree/main/tokio-console
+//! [Wasmtime]: https://github.com/bytecodealliance/wasmtime
 
 pub mod channel;
 pub mod cli;
@@ -29,13 +61,12 @@ pub mod runner;
 mod scheduler;
 mod settings;
 mod tasks;
-mod worker;
-pub mod workflow;
-
 /// Test utilities.
 #[cfg(any(test, feature = "test-utils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 pub mod test_utils;
+mod worker;
+pub mod workflow;
 
 pub use db::Db;
 pub(crate) mod libp2p;

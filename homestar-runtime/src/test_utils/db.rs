@@ -1,3 +1,5 @@
+//! In-memory Database connection and setup.
+
 use crate::{
     db::{Connection, Database, Pool},
     settings,

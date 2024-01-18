@@ -2,10 +2,10 @@
 
 use crate::{error::InterpreterError, wasmtime::ipld::RuntimeVal};
 use enum_as_inner::EnumAsInner;
-use homestar_core::workflow::{
+use homestar_invocation::{
     error::InputParseError,
-    input::{self, Args, Parsed},
-    Error as WorkflowError, Input,
+    task::instruction::{Args, Input, Parse, Parsed},
+    Error as InvocationError,
 };
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
@@ -57,17 +57,17 @@ impl From<Arg> for Ipld {
     }
 }
 
-impl input::Parse<Arg> for Input<Arg> {
+impl Parse<Arg> for Input<Arg> {
     fn parse(&self) -> Result<Parsed<Arg>, InputParseError<Arg>> {
         if let Input::Ipld(ref ipld) = self {
             let map = from_ipld::<BTreeMap<String, Ipld>>(ipld.to_owned())?;
 
             let func = map.get("func").ok_or_else(|| {
-                InputParseError::Workflow(WorkflowError::MissingField("func".to_string()))
+                InputParseError::Invocation(InvocationError::MissingField("func".to_string()))
             })?;
 
             let wasm_args = map.get("args").ok_or_else(|| {
-                InputParseError::Workflow(WorkflowError::MissingField("args".to_string()))
+                InputParseError::Invocation(InvocationError::MissingField("args".to_string()))
             })?;
 
             let args: Args<Arg> = wasm_args.to_owned().try_into()?;

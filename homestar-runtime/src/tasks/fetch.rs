@@ -1,7 +1,7 @@
 //! Fetch module for gathering data over the network related to [Task]
 //! resources.
 //!
-//! [Task]: homestar_core::workflow::Task
+//! [Task]: homestar_invocation::Task
 
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
@@ -14,8 +14,10 @@ use std::sync::Arc;
 pub(crate) struct Fetch;
 
 #[cfg(any(test, feature = "test-utils"))]
+#[doc(hidden)]
 const WASM_CID: &str = "bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4";
 #[cfg(any(test, feature = "test-utils"))]
+#[doc(hidden)]
 const CAT_CID: &str = "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm";
 
 impl Fetch {

@@ -11,7 +11,6 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const METRICS_URL: &str = "http://localhost:4020";
 
-#[cfg(feature = "monitoring")]
 #[test]
 fn test_metrics_integration() -> Result<()> {
     fn sample_metrics() -> Option<prometheus_parse::Value> {

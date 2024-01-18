@@ -27,7 +27,7 @@ const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 #[test]
 fn test_libp2p_receipt_gossip_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_receipt_gossip_integration1.db";
-    const DB2: &str = "_test_libp2p_receipt_gossip_integration2.db";
+    const DB2: &str = "test_libp2p_receipt_gossip_integration2.db";
 
     let _db_guard1 = FileGuard::new(DB1);
     let _db_guard2 = FileGuard::new(DB2);
@@ -48,7 +48,7 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
     let proc_guard1 = ChildGuard::new(homestar_proc1);
 
     let ws_port = 7990;
-    if wait_for_socket_connection(ws_port, 100).is_err() {
+    if wait_for_socket_connection(ws_port, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -84,7 +84,7 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
         let proc_guard2 = ChildGuard::new(homestar_proc2);
 
         let ws_port2 = 7991;
-        if wait_for_socket_connection(ws_port2, 100).is_err() {
+        if wait_for_socket_connection(ws_port2, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 

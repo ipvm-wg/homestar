@@ -1,19 +1,23 @@
 [workspace]
 members = [
   "examples/*",
-  "homestar-core",
   "homestar-functions/*",
+  "homestar-invocation",
   "homestar-runtime",
   "homestar-wasm",
+  "homestar-workflow",
 ]
-default-members = ["homestar-core", "homestar-runtime", "homestar-wasm"]
+default-members = [
+  "homestar-invocation",
+  "homestar-runtime",
+  "homestar-wasm",
+  "homestar-workflow",
+]
 resolver = "2"
 
 [workspace.package]
-authors = [
-  "Zeeshan Lakhani <zeeshan@fission.codes>",
-  "Brooklyn Zelenka <hello@brooklynzelenka.com>",
-]
+authors = ["The Fission Authors"]
+categories = ["development-tools", "wasm", "web-programming"]
 edition = "2021"
 license = "Apache"
 repository = "https://github.com/ipvm-wg/homestar"
@@ -40,6 +44,9 @@ libipld = { version = "0.16", default-features = false, features = [
   "dag-cbor",
   "dag-json",
   "derive",
+] }
+libsqlite3-sys = { version = "0.27", default-features = false, features = [
+  "bundled",
 ] }
 rand = { version = "0.8", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
@@ -75,7 +82,10 @@ split-debuginfo = "unpacked"
 # compiling with link time optimizations (LTO)
 lto = true
 
-[profile.release.package.homestar-core]
+[profile.release.package.homestar-invocation]
+debug-assertions = false
+
+[profile.release.package.homestar-workflow]
 debug-assertions = false
 
 [profile.release.package.homestar-runtime]

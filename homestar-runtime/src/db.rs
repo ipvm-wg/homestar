@@ -15,7 +15,7 @@ use diesel::{
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use dotenvy::dotenv;
-use homestar_core::workflow::Pointer;
+use homestar_invocation::Pointer;
 use libipld::Cid;
 use std::{env, sync::Arc, time::Duration};
 use tokio::fs;
@@ -183,7 +183,7 @@ pub trait Database: Send + Sync + Clone {
 
     /// Find receipts given a set of [Instruction] [Pointer]s, which is indexed.
     ///
-    /// [Instruction]: homestar_core::workflow::Instruction
+    /// [Instruction]: homestar_invocation::task::Instruction
     fn find_instruction_pointers(
         pointers: &Vec<Pointer>,
         conn: &mut Connection,
@@ -195,7 +195,7 @@ pub trait Database: Send + Sync + Clone {
 
     /// Find receipt for a given [Instruction] [Cid], which is indexed.
     ///
-    /// [Instruction]: homestar_core::workflow::Instruction
+    /// [Instruction]: homestar_invocation::task::Instruction
     fn find_instruction_by_cid(
         cid: Cid,
         conn: &mut Connection,

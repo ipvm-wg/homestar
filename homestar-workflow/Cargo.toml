@@ -1,0 +1,38 @@
+[package]
+name = "homestar-workflow"
+version = { workspace = true }
+description = "Homestar library for working with workflows centered around UCAN invocations"
+keywords = ["ipld", "ipvm", "ucan", "workflow"]
+categories = { workspace = true }
+license = { workspace = true }
+readme = "README.md"
+edition = { workspace = true }
+rust-version = { workspace = true }
+documentation = "https://docs.rs/homestar-workflow"
+repository = { workspace = true }
+authors = { workspace = true }
+
+[lib]
+path = "src/lib.rs"
+bench = false
+doctest = true
+
+[dependencies]
+fxhash = { version = "0.2", default-features = false }
+homestar-invocation = { version = "0.1", path = "../homestar-invocation" }
+indexmap = { version = "2.1", default-features = false }
+libipld = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+homestar-invocation = { version = "0.1", path = "../homestar-invocation", features = [
+  "test-utils",
+] }
+json = "0.12"
+serde_json = { version = "1.0", default-features = false }
+
+[package.metadata.docs.rs]
+all-features = true
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]

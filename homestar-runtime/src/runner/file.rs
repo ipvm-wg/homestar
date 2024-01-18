@@ -1,11 +1,12 @@
 //! File configuration for [Workflow]s.
 //!
-//! [Workflow]: homestar_core::Workflow
+//! [Workflow]: homestar_workflow::Workflow
 
 use super::Error;
 use crate::workflow;
-use homestar_core::{ipld::DagJson, Workflow};
+use homestar_invocation::ipld::DagJson;
 use homestar_wasm::io::Arg;
+use homestar_workflow::Workflow;
 use serde::{Deserialize, Serialize};
 use std::{ffi::OsStr, fmt, path::PathBuf, str::FromStr};
 use tokio::fs;
@@ -60,17 +61,18 @@ impl ReadWorkflow {
 #[cfg(test)]
 mod test {
     use super::*;
-    use homestar_core::{
-        test_utils::workflow as workflow_test_utils,
-        workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
+    use homestar_invocation::{
+        authority::UcanPrf,
+        ipld::DagJson,
+        task::{instruction::RunInstruction, Resources},
+        test_utils, Task,
     };
 
     #[tokio::test]
     async fn validate_and_parse_workflow() {
         let path = PathBuf::from("./fixtures/test.json");
         let config = Resources::default();
-        let (instruction1, instruction2, _) =
-            workflow_test_utils::related_wasm_instructions::<Arg>();
+        let (instruction1, instruction2, _) = test_utils::related_wasm_instructions::<Arg>();
 
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1.clone()),

@@ -1,7 +1,7 @@
 //! Runtime, extended representation of a [Receipt] for [Invocation]s and storage.
 //!
-//! [Receipt]: homestar_core::workflow::Receipt
-//! [Invocation]: homestar_core::workflow::Invocation
+//! [Receipt]: homestar_invocation::Receipt
+//! [Invocation]: homestar_invocation::Invocation
 
 use anyhow::anyhow;
 use diesel::{
@@ -12,16 +12,19 @@ use diesel::{
     sqlite::Sqlite,
     AsExpression, FromSqlRow, Identifiable, Insertable, Queryable, Selectable,
 };
-use homestar_core::{
+use homestar_invocation::{
+    authority::{Issuer, UcanPrf},
     consts,
     ipld::{DagCborRef, DagJson},
-    workflow::{prf::UcanPrf, InstructionResult, Issuer, Pointer, Receipt as InvocationReceipt},
+    task, Pointer, Receipt as InvocationReceipt,
 };
 use homestar_wasm::io::Arg;
 use libipld::{cbor::DagCborCodec, cid::Cid, prelude::Codec, serde::from_ipld, Ipld};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt};
+
+pub(crate) mod metadata;
 
 /// General version key for receipts.
 pub const VERSION_KEY: &str = "version";
@@ -38,18 +41,18 @@ const PROOF_KEY: &str = "prf";
 
 /// Receipt for [Invocation], including it's own [Cid] and a [Cid] for an [Instruction].
 ///
-/// `@See` [homestar_core::workflow::Receipt] for more info on some internal
+/// See [homestar_invocation::Receipt] for more info on some internal
 /// fields.
 ///
-/// [Invocation]: homestar_core::workflow::Invocation
-/// [Instruction]: homestar_core::workflow::Instruction
+/// [Invocation]: homestar_invocation::Invocation
+/// [Instruction]: homestar_invocation::task::Instruction
 #[derive(Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Selectable)]
 #[diesel(table_name = crate::db::schema::receipts, primary_key(cid))]
 pub struct Receipt {
     cid: Pointer,
     ran: Pointer,
     instruction: Pointer,
-    out: InstructionResult<Ipld>,
+    out: task::Result<Ipld>,
     meta: LocalIpld,
     issuer: Option<Issuer>,
     prf: UcanPrf,
@@ -88,8 +91,8 @@ impl Receipt {
     /// Return a runtime [Receipt] given an [Instruction] [Pointer] and
     /// [UCAN Invocation Receipt].
     ///
-    /// [Instruction]: homestar_core::workflow::Instruction
-    /// [UCAN Invocation Receipt]: homestar_core::workflow::Receipt
+    /// [Instruction]: homestar_invocation::task::Instruction
+    /// [UCAN Invocation Receipt]: homestar_invocation::Receipt
     pub fn try_with(
         instruction: Pointer,
         invocation_receipt: &InvocationReceipt<Ipld>,
@@ -146,7 +149,7 @@ impl Receipt {
 
     /// Return the Pointer-wrapped [Cid] of the [Receipt]'s associated [Instruction].
     ///
-    /// [Instruction]: homestar_core::workflow::Instruction
+    /// [Instruction]: homestar_invocation::task::Instruction
     pub fn instruction(&self) -> &Pointer {
         &self.instruction
     }
@@ -162,16 +165,16 @@ impl Receipt {
     }
 
     /// Get executed result/value in [Receipt] as [Ipld].
-    pub fn output(&self) -> &InstructionResult<Ipld> {
+    pub fn output(&self) -> &task::Result<Ipld> {
         &self.out
     }
 
-    /// Return [InstructionResult] output as [Arg] for execution.
-    pub fn output_as_arg(&self) -> InstructionResult<Arg> {
+    /// Return [task::Result] output as [Arg] for execution.
+    pub fn output_as_arg(&self) -> task::Result<Arg> {
         match self.out.to_owned() {
-            InstructionResult::Ok(res) => InstructionResult::Ok(res.into()),
-            InstructionResult::Error(res) => InstructionResult::Error(res.into()),
-            InstructionResult::Just(res) => InstructionResult::Just(res.into()),
+            task::Result::Ok(res) => task::Result::Ok(res.into()),
+            task::Result::Error(res) => task::Result::Error(res.into()),
+            task::Result::Just(res) => task::Result::Just(res.into()),
         }
     }
 
@@ -295,7 +298,7 @@ impl TryFrom<Ipld> for Receipt {
             cid: Pointer::new(cid),
             ran,
             instruction,
-            out: InstructionResult::try_from(out)?,
+            out: task::Result::try_from(out)?,
             meta: LocalIpld(meta.to_owned()),
             issuer,
             prf: UcanPrf::try_from(prf)?,

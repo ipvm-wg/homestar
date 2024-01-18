@@ -23,11 +23,11 @@ use crate::{
 use anyhow::Result;
 use async_trait::async_trait;
 #[cfg(feature = "websocket-notify")]
-use homestar_core::workflow::Pointer;
-use homestar_core::workflow::Receipt as InvocationReceipt;
+use homestar_invocation::Pointer;
+use homestar_invocation::Receipt as InvocationReceipt;
 use libipld::{Cid, Ipld};
 use libp2p::{
-    kad::{record::Key, Quorum, Record},
+    kad::{Quorum, Record, RecordKey},
     rendezvous::Namespace,
     PeerId,
 };
@@ -103,18 +103,20 @@ pub(crate) enum Event {
     CapturedReceipt(Captured),
     /// [Receipt]s replayed for notifications.
     #[cfg(feature = "websocket-notify")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
     ReplayReceipts(Replay),
     /// General shutdown event.
     Shutdown(AsyncChannelSender<()>),
     /// Find a [Record] in the DHT, e.g. a [Receipt].
     ///
     /// [Record]: libp2p::kad::Record
-    /// [Receipt]: homestar_core::workflow::Receipt
+    /// [Receipt]: homestar_invocation::Receipt
     FindRecord(QueryRecord),
     /// Remove a given record from the DHT, e.g. a [Receipt].
     RemoveRecord(QueryRecord),
     /// [Receipt] or [workflow::Info] stored event.
     #[cfg(feature = "websocket-notify")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
     StoredRecord(FoundEvent),
     /// Outbound request event to pull data from peers.
     OutboundRequest(PeerRequest),
@@ -168,6 +170,7 @@ impl Event {
             Event::FindRecord(record) => record.find(event_handler).await,
             Event::RemoveRecord(record) => record.remove(event_handler).await,
             #[cfg(feature = "websocket-notify")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
             Event::StoredRecord(event) => match event {
                 FoundEvent::Receipt(ReceiptEvent {
                     peer_id,
@@ -224,7 +227,7 @@ impl Event {
                     .swarm
                     .behaviour_mut()
                     .kademlia
-                    .start_providing(Key::new(&cid.to_bytes()))
+                    .start_providing(RecordKey::new(&cid.to_bytes()))
                     .map_err(anyhow::Error::new)?;
 
                 let key = RequestResponseKey::new(cid.to_string().into(), capsule_tag);
@@ -504,6 +507,7 @@ impl Captured {
 }
 
 #[cfg(feature = "websocket-notify")]
+#[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
 impl Replay {
     /// `Replay` structure, containing a set of [Pointers] and [Ipld] metadata.
     ///
@@ -607,7 +611,7 @@ impl QueryRecord {
             .swarm
             .behaviour_mut()
             .kademlia
-            .get_record(Key::new(&self.cid.to_bytes()));
+            .get_record(RecordKey::new(&self.cid.to_bytes()));
 
         let key = RequestResponseKey::new(self.cid.to_string().into(), self.capsule);
         event_handler.query_senders.insert(id, (key, self.sender));
@@ -621,13 +625,13 @@ impl QueryRecord {
             .swarm
             .behaviour_mut()
             .kademlia
-            .remove_record(&Key::new(&self.cid.to_bytes()));
+            .remove_record(&RecordKey::new(&self.cid.to_bytes()));
 
         event_handler
             .swarm
             .behaviour_mut()
             .kademlia
-            .stop_providing(&Key::new(&self.cid.to_bytes()));
+            .stop_providing(&RecordKey::new(&self.cid.to_bytes()));
     }
 
     async fn get_providers<DB>(self, event_handler: &mut EventHandler<DB>)
@@ -638,7 +642,7 @@ impl QueryRecord {
             .swarm
             .behaviour_mut()
             .kademlia
-            .get_providers(Key::new(&self.cid.to_bytes()));
+            .get_providers(RecordKey::new(&self.cid.to_bytes()));
 
         let key = RequestResponseKey::new(self.cid.to_string().into(), self.capsule);
         event_handler.query_senders.insert(id, (key, self.sender));
@@ -657,7 +661,7 @@ impl PeerRequest {
 }
 
 #[async_trait]
-impl<DB> Handler<(), DB> for Event
+impl<DB> Handler<DB> for Event
 where
     DB: Database,
 {

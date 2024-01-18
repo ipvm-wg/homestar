@@ -1,10 +1,10 @@
 //! Functionality around Wasm-based [tasks].
 //!
-//! [tasks]: homestar_core::workflow::Task
+//! [tasks]: homestar_invocation::Task
 
 use super::FileLoad;
 use async_trait::async_trait;
-use homestar_core::workflow::input::Args;
+use homestar_invocation::task::instruction::Args;
 use homestar_wasm::{
     io::{Arg, Output},
     wasmtime::{world::Env, Error as WasmRuntimeError, State, World},

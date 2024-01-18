@@ -51,7 +51,6 @@ fn init(
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         EnvFilter::new("info")
             .add_directive("homestar_wasm=debug".parse().expect(DIRECTIVE_EXPECT))
-            .add_directive("wasi_common=info".parse().expect(DIRECTIVE_EXPECT))
             .add_directive("libp2p=info".parse().expect(DIRECTIVE_EXPECT))
             .add_directive(
                 "libp2p_gossipsub::behaviour=debug"

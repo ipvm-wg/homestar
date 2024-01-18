@@ -51,7 +51,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
     let proc_guard1 = ChildGuard::new(homestar_proc1);
 
     let ws_port1 = 7980;
-    if wait_for_socket_connection(ws_port1, 100).is_err() {
+    if wait_for_socket_connection(ws_port1, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -87,7 +87,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         let proc_guard2 = ChildGuard::new(homestar_proc2);
 
         let ws_port2 = 7981;
-        if wait_for_socket_connection(ws_port2, 100).is_err() {
+        if wait_for_socket_connection(ws_port2, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
@@ -323,7 +323,7 @@ fn test_libp2p_dht_quorum_failure_integration() -> Result<()> {
     let proc_guard1 = ChildGuard::new(homestar_proc1);
 
     let ws_port = 7982;
-    if wait_for_socket_connection(ws_port, 100).is_err() {
+    if wait_for_socket_connection(ws_port, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -359,7 +359,7 @@ fn test_libp2p_dht_quorum_failure_integration() -> Result<()> {
         let proc_guard2 = ChildGuard::new(homestar_proc2);
 
         let ws_port2 = 7983;
-        if wait_for_socket_connection(ws_port2, 100).is_err() {
+        if wait_for_socket_connection(ws_port2, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
@@ -462,7 +462,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
     let proc_guard1 = ChildGuard::new(homestar_proc1);
 
     let ws_port1 = 7984;
-    if wait_for_socket_connection(ws_port1, 100).is_err() {
+    if wait_for_socket_connection(ws_port1, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -498,7 +498,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         let proc_guard2 = ChildGuard::new(homestar_proc2);
 
         let ws_port2 = 7985;
-        if wait_for_socket_connection(ws_port2, 100).is_err() {
+        if wait_for_socket_connection(ws_port2, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
@@ -560,7 +560,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         // Poll for sent workflow info message
         let sent_workflow_info_cid: Cid;
         loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(60)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
@@ -716,7 +716,7 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
         let _proc_guard1 = ChildGuard::new(homestar_proc1);
 
         let ws_port1 = 7986;
-        if wait_for_socket_connection(ws_port1, 100).is_err() {
+        if wait_for_socket_connection(ws_port1, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
@@ -751,7 +751,7 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
         let _proc_guard2 = ChildGuard::new(homestar_proc2);
 
         let ws_port2 = 7987;
-        if wait_for_socket_connection(ws_port2, 100).is_err() {
+        if wait_for_socket_connection(ws_port2, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
@@ -786,7 +786,7 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
         let _guard3 = ChildGuard::new(homestar_proc3);
 
         let ws_port3 = 7988;
-        if wait_for_socket_connection(ws_port3, 100).is_err() {
+        if wait_for_socket_connection(ws_port3, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 

@@ -17,10 +17,10 @@ pub enum Error {
     IntoWasmComponent(#[source] anyhow::Error),
     /// Bubble-up [ResolveError]s for [Cid]s still awaiting resolution.
     ///
-    /// [ResolveError]: homestar_core::workflow::error::ResolveError
+    /// [ResolveError]: homestar_invocation::error::ResolveError
     /// [Cid]: libipld::Cid
     #[error(transparent)]
-    ResolvePromise(#[from] homestar_core::workflow::error::ResolveError),
+    ResolvePromise(#[from] homestar_invocation::error::ResolveError),
     /// Generic unknown error.
     #[error("unknown error")]
     Unknown,

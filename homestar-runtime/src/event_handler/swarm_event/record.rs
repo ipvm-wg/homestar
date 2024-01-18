@@ -8,10 +8,7 @@ use crate::{
     Receipt,
 };
 use anyhow::{anyhow, Result};
-use homestar_core::{
-    consts,
-    workflow::{Pointer, Receipt as InvocationReceipt},
-};
+use homestar_invocation::{consts, Pointer, Receipt as InvocationReceipt};
 use libipld::{Cid, Ipld};
 use libp2p::{kad::PeerRecord, PeerId};
 
@@ -105,13 +102,14 @@ pub(crate) fn decode_capsule(
 mod test {
     use super::*;
     use crate::{test_utils, workflow};
-    use homestar_core::{
+    use homestar_invocation::{
+        authority::UcanPrf,
         ipld::DagCbor,
-        test_utils::workflow as workflow_test_utils,
-        workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
-        Workflow,
+        task::{instruction::RunInstruction, Resources},
+        Task,
     };
     use homestar_wasm::io::Arg;
+    use homestar_workflow::Workflow;
     use libp2p::{kad::Record, PeerId};
 
     #[test]
@@ -135,7 +133,7 @@ mod test {
     fn found_workflow_record() {
         let config = Resources::default();
         let (instruction1, instruction2, _) =
-            workflow_test_utils::related_wasm_instructions::<Arg>();
+            homestar_invocation::test_utils::related_wasm_instructions::<Arg>();
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1.clone()),
             config.clone().into(),

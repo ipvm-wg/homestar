@@ -36,7 +36,7 @@
 - Running with [`tokio-console`][tokio-console] for diagnosis and debugging:
 
   ``` console
-  cargo run --no-default-features --features dev,console -- start
+  RUSTFLAGS="--cfg tokio_unstable" cargo run --no-default-features --features dev,console -- start
   ```
 
   Then, in another window:

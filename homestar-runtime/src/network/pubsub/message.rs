@@ -3,7 +3,7 @@
 //! [gossipsub]: libp2p::gossipsub
 
 use anyhow::{anyhow, Result};
-use homestar_core::workflow::Nonce;
+use homestar_invocation::task::instruction::Nonce;
 use libipld::{self, cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld};
 use std::collections::BTreeMap;
 

@@ -1,8 +1,9 @@
 //! Listener for incoming requests types.
 
 use faststr::FastStr;
-use homestar_core::{ipld::DagJson, Workflow};
+use homestar_invocation::ipld::DagJson;
 use homestar_wasm::io::Arg;
+use homestar_workflow::Workflow;
 use names::{Generator, Name};
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::value::RawValue;
@@ -44,17 +45,18 @@ pub(crate) struct MetricsPrefix {
 #[cfg(test)]
 mod test {
     use super::*;
-    use homestar_core::{
-        test_utils,
-        workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
+    use homestar_invocation::{
+        authority::UcanPrf,
+        task::{instruction::RunInstruction, Resources},
+        test_utils, Task,
     };
     use std::assert_eq;
 
     #[test]
     fn run_json() {
         let config = Resources::default();
-        let instruction1 = test_utils::workflow::instruction::<Arg>();
-        let (instruction2, _) = test_utils::workflow::wasm_instruction_with_nonce::<Arg>();
+        let instruction1 = test_utils::instruction::<Arg>();
+        let (instruction2, _) = test_utils::wasm_instruction_with_nonce::<Arg>();
 
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1),
