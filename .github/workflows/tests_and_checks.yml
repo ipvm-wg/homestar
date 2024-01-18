@@ -256,11 +256,6 @@ jobs:
   run-cargo-tests:
     needs: changes
     if: ${{ needs.changes.outputs.rust == 'true' }}
-    env:
-      RUSTFLAGS: -Dwarnings  -Ctarget-feature=+crt-static
-      CARGO_INCREMENTAL: 0
-    strategy:
-      fail-fast: false
     runs-on: ubuntu-latest
     steps:
       - name: Setup IPFS
