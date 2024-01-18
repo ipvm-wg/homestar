@@ -183,7 +183,7 @@ impl TryFrom<&Ipld> for Await {
 #[repr(transparent)]
 pub struct Pointer(Cid);
 
-/// References a specific [Invocation], [Task], [Instruction], and/or
+/// References a specific [Invocation], [Task], [Instruction], or
 /// [Receipt], always wrapping a [Cid].
 ///
 /// [Invocation]: super::Invocation
