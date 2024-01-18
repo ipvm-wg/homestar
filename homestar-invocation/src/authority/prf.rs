@@ -19,7 +19,7 @@ use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use ucan::ipld::UcanIpld;
 
-/// Proof container, containing links to UCANs for a particular [Task] or
+/// Proof container, with links to UCANs for a particular [Task] or
 /// [Receipt].
 ///
 /// [Task]: crate::Task
