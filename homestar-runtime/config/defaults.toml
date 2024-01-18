@@ -19,7 +19,7 @@ host = "127.0.0.1"
 port = 5001
 
 [node.network.libp2p]
-idle_connection_timeout = 120
+idle_connection_timeout = 60
 listen_address = "/ip4/0.0.0.0/tcp/0"
 node_addresses = []
 announce_addresses = []

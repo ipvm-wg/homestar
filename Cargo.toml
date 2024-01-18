@@ -9,9 +9,9 @@ members = [
 ]
 default-members = [
   "homestar-invocation",
-  "homestar-workflow",
   "homestar-runtime",
   "homestar-wasm",
+  "homestar-workflow",
 ]
 resolver = "2"
 
