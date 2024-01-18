@@ -128,7 +128,8 @@ impl Default for Libp2p {
             announce_addresses: Vec::new(),
             dht: Dht::default(),
             // https://github.com/libp2p/rust-libp2p/pull/4967
-            idle_connection_timeout: Duration::new(120, 0),
+            // https://github.com/libp2p/rust-libp2p/pull/4887
+            idle_connection_timeout: Duration::new(60, 0),
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             max_connected_peers: 32,
             max_announce_addresses: 10,

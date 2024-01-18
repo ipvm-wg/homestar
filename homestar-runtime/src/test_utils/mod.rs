@@ -3,9 +3,13 @@ pub(crate) mod event;
 #[allow(dead_code)]
 pub(crate) mod ports;
 pub(crate) mod receipt;
+#[cfg(feature = "test-utils")]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 mod rvg;
 mod worker_builder;
 
+#[cfg(feature = "test-utils")]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 pub use rvg::Rvg;
 #[allow(unused_imports)]
 pub(crate) use worker_builder::WorkerBuilder;

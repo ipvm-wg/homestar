@@ -240,25 +240,6 @@ pub(crate) fn kill_homestar_daemon() -> Result<()> {
     Ok(())
 }
 
-/// Kill the Homestar proc running as a daemon.
-#[allow(dead_code)]
-#[cfg(windows)]
-pub(crate) fn kill_homestar_daemon() -> Result<()> {
-    let system = sysinfo::System::new_all();
-    let pid = system
-        .processes_by_exact_name(format!("{}.exe", BIN_NAME).as_str())
-        .collect::<Vec<_>>()
-        .first()
-        .map(|x| x.pid())
-        .unwrap();
-
-    if let Some(process) = system.process(pid) {
-        process.kill();
-    };
-
-    Ok(())
-}
-
 /// Remove sqlite database and associated temporary files
 pub(crate) fn remove_db(name: &str) {
     let _ = fs::remove_file(name);

@@ -283,7 +283,6 @@ jobs:
           save-if: ${{ github.event_name == 'push' }}
 
       - name: Run Tests (all-features)
-        if: ${{ matrix.default-features == 'all' }}
         run: cargo test --workspace --all-features
 
   run-docs:
