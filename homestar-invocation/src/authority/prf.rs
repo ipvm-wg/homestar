@@ -31,7 +31,7 @@ use ucan::ipld::UcanIpld;
 #[repr(transparent)]
 pub struct UcanPrf(Vec<Link<UcanIpld>>);
 
-/// Proof container, containing links to UCANs for a particular [Task] or
+/// Proof container, with links to UCANs for a particular [Task] or
 /// [Receipt].
 ///
 /// [Task]: crate::Task
