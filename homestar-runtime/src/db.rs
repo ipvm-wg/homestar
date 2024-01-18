@@ -1,6 +1,7 @@
 //! (Default) sqlite database integration and setup.
 
 use crate::{
+    db::utils::Health,
     settings,
     workflow::{self, StoredReceipt},
     Receipt,
@@ -123,9 +124,9 @@ pub trait Database: Send + Sync + Clone {
     }
 
     /// Check if the database is up.
-    fn health_check(conn: &mut Connection) -> Result<(), diesel::result::Error> {
+    fn health_check(conn: &mut Connection) -> Result<Health, diesel::result::Error> {
         diesel::sql_query("SELECT 1").execute(conn)?;
-        Ok(())
+        Ok(Health { healthy: true })
     }
 
     /// Commit a receipt to the database, updating two tables

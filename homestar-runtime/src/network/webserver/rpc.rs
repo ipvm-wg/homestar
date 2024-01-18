@@ -155,8 +155,8 @@ where
         module.register_async_method(HEALTH_ENDPOINT, |_, ctx| async move {
             match ctx.db.conn() {
                 Ok(mut conn) => {
-                    if DB::health_check(&mut conn).is_ok() {
-                        Ok(serde_json::json!({"healthy": true}))
+                    if let Ok(health) = DB::health_check(&mut conn) {
+                        Ok(serde_json::json!(health))
                     } else {
                         Err(internal_err("database query is unreachable".to_string()))
                     }

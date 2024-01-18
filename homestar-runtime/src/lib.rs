@@ -69,8 +69,7 @@ pub mod test_utils;
 mod worker;
 pub mod workflow;
 
-pub(crate) use api::TaggedSchema;
-pub use db::Db;
+pub use db::{utils::Health, Db};
 pub(crate) mod libp2p;
 pub use logger::*;
 pub(crate) mod metrics;

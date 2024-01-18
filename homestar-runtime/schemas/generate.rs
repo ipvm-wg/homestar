@@ -1,7 +1,7 @@
 //! Standalone binary to generate OpenRPC API docs and
 //! JSON Schemas for method params and notifications.
 
-use homestar_runtime::NetworkNotification;
+use homestar_runtime::{Health, NetworkNotification};
 use schemars::{schema::RootSchema, schema_for};
 use std::{fs, io::Write};
 
@@ -14,6 +14,11 @@ use openrpc::document::{
 
 // Generate docs with `cargo run --bin schemas`
 fn main() {
+    let health_schema = schema_for!(Health);
+    let _ = fs::File::create("schemas/docs/health.json")
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&health_schema).unwrap());
+
     let network_schema = schema_for!(NetworkNotification);
     let _ = fs::File::create("schemas/docs/network.json")
         .unwrap()
