@@ -13,11 +13,11 @@ use predicates::prelude::*;
 use retry::delay::Fixed;
 use retry::{delay::Exponential, retry};
 use serde::Serialize;
-use std::io::Write;
 use std::{
     env, fs,
     fs::File,
     future::Future,
+    io::Write,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},

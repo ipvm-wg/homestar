@@ -1,7 +1,9 @@
-use crate::make_config;
-use crate::utils::{
-    check_for_line_with, kill_homestar, retrieve_output, wait_for_socket_connection, ChildGuard,
-    FileGuard, TestConfig, TimeoutFutureExt, BIN_NAME,
+use crate::{
+    make_config,
+    utils::{
+        check_for_line_with, kill_homestar, retrieve_output, wait_for_socket_connection,
+        ChildGuard, FileGuard, TestConfig, TimeoutFutureExt, BIN_NAME,
+    },
 };
 use ::function_name::named;
 use anyhow::Result;
