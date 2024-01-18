@@ -1,6 +1,6 @@
 ignore:
-  - "*/tests/*"
-  - "*/src/test_utils/*"
+  - "**/tests/**"
+  - "**/src/test_utils/**"
 
 comment:
   layout: "reach, diff, flags, files"

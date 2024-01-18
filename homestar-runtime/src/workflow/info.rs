@@ -14,7 +14,7 @@ use anyhow::{anyhow, bail, Result};
 use chrono::{NaiveDateTime, Utc};
 use diesel::{Associations, Identifiable, Insertable, Queryable, Selectable};
 use faststr::FastStr;
-use homestar_core::{ipld::DagJson, workflow::Pointer};
+use homestar_invocation::{ipld::DagJson, Pointer};
 use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Cid, Ipld};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt, sync::Arc, time::Duration};
@@ -26,7 +26,7 @@ use tracing::info;
 
 /// [Workflow] header tag, for sharing workflow information over libp2p.
 ///
-/// [Workflow]: homestar_core::Workflow
+/// [Workflow]: homestar_workflow::Workflow
 pub const WORKFLOW_TAG: &str = "ipvm/workflow";
 
 const CID_KEY: &str = "cid";
@@ -38,33 +38,33 @@ const RESOURCES_KEY: &str = "resources";
 
 /// [Workflow] information stored in the database.
 ///
-/// [Workflow]: homestar_core::Workflow
+/// [Workflow]: homestar_workflow::Workflow
 #[derive(Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Selectable)]
 #[diesel(table_name = crate::db::schema::workflows, primary_key(cid))]
 pub struct Stored {
     /// Wrapped-[Cid] of [Workflow].
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     pub(crate) cid: Pointer,
     /// Local name of [Workflow].
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     pub(crate) name: Option<String>,
     /// Number of tasks in [Workflow].
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     pub(crate) num_tasks: i32,
     /// Map of [Instruction] [Cid]s to resources.
     ///
-    /// [Instruction]: homestar_core::workflow::Instruction
+    /// [Instruction]: homestar_invocation::task::Instruction
     pub(crate) resources: IndexedResources,
     /// Local timestamp of [Workflow] creation.
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     pub(crate) created_at: NaiveDateTime,
     /// Local timestamp of [Workflow] completion.
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     pub(crate) completed_at: Option<NaiveDateTime>,
 }
 
@@ -126,7 +126,7 @@ impl Stored {
 
 /// [Workflow] information stored in the database, tied to [receipts].
 ///
-/// [Workflow]: homestar_core::Workflow
+/// [Workflow]: homestar_workflow::Workflow
 /// [receipts]: crate::Receipt
 #[derive(
     Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Selectable, Associations, Hash,
@@ -152,7 +152,7 @@ impl StoredReceipt {
 /// to relate to it as a key-value relationship of (workflow)
 /// cid => [Info].
 ///
-/// [Workflow]: homestar_core::Workflow
+/// [Workflow]: homestar_workflow::Workflow
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Info {
     pub(crate) cid: Cid,
@@ -207,14 +207,14 @@ impl Info {
 
     /// Get unique identifier, [Cid], of [Workflow].
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     pub(crate) fn cid(&self) -> Cid {
         self.cid
     }
 
     /// Get the [Cid] of a [Workflow] as a [String].
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     #[allow(dead_code)]
     pub(crate) fn cid_as_string(&self) -> String {
         self.cid.to_string()
@@ -222,14 +222,14 @@ impl Info {
 
     /// Get the [Cid] of a [Workflow] as bytes.
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     pub(crate) fn cid_as_bytes(&self) -> Vec<u8> {
         self.cid().to_bytes()
     }
 
     /// Set map of [Instruction] [Cid]s to resources.
     ///
-    /// [Instruction]: homestar_core::workflow::Instruction
+    /// [Instruction]: homestar_invocation::task::Instruction
     #[allow(dead_code)]
     pub(crate) fn set_resources(&mut self, resources: IndexedResources) {
         self.resources = resources;
@@ -238,7 +238,7 @@ impl Info {
     /// Set the progress / step of the [Workflow] completed, which
     /// may not be the same as the `progress` vector of [Cid]s.
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     #[allow(dead_code)]
     pub(crate) fn set_progress_count(&mut self, progress_count: u32) {
         self.progress_count = progress_count;
@@ -271,7 +271,7 @@ impl Info {
     /// Retrieve available [Info] from the database or [libp2p] given a
     /// [Workflow], or return a default/new version of [Info] if none is found.
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     pub(crate) async fn init(
         workflow_cid: Cid,
         workflow_len: u32,
@@ -550,20 +550,20 @@ impl DagJson for Info where Ipld: From<Info> {}
 mod test {
     use super::*;
     use crate::workflow::Resource;
-    use homestar_core::{
+    use homestar_invocation::{
+        authority::UcanPrf,
         ipld::DagCbor,
-        test_utils,
-        workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
-        Workflow,
+        task::{instruction::RunInstruction, Resources},
+        test_utils, Task,
     };
     use homestar_wasm::io::Arg;
+    use homestar_workflow::Workflow;
     use indexmap::IndexMap;
 
     #[test]
     fn ipld_roundtrip_workflow_info() {
         let config = Resources::default();
-        let (instruction1, instruction2, _) =
-            test_utils::workflow::related_wasm_instructions::<Arg>();
+        let (instruction1, instruction2, _) = test_utils::related_wasm_instructions::<Arg>();
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1.clone()),
             config.clone().into(),

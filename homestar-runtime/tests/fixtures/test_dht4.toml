@@ -1,17 +1,13 @@
 [node]
 
-[node.monitoring]
-process_collector_interval = 500
-console_subscriber_port = 5543
-
 # Peer ID 12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq
 [node.network.keypair_config]
 existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519_3.pem" }
 
 [node.network.libp2p]
-listen_address = "/ip4/127.0.0.1/tcp/7003"
+listen_address = "/ip4/127.0.0.1/tcp/7023"
 node_addresses = [
-  "/ip4/127.0.0.1/tcp/7002/p2p/12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5",
+  "/ip4/127.0.0.1/tcp/6002/p2p/12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5",
 ]
 
 [node.network.libp2p.dht]

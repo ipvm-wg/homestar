@@ -1,7 +1,7 @@
 //! Configuration for Wasm/wasmtime execution.
 
 use crate::wasmtime::{self, limits::StoreLimitsAsync};
-use homestar_core::{consts, workflow::config::Resources};
+use homestar_invocation::{consts, task::Resources};
 
 impl From<Resources> for wasmtime::State {
     fn from(resources: Resources) -> wasmtime::State {

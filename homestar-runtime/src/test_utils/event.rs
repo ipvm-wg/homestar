@@ -1,3 +1,5 @@
+//! Event utilities.
+
 use crate::{
     channel::{AsyncChannel, AsyncChannelReceiver, AsyncChannelSender},
     event_handler::Event,
@@ -5,7 +7,7 @@ use crate::{
     worker::WorkerMessage,
 };
 
-/// Create an [AsynBoundedChannelSender], [AsyncChannelReceiver] pair for [Event]s.
+/// Create an [AsyncChannelSender], [AsyncChannelReceiver] pair for [Event]s.
 pub(crate) fn setup_event_channel(
     settings: settings::Node,
 ) -> (AsyncChannelSender<Event>, AsyncChannelReceiver<Event>) {

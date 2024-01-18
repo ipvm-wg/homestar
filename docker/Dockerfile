@@ -17,7 +17,8 @@ RUN adduser --disabled-password --disabled-login --gecos "" --no-create-home hom
 RUN cargo init
 RUN rm -Rf src
 
-RUN cargo init --lib homestar-core && \
+RUN cargo init --lib homestar-invocation && \
+    cargo init --lib homestar-workflow && \
     cargo init --lib homestar-wasm && \
     cargo init --lib homestar-runtime
 
@@ -29,7 +30,8 @@ RUN bash -c 'pushd ./homestar-functions && cargo init dummy-app-fns && popd'
 
 # copy cargo.*
 COPY Cargo.lock Cargo.toml diesel.toml ./
-COPY ../homestar-core/Cargo.toml ./homestar-core/
+COPY ../homestar-invocation/Cargo.toml ./homestar-invocation/
+COPY ../homestar-workflow/Cargo.toml ./homestar-workflow/
 COPY ../homestar-wasm/Cargo.toml ./homestar-wasm/
 COPY ../homestar-runtime/Cargo.toml ./homestar-runtime/
 COPY ../homestar-runtime/migrations ./homestar-runtime/migrations
@@ -49,9 +51,10 @@ RUN --mount=type=cache,id=cargo,target=$CARGO_HOME/registry \
     cargo build --target $CARGO_BUILD_TARGET --release
 
 # copy default-members workspace
-COPY ../homestar-core ./homestar-core
-COPY ../homestar-wasm ./homestar-wasm
+COPY ../homestar-invocation ./homestar-invocation
 COPY ../homestar-runtime ./homestar-runtime
+COPY ../homestar-wasm ./homestar-wasm
+COPY ../homestar-workflow ./homestar-workflow
 
 # final build for release
 RUN cargo build -p homestar-runtime --target $CARGO_BUILD_TARGET --release --offline

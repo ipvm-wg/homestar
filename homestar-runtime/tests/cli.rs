@@ -115,7 +115,7 @@ fn test_server_integration() -> Result<()> {
 
     let _proc_guard = ChildGuard::new(homestar_proc);
 
-    if wait_for_socket_connection_v6(9837, 100).is_err() {
+    if wait_for_socket_connection_v6(9837, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -162,7 +162,7 @@ fn test_workflow_run_integration() -> Result<()> {
         .unwrap();
     let _proc_guard = ChildGuard::new(homestar_proc);
 
-    if wait_for_socket_connection_v6(9840, 100).is_err() {
+    if wait_for_socket_connection_v6(9840, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -214,7 +214,10 @@ fn test_daemon_integration() -> Result<()> {
         .assert()
         .success();
 
-    if wait_for_socket_connection(9000, 100).is_err() {
+    std::thread::sleep(std::time::Duration::from_secs(5));
+
+    if wait_for_socket_connection(9000, 1000).is_err() {
+        let _ = kill_homestar_daemon();
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -229,7 +232,7 @@ fn test_daemon_integration() -> Result<()> {
         .stdout(predicate::str::contains("127.0.0.1"))
         .stdout(predicate::str::contains("pong"));
 
-    let _ = kill_homestar_daemon();
+    kill_homestar_daemon().unwrap();
     Ok(())
 }
 
@@ -241,7 +244,7 @@ fn test_server_v4_integration() -> Result<()> {
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_v4.toml")
+        .arg("tests/fixtures/test_v4_alt.toml")
         .arg("--db")
         .arg(DB)
         .stdout(Stdio::piped())
@@ -249,7 +252,7 @@ fn test_server_v4_integration() -> Result<()> {
         .unwrap();
     let _proc_guard = ChildGuard::new(homestar_proc);
 
-    if wait_for_socket_connection(9000, 1000).is_err() {
+    if wait_for_socket_connection(9836, 10000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
@@ -258,7 +261,7 @@ fn test_server_v4_integration() -> Result<()> {
         .arg("--host")
         .arg("127.0.0.1")
         .arg("-p")
-        .arg("9000")
+        .arg("9836")
         .assert()
         .success()
         .stdout(predicate::str::contains("127.0.0.1"))

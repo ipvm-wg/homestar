@@ -126,7 +126,7 @@
 
         doc = pkgs.writeScriptBin "doc" ''
           #!${pkgs.stdenv.shell}
-          cargo doc --workspace --no-deps --document-private-items --open
+          cargo doc --workspace --all-features --no-deps --document-private-items --open
         '';
 
         docAll = pkgs.writeScriptBin "doc-all" ''

@@ -8,11 +8,13 @@ use tokio::runtime::Handle;
 
 mod exporter;
 #[cfg(feature = "monitoring")]
+#[cfg_attr(docsrs, doc(cfg(feature = "monitoring")))]
 mod node;
 
 /// Start metrics collection and setup scrape endpoint.
 /// Also, spawn a task to collect process metrics at a regular interval.
 #[cfg(feature = "monitoring")]
+#[cfg_attr(docsrs, doc(cfg(feature = "monitoring")))]
 pub(crate) async fn start(
     monitor_settings: &settings::Monitoring,
     network_settings: &settings::Network,

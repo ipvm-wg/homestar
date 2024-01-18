@@ -1,6 +1,6 @@
 //! Notification receipts.
 
-use homestar_core::{ipld::DagJson, workflow::Receipt};
+use homestar_invocation::{ipld::DagJson, Receipt};
 use libipld::{ipld, Cid, Ipld};
 
 /// A [Receipt] that is sent out for websocket notifications.

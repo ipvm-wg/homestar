@@ -17,7 +17,7 @@ use faststr::FastStr;
 #[cfg(feature = "websocket-notify")]
 use futures::StreamExt;
 #[cfg(feature = "websocket-notify")]
-use homestar_core::ipld::DagCbor;
+use homestar_invocation::ipld::DagCbor;
 use jsonrpsee::{
     server::RpcModule,
     types::error::{ErrorCode, ErrorObject},

@@ -2,7 +2,7 @@
 //! [Workflow].
 //!
 //! [Scheduler]: TaskScheduler
-//! [Workflow]: homestar_core::Workflow
+//! [Workflow]: homestar_workflow::Workflow
 
 use crate::{
     db::{Connection, Database},
@@ -13,8 +13,9 @@ use anyhow::{anyhow, Context, Result};
 use dagga::Node;
 use fnv::FnvHashSet;
 use futures::future::BoxFuture;
-use homestar_core::workflow::{InstructionResult, LinkMap, Pointer};
+use homestar_invocation::{task, Pointer};
 use homestar_wasm::io::Arg;
+use homestar_workflow::LinkMap;
 use indexmap::IndexMap;
 use libipld::Cid;
 use std::{ops::ControlFlow, str::FromStr, sync::Arc};
@@ -29,7 +30,7 @@ type Schedule<'a> = Vec<Vec<Node<Vertex<'a>, usize>>>;
 /// Type for [instruction]-based, batched, execution graph and set of task
 /// resources.
 ///
-/// [instruction]: homestar_core::workflow::Instruction
+/// [instruction]: homestar_invocation::task::Instruction
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ExecutionGraph<'a> {
     /// A built-up [Dag] [Schedule] of batches.
@@ -39,7 +40,7 @@ pub(crate) struct ExecutionGraph<'a> {
     /// Vector of [resources] to fetch for executing functions in [Workflow].
     ///
     /// [resources]: Resource
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     pub(crate) indexed_resources: IndexedResources,
 }
 
@@ -50,19 +51,19 @@ pub(crate) struct ExecutionGraph<'a> {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TaskScheduler<'a> {
     /// In-memory map of task/instruction results.
-    pub(crate) linkmap: Arc<RwLock<LinkMap<InstructionResult<Arg>>>>,
+    pub(crate) linkmap: Arc<RwLock<LinkMap<task::Result<Arg>>>>,
     /// [ExecutionGraph] of what's been run so far for a [Workflow] of `batched`
     /// [Tasks].
     ///
-    /// [Workflow]: homestar_core::Workflow
-    /// [Tasks]: homestar_core::workflow::Task
+    /// [Workflow]: homestar_workflow::Workflow
+    /// [Tasks]: homestar_invocation::Task
     pub(crate) ran: Option<Schedule<'a>>,
 
     /// [ExecutionGraph] of what's left to run for a [Workflow] of `batched`
     /// [Tasks].
     ///
-    /// [Workflow]: homestar_core::Workflow
-    /// [Tasks]: homestar_core::workflow::Task
+    /// [Workflow]: homestar_workflow::Workflow
+    /// [Tasks]: homestar_invocation::Task
     pub(crate) run: Schedule<'a>,
 
     /// Step/batch to resume from.
@@ -74,7 +75,7 @@ pub(crate) struct TaskScheduler<'a> {
     /// This is transferred from the [ExecutionGraph] for executing the
     /// schedule by a worker.
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     pub(crate) resources: Arc<RwLock<IndexMap<Resource, Vec<u8>>>>,
 }
 
@@ -93,7 +94,7 @@ impl<'a> TaskScheduler<'a> {
     ///
     /// [Receipts]: crate::Receipt
     /// [Swarm]: crate::network::swarm
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     #[allow(unknown_lints, clippy::needless_pass_by_ref_mut)]
     pub(crate) async fn init<F>(
         mut graph: Arc<ExecutionGraph<'a>>,
@@ -107,7 +108,7 @@ impl<'a> TaskScheduler<'a> {
         let schedule: &mut Schedule<'a> = mut_graph.schedule.as_mut();
         let schedule_length = schedule.len();
         let mut resources_to_fetch = vec![];
-        let linkmap = LinkMap::<InstructionResult<Arg>>::new();
+        let linkmap = LinkMap::<task::Result<Arg>>::default();
 
         let resume = 'resume: {
             for (idx, vec) in schedule.iter().enumerate().rev() {
@@ -137,9 +138,7 @@ impl<'a> TaskScheduler<'a> {
                                     resources_to_fetch.swap_remove(idx);
                                 }
 
-                                let _ = map
-                                    .insert(receipt.instruction().cid(), receipt.output_as_arg());
-
+                                map.insert(receipt.instruction().cid(), receipt.output_as_arg());
                                 map
                             });
 
@@ -207,7 +206,7 @@ impl<'a> TaskScheduler<'a> {
 
     /// Get the number of tasks that have already ran in the [Workflow].
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     #[allow(dead_code)]
     pub(crate) fn ran_length(&self) -> usize {
         self.ran
@@ -218,7 +217,7 @@ impl<'a> TaskScheduler<'a> {
 
     /// Get the number of tasks left to run in the [Workflow].
     ///
-    /// [Workflow]: homestar_core::Workflow
+    /// [Workflow]: homestar_workflow::Workflow
     #[allow(dead_code)]
     pub(crate) fn run_length(&self) -> usize {
         self.run.iter().flatten().collect::<Vec<_>>().len()
@@ -230,23 +229,20 @@ mod test {
     use super::*;
     use crate::{db::Database, test_utils::db::MemoryDb, workflow, Receipt};
     use futures::FutureExt;
-    use homestar_core::{
+    use homestar_invocation::{
+        authority::UcanPrf,
         ipld::DagCbor,
-        test_utils::workflow as workflow_test_utils,
-        workflow::{
-            config::Resources, instruction::RunInstruction, prf::UcanPrf, Invocation,
-            Receipt as InvocationReceipt, Task,
-        },
-        Workflow,
+        task::{instruction::RunInstruction, Resources},
+        test_utils, Invocation, Receipt as InvocationReceipt, Task,
     };
+    use homestar_workflow::Workflow;
     use libipld::Ipld;
 
     #[homestar_runtime_proc_macro::db_async_test]
     fn initialize_task_scheduler() {
         let settings = TestSettings::load();
         let config = Resources::default();
-        let (instruction1, instruction2, _) =
-            workflow_test_utils::related_wasm_instructions::<Arg>();
+        let (instruction1, instruction2, _) = test_utils::related_wasm_instructions::<Arg>();
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1.clone()),
             config.clone().into(),
@@ -293,8 +289,7 @@ mod test {
     fn initialize_task_scheduler_with_receipted_instruction() {
         let settings = TestSettings::load();
         let config = Resources::default();
-        let (instruction1, instruction2, _) =
-            workflow_test_utils::related_wasm_instructions::<Arg>();
+        let (instruction1, instruction2, _) = test_utils::related_wasm_instructions::<Arg>();
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1.clone()),
             config.clone().into(),
@@ -308,7 +303,7 @@ mod test {
 
         let invocation_receipt = InvocationReceipt::new(
             Invocation::new(task1.clone()).try_into().unwrap(),
-            InstructionResult::Ok(Ipld::Integer(4)),
+            task::Result::Ok(Ipld::Integer(4)),
             Ipld::Null,
             None,
             UcanPrf::default(),
@@ -364,8 +359,7 @@ mod test {
     fn initialize_task_scheduler_with_all_receipted_instruction() {
         let settings = TestSettings::load();
         let config = Resources::default();
-        let (instruction1, instruction2, _) =
-            workflow_test_utils::related_wasm_instructions::<Arg>();
+        let (instruction1, instruction2, _) = test_utils::related_wasm_instructions::<Arg>();
 
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1.clone()),
@@ -381,7 +375,7 @@ mod test {
 
         let invocation_receipt1 = InvocationReceipt::new(
             Invocation::new(task1.clone()).try_into().unwrap(),
-            InstructionResult::Ok(Ipld::Integer(4)),
+            task::Result::Ok(Ipld::Integer(4)),
             Ipld::Null,
             None,
             UcanPrf::default(),
@@ -394,7 +388,7 @@ mod test {
 
         let invocation_receipt2 = InvocationReceipt::new(
             Invocation::new(task2.clone()).try_into().unwrap(),
-            InstructionResult::Ok(Ipld::Integer(44)),
+            task::Result::Ok(Ipld::Integer(44)),
             Ipld::Null,
             None,
             UcanPrf::default(),

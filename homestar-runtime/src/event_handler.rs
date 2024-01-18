@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use fnv::FnvHashMap;
 use libp2p::{
     core::ConnectedPoint, futures::StreamExt, kad::QueryId, rendezvous::Cookie,
-    request_response::RequestId, swarm::Swarm, PeerId,
+    request_response::OutboundRequestId as RequestId, swarm::Swarm, PeerId,
 };
 use moka::future::Cache;
 use std::{sync::Arc, time::Duration};
@@ -36,13 +36,14 @@ type P2PSender = channel::AsyncChannelSender<ResponseEvent>;
 
 /// Handler trait for [EventHandler] events.
 #[async_trait]
-pub(crate) trait Handler<THandlerErr, DB>
+pub(crate) trait Handler<DB>
 where
     DB: Database,
 {
     #[cfg(not(feature = "ipfs"))]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>);
     #[cfg(feature = "ipfs")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>, ipfs: IpfsCli);
 }
 
@@ -166,6 +167,7 @@ where
 
     /// Create an [EventHandler] with channel sender/receiver defaults.
     #[cfg(feature = "websocket-notify")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
     pub(crate) fn new(
         swarm: Swarm<ComposedBehaviour>,
         db: DB,
@@ -298,6 +300,7 @@ where
     ///
     /// [events]: libp2p::swarm::SwarmEvent
     #[cfg(feature = "ipfs")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     pub(crate) async fn start(mut self, ipfs: IpfsCli) -> Result<()> {
         let handle = Handle::current();
         handle.spawn(poll_cache(self.cache.clone(), self.poll_cache_interval));

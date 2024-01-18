@@ -1,0 +1,23 @@
+[node]
+
+# Peer ID 16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc
+[node.network.keypair_config]
+existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }
+
+[node.network.libp2p]
+listen_address = "/ip4/127.0.0.1/tcp/7029"
+
+[node.network.libp2p.mdns]
+enable = false
+
+[node.network.libp2p.rendezvous]
+enable_client = false
+
+[node.network.metrics]
+port = 4932
+
+[node.network.rpc]
+port = 9922
+
+[node.network.webserver]
+port = 8922

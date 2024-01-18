@@ -22,8 +22,9 @@ private
 homestar-functions/**/out
 homestar-functions/out
 homestar-wasm/out
-homestar-core/fixtures/test_*
+homestar-invocation/fixtures/test_*
 homestar-runtime/fixtures/test_*
+homestar-workflow/fixtures/test_*
 .zed
 result-alejandra
 report.json

@@ -7,7 +7,7 @@ use std::io;
 /// Error types related to running [Workflow]s and other runtime
 /// components.
 ///
-/// [Workflow]: homestar_core::Workflow
+/// [Workflow]: homestar_workflow::Workflow
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
     /// Unsupported workflow type.

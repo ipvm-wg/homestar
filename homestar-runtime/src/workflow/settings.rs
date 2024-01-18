@@ -1,6 +1,6 @@
 //! [Workflow] settings for a worker's run/execution.
 //!
-//! [Workflow]: homestar_core::Workflow
+//! [Workflow]: homestar_workflow::Workflow
 
 use std::time::Duration;
 
@@ -30,6 +30,7 @@ impl Default for Settings {
 }
 
 #[cfg(any(test, feature = "test-utils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 impl Default for Settings {
     fn default() -> Self {
         Self {

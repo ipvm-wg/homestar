@@ -21,8 +21,9 @@ use dashmap::DashMap;
 use faststr::FastStr;
 use fnv::FnvHashSet;
 use futures::{future::poll_fn, FutureExt};
-use homestar_core::{workflow::Pointer, Workflow};
+use homestar_invocation::Pointer;
 use homestar_wasm::io::Arg;
+use homestar_workflow::Workflow;
 use jsonrpsee::server::ServerHandle;
 use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
@@ -103,7 +104,7 @@ impl ModifiedSet for RunningTaskSet {
 /// Runner interface.
 /// Used to manage workers and execute/run [Workflows].
 ///
-/// [Workflows]: homestar_core::Workflow
+/// [Workflows]: homestar_workflow::Workflow
 #[derive(Debug)]
 pub struct Runner {
     event_sender: Arc<AsyncChannelSender<Event>>,
@@ -803,11 +804,11 @@ mod test {
     use super::*;
     use crate::{
         network::rpc::Client,
-        test_utils::{db::MemoryDb, WorkerBuilder},
+        test_utils::{self, db::MemoryDb, WorkerBuilder},
     };
-    use homestar_core::test_utils as core_test_utils;
+    use metrics_exporter_prometheus::PrometheusBuilder;
     use rand::thread_rng;
-    use std::net::SocketAddr;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use tarpc::context;
     use tokio::net::TcpStream;
 
@@ -816,7 +817,7 @@ mod test {
         let TestRunner { runner, settings } = TestRunner::start();
         let (tx, _rx) = Runner::setup_rpc_channel(1);
         let (runner_tx, _runner_rx) = Runner::setup_ws_mpsc_channel(1);
-        let db = MemoryDb::setup_connection_pool(&settings.node(), None).unwrap();
+        let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
         let rpc_server = rpc::Server::new(settings.node.network(), Arc::new(tx));
         let rpc_sender = rpc_server.sender();
 
@@ -827,15 +828,14 @@ mod test {
 
         let ws_hdl = runner.runtime.block_on(async {
             rpc_server.spawn().await.unwrap();
-            #[cfg(feature = "monitoring")]
-            let metrics_hdl =
-                crate::metrics::start(settings.node.monitoring(), settings.node.network())
-                    .await
-                    .unwrap();
-            #[cfg(not(feature = "monitoring"))]
-            let metrics_hdl = crate::metrics::start(settings.node.network())
-                .await
-                .unwrap();
+
+            let port = test_utils::ports::get_port() as u16;
+            let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+            let (recorder, _exporter) = PrometheusBuilder::new()
+                .with_http_listener(socket)
+                .build()
+                .expect("failed to install recorder/exporter");
+            let metrics_hdl = recorder.handle();
 
             let ws_hdl = runner
                 .webserver
@@ -866,8 +866,6 @@ mod test {
                 _ => panic!("Shutdown failed."),
             }
         });
-
-        unsafe { metrics::clear_recorder() }
     }
 
     #[homestar_runtime_proc_macro::runner_test]
@@ -1028,7 +1026,7 @@ mod test {
             for i in 0..3 {
                 let handle = set.spawn(async move { i });
                 runner.running_tasks.append_or_insert(
-                    core_test_utils::cid::generate_cid(&mut thread_rng()),
+                    homestar_invocation::test_utils::cid::generate_cid(&mut thread_rng()),
                     vec![handle],
                 );
             }
@@ -1049,7 +1047,7 @@ mod test {
         runner.runtime.block_on(async {
             for i in 0..3 {
                 let handle = set.spawn(async move { i });
-                let cid = core_test_utils::cid::generate_cid(&mut thread_rng());
+                let cid = homestar_invocation::test_utils::cid::generate_cid(&mut thread_rng());
                 runner.running_tasks.append_or_insert(cid, vec![handle]);
                 cids.push(cid);
             }

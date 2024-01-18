@@ -8,8 +8,8 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use faststr::FastStr;
-use homestar_core::Workflow;
 use homestar_wasm::io::Arg;
+use homestar_workflow::Workflow;
 use http::{
     header::{AUTHORIZATION, CONTENT_TYPE},
     method::Method,
@@ -281,34 +281,35 @@ mod test {
     use super::*;
     #[cfg(feature = "websocket-notify")]
     use crate::event_handler::notification::ReceiptNotification;
-    use crate::{channel::AsyncChannel, settings::Settings, test_utils::db::MemoryDb};
+    use crate::{
+        channel::AsyncChannel,
+        test_utils::{self, db::MemoryDb},
+    };
     #[cfg(feature = "websocket-notify")]
-    use homestar_core::{
+    use homestar_invocation::{
+        authority::UcanPrf,
         ipld::DagJson,
-        test_utils,
-        workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
+        task::{instruction::RunInstruction, Resources},
+        Task,
     };
     #[cfg(feature = "websocket-notify")]
     use jsonrpsee::core::client::{error::Error as ClientError, Subscription, SubscriptionClientT};
     #[cfg(feature = "websocket-notify")]
     use jsonrpsee::types::error::ErrorCode;
     use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
+    use metrics_exporter_prometheus::PrometheusBuilder;
     #[cfg(feature = "websocket-notify")]
     use notifier::{self, Header};
+    use std::net::Ipv4Addr;
 
-    async fn metrics_handle(settings: Settings) -> PrometheusHandle {
-        #[cfg(feature = "monitoring")]
-        let metrics_hdl =
-            crate::metrics::start(settings.node.monitoring(), settings.node.network())
-                .await
-                .unwrap();
-
-        #[cfg(not(feature = "monitoring"))]
-        let metrics_hdl = crate::metrics::start(settings.node.network())
-            .await
-            .unwrap();
-
-        metrics_hdl
+    async fn metrics_handle() -> PrometheusHandle {
+        let port = test_utils::ports::get_port() as u16;
+        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+        let (recorder, _exporter) = PrometheusBuilder::new()
+            .with_http_listener(socket)
+            .build()
+            .expect("failed to install recorder/exporter");
+        recorder.handle()
     }
 
     #[homestar_runtime_proc_macro::runner_test]
@@ -317,7 +318,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network().webserver()).unwrap();
             let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
-            let metrics_hdl = metrics_handle(settings).await;
+            let metrics_hdl = metrics_handle().await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl, db).await.unwrap();
 
@@ -339,42 +340,6 @@ mod test {
             let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
             assert_eq!(http_resp, serde_json::json!({"healthy": true }));
         });
-
-        unsafe { metrics::clear_recorder() }
-    }
-
-    #[cfg(feature = "monitoring")]
-    #[homestar_runtime_proc_macro::runner_test]
-    async fn ws_metrics_no_prefix() {
-        let TestRunner { runner, settings } = TestRunner::start();
-        runner.runtime.block_on(async {
-            let server = Server::new(settings.node().network().webserver()).unwrap();
-            let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
-            let metrics_hdl = metrics_handle(settings).await;
-            let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
-            server.start(runner_tx, metrics_hdl, db).await.unwrap();
-
-            let ws_url = format!("ws://{}", server.addr);
-
-            // wait for interval to pass
-            std::thread::sleep(Duration::from_millis(150));
-
-            let client = WsClientBuilder::default().build(ws_url).await.unwrap();
-            let ws_resp1: serde_json::Value = client
-                .request(rpc::METRICS_ENDPOINT, rpc_params![])
-                .await
-                .unwrap();
-
-            let len = if let serde_json::Value::Array(array) = &ws_resp1["metrics"] {
-                array.len()
-            } else {
-                panic!("expected array");
-            };
-
-            assert!(len > 0);
-
-            unsafe { metrics::clear_recorder() }
-        });
     }
 
     #[cfg(feature = "websocket-notify")]
@@ -384,7 +349,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network().webserver()).unwrap();
             let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
-            let metrics_hdl = metrics_handle(settings).await;
+            let metrics_hdl = metrics_handle().await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl, db).await.unwrap();
 
@@ -401,7 +366,7 @@ mod test {
                 .unwrap();
 
             // send any bytes through (Vec<u8>)
-            let (invocation_receipt, runtime_receipt) = crate::test_utils::receipt::receipts();
+            let (invocation_receipt, runtime_receipt) = test_utils::receipt::receipts();
             let receipt =
                 ReceiptNotification::with(invocation_receipt, runtime_receipt.cid(), None);
             server
@@ -450,8 +415,6 @@ mod test {
             let _returned1: ReceiptNotification = DagJson::from_json(&msg2).unwrap();
 
             assert!(sub.unsubscribe().await.is_ok());
-
-            unsafe { metrics::clear_recorder() }
         });
     }
 
@@ -462,7 +425,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network().webserver()).unwrap();
             let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
-            let metrics_hdl = metrics_handle(settings).await;
+            let metrics_hdl = metrics_handle().await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
             server.start(runner_tx, metrics_hdl, db).await.unwrap();
 
@@ -485,8 +448,6 @@ mod test {
             } else {
                 panic!("expected same error code");
             }
-
-            unsafe { metrics::clear_recorder() }
         });
     }
 
@@ -497,7 +458,7 @@ mod test {
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network().webserver()).unwrap();
             let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
-            let metrics_hdl = metrics_handle(settings).await;
+            let metrics_hdl = metrics_handle().await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
 
             server.start(runner_tx, metrics_hdl, db).await.unwrap();
@@ -505,8 +466,9 @@ mod test {
             let ws_url = format!("ws://{}", server.addr);
 
             let config = Resources::default();
-            let instruction1 = test_utils::workflow::instruction::<Arg>();
-            let (instruction2, _) = test_utils::workflow::wasm_instruction_with_nonce::<Arg>();
+            let instruction1 = homestar_invocation::test_utils::instruction::<Arg>();
+            let (instruction2, _) =
+                homestar_invocation::test_utils::wasm_instruction_with_nonce::<Arg>();
 
             let task1 = Task::new(
                 RunInstruction::Expanded(instruction1),
@@ -545,8 +507,6 @@ mod test {
             } else {
                 panic!("expected same error code");
             }
-
-            unsafe { metrics::clear_recorder() }
         });
     }
 }

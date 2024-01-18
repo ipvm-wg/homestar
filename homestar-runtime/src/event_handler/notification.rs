@@ -5,17 +5,12 @@ use crate::{
         notifier::{self, Header, Message, Notifier, SubscriptionTyp},
         SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
     },
+    receipt::metadata::{WORKFLOW_KEY, WORKFLOW_NAME_KEY},
     Receipt,
 };
 use anyhow::anyhow;
 use chrono::prelude::Utc;
-use homestar_core::{
-    ipld::DagJson,
-    workflow::{
-        receipt::metadata::{WORKFLOW_KEY, WORKFLOW_NAME_KEY},
-        Receipt as InvocationReceipt,
-    },
-};
+use homestar_invocation::{ipld::DagJson, Receipt as InvocationReceipt};
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt, str::FromStr};

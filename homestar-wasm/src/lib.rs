@@ -7,14 +7,30 @@
 //!
 //! Related crates/packages:
 //!
-//! - [homestar-core]
+//! - [homestar-invocation]
 //! - [homestar-runtime]
+//! - [homestar-workflow]
 //!
-//! [homestar-core]: homestar_core
+//! ## Getting Started
+//!
+//! For getting started with Homestar in general, please check out our
+//! [README] and [Quickstart] guide.
+//!
+//! ## Feature flags
+//!
+//! - `default`: Enables the default set of features.
+//! - `test-utils`: Enables utilities for unit testing and benchmarking.
+//!
+//! [homestar-invocation]: <https://docs.rs/homestar-invocation>
 //! [homestar-runtime]: <https://docs.rs/homestar-runtime>
+//! [homestar-workflow]: <https://docs.rs/homestar-workflow>
+//! [Quickstart]: https://github.com/ipvm-wg/homestar/blob/main/README.md#quickstart
+//! [README]: https://github.com/ipvm-wg/homestar/blob/main/README.md
 //! [Wasmtime]: <https://wasmtime.dev/>
 
 pub mod error;
 pub mod io;
+#[cfg(any(test, feature = "test-utils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 pub mod test_utils;
 pub mod wasmtime;

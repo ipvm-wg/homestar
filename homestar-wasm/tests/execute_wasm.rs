@@ -1,7 +1,10 @@
-use homestar_core::workflow::{
-    input::{Args, Parse},
+use homestar_invocation::{
     pointer::{Await, AwaitResult},
-    Input, InstructionResult, Pointer,
+    task::{
+        self,
+        instruction::{Args, Input, Parse},
+    },
+    Pointer,
 };
 use homestar_wasm::{
     io::{Arg, Output},
@@ -48,10 +51,7 @@ async fn test_execute_wat() {
     let mut env = World::instantiate(wat, "add_two", State::default())
         .await
         .unwrap();
-    let res = env
-        .execute(ipld.parse().unwrap().try_into().unwrap())
-        .await
-        .unwrap();
+    let res = env.execute(ipld.parse().unwrap().into()).await.unwrap();
     assert_eq!(res, Output::Value(wasmtime::component::Val::S32(3)));
 }
 
@@ -233,10 +233,7 @@ async fn test_execute_wasms_in_seq() {
         .await
         .unwrap();
 
-    let res = env
-        .execute(ipld_int.parse().unwrap().try_into().unwrap())
-        .await
-        .unwrap();
+    let res = env.execute(ipld_int.parse().unwrap().into()).await.unwrap();
 
     assert_eq!(res, Output::Value(wasmtime::component::Val::S32(2)));
 
@@ -245,7 +242,7 @@ async fn test_execute_wasms_in_seq() {
         .unwrap();
 
     let res = env2
-        .execute(ipld_str.parse().unwrap().try_into().unwrap())
+        .execute(ipld_str.parse().unwrap().into())
         .await
         .unwrap();
 
@@ -276,10 +273,7 @@ async fn test_multiple_args() {
         .await
         .unwrap();
 
-    let res = env
-        .execute(ipld_str.parse().unwrap().try_into().unwrap())
-        .await
-        .unwrap();
+    let res = env.execute(ipld_str.parse().unwrap().into()).await.unwrap();
 
     assert_eq!(
         res,
@@ -341,7 +335,7 @@ async fn test_execute_wasms_in_seq_with_threaded_result() {
     let resolved = parsed
         .resolve(|_| {
             Box::pin(async {
-                Ok(InstructionResult::Ok(Arg::Value(
+                Ok(task::Result::Ok(Arg::Value(
                     wasmtime::component::Val::String("RoundRound".into()),
                 )))
             })
@@ -410,7 +404,7 @@ async fn test_execute_wasms_with_multiple_inits() {
     let resolved = parsed
         .resolve(|_| {
             Box::pin(async {
-                Ok(InstructionResult::Ok(Arg::Value(
+                Ok(task::Result::Ok(Arg::Value(
                     wasmtime::component::Val::String("RoundRound".into()),
                 )))
             })

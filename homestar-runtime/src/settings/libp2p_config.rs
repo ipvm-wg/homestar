@@ -93,9 +93,6 @@ pub(crate) struct Pubsub {
     /// Pub/sub hearbeat interval for mesh configuration.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) heartbeat: Duration,
-    /// Pub/sub idle timeout
-    #[serde_as(as = "DurationSeconds<u64>")]
-    pub(crate) idle_timeout: Duration,
     /// Maximum byte size of pub/sub messages.
     pub(crate) max_transmit_size: usize,
     /// Minimum number of pub/sub peers.
@@ -131,7 +128,7 @@ impl Default for Libp2p {
             announce_addresses: Vec::new(),
             dht: Dht::default(),
             // https://github.com/libp2p/rust-libp2p/pull/4967
-            idle_connection_timeout: Duration::new(10, 0),
+            idle_connection_timeout: Duration::new(120, 0),
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             max_connected_peers: 32,
             max_announce_addresses: 10,
@@ -185,7 +182,6 @@ impl Default for Pubsub {
             enable: true,
             duplication_cache_time: Duration::new(1, 0),
             heartbeat: Duration::new(60, 0),
-            idle_timeout: Duration::new(60 * 60 * 24, 0),
             max_transmit_size: 10 * 1024 * 1024,
             mesh_n_low: 1,
             mesh_n_high: 10,

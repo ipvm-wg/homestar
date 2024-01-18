@@ -5,7 +5,7 @@
 use crate::settings;
 use anyhow::Result;
 use futures::TryStreamExt;
-use homestar_core::workflow::Receipt;
+use homestar_invocation::Receipt;
 use http::uri::Scheme;
 use ipfs_api::{
     request::{DagCodec, DagPut},

@@ -1,14 +1,9 @@
 [package]
 name = "homestar-runtime"
 version = { workspace = true }
-description = "Homestar CLI"
-keywords = ["ipfs", "workflows", "ipld", "ipvm"]
-categories = [
-  "workflow-engines",
-  "distributed-systems",
-  "runtimes",
-  "networking",
-]
+description = "Homestar runtime implementation"
+keywords = ["ipfs", "ipld", "ipvm", "runtime", "workflow"]
+categories = { workspace = true }
 license = { workspace = true }
 readme = "README.md"
 edition = { workspace = true }
@@ -32,7 +27,6 @@ bench = false
 [[test]]
 name = "integration"
 path = "tests/main.rs"
-required-features = ["test-utils"]
 
 [dependencies]
 # return to version.workspace = true after the following issue is fixed:
@@ -74,8 +68,11 @@ flume = { version = "0.11", default-features = false, features = ["async"] }
 fnv = { version = "1.0", default-features = false }
 futures = { workspace = true }
 headers = "0.4"
-homestar-core = { version = "0.1", path = "../homestar-core" }
+homestar-invocation = { version = "0.1", path = "../homestar-invocation", features = [
+  "diesel",
+] }
 homestar-wasm = { version = "0.1", path = "../homestar-wasm", default-features = false }
+homestar-workflow = { version = "0.1", path = "../homestar-workflow" }
 http = "0.2"
 http-serde = "1.1"
 humantime = { workspace = true }
@@ -90,7 +87,7 @@ jsonrpsee = { version = "0.21", default-features = false, features = [
   "server",
 ] }
 libipld = { workspace = true }
-libp2p = { version = "0.52", default-features = false, features = [
+libp2p = { version = "0.53", default-features = false, features = [
   "kad",
   "request-response",
   "rendezvous",
@@ -107,9 +104,7 @@ libp2p = { version = "0.52", default-features = false, features = [
   "yamux",
   "serde",
 ] }
-libsqlite3-sys = { version = "0.27", default-features = false, features = [
-  "bundled",
-] }
+libsqlite3-sys = { workspace = true }
 maplit = "1.0"
 metrics = { version = "0.21", default-features = false }
 metrics-exporter-prometheus = { version = "0.12.1", default-features = false, features = [
@@ -192,7 +187,7 @@ daemonize = "0.5"
 [dev-dependencies]
 assert_cmd = "2.0"
 criterion = "0.5"
-homestar-core = { version = "0.1", path = "../homestar-core", features = [
+homestar-invocation = { version = "0.1", path = "../homestar-invocation", features = [
   "test-utils",
 ] }
 homestar_runtime_proc_macro = { path = "src/test_utils/proc_macro", package = "homestar-runtime-tests-proc-macro" }

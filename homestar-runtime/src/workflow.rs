@@ -15,15 +15,15 @@ use diesel::{
     sqlite::Sqlite,
     AsExpression, FromSqlRow,
 };
-use homestar_core::{
-    workflow::{
-        input::{Parse, Parsed},
-        instruction::RunInstruction,
-        Instruction, Invocation, Pointer,
+use homestar_invocation::{
+    task::{
+        instruction::{Parse, Parsed, RunInstruction},
+        Instruction,
     },
-    Workflow,
+    Invocation, Pointer,
 };
 use homestar_wasm::io::Arg;
+use homestar_workflow::Workflow;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use libipld::{cbor::DagCborCodec, cid::Cid, prelude::Codec, serde::from_ipld, Ipld};
@@ -73,7 +73,7 @@ impl fmt::Display for Resource {
 /// ahead-of-time.
 ///
 /// [Dag]: dagga::Dag
-/// [Task]: homestar_core::workflow::Task
+/// [Task]: homestar_invocation::Task
 #[derive(Debug, Clone)]
 pub(crate) struct AOTContext<'a> {
     dag: Dag<'a>,
@@ -279,7 +279,7 @@ impl IndexedResources {
 
     /// Get a [Resource] by [Instruction] [Cid].
     ///
-    /// [Instruction]: homestar_core::workflow::Instruction
+    /// [Instruction]: homestar_invocation::task::Instruction
     #[allow(dead_code)]
     pub(crate) fn get(&self, cid: &Cid) -> Option<&Vec<Resource>> {
         self.0.get(cid)
@@ -386,24 +386,21 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use homestar_core::{
+    use homestar_invocation::{
+        authority::UcanPrf,
         ipld::DagCbor,
-        test_utils,
-        workflow::{
-            config::Resources,
-            instruction::RunInstruction,
-            pointer::{Await, AwaitResult},
-            prf::UcanPrf,
-            Ability, Input, Task,
+        pointer::{Await, AwaitResult},
+        task::{
+            instruction::{Ability, Input, RunInstruction},
+            Resources,
         },
-        Unit,
+        test_utils, Task, Unit,
     };
     use std::path::Path;
 
     #[test]
     fn ipld_roundtrip_indexed_resources() {
-        let (instruction1, instruction2, _) =
-            test_utils::workflow::related_wasm_instructions::<Unit>();
+        let (instruction1, instruction2, _) = test_utils::related_wasm_instructions::<Unit>();
 
         let mut index_map = IndexMap::new();
         index_map.insert(
@@ -424,8 +421,8 @@ mod test {
     #[test]
     fn dag_to_dot() {
         let config = Resources::default();
-        let instruction1 = test_utils::workflow::wasm_instruction::<Arg>();
-        let (instruction2, _) = test_utils::workflow::wasm_instruction_with_nonce::<Arg>();
+        let instruction1 = test_utils::wasm_instruction::<Arg>();
+        let (instruction2, _) = test_utils::wasm_instruction_with_nonce::<Arg>();
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1),
             config.clone().into(),
@@ -448,8 +445,8 @@ mod test {
     #[test]
     fn build_parallel_schedule() {
         let config = Resources::default();
-        let instruction1 = test_utils::workflow::wasm_instruction::<Arg>();
-        let (instruction2, _) = test_utils::workflow::wasm_instruction_with_nonce::<Arg>();
+        let instruction1 = test_utils::wasm_instruction::<Arg>();
+        let (instruction2, _) = test_utils::wasm_instruction_with_nonce::<Arg>();
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1),
             config.clone().into(),
@@ -478,8 +475,7 @@ mod test {
     #[test]
     fn build_seq_schedule() {
         let config = Resources::default();
-        let (instruction1, instruction2, _) =
-            test_utils::workflow::related_wasm_instructions::<Arg>();
+        let (instruction1, instruction2, _) = test_utils::related_wasm_instructions::<Arg>();
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1),
             config.clone().into(),
@@ -506,7 +502,7 @@ mod test {
     fn build_mixed_graph() {
         let config = Resources::default();
         let (instruction1, instruction2, instruction3) =
-            test_utils::workflow::related_wasm_instructions::<Arg>();
+            test_utils::related_wasm_instructions::<Arg>();
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1.clone()),
             config.clone().into(),
@@ -523,14 +519,14 @@ mod test {
             UcanPrf::default(),
         );
 
-        let (instruction4, _) = test_utils::workflow::wasm_instruction_with_nonce::<Arg>();
+        let (instruction4, _) = test_utils::wasm_instruction_with_nonce::<Arg>();
         let task4 = Task::new(
             RunInstruction::Expanded(instruction4),
             config.clone().into(),
             UcanPrf::default(),
         );
 
-        let (instruction5, _) = test_utils::workflow::wasm_instruction_with_nonce::<Arg>();
+        let (instruction5, _) = test_utils::wasm_instruction_with_nonce::<Arg>();
         let task5 = Task::new(
             RunInstruction::Expanded(instruction5),
             config.clone().into(),

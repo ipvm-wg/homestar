@@ -1,0 +1,1 @@
+{"cause":null,"meta":{"fuel":18446744073709551615,"memory":4294967296,"time":100000},"prf":[],"run":{"input":{"args":[1],"func":"add_one"},"nnc":"","op":"wasm/run","rsc":"ipfs://bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4"}}

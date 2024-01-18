@@ -1,5 +1,5 @@
 //! Wrapper around [crossbeam::channel] and [flume] to provide common
-//! interfaces for sync/async (un)bounded and non-tokio "oneshot" channels.
+//! interfaces for sync/async (un)bounded and non-tokio oneshot channels.
 
 use crossbeam::channel;
 

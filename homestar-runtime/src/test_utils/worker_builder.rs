@@ -15,13 +15,14 @@ use crate::{
 };
 use fnv::FnvHashSet;
 use futures::{future::BoxFuture, FutureExt};
-use homestar_core::{
+use homestar_invocation::{
+    authority::UcanPrf,
     ipld::DagCbor,
-    test_utils::workflow as workflow_test_utils,
-    workflow::{config::Resources, instruction::RunInstruction, prf::UcanPrf, Task},
-    Workflow,
+    task::{instruction::RunInstruction, Resources},
+    Task,
 };
 use homestar_wasm::io::Arg;
+use homestar_workflow::Workflow;
 use indexmap::IndexMap;
 use libipld::Cid;
 
@@ -29,6 +30,7 @@ use libipld::Cid;
 ///
 /// [Worker]: crate::Worker
 #[cfg(feature = "ipfs")]
+#[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
 pub(crate) struct WorkerBuilder<'a> {
     /// In-memory database for testing.
     db: MemoryDb,
@@ -76,7 +78,7 @@ impl<'a> WorkerBuilder<'a> {
     pub(crate) fn new(settings: settings::Node) -> Self {
         let config = Resources::default();
         let (instruction1, instruction2, _) =
-            workflow_test_utils::related_wasm_instructions::<Arg>();
+            homestar_invocation::test_utils::related_wasm_instructions::<Arg>();
         let task1 = Task::new(
             RunInstruction::Expanded(instruction1.clone()),
             config.clone().into(),
@@ -130,6 +132,7 @@ impl<'a> WorkerBuilder<'a> {
     /// [Worker]: crate::Worker
     /// [Scheduler]: crate::TaskScheduler
     #[cfg(feature = "ipfs")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     #[allow(dead_code)]
     pub(crate) fn fetch_fn(
         &self,

@@ -5,7 +5,7 @@
 //! [wasmtime::ResourceLimiterAsync] trait.
 
 use async_trait::async_trait;
-use homestar_core::consts;
+use homestar_invocation::consts;
 use wasmtime::ResourceLimiterAsync;
 
 /// Async implementation of [wasmtime::StoreLimits].

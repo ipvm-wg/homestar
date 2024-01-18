@@ -253,6 +253,39 @@ jobs:
         if: ${{ matrix.default-features == 'all' }}
         run: cargo test --doc --workspace
 
+  run-cargo-tests:
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
+    env:
+      RUSTFLAGS: -Dwarnings  -Ctarget-feature=+crt-static
+      CARGO_INCREMENTAL: 0
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup IPFS
+        uses: ibnesayeed/setup-ipfs@master
+        with:
+          run_daemon: false
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        id: toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: test-all-stable-ubuntu-latest
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Run Tests (all-features)
+        if: ${{ matrix.default-features == 'all' }}
+        run: cargo test --workspace --all-features
+
   run-docs:
     needs: changes
     if: ${{ needs.changes.outputs.rust == 'true' }}

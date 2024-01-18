@@ -14,9 +14,10 @@ use crate::{
     },
 };
 use heck::{ToKebabCase, ToSnakeCase};
-use homestar_core::{
+use homestar_invocation::{
     bail,
-    workflow::{error::ResolveError, input::Args, Input},
+    error::ResolveError,
+    task::instruction::{Args, Input},
 };
 use std::{iter, time::Instant};
 use wasmtime::{

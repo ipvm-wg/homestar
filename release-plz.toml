@@ -4,7 +4,7 @@ publish = false
 pr_labels = ["release"]
 
 [[package]]
-name = "homestar-core"
+name = "homestar-invocation"
 publish = true
 changelog_update = true
 
@@ -15,6 +15,11 @@ changelog_update = true
 
 [[package]]
 name = "homestar-wasm"
+publish = true
+changelog_update = true
+
+[[package]]
+name = "homestar-workflow"
 publish = true
 changelog_update = true
 

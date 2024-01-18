@@ -1,0 +1,23 @@
+[node]
+
+# Peer ID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN
+[node.network.keypair_config]
+existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }
+
+[node.network.libp2p]
+listen_address = "/ip4/127.0.0.1/tcp/7445"
+
+[node.network.libp2p.mdns]
+enable = false
+
+[node.network.libp2p.rendezvous]
+enable_server = true
+
+[node.network.metrics]
+port = 3054
+
+[node.network.rpc]
+port = 9835
+
+[node.network.webserver]
+port = 8035

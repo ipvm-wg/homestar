@@ -18,7 +18,7 @@ pub(crate) use message::Message;
 
 /// [Receipt]-related topic for pub(gossip)sub.
 ///
-/// [Receipt]: homestar_core::workflow::receipt
+/// [Receipt]: homestar_invocation::Receipt
 pub(crate) const RECEIPTS_TOPIC: &str = "receipts";
 
 /// Setup [gossipsub] mesh protocol with default configuration.
@@ -34,7 +34,6 @@ pub(crate) fn new(keypair: Keypair, settings: &settings::Pubsub) -> Result<gossi
 
     let gossipsub_config = ConfigBuilder::default()
         .heartbeat_interval(settings.heartbeat)
-        .idle_timeout(settings.idle_timeout)
         // This sets the kind of message validation. The default is Strict (enforce message signing).
         .validation_mode(ValidationMode::Strict)
         .max_transmit_size(settings.max_transmit_size)

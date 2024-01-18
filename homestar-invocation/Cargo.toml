@@ -1,0 +1,60 @@
+[package]
+name = "homestar-invocation"
+version = { workspace = true }
+description = "Homestar core library for working with tasks, instructions, etc"
+keywords = ["ipld", "ipvm", "ucan", "ucan-invocation"]
+categories = { workspace = true }
+license = { workspace = true }
+readme = "README.md"
+edition = { workspace = true }
+rust-version = { workspace = true }
+documentation = "https://docs.rs/homestar-invocation"
+repository = { workspace = true }
+authors = { workspace = true }
+
+[lib]
+path = "src/lib.rs"
+bench = false
+doctest = true
+
+[dependencies]
+# return to version.workspace = true after the following issue is fixed:
+# https://github.com/DevinR528/cargo-sort/issues/47
+anyhow = { workspace = true }
+async-recursion = { version = "1.0", default-features = false }
+byte-unit = { workspace = true }
+diesel = { version = "2.1", default-features = false, features = [
+  "sqlite",
+], optional = true }
+enum-as-inner = { workspace = true }
+enum-assoc = { workspace = true }
+futures = { workspace = true }
+generic-array = { version = "1.0", default-features = false, features = [
+  "serde",
+] }
+libipld = { workspace = true }
+libsqlite3-sys = { workspace = true, optional = true }
+rand = { workspace = true }
+serde = { workspace = true }
+signature = "2.2"
+thiserror = { workspace = true }
+tracing = { workspace = true }
+ucan = { workspace = true }
+url = { version = "2.3", default-features = false, features = ["serde"] }
+uuid = { version = "1.5", default-features = false, features = [
+  "v4",
+  "fast-rng",
+] }
+xid = { version = "1.0", default-features = false }
+
+[dev-dependencies]
+serde_json = { version = "1.0", default-features = false }
+
+[features]
+diesel = ["dep:diesel", "dep:libsqlite3-sys"]
+test-utils = []
+
+[package.metadata.docs.rs]
+all-features = true
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]
