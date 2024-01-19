@@ -69,10 +69,7 @@ where
         Ability::from("wasm/run"),
         Input::Ipld(Ipld::Map(BTreeMap::from([
             ("func".into(), Ipld::String("add_one".to_string())),
-            (
-                "args".into(),
-                Ipld::List(vec![Ipld::try_from(promise.clone()).unwrap()]),
-            ),
+            ("args".into(), Ipld::List(vec![promise.clone().into()])),
         ]))),
     );
 
@@ -89,8 +86,8 @@ where
             (
                 "args".into(),
                 Ipld::List(vec![
-                    Ipld::try_from(another_promise).unwrap(),
-                    Ipld::try_from(promise).unwrap(),
+                    another_promise.into(),
+                    promise.into(),
                     Ipld::Integer(42),
                 ]),
             ),
