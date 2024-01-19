@@ -3,14 +3,13 @@
 use fxhash::FxBuildHasher;
 use indexmap::IndexMap;
 use libipld::Cid;
-use serde::{Deserialize, Serialize};
 
 /// Generic link, cid => T [IndexMap] for storing
 /// invoked, raw values in-memory and using them to
 /// resolve other steps within a runtime's workflow.
 ///
 /// [IndexMap]: IndexMap
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LinkMap<T>(IndexMap<Cid, T, FxBuildHasher>);
 
 impl<T> Default for LinkMap<T> {
