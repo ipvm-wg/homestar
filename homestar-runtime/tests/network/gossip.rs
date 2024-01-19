@@ -5,7 +5,6 @@ use crate::{
         ChildGuard, FileGuard, TestConfig, TimeoutFutureExt, BIN_NAME,
     },
 };
-use ::function_name::named;
 use anyhow::Result;
 use homestar_runtime::{db::Database, Db, Settings};
 use itertools::Itertools;
@@ -23,13 +22,13 @@ use std::{
     str::FromStr,
     time::Duration,
 };
+use uuid::Uuid;
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
 const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
-#[named]
 fn test_libp2p_receipt_gossip_integration() -> Result<()> {
     const DB1: &str = "test_libp2p_receipt_gossip_integration1.db";
     const DB2: &str = "_test_libp2p_receipt_gossip_integration2.db";
@@ -37,15 +36,13 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
     let _db_guard1 = FileGuard::new(DB1);
     let _db_guard2 = FileGuard::new(DB2);
 
-    let toml = r#"
+    let webserver_port = 7990;
+    let toml = format!(
+        r#"
         [node]
 
-        [node.monitoring]
-        process_collector_interval = 500
-        console_subscriber_port = 5550
-
         [node.network.keypair_config]
-        existing = { key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }}
 
         [node.network.libp2p]
         listen_address = "/ip4/127.0.0.1/tcp/7020"
@@ -66,8 +63,9 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
         port = 9790
 
         [node.network.webserver]
-        port = 7990
-    "#;
+        port = {webserver_port}
+    "#
+    );
 
     let test_config = make_config!(toml);
 
@@ -78,7 +76,7 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg(&test_config.name)
+        .arg(&test_config.get_name())
         .arg("--db")
         .arg(DB1)
         .stdout(Stdio::piped())
@@ -110,10 +108,6 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
         let toml_val_2 = r#"
             [node]
 
-            [node.monitoring]
-            process_collector_interval = 500
-            console_subscriber_port = 5551
-
             [node.network.keypair_config]
             existing = { key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }
 
@@ -140,7 +134,6 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
         "#;
 
         let test_config_2 = make_config!("gossip_2", toml_val_2);
-        let _ = test_config_2.create_fixture();
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
             .env(
@@ -149,7 +142,7 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
             )
             .arg("start")
             .arg("-c")
-            .arg(&test_config_2.name)
+            .arg(&test_config_2.get_name())
             .arg("--db")
             .arg(DB2)
             .stdout(Stdio::piped())
