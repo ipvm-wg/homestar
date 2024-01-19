@@ -1,6 +1,4 @@
 [workspace]
-changelog_update = false
-publish = false
 pr_labels = ["release"]
 
 [[package]]
@@ -22,18 +20,3 @@ changelog_update = true
 name = "homestar-workflow"
 publish = true
 changelog_update = true
-
-[[package]]
-name = "homestar-functions-add"
-publish = false
-changelog_update = false
-
-[[package]]
-name = "homestar-functions-test"
-publish = false
-changelog_update = false
-
-[[package]]
-name = "websocket-relay"
-publish = false
-changelog_update = false
