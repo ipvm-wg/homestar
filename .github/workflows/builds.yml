@@ -23,6 +23,7 @@ concurrency:
 
 jobs:
   binary-builds:
+    if: startsWith(github.event.release.name, 'homestar-runtime')
     strategy:
       fail-fast: false
       matrix:
@@ -100,6 +101,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   npm-publish:
+    if: startsWith(github.event.release.name, 'homestar-runtime')
     needs: binary-builds
     runs-on: ubuntu-latest
     strategy:
