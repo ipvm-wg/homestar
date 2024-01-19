@@ -34,6 +34,6 @@ publish = false
 changelog_update = false
 
 [[package]]
-name = "example-websocket-relay"
+name = "websocket-relay"
 publish = false
 changelog_update = false

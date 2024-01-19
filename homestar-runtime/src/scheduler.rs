@@ -440,4 +440,55 @@ mod test {
         assert!(ctx.run.is_empty());
         assert_eq!(ctx.resume_step, None);
     }
+
+    #[test]
+    fn duplicate_task_no_nonce() {
+        let config = Resources::default();
+        let (instruction1, instruction2, _) = test_utils::related_wasm_instructions::<Arg>();
+
+        let task1 = Task::new(
+            RunInstruction::Expanded(instruction1.clone()),
+            config.clone().into(),
+            UcanPrf::default(),
+        );
+
+        let task2 = Task::new(
+            RunInstruction::Expanded(instruction2.clone()),
+            config.into(),
+            UcanPrf::default(),
+        );
+
+        let workflow = Workflow::new(vec![task1.clone(), task2.clone(), task1.clone()]);
+        let builder = workflow::Builder::new(workflow);
+        let graph = builder.graph();
+        assert!(graph.is_err());
+        assert_eq!(
+            graph.unwrap_err().to_string(),
+            "workflow cannot contain duplicate tasks: use a nonce (nnc field) to ensure uniqueness"
+        );
+    }
+
+    #[test]
+    fn duplicate_task_with_nonce() {
+        let config = Resources::default();
+        let (instruction1, _) = test_utils::wasm_instruction_with_nonce::<Arg>();
+        let (instruction2, _) = test_utils::wasm_instruction_with_nonce::<Arg>();
+
+        let task1 = Task::new(
+            RunInstruction::Expanded(instruction1.clone()),
+            config.clone().into(),
+            UcanPrf::default(),
+        );
+
+        let task2 = Task::new(
+            RunInstruction::Expanded(instruction2.clone()),
+            config.into(),
+            UcanPrf::default(),
+        );
+
+        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+        let builder = workflow::Builder::new(workflow);
+        let graph = builder.graph();
+        assert!(graph.is_ok());
+    }
 }

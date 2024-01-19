@@ -32,8 +32,11 @@ use std::{collections::BTreeMap, path::Path};
 use tracing::debug;
 use url::Url;
 
+pub(crate) mod error;
 mod info;
 pub mod settings;
+
+pub(crate) use error::Error;
 pub use info::WORKFLOW_TAG;
 pub(crate) use info::{Info, Stored, StoredReceipt};
 #[allow(unused_imports)]
@@ -138,14 +141,18 @@ impl<'a> Builder<'a> {
     }
 
     /// Convert the [Workflow] into an batch-separated [ExecutionGraph].
-    pub(crate) fn graph(self) -> anyhow::Result<ExecutionGraph<'a>> {
+    pub(crate) fn graph(self) -> Result<ExecutionGraph<'a>, Error> {
         let aot = self.aot()?;
+        if let Err(_e) = aot.dag.detect_duplicates() {
+            homestar_invocation::bail!(Error::DuplicateTask)
+        }
+
         match aot.dag.build_schedule() {
             Ok(schedule) => Ok(ExecutionGraph {
                 schedule: schedule.batches,
                 indexed_resources: aot.indexed_resources,
             }),
-            Err(e) => bail!("schedule could not be built from given workflow: {e}"),
+            Err(e) => homestar_invocation::bail!(Error::InvalidSchedule(e.to_string())),
         }
     }
 
