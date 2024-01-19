@@ -12,7 +12,6 @@ use predicates::prelude::*;
 #[cfg(not(windows))]
 use retry::delay::Fixed;
 use retry::{delay::Exponential, retry};
-use serde::Serialize;
 use std::{
     env, fs,
     fs::File,
@@ -295,20 +294,34 @@ pub(crate) trait TimeoutFutureExt<T>: Future<Output = T> + Sized {
 
 impl<T, U> TimeoutFutureExt<T> for U where U: Future<Output = T> + Sized {}
 
-#[derive(Serialize)]
 pub(crate) struct TestConfig {
-    pub name: String,
-    pub toml_config: toml::Table,
+    name: String,
+    toml_config: toml::Table,
 }
 
+#[allow(dead_code)]
 impl TestConfig {
-    pub fn create_fixture(&self) -> &Self {
+    pub(crate) fn create_fixture(&self) -> &Self {
         let file_path = env::current_dir().unwrap();
         let mut write_file = File::create(file_path.join(&self.name)).unwrap();
         write_file
             .write_all(toml::to_string(&self.toml_config).unwrap().as_bytes())
             .unwrap();
         self
+    }
+
+    pub(crate) fn get_name(&self) -> &String {
+        &self.name
+    }
+    pub(crate) fn get_config(&self) -> &toml::Table {
+        &self.toml_config
+    }
+
+    pub(crate) fn new(name: String, toml: toml::Table) -> Self {
+        TestConfig {
+            name: name.to_string(),
+            toml_config: toml,
+        }
     }
 }
 
@@ -322,22 +335,19 @@ impl Drop for TestConfig {
 macro_rules! make_config {
     // For tests where all you want to do is write toml.
     ($toml:expr) => {{
-        let name = concat!("tests/fixtures/", function_name!(), ".toml");
+        let uuid = Uuid::new_v4().to_string();
+        let name = format!("tests/fixtures/{}.toml", uuid);
         let toml = $toml.parse::<toml::Table>().unwrap();
-        let test_config = TestConfig {
-            name: name.to_string(),
-            toml_config: toml,
-        };
+        let test_config = TestConfig::new(name.to_string(), toml);
         test_config.create_fixture();
         test_config
     }};
-    // For some finer control over the config
+    // For some finer control over the config.
     ($name:expr, $toml:expr) => {{
-        let name = concat!("tests/fixtures/", function_name!(), $name, ".toml");
+        let name = format!("tests/fixtures/{}.toml", $name);
         let toml = $toml.parse::<toml::Table>().unwrap();
-        TestConfig {
-            name: name.to_string(),
-            toml_config: toml,
-        }
+        let test_config = TestConfig::new(name.to_string(), toml);
+        test_config.create_fixture();
+        test_config
     }};
 }
