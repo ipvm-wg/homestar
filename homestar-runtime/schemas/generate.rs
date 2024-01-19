@@ -24,14 +24,38 @@ fn main() {
         .unwrap()
         .write_all(&serde_json::to_vec_pretty(&network_schema).unwrap());
 
-    let api_doc = generate_api_doc(network_schema);
+    let api_doc = generate_api_doc(health_schema, network_schema);
     let _ = fs::File::create("schemas/docs/api.json")
         .unwrap()
         .write_all(&serde_json::to_vec_pretty(&api_doc).unwrap());
 }
 
 // Spec: https://github.com/open-rpc/spec/blob/1.2.6/spec.md
-fn generate_api_doc(network_schema: RootSchema) -> OpenrpcDocument {
+fn generate_api_doc(health_schema: RootSchema, network_schema: RootSchema) -> OpenrpcDocument {
+    let health: MethodObject = MethodObject {
+        name: "health".to_string(),
+        description: None,
+        summary: None,
+        servers: None,
+        tags: None,
+        param_structure: Some(MethodObjectParamStructure::ByName),
+        params: vec![],
+        result: ContentDescriptorOrReference::ContentDescriptorObject(ContentDescriptorObject {
+            name: "health".to_string(),
+            summary: None,
+            description: None,
+            required: Some(true),
+            schema: JSONSchema::JsonSchemaObject(health_schema),
+            deprecated: Some(false),
+        }),
+        external_docs: None,
+        errors: None,
+        links: None,
+        examples: None,
+        deprecated: Some(false),
+        x_messages: None,
+    };
+
     let network: MethodObject = MethodObject {
         name: "network".to_string(),
         description: None,
@@ -85,7 +109,7 @@ fn generate_api_doc(network_schema: RootSchema) -> OpenrpcDocument {
             url: "https://docs.everywhere.computer/homestar/what-is-homestar/".to_string(),
         }),
         servers: None,
-        methods: vec![network],
+        methods: vec![health, network],
         components: None,
     }
 }
