@@ -7,6 +7,7 @@ deny.toml
 diesel.toml
 codecov.yml
 LICENSE
+.gitkeep
 *.nix
 *.md
 .envrc
