@@ -338,10 +338,10 @@ impl TestConfig {
         self
     }
 
-    pub(crate) fn get_name(&self) -> &String {
+    pub(crate) fn name(&self) -> &String {
         &self.name
     }
-    pub(crate) fn get_config(&self) -> &toml::Table {
+    pub(crate) fn config(&self) -> &toml::Table {
         &self.toml_config
     }
 
