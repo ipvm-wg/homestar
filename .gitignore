@@ -19,8 +19,7 @@ private
 *.dot
 .history
 .DS_Store
-homestar-functions/**/out
-homestar-functions/out
+homestar-functions/**/out/*.png
 homestar-wasm/out
 homestar-invocation/test_*
 homestar-runtime/fixtures/test_*
