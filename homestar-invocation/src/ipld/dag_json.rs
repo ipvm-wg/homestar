@@ -1,6 +1,4 @@
-//! Traits related to [Ipld] and [DagJson] encoding/decoding.
-//!
-//! [DagJson]: DagJsonCodec
+//! Traits related to Ipld and DagJson encoding/decoding.
 
 use crate::{Error, Unit};
 use libipld::{codec::Decode, json::DagJsonCodec, prelude::Codec, Ipld};

@@ -44,7 +44,7 @@ where
     }
 }
 
-/// Subscription type: either directed via a [Cid] or an event subscription string.
+/// Subscription type: either directed via a Cid or an event subscription string.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) enum SubscriptionTyp {

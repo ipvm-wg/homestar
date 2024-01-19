@@ -74,7 +74,7 @@ where
         &self.run
     }
 
-    /// Get [Task] metadata in [Ipld] form.
+    /// Get [Task] metadata in Ipld form.
     pub fn meta(&self) -> &Ipld {
         &self.meta
     }
@@ -84,7 +84,7 @@ where
         self.run
     }
 
-    /// Return the [Cid] of the contained [Instruction].
+    /// Return the Cid of the contained [Instruction].
     ///
     /// [Instruction]: Instruction
     pub fn instruction_cid(&self) -> std::result::Result<Cid, Error<Unit>> {

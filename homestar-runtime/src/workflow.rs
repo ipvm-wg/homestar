@@ -48,16 +48,16 @@ type Dag<'a> = dagga::Dag<Vertex<'a>, usize>;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Builder<'a>(Workflow<'a, Arg>);
 
-/// A resource can refer to a [URI] or [Cid]
+/// A resource can refer to a [URI] or Cid
 /// being accessed.
 ///
 /// [URI]: <https://en.wikipedia.org/wiki/Uniform_Resource_Identifier>
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub(crate) enum Resource {
-    /// Resource fetched by [Url].
+    /// Resource fetched by Url.
     Url(Url),
-    /// Resource fetched by [Cid].
+    /// Resource fetched by Cid.
     Cid(Cid),
 }
 
@@ -247,7 +247,7 @@ impl<'a> Builder<'a> {
     }
 }
 
-/// A container for [IndexMap]s from [Cid] => resource.
+/// A container for [IndexMap]s from Cid => resource.
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, AsExpression, FromSqlRow)]
 #[diesel(sql_type = Binary)]
 pub struct IndexedResources(IndexMap<Cid, Vec<Resource>>);
@@ -284,7 +284,7 @@ impl IndexedResources {
         self.0.is_empty()
     }
 
-    /// Get a [Resource] by [Instruction] [Cid].
+    /// Get a [Resource] by [Instruction] Cid.
     ///
     /// [Instruction]: homestar_invocation::task::Instruction
     #[allow(dead_code)]

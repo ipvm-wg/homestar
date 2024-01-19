@@ -165,7 +165,7 @@ impl<'a> WorkerBuilder<'a> {
         fetch_fn
     }
 
-    /// Get the [Cid] of the workflow from the builder state.
+    /// Get the Cid of the workflow from the builder state.
     #[allow(dead_code)]
     pub(crate) fn workflow_cid(&self) -> Cid {
         self.workflow.clone().to_cid().unwrap()

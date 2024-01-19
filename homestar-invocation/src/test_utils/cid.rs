@@ -1,4 +1,4 @@
-//! CID test and generation utilities.
+//! Cid test and generation utilities.
 
 use libipld::{Cid, Multihash};
 use rand::RngCore;
@@ -9,7 +9,7 @@ fn get_random_bytes<const N: usize>(rng: &mut impl RngCore) -> [u8; N] {
     bytes
 }
 
-/// Generate a random [Cid] with a `0x55` prefix.
+/// Generate a random Cid with a `0x55` prefix.
 pub fn generate_cid(rng: &mut impl RngCore) -> Cid {
     let bytes = {
         let mut tmp = [0u8; 10];

@@ -1,10 +1,10 @@
-//! LinkMap type for storing generic values keyed by [Cid].
+//! LinkMap type for storing generic values keyed by Cid.
 
 use fxhash::FxBuildHasher;
 use indexmap::IndexMap;
 use libipld::Cid;
 
-/// Generic link, cid => T [IndexMap] for storing
+/// Generic link, Cid => T [IndexMap] for storing
 /// invoked, raw values in-memory and using them to
 /// resolve other steps within a runtime's workflow.
 ///

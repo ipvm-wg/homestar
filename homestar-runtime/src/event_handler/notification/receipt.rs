@@ -8,13 +8,13 @@ use libipld::{ipld, Cid, Ipld};
 pub(crate) struct ReceiptNotification(Ipld);
 
 impl ReceiptNotification {
-    /// Obtain a reference to the inner [Ipld] value.
+    /// Obtain a reference to the inner Ipld value.
     #[allow(dead_code)]
     pub(crate) fn inner(&self) -> &Ipld {
         &self.0
     }
 
-    /// Obtain ownership of the inner [Ipld] value.
+    /// Obtain ownership of the inner Ipld value.
     #[allow(dead_code)]
     pub(crate) fn into_inner(self) -> Ipld {
         self.0.to_owned()

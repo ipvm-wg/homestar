@@ -193,7 +193,7 @@ pub trait Database: Send + Sync + Clone {
             .load(conn)
     }
 
-    /// Find receipt for a given [Instruction] [Cid], which is indexed.
+    /// Find receipt for a given [Instruction] Cid, which is indexed.
     ///
     /// [Instruction]: homestar_invocation::task::Instruction
     fn find_instruction_by_cid(
@@ -205,7 +205,7 @@ pub trait Database: Send + Sync + Clone {
             .first(conn)
     }
 
-    /// Find a receipt for a given [Cid].
+    /// Find a receipt for a given Cid.
     fn find_receipt_by_cid(
         cid: Cid,
         conn: &mut Connection,
@@ -247,7 +247,7 @@ pub trait Database: Send + Sync + Clone {
         }
     }
 
-    /// Store workflow [Cid] and [Receipt] [Cid] in the database for inner join.
+    /// Store workflow Cid and [Receipt] Cid in the database for inner join.
     fn store_workflow_receipt(
         workflow_cid: Cid,
         receipt_cid: Cid,
@@ -265,7 +265,7 @@ pub trait Database: Send + Sync + Clone {
             .optional()
     }
 
-    /// Store series of receipts for a workflow [Cid] in the
+    /// Store series of receipts for a workflow Cid in the
     /// [schema::workflows_receipts] table.
     ///
     /// NOTE: We cannot do batch inserts with `on_conflict`, so we add
@@ -285,7 +285,7 @@ pub trait Database: Send + Sync + Clone {
         })
     }
 
-    /// Select workflow given a [Cid] to the workflow.
+    /// Select workflow given a Cid to the workflow.
     fn select_workflow(
         cid: Cid,
         conn: &mut Connection,

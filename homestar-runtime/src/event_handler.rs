@@ -47,7 +47,7 @@ where
     async fn handle_event(self, event_handler: &mut EventHandler<DB>, ipfs: IpfsCli);
 }
 
-/// Event loop handler for [libp2p] network events and commands.
+/// Event loop handler for libp2p network events and commands.
 #[cfg(feature = "websocket-notify")]
 #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
 #[allow(missing_debug_implementations, dead_code)]
@@ -96,7 +96,7 @@ pub(crate) struct EventHandler<DB: Database> {
     poll_cache_interval: Duration,
 }
 
-/// Event loop handler for [libp2p] network events and commands.
+/// Event loop handler for libp2p network events and commands.
 #[cfg(not(feature = "websocket-notify"))]
 #[allow(missing_debug_implementations, dead_code)]
 pub(crate) struct EventHandler<DB: Database> {

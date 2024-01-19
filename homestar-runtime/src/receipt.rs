@@ -39,7 +39,7 @@ const ISSUER_KEY: &str = "iss";
 const METADATA_KEY: &str = "meta";
 const PROOF_KEY: &str = "prf";
 
-/// Receipt for [Invocation], including it's own [Cid] and a [Cid] for an [Instruction].
+/// Receipt for [Invocation], including it's own Cid and a Cid for an [Instruction].
 ///
 /// See [homestar_invocation::Receipt] for more info on some internal
 /// fields.
@@ -102,9 +102,7 @@ impl Receipt {
     }
 
     /// Capsule-wrapper for [InvocationReceipt] to to be shared over libp2p as
-    /// [DagCbor] encoded bytes.
-    ///
-    /// [DagCbor]: DagCborCodec
+    /// DagCbor encoded bytes.
     pub fn invocation_capsule(
         invocation_receipt: &InvocationReceipt<Ipld>,
     ) -> anyhow::Result<Vec<u8>> {
@@ -122,12 +120,12 @@ impl Receipt {
         DagCborCodec.encode(&capsule)
     }
 
-    /// Get [Ipld] metadata on a [Receipt].
+    /// Get Ipld metadata on a [Receipt].
     pub fn meta(&self) -> &Ipld {
         self.meta.inner()
     }
 
-    /// Set [Ipld] metadata on a [Receipt].
+    /// Set Ipld metadata on a [Receipt].
     pub fn set_meta(&mut self, meta: Ipld) {
         self.meta = LocalIpld(meta)
     }
@@ -142,29 +140,29 @@ impl Receipt {
         self.cid().to_string()
     }
 
-    /// Get inner [Cid] as bytes.
+    /// Get inner Cid as bytes.
     pub fn cid_as_bytes(&self) -> Vec<u8> {
         self.cid().to_bytes()
     }
 
-    /// Return the Pointer-wrapped [Cid] of the [Receipt]'s associated [Instruction].
+    /// Return the Pointer-wrapped Cid of the [Receipt]'s associated [Instruction].
     ///
     /// [Instruction]: homestar_invocation::task::Instruction
     pub fn instruction(&self) -> &Pointer {
         &self.instruction
     }
 
-    /// Get instruction [Pointer] inner [Cid] as bytes.
+    /// Get instruction [Pointer] inner Cid as bytes.
     pub fn instruction_cid_as_bytes(&self) -> Vec<u8> {
         self.instruction.cid().to_bytes()
     }
 
-    /// Get [Cid] in [Receipt] as a [String].
+    /// Get Cid in [Receipt] as a [String].
     pub fn ran(&self) -> String {
         self.ran.to_string()
     }
 
-    /// Get executed result/value in [Receipt] as [Ipld].
+    /// Get executed result/value in [Receipt] as Ipld.
     pub fn output(&self) -> &task::Result<Ipld> {
         &self.out
     }
@@ -309,18 +307,18 @@ impl TryFrom<Ipld> for Receipt {
 
 impl DagJson for Receipt where Ipld: From<Receipt> {}
 
-/// Wrapper-type for [Ipld] in order integrate to/from for local storage/db.
+/// Wrapper-type for Ipld in order integrate to/from for local storage/db.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, AsExpression, FromSqlRow)]
 #[diesel(sql_type = Binary)]
 pub struct LocalIpld(Ipld);
 
 impl LocalIpld {
-    /// Convert into owned, inner [Ipld].
+    /// Convert into owned, inner Ipld.
     pub fn into_inner(self) -> Ipld {
         self.0
     }
 
-    /// Convert into referenced, inner [Ipld].
+    /// Convert into referenced, inner Ipld.
     pub fn inner(&self) -> &Ipld {
         &self.0
     }

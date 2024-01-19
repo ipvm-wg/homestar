@@ -1,4 +1,4 @@
-//! [libp2p] configuration.
+//! libp2p configuration.
 
 use http::Uri;
 use serde::{Deserialize, Serialize};

@@ -7,15 +7,10 @@ use serde::{Deserialize, Serialize};
 /// Error type for messages related to [libp2p::request_response].
 #[derive(thiserror::Error, Debug, Serialize, Deserialize)]
 pub(crate) enum RequestResponseError {
-    /// Return a timeout error when attempting to retrieve data keyed by [Cid].
-    ///
-    /// [Cid]: libipld::Cid
+    /// Return a timeout error when attempting to retrieve data keyed by Cid.
     #[error("failed to retrieve data keyed by cid {}, tagged with {:?}, within timeout", .0.cid, .0.capsule_tag.tag())]
     Timeout(RequestResponseKey),
-    /// Error when attempting to wrap a [Cid] into a [Ipld] capsule.
-    ///
-    /// [Cid]: libipld::Cid
-    /// [Ipld]: libipld::Ipld
+    /// Error when attempting to wrap a Cid into a Ipld capsule.
     #[error("failed to wrap {} into a Ipld capsule, tagged with {:?}", .0.cid, .0.capsule_tag.tag())]
     InvalidCapsule(RequestResponseKey),
     /// Unsupported message request based on the capsule tag.
@@ -24,7 +19,7 @@ pub(crate) enum RequestResponseError {
 }
 
 impl RequestResponseError {
-    /// Encode the error into a byte vector via [CBOR].
+    /// Encode the error into a byte vector via CBOR.
     ///
     /// [CBOR]: serde_ipld_dagcbor
     pub(crate) fn encode(&self) -> Result<Vec<u8>> {

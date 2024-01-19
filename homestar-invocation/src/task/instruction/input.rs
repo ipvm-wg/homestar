@@ -57,7 +57,7 @@ where
         })
     }
 
-    /// Return *only* [Ipld::Link] [Cid]s.
+    /// Return *only* `Ipld::Link` Cids.
     pub fn links(&self) -> impl Iterator<Item = Cid> + '_ {
         self.0.iter().filter_map(|input| {
             if let Input::Ipld(Ipld::Link(link)) = input {
@@ -71,7 +71,7 @@ where
     /// Resolve [awaited promises] of [inputs] into task-specific [Input::Arg]'s,
     /// given a successful lookup function; otherwise, return [Input::Deferred]
     /// for unresolved promises, or just return [Input::Ipld],
-    /// [resolving Ipld links] if the lookup function expected [Ipld] input data.
+    /// [resolving Ipld links] if the lookup function expected Ipld input data.
     ///
     /// [awaited promises]: Await
     /// [inputs]: Input
@@ -124,15 +124,14 @@ where
     }
 }
 
-/// Contains parameters expected by the [URI]/[Ability] pair.
+/// Contains parameters expected by the URI/[Ability] pair.
 ///
 /// Left to the executor to define the shape of this data, per job.
 ///
-/// [URI]: [url::Url]
 /// [Ability]: super::Ability
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Input<T> {
-    /// [Ipld] Literals.
+    /// Ipld Literals.
     Ipld(Ipld),
     /// Promise-[links] awaiting the output of another [Instruction]'s
     /// invocation, directly.
@@ -140,7 +139,7 @@ pub enum Input<T> {
     /// [links]: Pointer
     /// [Instruction]: super::Instruction
     Deferred(Await),
-    /// General argument, wrapping an [task::Result] over a task-specific
+    /// General argument, wrapping a [task::Result] over a task-specific
     /// implementation's own input type(s).
     Arg(task::Result<T>),
 }
@@ -150,7 +149,7 @@ impl<T> Input<T> {
     /// [Input::Arg], given a successful lookup function; otherwise, return
     /// [Input::Deferred] for an unresolved promise, or just return
     /// [Input::Ipld], [resolving Ipld links] if the lookup function expected
-    /// [Ipld] input data.
+    /// Ipld input data.
     ///
     /// [awaited promises]: Await
     /// [inputs]: Input
@@ -248,7 +247,7 @@ where
     future::join_all(args).await.into_iter().collect()
 }
 
-/// Resolve [awaited promises] for *only* [Ipld] data, given a lookup function.
+/// Resolve [awaited promises] for *only* Ipld data, given a lookup function.
 ///
 /// [awaited promises]: Await
 #[async_recursion]

@@ -1,6 +1,4 @@
-//! Traits related to [Ipld] and [DagCbor] encoding/decoding.
-//!
-//! [DagCbor]: DagCborCodec
+//! Traits related to Ipld and DagCbor encoding/decoding.
 
 use crate::{consts::DAG_CBOR, Error, Unit};
 use libipld::{
@@ -10,15 +8,13 @@ use libipld::{
     Cid, Ipld,
 };
 
-/// Trait for [DagCbor]-related encode/decode.
-///
-/// [DagCbor]: DagCborCodec
+/// Trait for DagCbor-related encode/decode.
 pub trait DagCbor
 where
     Self: Sized,
     Ipld: From<Self>,
 {
-    /// Performs the conversion from an owned `Self` to [Cid].
+    /// Performs the conversion from an owned `Self` to Cid.
     fn to_cid(self) -> Result<Cid, Error<Unit>> {
         let ipld: Ipld = self.into();
         let bytes = DagCborCodec.encode(&ipld)?;
@@ -27,15 +23,13 @@ where
     }
 }
 
-/// Trait for [DagCbor]-related encode/decode for references.
-///
-/// [DagCbor]: DagCborCodec
+/// Trait for DagCbor-related encode/decode for references.
 pub trait DagCborRef
 where
     Self: Sized,
     for<'a> Ipld: From<&'a Self>,
 {
-    /// Performs the conversion from a referenced `Self` to [Cid].
+    /// Performs the conversion from a referenced `Self` to Cid.
     fn to_cid(&self) -> Result<Cid, Error<Unit>> {
         let ipld: Ipld = self.into();
         let bytes = DagCborCodec.encode(&ipld)?;

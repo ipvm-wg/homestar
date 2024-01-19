@@ -9,7 +9,7 @@ readme = "README.md"
 edition = { workspace = true }
 rust-version = { workspace = true }
 documentation = "https://docs.rs/homestar-runtime"
-repository = { workspace = true }
+repository = "https://github.com/ipvm-wg/homestar/homestar-runtime"
 authors = { workspace = true }
 autotests = false
 
@@ -185,9 +185,6 @@ daemonize = "0.5"
 [dev-dependencies]
 assert_cmd = "2.0"
 criterion = "0.5"
-homestar-invocation = { version = "0.1", path = "../homestar-invocation", features = [
-  "test-utils",
-] }
 homestar_runtime_proc_macro = { path = "src/test_utils/proc_macro", package = "homestar-runtime-tests-proc-macro" }
 jsonrpsee = { version = "0.21", default-features = false, features = [
   "client",
@@ -214,7 +211,7 @@ console = ["dep:console-subscriber"]
 ipfs = ["dep:ipfs-api", "dep:ipfs-api-backend-hyper"]
 monitoring = ["dep:sysinfo"]
 profile = ["dep:puffin", "dep:puffin_egui"]
-test-utils = ["dep:proptest"]
+test-utils = ["dep:proptest", "homestar-invocation/test-utils"]
 wasmtime-default = ["homestar-wasm/default"]
 websocket-notify = []
 

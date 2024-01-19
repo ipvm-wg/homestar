@@ -1,4 +1,4 @@
-//! [Invocation] configuration, typically expressed as metadata for
+//! [Invocation] configuration, typically expressed as metadata for tasks.
 //!
 //! [Invocation]: crate::Invocation
 

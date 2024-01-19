@@ -42,7 +42,7 @@ const RESOURCES_KEY: &str = "resources";
 #[derive(Debug, Clone, PartialEq, Queryable, Insertable, Identifiable, Selectable)]
 #[diesel(table_name = crate::db::schema::workflows, primary_key(cid))]
 pub struct Stored {
-    /// Wrapped-[Cid] of [Workflow].
+    /// Wrapped-Cid of [Workflow].
     ///
     /// [Workflow]: homestar_workflow::Workflow
     pub(crate) cid: Pointer,
@@ -54,7 +54,7 @@ pub struct Stored {
     ///
     /// [Workflow]: homestar_workflow::Workflow
     pub(crate) num_tasks: i32,
-    /// Map of [Instruction] [Cid]s to resources.
+    /// Map of [Instruction] Cids to resources.
     ///
     /// [Instruction]: homestar_invocation::task::Instruction
     pub(crate) resources: IndexedResources,
@@ -192,7 +192,7 @@ impl Info {
         }
     }
 
-    /// Create a default workflow [Info] given a [Cid] and number of tasks.
+    /// Create a default workflow [Info] given a Cid and number of tasks.
     pub fn default(stored: Stored) -> Self {
         let cid = stored.cid.cid();
         Self {
@@ -205,14 +205,14 @@ impl Info {
         }
     }
 
-    /// Get unique identifier, [Cid], of [Workflow].
+    /// Get unique identifier, Cid, of [Workflow].
     ///
     /// [Workflow]: homestar_workflow::Workflow
     pub(crate) fn cid(&self) -> Cid {
         self.cid
     }
 
-    /// Get the [Cid] of a [Workflow] as a [String].
+    /// Get the Cid of a [Workflow] as a [String].
     ///
     /// [Workflow]: homestar_workflow::Workflow
     #[allow(dead_code)]
@@ -220,14 +220,14 @@ impl Info {
         self.cid.to_string()
     }
 
-    /// Get the [Cid] of a [Workflow] as bytes.
+    /// Get the Cid of a [Workflow] as bytes.
     ///
     /// [Workflow]: homestar_workflow::Workflow
     pub(crate) fn cid_as_bytes(&self) -> Vec<u8> {
         self.cid().to_bytes()
     }
 
-    /// Set map of [Instruction] [Cid]s to resources.
+    /// Set map of [Instruction] Cids to resources.
     ///
     /// [Instruction]: homestar_invocation::task::Instruction
     #[allow(dead_code)]
@@ -236,7 +236,7 @@ impl Info {
     }
 
     /// Set the progress / step of the [Workflow] completed, which
-    /// may not be the same as the `progress` vector of [Cid]s.
+    /// may not be the same as the `progress` vector of Cids.
     ///
     /// [Workflow]: homestar_workflow::Workflow
     #[allow(dead_code)]
@@ -251,9 +251,7 @@ impl Info {
     }
 
     /// Capsule-wrapper for [Info] to to be shared over libp2p as
-    /// [DagCbor] encoded bytes.
-    ///
-    /// [DagCbor]: DagCborCodec
+    /// DagCbor encoded bytes.
     pub(crate) fn capsule(&self) -> anyhow::Result<Vec<u8>> {
         let info_ipld = Ipld::from(self.to_owned());
         let capsule = if let Ipld::Map(map) = info_ipld {
@@ -268,7 +266,7 @@ impl Info {
         DagCborCodec.encode(&capsule)
     }
 
-    /// Retrieve available [Info] from the database or [libp2p] given a
+    /// Retrieve available [Info] from the database or libp2p given a
     /// [Workflow], or return a default/new version of [Info] if none is found.
     ///
     /// [Workflow]: homestar_workflow::Workflow
@@ -335,8 +333,8 @@ impl Info {
         }
     }
 
-    /// Retrieve available [Info] from the database or [libp2p] given a
-    /// workflow [Cid].
+    /// Retrieve available [Info] from the database or libp2p given a
+    /// workflow Cid.
     pub(crate) async fn retrieve<'a>(
         workflow_cid: Cid,
         #[allow(unused)] event_sender: Arc<AsyncChannelSender<Event>>,

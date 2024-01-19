@@ -148,12 +148,11 @@ impl<T> Env<T> {
         self.instance = Some(instance);
     }
 
-    /// Execute Wasm function dynamically given a list ([Args]) of [Ipld] or
+    /// Execute Wasm function dynamically given a list ([Args]) of Ipld or
     /// [wasmtime::component::Val] arguments and returning [Output] results.
     /// Types must conform to [Wit] IDL types when Wasm was compiled/generated.
     ///
     /// [Wit]: <https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md>
-    /// [Ipld]: libipld::Ipld
     pub async fn execute(&mut self, args: Args<Arg>) -> Result<Output, Error>
     where
         T: Send,

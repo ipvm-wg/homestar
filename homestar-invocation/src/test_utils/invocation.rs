@@ -143,7 +143,7 @@ pub fn instruction_with_nonce<'a, T>() -> (Instruction<'a, T>, NonceBytes) {
     )
 }
 
-/// Return a `mocked` [Receipt] with an [Ipld] [task::Result].
+/// Return a `mocked` [Receipt] with an Ipld [task::Result].
 pub fn receipt() -> Receipt<Ipld> {
     let h = Code::Blake3_256.digest(b"beep boop");
     let cid = Cid::new_v1(RAW, h);

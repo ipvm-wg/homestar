@@ -15,9 +15,7 @@ use std::io;
 /// [Invocation]: crate::Invocation
 #[derive(thiserror::Error, Debug)]
 pub enum Error<T> {
-    /// Error encoding structure to a [Cid].
-    ///
-    /// [Cid]: libipld::cid::Cid
+    /// Error encoding structure to a Cid.
     #[error("failed to encode CID: {0}")]
     CidEncode(#[from] libipld::cid::Error),
     /// Error thrown when condition or dynamic check is not met.
@@ -26,12 +24,10 @@ pub enum Error<T> {
     /// Failure to decode/encode from/to DagCbor.
     ///
     /// The underlying error is a [anyhow::Error], per the
-    /// [DagCborCodec] implementation.
-    ///
-    /// [DagCborCodec]: libipld::cbor::DagCborCodec
+    /// DagCborCodec implementation.
     #[error("failed to decode/encode DAG-CBOR: {0}")]
     DagCborTranslation(#[from] anyhow::Error),
-    /// Error converting from [Ipld] structure via [serde].
+    /// Error converting from Ipld structure via [serde].
     ///
     /// Transparently forwards from [libipld::error::SerdeError]'s `source` and
     /// `Display` methods through to an underlying error.
@@ -55,7 +51,7 @@ pub enum Error<T> {
     /// Generic unknown error.
     #[error("unknown error")]
     Unknown,
-    /// Unexpcted [Ipld] type.
+    /// Unexpcted Ipld type.
     #[error("unexpected Ipld type: {0:#?}")]
     UnexpectedIpldType(Ipld),
     /// Error when attempting to interpret a sequence of [u8]
@@ -71,7 +67,7 @@ pub enum Error<T> {
 }
 
 impl<T> Error<T> {
-    /// Return a [SerdeError] when returning an [Ipld] structure
+    /// Return a [SerdeError] when returning an Ipld structure
     /// that's not expected at the call-site.
     ///
     /// [SerdeError]: libipld::error::SerdeError
@@ -80,7 +76,7 @@ impl<T> Error<T> {
     }
 
     /// Return an `invalid type` [SerdeError] when not matching an expected
-    /// [Ipld] list/sequence type.
+    /// Ipld list/sequence type.
     ///
     /// [SerdeError]: libipld::error::SerdeError
     pub fn not_an_ipld_list() -> Self {
@@ -114,13 +110,13 @@ impl<T> From<std::convert::Infallible> for Error<T> {
 /// [Invocation]: crate::Invocation
 #[derive(thiserror::Error, Debug)]
 pub enum InputParseError<T> {
-    /// Error converting from [Ipld] structure via [serde].
+    /// Error converting from Ipld structure via [serde].
     ///
     /// Transparently forwards from [libipld::error::SerdeError]'s `source` and
     /// `Display` methods through to an underlying error.
     #[error("cannot convert from Ipld structure: {0}")]
     FromIpld(#[from] libipld::error::SerdeError),
-    /// Error converting from [Ipld] structure into [Args].
+    /// Error converting from Ipld structure into [Args].
     #[error("cannot convert from Ipld structure into arguments: {0:#?}")]
     IpldToArgs(Args<T>),
     /// Unexpected [Input] in [Task] structure.
@@ -141,9 +137,8 @@ impl<T> From<std::convert::Infallible> for InputParseError<T> {
     }
 }
 
-/// Error type for resolving promised [Cid]s within [Invocation] [Input]s.
+/// Error type for resolving promised Cids within [Invocation] [Input]s.
 ///
-/// [Cid]: libipld::Cid
 /// [Invocation]: crate::Invocation
 #[derive(thiserror::Error, Debug)]
 pub enum ResolveError {
@@ -153,15 +148,13 @@ pub enum ResolveError {
     /// `Display` methods through to an underlying error.
     #[error(transparent)]
     Runtime(#[from] anyhow::Error),
-    /// Transport error when attempting to resolve [Invocation] [Input]'s [Cid].
+    /// Transport error when attempting to resolve [Invocation] [Input]'s Cid.
     ///
-    /// [Cid]: libipld::Cid
     /// [Invocation]: crate::Invocation
     #[error("transport error during resolve phase of input Cid: {0}")]
     Transport(String),
-    /// Unable to resolve a [Cid] within an [Invocation]'s [Input].
+    /// Unable to resolve a Cid within an [Invocation]'s [Input].
     ///
-    /// [Cid]: libipld::Cid
     /// [Invocation]: crate::Invocation
     #[error("error resolving input Cid: {0}")]
     UnresolvedCid(String),

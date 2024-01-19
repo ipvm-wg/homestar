@@ -77,7 +77,7 @@ pub(crate) type RpcReceiver = AsyncChannelReceiver<(
     Option<AsyncChannelSender<rpc::ServerMessage>>,
 )>;
 
-/// Type alias for a tuple containing a receipt [Cid] and associated `ran` and `instruction` values.
+/// Type alias for a tuple containing a receipt Cid and associated `ran` and `instruction` values.
 pub(crate) type WorkflowReceiptInfo = (Cid, Option<(String, Pointer)>);
 
 /// [AsyncChannelSender] for sending messages WebSocket server clients.
@@ -485,7 +485,7 @@ impl Runner {
     }
 
     /// Aborts and removes a specific worker's [JoinHandle] and
-    /// set of task [AbortHandle]s given a [Cid].
+    /// set of task [AbortHandle]s given a Cid.
     #[allow(dead_code)]
     fn abort_worker(&self, cid: Cid) -> Result<()> {
         let mut expiration_q = self
@@ -502,7 +502,7 @@ impl Runner {
         Ok(())
     }
 
-    /// Abort a specific worker's tasks given a [Cid].
+    /// Abort a specific worker's tasks given a Cid.
     fn abort_worker_tasks(&self, cid: Cid) {
         if let Some((_cid, handles)) = self.running_tasks.remove(&cid) {
             for abort_handle in &*handles {
