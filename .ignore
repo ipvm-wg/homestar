@@ -8,11 +8,11 @@ diesel.toml
 codecov.yml
 LICENSE
 .gitkeep
+.gitignore
 *.nix
 *.md
 .envrc
 .dockerignore
-.gitignore
 .pre-commit-config.yaml
 **/fixtures
 *test_*.json
