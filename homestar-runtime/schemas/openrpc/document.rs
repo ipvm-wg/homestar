@@ -489,6 +489,9 @@ pub struct MethodObject {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "externalDocs")]
     pub external_docs: Option<ExternalDocumentationObject>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "x-messages")]
+    pub x_messages: Option<ContentDescriptorObject>,
 }
 
 pub type Methods = Vec<MethodObject>;
@@ -601,6 +604,7 @@ impl MethodObject {
             examples: None,
             deprecated: None,
             external_docs: None,
+            x_messages: None,
         }
     }
 }

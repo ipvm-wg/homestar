@@ -45,7 +45,7 @@ fn generate_api_doc(network_schema: RootSchema) -> OpenrpcDocument {
             summary: None,
             description: None,
             required: Some(true),
-            schema: JSONSchema::JsonSchemaObject(network_schema),
+            schema: JSONSchema::JsonSchemaObject(schema_for!(String)),
             deprecated: Some(false),
         }),
         external_docs: None,
@@ -53,6 +53,14 @@ fn generate_api_doc(network_schema: RootSchema) -> OpenrpcDocument {
         links: None,
         examples: None,
         deprecated: Some(false),
+        x_messages: Some(ContentDescriptorObject {
+            name: "network subscription messages".to_string(),
+            summary: None,
+            description: None,
+            required: Some(true),
+            schema: JSONSchema::JsonSchemaObject(network_schema),
+            deprecated: Some(false),
+        }),
     };
 
     OpenrpcDocument {
