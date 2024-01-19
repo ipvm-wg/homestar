@@ -21,7 +21,9 @@ use diesel::{
 use enum_assoc::Assoc;
 use libipld::{cid::Cid, serde::from_ipld, Ipld, Link};
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, collections::btree_map::BTreeMap, fmt, str::FromStr};
+#[cfg(feature = "diesel")]
+use std::str::FromStr;
+use std::{borrow::Cow, collections::btree_map::BTreeMap, fmt};
 
 /// `await/ok` branch for instruction result.
 pub const OK_BRANCH: &str = "await/ok";
