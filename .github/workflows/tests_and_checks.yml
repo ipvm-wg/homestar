@@ -135,7 +135,6 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v1
         with:
           command: check bans licenses sources
-        continue-on-error: true
 
   run-tests:
     needs: changes
