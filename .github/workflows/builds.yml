@@ -15,7 +15,7 @@ on:
 
   # for debugging
   # pull_request:
-  #   branches: ['**']
+  #   branches: ["**"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -132,7 +132,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: "https://registry.npmjs.org"
       - name: Install cargo get
         run: cargo install cargo-get
       - name: Prepare os/arch packages
@@ -151,7 +151,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: 'homestar-runtime/npm/${{ env.node_pkg }}/bin'
+          path: "homestar-runtime/npm/${{ env.node_pkg }}/bin"
       - name: Publish production
         if: github.event_name == 'release' && github.event.action == 'published'
         run: |
@@ -213,15 +213,15 @@ jobs:
           shared-key: check-${{ matrix.target }}-ubuntu-latest
 
       - name: Create .deb
-        run: cargo deb -p homestar-runtime --target ${{ matrix.target }} --variant ${{ matrix.target }} --output homestar.deb
+        run: cargo deb -p homestar-runtime --target ${{ matrix.target }} --variant ${{ matrix.target }} --output homestar-${{ matrix.target }}.deb
 
       - name: Create .rpm
-        run: cargo generate-rpm -p homestar-runtime --target ${{ matrix.target }} --variant ${{ matrix.target }} --output homestar.rpm
+        run: cargo generate-rpm -p homestar-runtime --target ${{ matrix.target }} --variant ${{ matrix.target }} --output homestar-${{ matrix.target }}.rpm
 
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}
+          name: ${{ matrix.target }}-packages
           path: |
             *.deb
             *.rpm
@@ -240,9 +240,8 @@ jobs:
       startsWith(github.event.release.name, 'homestar-runtime') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.force-publish)
     runs-on: ubuntu-latest
-
     env:
-      DOCKER_BUILDKIT: '1'
+      DOCKER_BUILDKIT: "1"
       REGISTRY: ghcr.io
       IMAGE_NAME: ${{ github.repository }}
 
@@ -266,6 +265,11 @@ jobs:
           sudo apt-get clean
           sudo rm -rf /usr/share/dotnet
 
+      - name: Get Current Version
+        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-publish)
+        id: crate-version
+        run: echo version=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "homestar-runtime") | .version') >> $GITHUB_OUTPUT
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -280,17 +284,30 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Metadata
-        id: meta
+        if: github.event_name != 'workflow_dispatch'
+        id: meta-release
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern=v{{version}}
+            type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
             type=sha
 
+      - name: Metadata
+        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-publish)
+        id: meta-dispatch
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.crate-version.outputs.version }}
+            type=raw,value=latest
+            type=sha
+
       - name: Docker Build & Push
+        if: github.event_name != 'workflow_dispatch'
         uses: docker/build-push-action@v5
         with:
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
@@ -299,5 +316,18 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta-release.outputs.tags }}
+          labels: ${{ steps.meta-release.outputs.labels }}
+
+      - name: Docker Build & Push
+        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-publish)
+        uses: docker/build-push-action@v5
+        with:
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-to: type=inline
+          file: docker/Dockerfile
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-dispatch.outputs.tags }}
+          labels: ${{ steps.meta-dispatch.outputs.labels }}
