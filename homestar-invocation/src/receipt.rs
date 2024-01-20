@@ -21,7 +21,7 @@ const PROOF_KEY: &str = "prf";
 ///
 /// TODO: Effects et al.
 ///
-/// [resulting output]: Result
+/// [resulting output]: task::Result
 /// [Invocation]: super::Invocation
 #[derive(Debug, Clone, PartialEq)]
 pub struct Receipt<T> {
@@ -59,12 +59,12 @@ impl<T> Receipt<T> {
         &self.ran
     }
 
-    /// [Result] output from invocation/execution.
+    /// [task::Result] output from invocation/execution.
     pub fn out(&self) -> &task::Result<T> {
         &self.out
     }
 
-    /// [Ipld] metadata.
+    /// Ipld metadata.
     pub fn meta(&self) -> &Ipld {
         &self.meta
     }

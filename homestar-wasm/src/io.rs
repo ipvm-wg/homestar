@@ -13,10 +13,10 @@ use std::{collections::btree_map::BTreeMap, fmt};
 use wasmtime;
 
 /// Argument for Wasm execution, which can either be
-/// an [Ipld] structure or a [wasmtime::component::Val].
+/// an Ipld structure or a [wasmtime::component::Val].
 #[derive(Clone, Debug, PartialEq, EnumAsInner, Serialize, Deserialize)]
 pub enum Arg {
-    /// [Ipld] structure, which can be interpreted into a Wasm [Val].
+    /// Ipld structure, which can be interpreted into a Wasm [Val].
     ///
     /// [Val]: wasmtime::component::Val
     Ipld(Ipld),

@@ -75,7 +75,7 @@ pub(crate) struct Replay {
 /// returning to a [P2PSender].
 #[derive(Debug, Clone)]
 pub(crate) struct QueryRecord {
-    /// The record identifier, which is a [Cid].
+    /// The record identifier, which is a Cid.
     pub(crate) cid: Cid,
     /// The record capsule tag, which can be part of a key.
     pub(crate) capsule: CapsuleTag,
@@ -89,7 +89,7 @@ pub(crate) struct QueryRecord {
 pub(crate) struct PeerRequest {
     /// The peer to send a request to.
     pub(crate) peer: PeerId,
-    /// The request key, which is a [Cid].
+    /// The request key, which is a Cid.
     pub(crate) request: RequestResponseKey,
     /// The channel to send the response to.
     pub(crate) sender: P2PSender,
@@ -509,7 +509,7 @@ impl Captured {
 #[cfg(feature = "websocket-notify")]
 #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
 impl Replay {
-    /// `Replay` structure, containing a set of [Pointers] and [Ipld] metadata.
+    /// `Replay` structure, containing a set of [Pointers] and Ipld metadata.
     ///
     /// [Pointers]: Pointer
     pub(crate) fn with(pointers: Vec<Pointer>, metadata: Option<Ipld>) -> Self {
@@ -594,7 +594,7 @@ impl Replay {
 }
 
 impl QueryRecord {
-    /// Create a new [QueryRecord] with a [Cid] and [P2PSender].
+    /// Create a new [QueryRecord] with a Cid and [P2PSender].
     pub(crate) fn with(cid: Cid, capsule: CapsuleTag, sender: Option<P2PSender>) -> Self {
         Self {
             cid,

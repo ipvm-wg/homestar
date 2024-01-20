@@ -82,7 +82,6 @@ jobs:
         run: cargo build -p homestar-runtime --locked --release --target ${{ matrix.target }}
 
       - name: Upload Release Artifacts
-        if: github.event_name != 'release'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
@@ -171,6 +170,8 @@ jobs:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
 
   build-packages:
+    if: startsWith(github.event.release.name, 'homestar-runtime')
+    needs: binary-builds
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -236,6 +237,7 @@ jobs:
             *.rpm
 
   docker-build:
+    if: startsWith(github.event.release.name, 'homestar-runtime')
     runs-on: ubuntu-latest
 
     env:

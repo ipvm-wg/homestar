@@ -42,14 +42,14 @@ impl Clone for IpfsCli {
 }
 
 impl IpfsCli {
-    /// Retrieve content from a IPFS [Url].
+    /// Retrieve content from a IPFS Url.
     #[allow(dead_code)]
     pub(crate) async fn get_resource(&self, url: &Url) -> Result<Vec<u8>> {
         let cid = Cid::try_from(url.to_string())?;
         self.get_cid(cid).await
     }
 
-    /// Retrieve content from a [Cid].
+    /// Retrieve content from a Cid.
     #[allow(dead_code)]
     pub(crate) async fn get_cid(&self, cid: Cid) -> Result<Vec<u8>> {
         self.0

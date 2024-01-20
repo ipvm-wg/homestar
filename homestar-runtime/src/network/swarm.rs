@@ -1,4 +1,4 @@
-//! Sets up a [libp2p] [Swarm], containing the state of the network and the way
+//! Sets up a libp2p [Swarm], containing the state of the network and the way
 //! it should behave.
 //!
 //! [Swarm]: libp2p::Swarm
@@ -243,9 +243,7 @@ pub(crate) struct RequestResponseKey {
 }
 
 impl RequestResponseKey {
-    /// Create a new [RequestResponseKey] with a given [Cid] string and capsule tag.
-    ///
-    /// [Cid]: libipld::Cid
+    /// Create a new [RequestResponseKey] with a given Cid string and capsule tag.
     pub(crate) fn new(cid: FastStr, capsule_tag: CapsuleTag) -> Self {
         Self { cid, capsule_tag }
     }

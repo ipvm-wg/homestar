@@ -1,3 +1,3 @@
-//! [libp2p] utilities.
+//! libp2p utilities.
 
 pub(crate) mod multiaddr;

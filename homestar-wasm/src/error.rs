@@ -1,15 +1,12 @@
 //! Error types and implementations for `Ipld <=> Wasm` interaction(s).
 
-/// Error types related for [Ipld] to/from [Wasm value] interpretation.
+/// Error types related for Ipld to/from [Wasm value] interpretation.
 ///
-/// [Ipld]: libipld::Ipld
 /// [Wasm value]: wasmtime::component::Val
 #[derive(thiserror::Error, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum InterpreterError {
-    /// Error encoding structure to a [Cid].
-    ///
-    /// [Cid]: libipld::cid::Cid
+    /// Error encoding structure to a Cid.
     #[error("failed to encode CID: {0}")]
     CidEncode(#[from] libipld::cid::Error),
     /// Error converting from [Decimal] precision to [f64].
@@ -23,25 +20,18 @@ pub enum InterpreterError {
     /// [Decimal]: rust_decimal::Decimal
     #[error("Failed to convert from f32 float {0} to decimal")]
     FloatToDecimal(f32),
-    /// Error converting from [Ipld] structure.
-    ///
-    /// [Ipld]: libipld::Ipld
+    /// Error converting from Ipld structure.
     #[error("cannot convert from Ipld structure: {0}")]
     FromIpld(#[from] libipld::error::SerdeError),
-    /// Error casting from [Ipld] [i128] structure to a lower precision integer.
-    ///
-    /// [Ipld]: libipld::Ipld
+    /// Error casting from Ipld [i128] structure to a lower precision integer.
     #[error("failed to cast Ipld i128 to integer type: {0}")]
     IpldToInt(#[from] std::num::TryFromIntError),
-    /// Error converting from [Ipld] structure to [Wit] structure.
+    /// Error converting from Ipld structure to [Wit] structure.
     ///
-    /// [Ipld]: libipld::Ipld
     /// [Wit]: wasmtime::component::Val
     #[error("no compatible Ipld type for Wit structure: {0:#?}")]
     IpldToWit(String),
-    /// Error involving mismatches with [Ipld] maps.
-    ///
-    /// [Ipld]: libipld::Ipld
+    /// Error involving mismatches with Ipld maps.
     #[error("{0}")]
     MapType(String),
     /// Bubble-up [TagsError] errors while executing the interpreter.
@@ -62,9 +52,8 @@ pub enum InterpreterError {
     /// [wasmtime::component::types::Type] implementation.
     #[error(transparent)]
     WitType(#[from] anyhow::Error),
-    /// Error converting from [Wit] structure to [Ipld] structure.
+    /// Error converting from [Wit] structure to Ipld structure.
     ///
-    /// [Ipld]: libipld::Ipld
     /// [Wit]: wasmtime::component::Val
     #[error("no compatible WIT type for Ipld structure: {0:#?}")]
     WitToIpld(libipld::Ipld),

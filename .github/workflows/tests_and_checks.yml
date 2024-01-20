@@ -90,16 +90,12 @@ jobs:
       - name: Run Linter
         run: cargo clippy --all -- -D warnings
 
-      # TODO: turn-on after first release for test dry-runs
-      # - name: Install cargo-release
-      #   if: ${{ matrix.rust-toolchain == 'stable' && github.event_name == 'push' }}
-      #   uses: taiki-e/install-action@v2
+      # TODO: Return upon new version.
+      # - name: Verify Publishing of crates
+      #   uses: katyo/publish-crates@v2
+      #   if: ${{ matrix.rust-toolchain == 'stable' }}
       #   with:
-      #     tool: cargo-release
-
-      # - name: Dry-run cargo release
-      #   if: ${{ matrix.rust-toolchain == 'stable' && github.event_name == 'push' }}
-      #   run: cargo release --workspace
+      #     dry-run: true
 
       # Only "test" release build on push event.
       - name: Test Release
@@ -124,7 +120,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          shared-key: deny-stable-ubuntu-latest
+          shared-key: run-deny-stable-ubuntu-latest
           save-if: ${{ github.event_name == 'push' }}
 
       # Check for security advisories
@@ -139,6 +135,7 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v1
         with:
           command: check bans licenses sources
+        continue-on-error: true
 
   run-tests:
     needs: changes

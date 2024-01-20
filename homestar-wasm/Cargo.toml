@@ -9,7 +9,7 @@ readme = "README.md"
 edition = { workspace = true }
 rust-version = { workspace = true }
 documentation = "https://docs.rs/homestar-wasm"
-repository = { workspace = true }
+repository = "https://github.com/ipvm-wg/homestar/homestar-wasm"
 authors = { workspace = true }
 
 [lib]

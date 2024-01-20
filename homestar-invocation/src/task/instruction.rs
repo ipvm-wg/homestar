@@ -20,9 +20,7 @@ pub use input::{Args, Input, Parse, Parsed};
 pub use nonce::*;
 
 /// Enumerator for `either` an expanded [Instruction] structure or
-/// an [Pointer] ([Cid] wrapper).
-///
-/// [Cid]: libipld::Cid
+/// an [Pointer] (Cid wrapper).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RunInstruction<'a, T> {
     /// [Instruction] as an expanded structure.
@@ -126,7 +124,7 @@ where
     }
 }
 
-///
+/// Instruction to be executed.
 ///
 /// # Example
 ///

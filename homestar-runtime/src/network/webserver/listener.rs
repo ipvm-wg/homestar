@@ -10,7 +10,7 @@ use serde_json::value::RawValue;
 
 /// A [Workflow] run command via a WebSocket channel.
 ///
-/// Note: We leverage the [RawValue] type in order to use our [DagJson]
+/// Note: We leverage the [RawValue] type in order to use our DagJson
 /// implementation, which is not a direct [Deserialize] implementation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Run<'a> {

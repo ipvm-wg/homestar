@@ -142,9 +142,9 @@ where
     /// This is the main entry point for running a workflow.
     ///
     /// Within this function, the [Worker] executes tasks and resolves
-    /// [Instruction] [Cid]s.
+    /// [Instruction] Cids.
     ///
-    /// [Instruction] [Cid]s being awaited on are resolved via 3 lookups:
+    /// [Instruction] Cids being awaited on are resolved via 3 lookups:
     ///   * a check in the [LinkMap], which is an in-memory cache of resolved
     ///     [task::Result]s (this may have been pre-filled out by
     ///     scheduler initialization);

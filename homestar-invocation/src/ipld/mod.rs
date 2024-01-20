@@ -1,6 +1,4 @@
-//! [Ipld] customization and extensions.
-//!
-//! [Ipld]: libipld::Ipld
+//! Ipld customization and extensions.
 
 mod dag_cbor;
 mod dag_json;

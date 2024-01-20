@@ -1,4 +1,4 @@
-//! Typed cid for custom links.
+//! Typed Cid for custom links.
 //!
 //! Extracted from [libipld::Link] to allow for custom de/serialization on
 //! custom types.
@@ -17,7 +17,7 @@ use std::{
     ops::Deref,
 };
 
-/// Typed cid.
+/// Typed Cid.
 #[derive(Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct Link<T> {
@@ -34,7 +34,7 @@ impl<T> Link<T> {
         }
     }
 
-    /// Returns a reference to the cid.
+    /// Returns a reference to the Cid.
     pub fn cid(&self) -> &Cid {
         &self.cid
     }

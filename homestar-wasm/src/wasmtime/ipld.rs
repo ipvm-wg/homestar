@@ -1,12 +1,10 @@
-//! Convert (bidirectionally) between [Ipld] and [wasmtime::component::Val]s
+//! Convert (bidirectionally) between Ipld and [wasmtime::component::Val]s
 //! and [wasmtime::component::Type]s.
 //!
-//! tl;dr: [Ipld] <=> [wasmtime::component::Val] IR.
+//! tl;dr: Ipld <=> [wasmtime::component::Val] IR.
 //!
 //! Export restrictions to be aware of!:
 //! <https://github.com/bytecodealliance/wasm-tools/blob/main/tests/local/component-model/type-export-restrictions.wast>
-//!
-//! [Ipld]: libipld::Ipld
 
 use crate::error::{InterpreterError, TagsError};
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
@@ -161,7 +159,7 @@ impl RuntimeVal {
         RuntimeVal(val, tags)
     }
 
-    /// Convert from [Ipld] to [RuntimeVal] with a given [InterfaceType].
+    /// Convert from Ipld to [RuntimeVal] with a given [InterfaceType].
     ///
     /// TODOs:
     ///  * Enums

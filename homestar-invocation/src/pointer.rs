@@ -95,7 +95,7 @@ impl Await {
         }
     }
 
-    /// Return [Cid] to [Instruction] being [Await]'ed on.
+    /// Return Cid to [Instruction] being [Await]'ed on.
     ///
     /// [Instruction]: crate::task::Instruction
     pub fn instruction_cid(&self) -> Cid {
@@ -160,7 +160,7 @@ impl TryFrom<&Ipld> for Await {
 }
 
 /// References a specific [Invocation], [Task], [Instruction], and/or
-/// [Receipt], always wrapping a [Cid].
+/// [Receipt], always wrapping a Cid.
 ///
 /// [Invocation]: super::Invocation
 /// [Task]: super::Task
@@ -186,7 +186,7 @@ impl TryFrom<&Ipld> for Await {
 pub struct Pointer(Cid);
 
 /// References a specific [Invocation], [Task], [Instruction], or
-/// [Receipt], always wrapping a [Cid].
+/// [Receipt], always wrapping a Cid.
 ///
 /// [Invocation]: super::Invocation
 /// [Task]: super::Task
@@ -205,17 +205,17 @@ impl fmt::Display for Pointer {
 }
 
 impl Pointer {
-    /// Return the `inner` [Cid] for the [Pointer].
+    /// Return the `inner` Cid for the [Pointer].
     pub fn cid(&self) -> Cid {
         self.0
     }
 
-    /// Wrap an [Pointer] for a given [Cid].
+    /// Wrap an [Pointer] for a given Cid.
     pub fn new(cid: Cid) -> Self {
         Pointer(cid)
     }
 
-    /// Convert an [Ipld::Link] to an [Pointer].
+    /// Convert an `Ipld::Link` to an [Pointer].
     pub fn new_from_link<T>(link: Link<T>) -> Self {
         Pointer(*link)
     }

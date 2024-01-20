@@ -1,4 +1,4 @@
-//! [libp2p], multi-use [HTTP] and [WebSocket] server, and [ipfs] networking
+//! libp2p, multi-use [HTTP] and [WebSocket] server, and [ipfs] networking
 //! interfaces.
 //!
 //! [HTTP]: jsonrpsee::server
