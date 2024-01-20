@@ -23,7 +23,9 @@ concurrency:
 
 jobs:
   binary-builds:
-    if: startsWith(github.event.release.name, 'homestar-runtime')
+    if: >
+      startsWith(github.event.release.name, 'homestar-runtime') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.force-publish)
     strategy:
       fail-fast: false
       matrix:
@@ -78,7 +80,6 @@ jobs:
         if: endsWith(matrix.target, 'windows-msvc')
 
       - name: Compile
-        if: github.event_name != 'release'
         run: cargo build -p homestar-runtime --locked --release --target ${{ matrix.target }}
 
       - name: Upload Release Artifacts
@@ -100,7 +101,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   npm-publish:
-    if: startsWith(github.event.release.name, 'homestar-runtime')
     needs: binary-builds
     runs-on: ubuntu-latest
     strategy:
@@ -170,7 +170,6 @@ jobs:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
 
   build-packages:
-    if: startsWith(github.event.release.name, 'homestar-runtime')
     needs: binary-builds
     runs-on: ubuntu-latest
     strategy:
@@ -237,7 +236,9 @@ jobs:
             *.rpm
 
   docker-build:
-    if: startsWith(github.event.release.name, 'homestar-runtime')
+    if: >
+      startsWith(github.event.release.name, 'homestar-runtime') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.force-publish)
     runs-on: ubuntu-latest
 
     env:
