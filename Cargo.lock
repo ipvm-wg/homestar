@@ -2454,7 +2454,7 @@ dependencies = [
 
 [[package]]
 name = "homestar-invocation"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -2480,7 +2480,7 @@ dependencies = [
 
 [[package]]
 name = "homestar-runtime"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -2581,7 +2581,7 @@ dependencies = [
 
 [[package]]
 name = "homestar-wasm"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2609,7 +2609,7 @@ dependencies = [
 
 [[package]]
 name = "homestar-workflow"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fxhash",
  "homestar-invocation",
