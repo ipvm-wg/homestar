@@ -185,6 +185,10 @@ daemonize = "0.5"
 [dev-dependencies]
 assert_cmd = "2.0"
 criterion = "0.5"
+homestar-invocation = { version = "0.1", path = "../homestar-invocation", features = [
+  "diesel",
+  "test-utils",
+] }
 homestar_runtime_proc_macro = { path = "src/test_utils/proc_macro", package = "homestar-runtime-tests-proc-macro" }
 jsonrpsee = { version = "0.21", default-features = false, features = [
   "client",
