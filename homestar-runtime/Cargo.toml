@@ -111,7 +111,7 @@ metrics-exporter-prometheus = { version = "0.12.1", default-features = false, fe
 ] }
 metrics-util = "0.15"
 miette = { version = "5.10", default-features = false, features = ["fancy"] }
-moka = { version = "0.12.1", default-features = false, features = [
+moka = { version = "0.12.4", default-features = false, features = [
   "future",
   "sync",
 ] }
