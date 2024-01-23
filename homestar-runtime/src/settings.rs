@@ -407,6 +407,7 @@ mod test {
     }
 
     #[test]
+    #[serial_test::file_serial]
     fn overriding_env() {
         std::env::set_var("HOMESTAR__NODE__NETWORK__RPC__PORT", "2046");
         std::env::set_var("HOMESTAR__NODE__DB__MAX_POOL_SIZE", "1");
