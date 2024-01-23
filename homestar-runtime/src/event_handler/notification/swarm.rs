@@ -4,7 +4,7 @@
 
 use anyhow::anyhow;
 use chrono::prelude::Utc;
-use homestar_core::ipld::DagJson;
+use homestar_invocation::ipld::DagJson;
 use libipld::{serde::from_ipld, Ipld};
 use libp2p::{Multiaddr, PeerId};
 use schemars::JsonSchema;
