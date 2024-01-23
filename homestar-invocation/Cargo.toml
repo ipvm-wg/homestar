@@ -36,7 +36,9 @@ homestar-workspace-hack = { workspace = true }
 libipld = { workspace = true }
 libsqlite3-sys = { workspace = true, optional = true }
 rand = { workspace = true }
+schemars = { workspace = true }
 serde = { workspace = true }
+serde_json =  { workspace = true }
 signature = "2.2"
 thiserror = { workspace = true }
 tracing = { workspace = true }

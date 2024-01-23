@@ -3,6 +3,7 @@
 mod dag_cbor;
 mod dag_json;
 mod link;
+pub mod schema;
 
 pub use dag_cbor::*;
 pub use dag_json::*;
