@@ -1157,6 +1157,32 @@ async fn handle_swarm_event<DB: Database>(
                     peer_id = peer_id.to_string(),
                     "removed peer from kademlia table"
                 );
+            } else {
+                debug!(
+                    subject = "libp2p.conn.closed",
+                    category = "handle_swarm_event",
+                    peer_id = peer_id.to_string(),
+                    "redialing trusted peer in {interval:?}",
+                    interval = event_handler.connections.dial_interval
+                );
+
+                // Dial peers again at dial interval
+                event_handler
+                    .cache
+                    .insert(
+                        format!("{}-dial", peer_id),
+                        CacheValue::new(
+                            event_handler.connections.dial_interval,
+                            HashMap::from([
+                                (
+                                    "on_expiration".to_string(),
+                                    CacheData::OnExpiration(cache::DispatchEvent::DialPeer),
+                                ),
+                                ("node".to_string(), CacheData::Peer(peer_id)),
+                            ]),
+                        ),
+                    )
+                    .await;
             }
 
             #[cfg(feature = "websocket-notify")]
@@ -1181,6 +1207,50 @@ async fn handle_swarm_event<DB: Database>(
                   connection_id=?connection_id,
                   "outgoing connection error"
             );
+
+            // Redial peer if in configured peers
+            if let Some(peer_id) = peer_id {
+                if event_handler.node_addresses.iter().any(|multiaddr| {
+                    if let Some(id) = multiaddr.peer_id() {
+                        id == peer_id
+                    } else {
+                        // TODO: We may want to check the multiadress without relying on
+                        // the peer ID. This would give more flexibility when configuring nodes.
+                        warn!(
+                            subject = "libp2p.outgoing.err",
+                            category = "handle_swarm_event",
+                            "Configured peer must include a peer ID: {multiaddr}"
+                        );
+                        false
+                    }
+                }) {
+                    debug!(
+                        subject = "libp2p.outgoing.err",
+                        category = "handle_swarm_event",
+                        peer_id = peer_id.to_string(),
+                        "redialing trusted peer in {interval:?}",
+                        interval = event_handler.connections.dial_interval
+                    );
+
+                    // Dial peers again at dial interval
+                    event_handler
+                        .cache
+                        .insert(
+                            format!("{}-dial", peer_id),
+                            CacheValue::new(
+                                event_handler.connections.dial_interval,
+                                HashMap::from([
+                                    (
+                                        "on_expiration".to_string(),
+                                        CacheData::OnExpiration(cache::DispatchEvent::DialPeer),
+                                    ),
+                                    ("node".to_string(), CacheData::Peer(peer_id)),
+                                ]),
+                            ),
+                        )
+                        .await;
+                }
+            }
 
             #[cfg(feature = "websocket-notify")]
             notification::emit_event(

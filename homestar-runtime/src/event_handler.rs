@@ -148,6 +148,7 @@ struct Rendezvous {
 
 // Connected peers configuration and state
 struct Connections {
+    dial_interval: Duration,
     peers: FnvHashMap<PeerId, ConnectedPoint>,
     max_peers: u32,
 }
@@ -190,6 +191,7 @@ where
             query_senders: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
             connections: Connections {
+                dial_interval: settings.libp2p.dial_interval,
                 peers: FnvHashMap::default(),
                 max_peers: settings.libp2p.max_connected_peers,
             },
@@ -231,6 +233,7 @@ where
             query_senders: FnvHashMap::default(),
             request_response_senders: FnvHashMap::default(),
             connections: Connections {
+                dial_interval: settings.libp2p.dial_interval,
                 peers: FnvHashMap::default(),
                 max_peers: settings.libp2p.max_connected_peers,
             },

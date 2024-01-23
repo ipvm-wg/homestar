@@ -132,6 +132,8 @@ pub(crate) enum Event {
     DiscoverPeers(PeerId),
     /// Dynamically get listeners for the swarm.
     GetNodeInfo(AsyncChannelSender<DynamicNodeInfo>),
+    /// Dial a peer.
+    DialPeer(PeerId),
 }
 
 #[allow(unreachable_patterns)]
@@ -292,6 +294,12 @@ impl Event {
                         peer_id,
                     );
                 }
+            }
+            Event::DialPeer(peer_id) => {
+                event_handler
+                    .swarm
+                    .dial(peer_id)
+                    .map_err(anyhow::Error::new)?;
             }
             _ => {}
         }
