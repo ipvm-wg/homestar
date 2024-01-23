@@ -21,7 +21,7 @@ pub(crate) fn setup_metrics_recorder(
 pub(crate) fn setup_metrics_recorder(
     _settings: &settings::Network,
 ) -> anyhow::Result<PrometheusHandle> {
-    let port = crate::test_utils::ports::get_port() as u16;
+    let port = port_selector::random_free_tcp_port().unwrap();
     setup_metrics_recorder_inner(port)
 }
 

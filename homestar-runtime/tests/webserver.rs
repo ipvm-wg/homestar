@@ -1,4 +1,7 @@
-use crate::utils::{wait_for_socket_connection, ChildGuard, FileGuard, TimeoutFutureExt, BIN_NAME};
+use crate::{
+    make_config,
+    utils::{wait_for_socket_connection, ChildGuard, ProcInfo, TimeoutFutureExt, BIN_NAME},
+};
 use anyhow::Result;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
@@ -21,21 +24,37 @@ const AWAIT_CID: &str = "bafyrmiga45pxzlihf726utrixg7a5zavauggtqqkqnc6bzybr7icpb
 
 #[test]
 fn test_workflow_run_integration() -> Result<()> {
-    const DB: &str = "ws_homestar_test_workflow_run.db";
-    let _db_guard = FileGuard::new(DB);
+    let proc_info = ProcInfo::new().unwrap();
+    let rpc_port = proc_info.rpc_port;
+    let metrics_port = proc_info.metrics_port;
+    let ws_port = proc_info.ws_port;
+    let toml = format!(
+        r#"
+        [node]
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.metrics]
+        port = {metrics_port}
+        [node.network.rpc]
+        port = {rpc_port}
+        [node.network.webserver]
+        port = {ws_port}
+        "#
+    );
+
+    let config = make_config!(toml);
 
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_workflow2.toml")
+        .arg(config.filename())
         .arg("--db")
-        .arg(DB)
+        .arg(&proc_info.db_path)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
     let _proc_guard = ChildGuard::new(homestar_proc);
 
-    let ws_port = 8061;
     if wait_for_socket_connection(ws_port, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }

@@ -807,7 +807,7 @@ mod test {
     use super::*;
     use crate::{
         network::rpc::Client,
-        test_utils::{self, db::MemoryDb, WorkerBuilder},
+        test_utils::{db::MemoryDb, WorkerBuilder},
     };
     use metrics_exporter_prometheus::PrometheusBuilder;
     use rand::thread_rng;
@@ -832,7 +832,7 @@ mod test {
         let ws_hdl = runner.runtime.block_on(async {
             rpc_server.spawn().await.unwrap();
 
-            let port = test_utils::ports::get_port() as u16;
+            let port = port_selector::random_free_tcp_port().unwrap();
             let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
             let (recorder, _exporter) = PrometheusBuilder::new()
                 .with_http_listener(socket)

@@ -1,5 +1,9 @@
-use crate::utils::{
-    kill_homestar, wait_for_socket_connection, ChildGuard, FileGuard, TimeoutFutureExt, BIN_NAME,
+use crate::{
+    make_config,
+    utils::{
+        kill_homestar, listen_addr, multiaddr, wait_for_socket_connection, ChildGuard, ProcInfo,
+        TimeoutFutureExt, BIN_NAME, ED25519MULTIHASH, SECP256K1MULTIHASH,
+    },
 };
 use anyhow::Result;
 use jsonrpsee::{
@@ -21,11 +25,41 @@ const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
 fn test_connection_notifications_integration() -> Result<()> {
-    const DB1: &str = "test_connection_notifications_integration1.db";
-    const DB2: &str = "test_connection_notifications_integration2.db";
+    let proc_info1 = ProcInfo::new().unwrap();
+    let proc_info2 = ProcInfo::new().unwrap();
 
-    let _db_guard1 = FileGuard::new(DB1);
-    let _db_guard2 = FileGuard::new(DB2);
+    let rpc_port1 = proc_info1.rpc_port;
+    let rpc_port2 = proc_info2.rpc_port;
+    let metrics_port1 = proc_info1.metrics_port;
+    let metrics_port2 = proc_info2.metrics_port;
+    let ws_port1 = proc_info1.ws_port;
+    let ws_port2 = proc_info2.ws_port;
+    let listen_addr1 = listen_addr(proc_info1.listen_port);
+    let listen_addr2 = listen_addr(proc_info2.listen_port);
+    let node_addra = multiaddr(proc_info1.listen_port, ED25519MULTIHASH);
+    let node_addrb = multiaddr(proc_info2.listen_port, SECP256K1MULTIHASH);
+
+    let toml = format!(
+        r#"
+        [node]
+        [node.network.keypair_config]
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }}
+        [node.network.libp2p]
+        listen_address = "{listen_addr1}"
+        node_addresses = ["{node_addrb}"]
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.libp2p.rendezvous]
+        enable_client = false
+        [node.network.metrics]
+        port = {metrics_port1}
+        [node.network.rpc]
+        port = {rpc_port1}
+        [node.network.webserver]
+        port = {ws_port1}
+        "#
+    );
+    let config1 = make_config!(toml);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -34,20 +68,19 @@ fn test_connection_notifications_integration() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_notification1.toml")
+        .arg(config1.filename())
         .arg("--db")
-        .arg(DB1)
+        .arg(&proc_info1.db_path)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
     let _proc_guard1 = ChildGuard::new(homestar_proc1);
 
-    let ws_port = 8022;
-    if wait_for_socket_connection(8022, 1000).is_err() {
+    if wait_for_socket_connection(ws_port1, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
-    let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port);
+    let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
     tokio_test::block_on(async {
         tokio_tungstenite::connect_async(ws_url.clone())
             .await
@@ -66,6 +99,28 @@ fn test_connection_notifications_integration() -> Result<()> {
             .await
             .unwrap();
 
+        let toml2 = format!(
+            r#"
+            [node]
+            [node.network.keypair_config]
+            existing = {{ key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }}
+            [node.network.libp2p]
+            listen_address = "{listen_addr2}"
+            node_addresses = ["{node_addra}"]
+            [node.network.libp2p.mdns]
+            enable = false
+            [node.network.metrics]
+            port = {metrics_port2}
+            [node.network.libp2p.rendezvous]
+            enable_client = false
+            [node.network.rpc]
+            port = {rpc_port2}
+            [node.network.webserver]
+            port = {ws_port2}
+            "#
+        );
+        let config2 = make_config!(toml2);
+
         let homestar_proc2 = Command::new(BIN.as_os_str())
             .env(
                 "RUST_LOG",
@@ -73,9 +128,9 @@ fn test_connection_notifications_integration() -> Result<()> {
             )
             .arg("start")
             .arg("-c")
-            .arg("tests/fixtures/test_notification2.toml")
+            .arg(config2.filename())
             .arg("--db")
-            .arg(DB2)
+            .arg(&proc_info2.db_path)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
@@ -112,7 +167,7 @@ fn test_connection_notifications_integration() -> Result<()> {
         }
 
         // Check node endpoint to match
-        let http_url = format!("http://localhost:{}", 8022);
+        let http_url = format!("http://localhost:{}", ws_port1);
         let http_resp = reqwest::get(format!("{}/node", http_url)).await.unwrap();
         assert_eq!(http_resp.status(), 200);
         let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
@@ -120,8 +175,8 @@ fn test_connection_notifications_integration() -> Result<()> {
             http_resp,
             serde_json::json!({
                 "nodeInfo": {
-                    "static": {"peer_id": "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN"},
-                    "dynamic": {"listeners": ["/ip4/127.0.0.1/tcp/7010"], "connections": {}}
+                    "static": {"peer_id": ED25519MULTIHASH},
+                    "dynamic": {"listeners": [format!("{listen_addr1}")], "connections": {}}
                 }
             })
         );

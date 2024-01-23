@@ -1,4 +1,7 @@
-use crate::utils::{wait_for_socket_connection, ChildGuard, FileGuard, BIN_NAME};
+use crate::{
+    make_config,
+    utils::{wait_for_socket_connection, ChildGuard, ProcInfo, BIN_NAME},
+};
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use reqwest::StatusCode;
@@ -9,14 +12,14 @@ use std::{
 };
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
-const METRICS_URL: &str = "http://localhost:4020";
 
 #[test]
 fn test_metrics_integration() -> Result<()> {
-    fn sample_metrics() -> Option<prometheus_parse::Value> {
+    fn sample_metrics(port: u16) -> Option<prometheus_parse::Value> {
+        let url = format!("http://localhost:{}/metrics", port);
         let body = retry(
             Exponential::from_millis(500).take(20),
-            || match reqwest::blocking::get(METRICS_URL) {
+            || match reqwest::blocking::get(url.as_str()) {
                 Ok(response) => match response.status() {
                     StatusCode::OK => OperationResult::Ok(response.text()),
                     _ => OperationResult::Err("Metrics server failed to serve metrics"),
@@ -38,27 +41,43 @@ fn test_metrics_integration() -> Result<()> {
             .map(|sample| sample.value.to_owned())
     }
 
-    const DB: &str = "test_metrics_integration.db";
-    let _db_guard = FileGuard::new(DB);
+    let proc_info = ProcInfo::new().unwrap();
+    let rpc_port = proc_info.rpc_port;
+    let metrics_port = proc_info.metrics_port;
+    let ws_port = proc_info.ws_port;
+    let toml = format!(
+        r#"
+        [node]
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.metrics]
+        port = {metrics_port}
+        [node.network.rpc]
+        port = {rpc_port}
+        [node.network.webserver]
+        port = {ws_port}
+        "#
+    );
 
+    let config = make_config!(toml);
     let homestar_proc = Command::new(BIN.as_os_str())
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_metrics.toml")
+        .arg(config.filename())
         .arg("--db")
-        .arg(DB)
+        .arg(&proc_info.db_path)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
     let _proc_guard = ChildGuard::new(homestar_proc);
 
-    if wait_for_socket_connection(4020, 100).is_err() {
+    if wait_for_socket_connection(metrics_port, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
     // Try metrics server until the target metric is available
     let sample1 = retry(Exponential::from_millis(100).take(5), || {
-        if let Some(sample) = sample_metrics() {
+        if let Some(sample) = sample_metrics(metrics_port) {
             OperationResult::Ok(sample)
         } else {
             OperationResult::Retry("Could not find system_used_memory_bytes metric")
@@ -67,7 +86,7 @@ fn test_metrics_integration() -> Result<()> {
     .unwrap();
 
     let sample2 = retry(Exponential::from_millis(500).take(10), || {
-        let sample2 = sample_metrics().unwrap();
+        let sample2 = sample_metrics(metrics_port).unwrap();
         if sample1 != sample2 {
             OperationResult::Ok(sample2)
         } else {

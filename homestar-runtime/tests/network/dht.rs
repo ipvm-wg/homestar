@@ -1,6 +1,10 @@
-use crate::utils::{
-    check_for_line_with, kill_homestar, retrieve_output, wait_for_socket_connection, ChildGuard,
-    FileGuard, TimeoutFutureExt, BIN_NAME,
+use crate::{
+    make_config,
+    utils::{
+        check_for_line_with, kill_homestar, listen_addr, multiaddr, retrieve_output,
+        wait_for_socket_connection, ChildGuard, ProcInfo, TimeoutFutureExt, BIN_NAME,
+        ED25519MULTIHASH, ED25519MULTIHASH2, ED25519MULTIHASH3, SECP256K1MULTIHASH,
+    },
 };
 use anyhow::Result;
 use diesel::RunQueryDsl;
@@ -28,12 +32,49 @@ const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
 const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
+#[serial_test::serial]
 fn test_libp2p_dht_records_integration() -> Result<()> {
-    const DB1: &str = "test_libp2p_dht_records1.db";
-    const DB2: &str = "test_libp2p_dht_records2.db";
+    let proc_info1 = ProcInfo::new().unwrap();
+    let proc_info2 = ProcInfo::new().unwrap();
 
-    let _db_guard1 = FileGuard::new(DB1);
-    let _db_guard2 = FileGuard::new(DB2);
+    let rpc_port1 = proc_info1.rpc_port;
+    let rpc_port2 = proc_info2.rpc_port;
+    let metrics_port1 = proc_info1.metrics_port;
+    let metrics_port2 = proc_info2.metrics_port;
+    let ws_port1 = proc_info1.ws_port;
+    let ws_port2 = proc_info2.ws_port;
+    let listen_addr1 = listen_addr(proc_info1.listen_port);
+    let listen_addr2 = listen_addr(proc_info2.listen_port);
+    let node_addra = multiaddr(proc_info1.listen_port, ED25519MULTIHASH);
+    let node_addrb = multiaddr(proc_info2.listen_port, SECP256K1MULTIHASH);
+    let toml1 = format!(
+        r#"
+        [node]
+        [node.network.keypair_config]
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }}
+        [node.network.libp2p]
+        listen_address = "{listen_addr1}"
+        node_addresses = ["{node_addrb}"]
+        [node.network.libp2p.dht]
+        p2p_receipt_timeout = 3000
+        p2p_workflow_info_timeout = 3000
+        receipt_quorum = 1
+        workflow_quorum = 1
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.libp2p.pubsub]
+        enable = false
+        [node.network.libp2p.rendezvous]
+        enable_client = false
+        [node.network.metrics]
+        port = {metrics_port1}
+        [node.network.rpc]
+        port = {rpc_port1}
+        [node.network.webserver]
+        port = {ws_port1}
+        "#
+    );
+    let config1 = make_config!(toml1);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -42,15 +83,14 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_dht1.toml")
+        .arg(config1.filename())
         .arg("--db")
-        .arg(DB1)
+        .arg(&proc_info1.db_path)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
     let proc_guard1 = ChildGuard::new(homestar_proc1);
 
-    let ws_port1 = 7980;
     if wait_for_socket_connection(ws_port1, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
@@ -71,6 +111,35 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
             .await
             .unwrap();
 
+        let toml2 = format!(
+            r#"
+            [node]
+            [node.network.keypair_config]
+            existing = {{ key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }}
+            [node.network.libp2p]
+            listen_address = "{listen_addr2}"
+            node_addresses = ["{node_addra}"]
+            [node.network.libp2p.dht]
+            p2p_receipt_timeout = 3000
+            p2p_workflow_info_timeout = 3000
+            receipt_quorum = 1
+            workflow_quorum = 1
+            [node.network.libp2p.mdns]
+            enable = false
+            [node.network.libp2p.pubsub]
+            enable = false
+            [node.network.libp2p.rendezvous]
+            enable_client = false
+            [node.network.metrics]
+            port = {metrics_port2}
+            [node.network.rpc]
+            port = {rpc_port2}
+            [node.network.webserver]
+            port = {ws_port2}
+            "#
+        );
+        let config2 = make_config!(toml2);
+
         let homestar_proc2 = Command::new(BIN.as_os_str())
             .env(
                 "RUST_LOG",
@@ -78,15 +147,14 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
             )
             .arg("start")
             .arg("-c")
-            .arg("tests/fixtures/test_dht2.toml")
+            .arg(config2.filename())
             .arg("--db")
-            .arg(DB2)
+            .arg(&proc_info2.db_path)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
         let proc_guard2 = ChildGuard::new(homestar_proc2);
 
-        let ws_port2 = 7981;
         if wait_for_socket_connection(ws_port2, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
@@ -124,7 +192,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9780")
+            .arg(rpc_port1.to_string())
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one-part-one.json")
             .output();
@@ -181,7 +249,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         // let _ = Command::new(BIN.as_os_str())
         //     .arg("run")
         //     .arg("-p")
-        //     .arg("9781")
+        //     .arg(rpc_port2.to_string())
         //     .arg("-w")
         //     .arg("tests/fixtures/test-workflow-add-one-part-two.json")
         //     .output();
@@ -210,7 +278,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9781")
+            .arg(rpc_port2.to_string())
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one-part-one.json")
             .output();
@@ -234,10 +302,13 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         }
 
         // Check database for stored receipt and workflow info
-        let settings =
-            Settings::load_from_file(PathBuf::from("tests/fixtures/test_dht2.toml")).unwrap();
-        let db = Db::setup_connection_pool(settings.node(), Some(DB2.to_string()))
-            .expect("Failed to connect to node two database");
+        let config_fixture = config2.filename();
+        let settings = Settings::load_from_file(PathBuf::from(config_fixture)).unwrap();
+        let db = Db::setup_connection_pool(
+            settings.node(),
+            Some(proc_info2.db_path.display().to_string()),
+        )
+        .expect("Failed to connect to node two database");
 
         // let stored_receipt: Receipt =
         //     Db::find_receipt_by_cid(received_receipt_cid, &mut db.conn().unwrap()).unwrap_or_else(
@@ -281,16 +352,11 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         //     stdout2.clone(),
         //     vec![
         //         "found receipt record",
-        //         "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+        //         ED25519MULTIHASH,
         //     ],
         // );
-        let retrieved_workflow_info_logged = check_for_line_with(
-            stdout2,
-            vec![
-                "found workflow info",
-                "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
-            ],
-        );
+        let retrieved_workflow_info_logged =
+            check_for_line_with(stdout2, vec!["found workflow info", ED25519MULTIHASH]);
 
         // assert!(retrieved_receipt_logged);
         assert!(retrieved_workflow_info_logged);
@@ -300,12 +366,47 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_libp2p_dht_quorum_failure_integration() -> Result<()> {
-    const DB1: &str = "test_libp2p_dht_insufficient_quorum_integration1.db";
-    const DB2: &str = "test_libp2p_dht_insufficient_quorum_integration2.db";
+    let proc_info1 = ProcInfo::new().unwrap();
+    let proc_info2 = ProcInfo::new().unwrap();
 
-    let _db_guard1 = FileGuard::new(DB1);
-    let _db_guard2 = FileGuard::new(DB2);
+    let rpc_port1 = proc_info1.rpc_port;
+    let rpc_port2 = proc_info2.rpc_port;
+    let metrics_port1 = proc_info1.metrics_port;
+    let metrics_port2 = proc_info2.metrics_port;
+    let ws_port1 = proc_info1.ws_port;
+    let ws_port2 = proc_info2.ws_port;
+    let listen_addr1 = listen_addr(proc_info1.listen_port);
+    let listen_addr2 = listen_addr(proc_info2.listen_port);
+    let node_addra = multiaddr(proc_info2.listen_port, ED25519MULTIHASH3);
+    let node_addrb = multiaddr(proc_info1.listen_port, ED25519MULTIHASH2);
+    let toml1 = format!(
+        r#"
+        [node]
+        [node.network.keypair_config]
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
+        [node.network.libp2p]
+        listen_address = "{listen_addr1}"
+        node_addresses = ["{node_addra}"]
+        [node.network.libp2p.dht]
+        receipt_quorum = 100
+        workflow_quorum = 100
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.libp2p.pubsub]
+        enable = false
+        [node.network.libp2p.rendezvous]
+        enable_client = false
+        [node.network.metrics]
+        port = {metrics_port1}
+        [node.network.rpc]
+        port = {rpc_port1}
+        [node.network.webserver]
+        port = {ws_port1}
+        "#
+    );
+    let config1 = make_config!(toml1);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -314,21 +415,20 @@ fn test_libp2p_dht_quorum_failure_integration() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_dht3.toml")
+        .arg(config1.filename())
         .arg("--db")
-        .arg(DB1)
+        .arg(&proc_info1.db_path)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
     let proc_guard1 = ChildGuard::new(homestar_proc1);
 
-    let ws_port = 7982;
-    if wait_for_socket_connection(ws_port, 1000).is_err() {
+    if wait_for_socket_connection(ws_port1, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
     tokio_test::block_on(async {
-        let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port);
+        let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
         let client = WsClientBuilder::default()
             .build(ws_url.clone())
             .await
@@ -343,6 +443,33 @@ fn test_libp2p_dht_quorum_failure_integration() -> Result<()> {
             .await
             .unwrap();
 
+        let toml2 = format!(
+            r#"
+        [node]
+        [node.network.keypair_config]
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_3.pem" }}
+        [node.network.libp2p]
+        listen_address = "{listen_addr2}"
+        node_addresses = ["{node_addrb}"]
+        [node.network.libp2p.dht]
+        receipt_quorum = 100
+        workflow_quorum = 100
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.libp2p.pubsub]
+        enable = false
+        [node.network.libp2p.rendezvous]
+        enable_client = false
+        [node.network.metrics]
+        port = {metrics_port2}
+        [node.network.rpc]
+        port = {rpc_port2}
+        [node.network.webserver]
+        port = {ws_port2}
+        "#
+        );
+        let config2 = make_config!(toml2);
+
         let homestar_proc2 = Command::new(BIN.as_os_str())
             .env(
                 "RUST_LOG",
@@ -350,15 +477,14 @@ fn test_libp2p_dht_quorum_failure_integration() -> Result<()> {
             )
             .arg("start")
             .arg("-c")
-            .arg("tests/fixtures/test_dht4.toml")
+            .arg(config2.filename())
             .arg("--db")
-            .arg(DB2)
+            .arg(&proc_info2.db_path)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
         let proc_guard2 = ChildGuard::new(homestar_proc2);
 
-        let ws_port2 = 7983;
         if wait_for_socket_connection(ws_port2, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
@@ -381,7 +507,7 @@ fn test_libp2p_dht_quorum_failure_integration() -> Result<()> {
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9782")
+            .arg(rpc_port1.to_string())
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
@@ -439,12 +565,48 @@ fn test_libp2p_dht_quorum_failure_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
-    const DB1: &str = "test_libp2p_dht_workflow_info_provider_records1.db";
-    const DB2: &str = "test_libp2p_dht_workflow_info_provider_records2.db";
+    let proc_info1 = ProcInfo::new().unwrap();
+    let proc_info2 = ProcInfo::new().unwrap();
 
-    let _db_guard1 = FileGuard::new(DB1);
-    let _db_guard2 = FileGuard::new(DB2);
+    let rpc_port1 = proc_info1.rpc_port;
+    let rpc_port2 = proc_info2.rpc_port;
+    let metrics_port1 = proc_info1.metrics_port;
+    let metrics_port2 = proc_info2.metrics_port;
+    let ws_port1 = proc_info1.ws_port;
+    let ws_port2 = proc_info2.ws_port;
+    let listen_addr1 = listen_addr(proc_info1.listen_port);
+    let listen_addr2 = listen_addr(proc_info2.listen_port);
+    let node_addra = multiaddr(proc_info1.listen_port, ED25519MULTIHASH);
+    let node_addrb = multiaddr(proc_info2.listen_port, SECP256K1MULTIHASH);
+    let toml1 = format!(
+        r#"
+        [node]
+        [node.network.keypair_config]
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }}
+        [node.network.libp2p]
+        idle_connection_timeout = 240
+        listen_address = "{listen_addr1}"
+        node_addresses = ["{node_addrb}"]
+        [node.network.libp2p.dht]
+        receipt_quorum = 1
+        workflow_quorum = 1
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.libp2p.pubsub]
+        enable = false
+        [node.network.libp2p.rendezvous]
+        enable_client = false
+        [node.network.metrics]
+        port = {metrics_port1}
+        [node.network.rpc]
+        port = {rpc_port1}
+        [node.network.webserver]
+        port = {ws_port1}
+        "#
+    );
+    let config1 = make_config!(toml1);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
         .env(
@@ -453,15 +615,14 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         )
         .arg("start")
         .arg("-c")
-        .arg("tests/fixtures/test_dht5.toml")
+        .arg(config1.filename())
         .arg("--db")
-        .arg(DB1)
+        .arg(&proc_info1.db_path)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
     let proc_guard1 = ChildGuard::new(homestar_proc1);
 
-    let ws_port1 = 7984;
     if wait_for_socket_connection(ws_port1, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
@@ -482,6 +643,35 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             .await
             .unwrap();
 
+        let toml2 = format!(
+            r#"
+        [node]
+        [node.network.keypair_config]
+        existing = {{ key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }}
+        [node.network.libp2p]
+        listen_address = "{listen_addr2}"
+        node_addresses = ["{node_addra}"]
+        [node.network.libp2p.dht]
+        idle_connection_timeout = 240
+        p2p_workflow_info_timeout = 0
+        receipt_quorum = 1
+        workflow_quorum = 1
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.libp2p.pubsub]
+        enable = false
+        [node.network.libp2p.rendezvous]
+        enable_client = false
+        [node.network.metrics]
+        port = {metrics_port2}
+        [node.network.rpc]
+        port = {rpc_port2}
+        [node.network.webserver]
+        port = {ws_port2}
+        "#
+        );
+        let config2 = make_config!(toml2);
+
         let homestar_proc2 = Command::new(BIN.as_os_str())
             .env(
                 "RUST_LOG",
@@ -489,15 +679,14 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             )
             .arg("start")
             .arg("-c")
-            .arg("tests/fixtures/test_dht6.toml")
+            .arg(config2.filename())
             .arg("--db")
-            .arg(DB2)
+            .arg(&proc_info2.db_path)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
         let proc_guard2 = ChildGuard::new(homestar_proc2);
 
-        let ws_port2 = 7985;
         if wait_for_socket_connection(ws_port2, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
@@ -535,7 +724,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9784")
+            .arg(rpc_port1.to_string())
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
@@ -543,7 +732,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         // We want node two to request workflow info directly from node one
         // because of timeouts not because workflow info was missing from the
         // DHT, so we give node one time to put add workflow info to the DHT.
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_secs(10)).await;
 
         // Run the same workflow run on node two.
         // Node two should be request workflow info from
@@ -552,7 +741,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9785")
+            .arg(rpc_port2.to_string())
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
@@ -603,10 +792,12 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         );
 
         // Check database for workflow info
-        let settings =
-            Settings::load_from_file(PathBuf::from("tests/fixtures/test_dht6.toml")).unwrap();
-        let db = Db::setup_connection_pool(settings.node(), Some(DB2.to_string()))
-            .expect("Failed to connect to node two database");
+        let settings = Settings::load_from_file(PathBuf::from(config2.filename())).unwrap();
+        let db = Db::setup_connection_pool(
+            settings.node(),
+            Some(proc_info2.db_path.display().to_string()),
+        )
+        .expect("Failed to connect to node two database");
 
         let stored_workflow_info =
             Db::get_workflow_info(received_workflow_info_cid, &mut db.conn().unwrap());
@@ -633,10 +824,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         // Check node two got workflow info providers
         let got_workflow_info_provider_logged = check_for_line_with(
             stdout2.clone(),
-            vec![
-                "got workflow info providers",
-                "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
-            ],
+            vec!["got workflow info providers", ED25519MULTIHASH],
         );
 
         // Check node one sent workflow info
@@ -644,7 +832,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             stdout1.clone(),
             vec![
                 "sent workflow info to peer",
-                "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc",
+                SECP256K1MULTIHASH,
                 "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4",
             ],
         );
@@ -654,7 +842,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             stdout2.clone(),
             vec![
                 "received workflow info from peer",
-                "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+                ED25519MULTIHASH,
                 "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4",
             ],
         );
@@ -670,6 +858,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
 
 #[ignore]
 #[test]
+#[serial_test::serial]
 fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> {
     // NOTE: We are ignoring this test for now because we do not have a means
     // to properly isolate node a from node c. In the future when nodes are
@@ -690,14 +879,54 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
     // 8. Delete a's DB
     // 9. Run workflow on c
     // 10. Wait for network:receivedWorkflowInfo on c (from b, through a)
+    let proc_info1 = ProcInfo::new().unwrap();
+    let proc_info2 = ProcInfo::new().unwrap();
+    let proc_info3 = ProcInfo::new().unwrap();
 
-    const DB1: &str = "test_libp2p_dht_workflow_info_provider_recursive1.db";
-    const DB2: &str = "test_libp2p_dht_workflow_info_provider_recursive2.db";
-    const DB3: &str = "test_libp2p_dht_workflow_info_provider_recursive3.db";
-
-    let _db_guard1 = FileGuard::new(DB1);
-    let _db_guard2 = FileGuard::new(DB2);
-    let _db_guard3 = FileGuard::new(DB3);
+    let rpc_port1 = proc_info1.rpc_port;
+    let rpc_port2 = proc_info2.rpc_port;
+    let rpc_port3 = proc_info3.rpc_port;
+    let metrics_port1 = proc_info1.metrics_port;
+    let metrics_port2 = proc_info2.metrics_port;
+    let metrics_port3 = proc_info3.metrics_port;
+    let ws_port1 = proc_info1.ws_port;
+    let ws_port2 = proc_info2.ws_port;
+    let ws_port3 = proc_info3.ws_port;
+    let listen_addr1 = listen_addr(proc_info1.listen_port);
+    let listen_addr2 = listen_addr(proc_info2.listen_port);
+    let listen_addr3 = listen_addr(proc_info3.listen_port);
+    let node_addra = multiaddr(proc_info1.listen_port, ED25519MULTIHASH);
+    let node_addrb = multiaddr(proc_info2.listen_port, SECP256K1MULTIHASH);
+    let node_addrc = multiaddr(proc_info3.listen_port, ED25519MULTIHASH2);
+    let toml1 = format!(
+        r#"
+        [node]
+        [node.network.keypair_config]
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }}
+        [node.network.libp2p]
+        listen_address = "{listen_addr1}"
+        node_addresses = ["{node_addrb}", "{node_addrc}"]
+        # Force node one to request from node two
+        # as a provider instead of from DHT
+        p2p_workflow_info_timeout = 0
+        p2p_provider_timeout = 10000
+        receipt_quorum = 1
+        workflow_quorum = 1
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.libp2p.pubsub]
+        enable = false
+        [node.network.libp2p.rendezvous]
+        enable_client = false
+        [node.network.metrics]
+        port = {metrics_port1}
+        [node.network.rpc]
+        port = {rpc_port1}
+        [node.network.webserver]
+        port = {ws_port1}
+        "#
+    );
+    let config1 = make_config!(toml1);
 
     tokio_test::block_on(async move {
         let homestar_proc1 = Command::new(BIN.as_os_str())
@@ -707,15 +936,14 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
             )
             .arg("start")
             .arg("-c")
-            .arg("tests/fixtures/test_dht7.toml")
+            .arg(config1.filename())
             .arg("--db")
-            .arg(DB1)
+            .arg(&proc_info1.db_path)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
         let _proc_guard1 = ChildGuard::new(homestar_proc1);
 
-        let ws_port1 = 7986;
         if wait_for_socket_connection(ws_port1, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
@@ -735,6 +963,35 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
             .await
             .unwrap();
 
+        let toml2 = format!(
+            r#"
+        [node]
+        [node.network.keypair_config]
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }}
+        [node.network.libp2p]
+        listen_address = "{listen_addr2}"
+        node_addresses = ["{node_addra}"]
+        # Allow node two to request workflow info from DHT
+        p2p_workflow_info_timeout = 5000
+        p2p_provider_timeout = 0
+        receipt_quorum = 1
+        workflow_quorum = 1
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.libp2p.pubsub]
+        enable = false
+        [node.network.libp2p.rendezvous]
+        enable_client = false
+        [node.network.metrics]
+        port = {metrics_port2}
+        [node.network.rpc]
+        port = {rpc_port2}
+        [node.network.webserver]
+        port = {ws_port2}
+        "#
+        );
+        let config2 = make_config!(toml2);
+
         let homestar_proc2 = Command::new(BIN.as_os_str())
             .env(
                 "RUST_LOG",
@@ -742,15 +999,14 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
             )
             .arg("start")
             .arg("-c")
-            .arg("tests/fixtures/test_dht8.toml")
+            .arg(config2.filename())
             .arg("--db")
-            .arg(DB2)
+            .arg(&proc_info2.db_path)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
         let _proc_guard2 = ChildGuard::new(homestar_proc2);
 
-        let ws_port2 = 7987;
         if wait_for_socket_connection(ws_port2, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
@@ -770,6 +1026,35 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
             .await
             .unwrap();
 
+        let toml3 = format!(
+            r#"
+        [node]
+        [node.network.keypair_config]
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
+        [node.network.libp2p]
+        listen_address = "{listen_addr3}"
+        node_addresses = ["{node_addra}"]
+        # Allow node two to request workflow info from DHT
+        p2p_workflow_info_timeout = 0
+        p2p_provider_timeout = 10000
+        receipt_quorum = 1
+        workflow_quorum = 1
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.libp2p.pubsub]
+        enable = false
+        [node.network.libp2p.rendezvous]
+        enable_client = false
+        [node.network.metrics]
+        port = {metrics_port3}
+        [node.network.rpc]
+        port = {rpc_port3}
+        [node.network.webserver]
+        port = {ws_port3}
+        "#
+        );
+        let config3 = make_config!(toml3);
+
         let homestar_proc3 = Command::new(BIN.as_os_str())
             .env(
                 "RUST_LOG",
@@ -777,15 +1062,14 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
             )
             .arg("start")
             .arg("-c")
-            .arg("tests/fixtures/test_dht9.toml")
+            .arg(config3.filename())
             .arg("--db")
-            .arg(DB3)
+            .arg(&proc_info3.db_path)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
         let _guard3 = ChildGuard::new(homestar_proc3);
 
-        let ws_port3 = 7988;
         if wait_for_socket_connection(ws_port3, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
@@ -814,10 +1098,7 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
                 println!("node1: {json}");
 
                 if json["type"].as_str().unwrap() == "network:connectionEstablished" {
-                    assert_eq!(
-                        json["data"]["peerId"],
-                        "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc"
-                    );
+                    assert_eq!(json["data"]["peerId"], SECP256K1MULTIHASH.to_string());
 
                     break;
                 }
@@ -835,10 +1116,7 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
                 println!("node1: {json}");
 
                 if json["type"].as_str().unwrap() == "network:connectionEstablished" {
-                    assert_eq!(
-                        json["data"]["peerId"],
-                        "12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5"
-                    );
+                    assert_eq!(json["data"]["peerId"], ED25519MULTIHASH2.to_string());
 
                     break;
                 }
@@ -851,7 +1129,7 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9786")
+            .arg(rpc_port1.to_string())
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
@@ -881,7 +1159,7 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9787")
+            .arg(rpc_port2.to_string())
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
@@ -907,9 +1185,11 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
             }
         }
 
-        let db =
-            db::Db::setup_connection_pool(&Settings::load().unwrap().node(), Some(DB1.to_string()))
-                .unwrap();
+        let db = db::Db::setup_connection_pool(
+            &Settings::load().unwrap().node(),
+            Some(proc_info1.db_path.display().to_string()),
+        )
+        .unwrap();
 
         diesel::delete(schema::workflows_receipts::table)
             .execute(&mut db.conn().unwrap())
@@ -927,7 +1207,7 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
         let _ = Command::new(BIN.as_os_str())
             .arg("run")
             .arg("-p")
-            .arg("9788")
+            .arg(rpc_port3.to_string())
             .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();

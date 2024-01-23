@@ -231,6 +231,12 @@
           ipfs --repo-dir ./.ipfs --offline daemon
         '';
 
+        testCleanup = pkgs.writeScriptBin "test-clean" ''
+          #!${pkgs.stdenv.shell}
+          rm -rf homestar-runtime/tests/fixtures/*.db
+          rm -rf homestar-runtime/tests/fixtures/*.toml
+        '';
+
         scripts = [
           ci
           db
@@ -255,6 +261,7 @@
           nxTestAll
           nxTestNoDefault
           runIpfs
+          testCleanup
           wasmTest
           wasmAdd
         ];
@@ -304,6 +311,7 @@
             # See https://github.com/nextest-rs/nextest/issues/267
             + (pkgs.lib.strings.optionalString pkgs.stdenv.isDarwin ''
               export DYLD_FALLBACK_LIBRARY_PATH="$(rustc --print sysroot)/lib"
+              export NIX_LDFLAGS="-F${pkgs.darwin.apple_sdk.frameworks.CoreFoundation}/Library/Frameworks -framework CoreFoundation $NIX_LDFLAGS";
             '');
         };
 
