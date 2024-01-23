@@ -2675,6 +2675,7 @@ dependencies = [
  "indexmap 2.1.0",
  "json",
  "libipld",
+ "schemars",
  "serde",
  "serde_json",
  "thiserror",

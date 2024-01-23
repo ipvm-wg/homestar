@@ -2,6 +2,7 @@
 //! JSON Schemas for method params and notifications.
 
 use homestar_runtime::{Health, NetworkNotification};
+use homestar_workflow::Workflow;
 use schemars::{schema::RootSchema, schema_for};
 use std::{fs, io::Write};
 
@@ -24,14 +25,23 @@ fn main() {
         .unwrap()
         .write_all(&serde_json::to_vec_pretty(&network_schema).unwrap());
 
-    let api_doc = generate_api_doc(health_schema, network_schema);
+    let workflow_schema = schema_for!(Workflow<'static, ()>);
+    let _ = fs::File::create("schemas/docs/workflow.json")
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&workflow_schema).unwrap());
+
+    let api_doc = generate_api_doc(health_schema, network_schema, workflow_schema);
     let _ = fs::File::create("schemas/docs/api.json")
         .unwrap()
         .write_all(&serde_json::to_vec_pretty(&api_doc).unwrap());
 }
 
 // Spec: https://github.com/open-rpc/spec/blob/1.2.6/spec.md
-fn generate_api_doc(health_schema: RootSchema, network_schema: RootSchema) -> OpenrpcDocument {
+fn generate_api_doc(
+    health_schema: RootSchema,
+    network_schema: RootSchema,
+    workflow_schema: RootSchema,
+) -> OpenrpcDocument {
     let health: MethodObject = MethodObject {
         name: "health".to_string(),
         description: None,
@@ -57,7 +67,7 @@ fn generate_api_doc(health_schema: RootSchema, network_schema: RootSchema) -> Op
     };
 
     let network: MethodObject = MethodObject {
-        name: "network".to_string(),
+        name: "subscribe_network_events".to_string(),
         description: None,
         summary: None,
         servers: None,
@@ -65,7 +75,7 @@ fn generate_api_doc(health_schema: RootSchema, network_schema: RootSchema) -> Op
         param_structure: Some(MethodObjectParamStructure::ByName),
         params: vec![],
         result: ContentDescriptorOrReference::ContentDescriptorObject(ContentDescriptorObject {
-            name: "network".to_string(),
+            name: "subscription_id".to_string(),
             summary: None,
             description: None,
             required: Some(true),
@@ -85,6 +95,46 @@ fn generate_api_doc(health_schema: RootSchema, network_schema: RootSchema) -> Op
             schema: JSONSchema::JsonSchemaObject(network_schema),
             deprecated: Some(false),
         }),
+    };
+
+    let workflow: MethodObject = MethodObject {
+        name: "subscribe_run_workflow".to_string(),
+        description: None,
+        summary: None,
+        servers: None,
+        tags: None,
+        param_structure: Some(MethodObjectParamStructure::ByName),
+        params: vec![ContentDescriptorOrReference::ContentDescriptorObject(
+            ContentDescriptorObject {
+                name: "workflow".to_string(),
+                summary: None,
+                description: None,
+                required: Some(true),
+                schema: JSONSchema::JsonSchemaObject(workflow_schema),
+                deprecated: Some(false),
+            },
+        )],
+        result: ContentDescriptorOrReference::ContentDescriptorObject(ContentDescriptorObject {
+            name: "subscription_id".to_string(),
+            summary: None,
+            description: None,
+            required: Some(true),
+            schema: JSONSchema::JsonSchemaObject(schema_for!(String)),
+            deprecated: Some(false),
+        }),
+        external_docs: None,
+        errors: None,
+        links: None,
+        examples: None,
+        deprecated: Some(false),
+        x_messages: None, // x_messages: Some(ContentDescriptorObject {
+                          //     name: "network subscription messages".to_string(),
+                          //     summary: None,
+                          //     description: None,
+                          //     required: Some(true),
+                          //     schema: JSONSchema::JsonSchemaObject(network_schema),
+                          //     deprecated: Some(false),
+                          // }),
     };
 
     OpenrpcDocument {
@@ -109,7 +159,7 @@ fn generate_api_doc(health_schema: RootSchema, network_schema: RootSchema) -> Op
             url: "https://docs.everywhere.computer/homestar/what-is-homestar/".to_string(),
         }),
         servers: None,
-        methods: vec![health, network],
+        methods: vec![health, network, workflow],
         components: None,
     }
 }

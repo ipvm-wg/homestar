@@ -1,10 +1,27 @@
 //! An [Instruction] is the smallest unit of work that can be requested from a
 //! UCAN, described via `resource`, `ability`.
 
-use crate::{ipld::DagCbor, Error, Pointer, Unit};
+use crate::{
+    ipld::{self, DagCbor},
+    pointer::AwaitResult,
+    Error, Pointer, Unit,
+};
 use libipld::{cid::multibase::Base, serde::from_ipld, Ipld};
+use schemars::{
+    gen::SchemaGenerator,
+    schema::{
+        ArrayValidation, InstanceType, Metadata, ObjectValidation, Schema, SchemaObject,
+        SingleOrVec,
+    },
+    JsonSchema,
+};
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, collections::BTreeMap, fmt};
+use serde_json::json;
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
 use url::Url;
 
 const RESOURCE_KEY: &str = "rsc";
@@ -319,6 +336,137 @@ where
 }
 
 impl<'a, T> DagCbor for Instruction<'a, T> where Ipld: From<T> {}
+
+impl<'a, T> JsonSchema for Instruction<'a, T> {
+    fn schema_name() -> String {
+        "run".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed("homestar-invocation::task::Instruction")
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        struct InputConditional {
+            if_schema: Schema,
+            then_schema: Schema,
+            else_schema: Schema,
+        }
+
+        fn input_conditional(gen: &mut SchemaGenerator) -> InputConditional {
+            let if_schema = SchemaObject {
+                instance_type: None,
+                object: Some(Box::new(ObjectValidation {
+                    properties: BTreeMap::from([(
+                        "op".to_owned(),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(InstanceType::String.into())),
+                            const_value: Some(json!("wasm/run")),
+                            ..Default::default()
+                        }),
+                    )]),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            };
+
+            let func_schema = SchemaObject {
+                instance_type: Some(SingleOrVec::Single(InstanceType::String.into())),
+                metadata: Some(Box::new(Metadata {
+                    description: Some("The function to call on the Wasm resource".to_string()),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            };
+
+            let args_schema = SchemaObject {
+                instance_type: Some(SingleOrVec::Single(InstanceType::Array.into())),
+                metadata: Some(Box::new(Metadata {
+                    description: Some(
+                        "Arguments to the function. May await a result from another task."
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                })),
+                array: Some(Box::new(ArrayValidation {
+                    items: Some(SingleOrVec::Vec(vec![
+                        gen.subschema_for::<ipld::schema::IpldStub>(),
+                        gen.subschema_for::<AwaitResult>(),
+                    ])),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            };
+
+            let input_schema = SchemaObject {
+                instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+                object: Some(Box::new(ObjectValidation {
+                    properties: BTreeMap::from([
+                        ("func".to_string(), Schema::Object(func_schema)),
+                        ("args".to_string(), Schema::Object(args_schema)),
+                    ]),
+                    required: BTreeSet::from(["func".to_string(), "args".to_string()]),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            };
+
+            let then_schema = SchemaObject {
+                instance_type: None,
+                object: Some(Box::new(ObjectValidation {
+                    properties: BTreeMap::from([(
+                        "input".to_string(),
+                        Schema::Object(input_schema),
+                    )]),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            };
+
+            InputConditional {
+                if_schema: Schema::Object(if_schema),
+                then_schema: Schema::Object(then_schema),
+                else_schema: Schema::Bool(false),
+            }
+        }
+
+        let op_schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::String.into())),
+            metadata: Some(Box::new(Metadata {
+                description: Some("Function executor".to_string()),
+                ..Default::default()
+            })),
+            enum_values: Some(vec![json!("wasm/run")]),
+            ..Default::default()
+        };
+
+        let mut schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            metadata: Some(Box::new(Metadata {
+                title: Some("Run instruction".to_string()),
+                description: Some("An instruction that runs a function from a resource, executor that will run the function, inputs to the executor, and optional nonce".to_string()),
+                ..Default::default()
+            })),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([
+                    ("rsc".to_owned(), <Url>::json_schema(gen)),
+                    ("op".to_owned(), Schema::Object(op_schema)),
+                    ("nnc".to_owned(), <Nonce>::json_schema(gen))
+                ]),
+                required: BTreeSet::from(["rsc".to_string(), "op".to_string(), "input".to_string(), "nnc".to_string()]),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+
+        let input = input_conditional(gen);
+        schema.subschemas().if_schema = Some(Box::new(input.if_schema));
+        schema.subschemas().then_schema = Some(Box::new(input.then_schema));
+        schema.subschemas().else_schema = Some(Box::new(input.else_schema));
+
+        schema.into()
+    }
+}
 
 #[cfg(test)]
 mod test {

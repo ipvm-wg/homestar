@@ -23,6 +23,7 @@ homestar-invocation = { version = "0.1", path = "../homestar-invocation" }
 homestar-workspace-hack = { workspace = true }
 indexmap = { version = "2.1", default-features = false }
 libipld = { workspace = true }
+schemars = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 

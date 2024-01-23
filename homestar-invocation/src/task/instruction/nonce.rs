@@ -9,8 +9,13 @@ use generic_array::{
     GenericArray,
 };
 use libipld::{multibase::Base::Base32HexLower, Ipld};
+use schemars::{
+    gen::SchemaGenerator,
+    schema::{InstanceType, Metadata, Schema, SchemaObject, SingleOrVec},
+    JsonSchema,
+};
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{borrow::Cow, fmt};
 use uuid::Uuid;
 
 type Nonce96 = GenericArray<u8, U12>;
@@ -85,6 +90,30 @@ impl TryFrom<&Ipld> for Nonce {
 
     fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
         TryFrom::try_from(ipld.to_owned())
+    }
+}
+
+impl JsonSchema for Nonce {
+    fn schema_name() -> String {
+        "nonce".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed("homestar-invocation::task::instruction::Nonce")
+    }
+
+    fn json_schema(_gen: &mut SchemaGenerator) -> Schema {
+        let schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::String.into())),
+            metadata: Some(Box::new(Metadata {
+                description: Some(
+                    "A 12-byte or 16-byte nonce. Use empty string for no nonce.".to_string(),
+                ),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+        schema.into()
     }
 }
 
