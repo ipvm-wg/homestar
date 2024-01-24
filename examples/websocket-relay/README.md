@@ -66,7 +66,8 @@ need: `brew install rust npm ipfs`
 
 We have packaged homestar binaries using brew, so
 `brew install fission-codes/fission/homestar` will install everything you need,
-including `ipfs`. You will still need `npm` to run this example. From this folder, you can then run the example like this:
+including `ipfs`. You will still need `npm` to run this example. From this folder,
+you can then run the example like this:
 
 ```
 homestar start --db homestar.db

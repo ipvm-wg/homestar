@@ -5,7 +5,7 @@
 In the interest of fostering an open, inclusive, and welcoming environment, all
 members, contributors, and maintainers interacting within our online community
 (including Discord, Discourse, etc.), on affiliated projects and repositories
-(including issues, pull requests, and discussions on Github), and/or involved
+(including issues, pull requests, and discussions on GitHub), and/or involved
 with associated events pledge to accept and observe the following Code of
 Conduct.
 
@@ -67,7 +67,7 @@ This Code of Conduct applies within all project and community spaces, as well as
 in any public spaces where an individual representing the community is involved.
 This covers
 
-- Interactions on the Github repository, including discussions, issues, pull
+- Interactions on the GitHub repository, including discussions, issues, pull
   requests, commits, and wikis
 - Interactions on any affiliated Discord, Slack, IRC, or related online
   communities and forums like Discourse, etc.

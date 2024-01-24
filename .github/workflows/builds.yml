@@ -155,6 +155,7 @@ jobs:
       - name: Publish production
         if: github.event_name == 'release' && github.event.action == 'published'
         run: |
+          cp homestar-runtime/README.md "homestar-runtime/npm/${{ env.node_pkg }}"
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
           npm publish --access=public
         env:
@@ -162,6 +163,7 @@ jobs:
       - name: Publish RC
         if: github.event_name == 'workflow_dispatch'
         run: |
+          cp homestar-runtime/README.md "homestar-runtime/npm/${{ env.node_pkg }}"
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
           chmod +x bin/${{ matrix.bin }}
           npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
