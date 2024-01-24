@@ -181,7 +181,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                if json["connection_established"].is_object() {
                     break;
                 }
             } else {
@@ -496,7 +496,7 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                if json["connection_established"].is_object() {
                     break;
                 }
             } else {
@@ -715,7 +715,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                if json["connection_established"].is_object() {
                     break;
                 }
             } else {
@@ -1098,10 +1098,11 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                println!("node1: {json}");
-
-                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
-                    assert_eq!(json["data"]["peerId"], SECP256K1MULTIHASH.to_string());
+                if json["connection_established"].is_object() {
+                    assert_eq!(
+                        json["connection_established"]["peer_id"],
+                        SECP256K1MULTIHASH.to_string()
+                    );
 
                     break;
                 }
@@ -1118,8 +1119,11 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
 
                 println!("node1: {json}");
 
-                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
-                    assert_eq!(json["data"]["peerId"], ED25519MULTIHASH2.to_string());
+                if json["connection_established"].is_object() {
+                    assert_eq!(
+                        json["connection_established"]["peerId"],
+                        ED25519MULTIHASH2.to_string()
+                    );
 
                     break;
                 }

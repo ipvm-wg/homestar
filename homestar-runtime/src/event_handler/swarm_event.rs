@@ -2,7 +2,9 @@
 
 use super::EventHandler;
 #[cfg(feature = "websocket-notify")]
-use crate::event_handler::notification::{self, EventNotificationTyp, SwarmNotification};
+use crate::event_handler::notification::{
+    self, EventNotificationTyp, NetworkNotification, SwarmNotification,
+};
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
@@ -1107,14 +1109,15 @@ async fn handle_swarm_event<DB: Database>(
                 .insert(peer_id, endpoint.clone());
 
             #[cfg(feature = "websocket-notify")]
-            notification::emit_event(
+            notification::emit_network_event(
                 event_handler.ws_evt_sender(),
-                EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
-                btreemap! {
-                    "peerId" => Ipld::String(peer_id.to_string()),
-                    "address" => Ipld::String(endpoint.get_remote_address().to_string())
-                },
-            );
+                NetworkNotification::ConnnectionEstablished(
+                    notification::ConnectionEstablished::new(
+                        peer_id,
+                        endpoint.get_remote_address().to_owned(),
+                    ),
+                ),
+            )
         }
         SwarmEvent::ConnectionClosed {
             peer_id,
@@ -1186,14 +1189,13 @@ async fn handle_swarm_event<DB: Database>(
             }
 
             #[cfg(feature = "websocket-notify")]
-            notification::emit_event(
+            notification::emit_network_event(
                 event_handler.ws_evt_sender(),
-                EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionClosed),
-                btreemap! {
-                    "peerId" => Ipld::String(peer_id.to_string()),
-                    "address" => Ipld::String(endpoint.get_remote_address().to_string())
-                },
-            );
+                NetworkNotification::ConnnectionClosed(notification::ConnectionClosed::new(
+                    peer_id,
+                    endpoint.get_remote_address().to_owned(),
+                )),
+            )
         }
         SwarmEvent::OutgoingConnectionError {
             connection_id,

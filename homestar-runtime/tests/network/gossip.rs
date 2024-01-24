@@ -148,7 +148,7 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                if json["connection_established"].is_object() {
                     break;
                 }
             } else {

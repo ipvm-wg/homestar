@@ -106,7 +106,7 @@ impl JsonSchema for UcanPrf {
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {
         let schema = SchemaObject {
-            instance_type: Some(SingleOrVec::Vec(vec![InstanceType::Array.into()])),
+            instance_type: Some(SingleOrVec::Vec(vec![InstanceType::Array])),
             array: Some(Box::new(ArrayValidation {
                 items: Some(gen.subschema_for::<String>().into()),
                 ..Default::default()

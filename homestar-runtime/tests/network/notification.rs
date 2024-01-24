@@ -143,7 +143,7 @@ fn test_connection_notifications_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                if json["connection_established"].is_object() {
                     break;
                 }
             } else {
@@ -159,7 +159,7 @@ fn test_connection_notifications_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionClosed" {
+                if json["connection_closed"].is_object() {
                     break;
                 }
             } else {

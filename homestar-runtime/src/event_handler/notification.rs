@@ -19,7 +19,9 @@ use tracing::{debug, warn};
 pub(crate) mod receipt;
 pub(crate) mod swarm;
 pub(crate) use receipt::ReceiptNotification;
-pub(crate) use swarm::SwarmNotification;
+pub(crate) use swarm::{
+    ConnectionClosed, ConnectionEstablished, NetworkNotification, SwarmNotification,
+};
 
 const TYPE_KEY: &str = "type";
 const DATA_KEY: &str = "data";
@@ -90,6 +92,36 @@ pub(crate) fn emit_event(
     }
 }
 
+/// Send network event notification as bytes.
+pub(crate) fn emit_network_event(
+    notifier: Notifier<notifier::Message>,
+    notification: NetworkNotification,
+) {
+    let header = Header::new(
+        SubscriptionTyp::EventSub(SUBSCRIBE_NETWORK_EVENTS_ENDPOINT.to_string()),
+        None,
+    );
+
+    if let Ok(json) = notification.to_json() {
+        if let Err(err) = notifier.notify(Message::new(header, json)) {
+            debug!(
+                subject = "notification.err",
+                category = "notification",
+                err=?err,
+                "unable to send notification {:?}",
+                notification,
+            )
+        };
+    } else {
+        debug!(
+            subject = "notification.err",
+            category = "notification",
+            "unable to serialize event notification as bytes: {:?}",
+            notification
+        );
+    }
+}
+
 /// Notification sent to clients.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct EventNotification {
@@ -113,7 +145,7 @@ impl EventNotification {
     }
 }
 
-impl DagJson for EventNotification where Ipld: From<EventNotification> {}
+impl DagJson for EventNotification {}
 
 impl From<EventNotification> for Ipld {
     fn from(notification: EventNotification) -> Self {
@@ -186,7 +218,7 @@ impl fmt::Display for EventNotificationTyp {
     }
 }
 
-impl DagJson for EventNotificationTyp where Ipld: From<EventNotificationTyp> {}
+impl DagJson for EventNotificationTyp {}
 
 impl From<EventNotificationTyp> for Ipld {
     fn from(typ: EventNotificationTyp) -> Self {
@@ -214,62 +246,5 @@ impl TryFrom<Ipld> for EventNotificationTyp {
                 "Event notification type missing colon delimiter between type and subtype."
             ))
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use libp2p::PeerId;
-    use maplit::btreemap;
-
-    #[test]
-    fn notification_bytes_rountrip() {
-        let peer_id = PeerId::random().to_string();
-        let address: String = "/ip4/127.0.0.1/tcp/7000".to_string();
-
-        let notification = EventNotification::new(
-            EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
-            btreemap! {
-                "peerId" => Ipld::String(peer_id.clone()),
-                "address" => Ipld::String(address.clone())
-            },
-        );
-        let bytes = notification.to_json().unwrap();
-
-        let parsed = EventNotification::from_json(bytes.as_ref()).unwrap();
-        let data: BTreeMap<String, String> = from_ipld(parsed.data).unwrap();
-
-        assert_eq!(
-            parsed.typ,
-            EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished)
-        );
-        assert_eq!(data.get("peerId").unwrap(), &peer_id);
-        assert_eq!(data.get("address").unwrap(), &address);
-    }
-
-    #[test]
-    fn notification_json_string_rountrip() {
-        let peer_id = PeerId::random().to_string();
-        let address: String = "/ip4/127.0.0.1/tcp/7000".to_string();
-
-        let notification = EventNotification::new(
-            EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
-            btreemap! {
-                "peerId" => Ipld::String(peer_id.clone()),
-                "address" => Ipld::String(address.clone()),
-            },
-        );
-        let json_string = notification.to_json_string().unwrap();
-
-        let parsed = EventNotification::from_json_string(json_string).unwrap();
-        let data: BTreeMap<String, String> = from_ipld(parsed.data).unwrap();
-
-        assert_eq!(
-            parsed.typ,
-            EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished)
-        );
-        assert_eq!(data.get("peerId").unwrap(), &peer_id);
-        assert_eq!(data.get("address").unwrap(), &address);
     }
 }
