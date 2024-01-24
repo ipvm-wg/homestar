@@ -21,7 +21,6 @@ fn main() -> Result<()> {
             // Load settings first, so we can daemonize before starting the
             // runtime.
             let settings = if let Some(file) = runtime_config {
-                println!("Loading settings from file: {}", file.display());
                 Settings::load_from_file(file)
             } else {
                 Settings::load()
