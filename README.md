@@ -172,7 +172,7 @@ We always adhere to our [Code of Conduct](./CODE_OF_CONDUCT.md).
 ### Crates, Tags, and GitHub Releases
 
 Homestar uses [release-plz][release-plz] to publish [crates][rel-crates],
-[tags][rel-tags], changelogs, and [GitHub Releases][rel-gh]. Upon merging
+[tags][rel-tags], changelogs, and [GitHub Releases][rel-gh]. Upon merging,
 a `release-plz` bot PR, four crates are continuously published,
 **all tied to the same cargo version currently** (though this may change in the
 future):
