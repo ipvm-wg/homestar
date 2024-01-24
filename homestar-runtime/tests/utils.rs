@@ -8,13 +8,16 @@ use nix::{
     unistd::Pid,
 };
 use once_cell::sync::Lazy;
+use port_selector::Selector;
 use predicates::prelude::*;
 #[cfg(not(windows))]
 use retry::delay::Fixed;
 use retry::{delay::Exponential, retry};
 use std::{
-    fs,
+    env, fs,
+    fs::File,
     future::Future,
+    io::Write,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream},
     path::PathBuf,
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
@@ -27,10 +30,53 @@ use wait_timeout::ChildExt;
 /// Binary name, which is different than the crate name.
 pub(crate) const BIN_NAME: &str = "homestar";
 
+/// Test-default ed25519 multihash.
+pub(crate) const ED25519MULTIHASH: &str = "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN";
+/// Test-default ed25519 multihash 2.
+pub(crate) const ED25519MULTIHASH2: &str = "12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5";
+/// Test-default ed25519 multihash 3.
+pub(crate) const ED25519MULTIHASH3: &str = "12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq";
+/// Test-default ed25519 multihash 4.
+pub(crate) const ED25519MULTIHASH4: &str = "12D3KooWRndVhVZPCiQwHBBBdg769GyrPUW13zxwqQyf9r3ANaba";
+/// Test-default ed25519 multihash 5.
+pub(crate) const ED25519MULTIHASH5: &str = "12D3KooWPT98FXMfDQYavZm66EeVjTqP9Nnehn1gyaydqV8L8BQw";
+/// Test-default secp256k1 multihash.
+pub(crate) const SECP256K1MULTIHASH: &str = "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc";
+
+/// Return listener address.
+pub(crate) fn listen_addr(port: u16) -> String {
+    format!("/ip4/127.0.0.1/tcp/{port}")
+}
+
+/// Return multiaddr address.
+pub(crate) fn multiaddr(port: u16, hash: &str) -> String {
+    format!("/ip4/127.0.0.1/tcp/{port}/p2p/{hash}")
+}
+
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
-pub struct ChildGuard {
+/// Guard for a [Child] process.
+pub(crate) struct ChildGuard {
     guard: Option<Child>,
+}
+
+/// [port_selector::Selector] wrapper for tests.
+pub(crate) struct RpcSelector(pub(crate) Selector);
+
+impl RpcSelector {
+    pub(crate) fn new() -> Self {
+        Self(Selector {
+            check_tcp: true,
+            check_udp: true,
+            port_range: (10000, 15000),
+            max_random_times: 100,
+        })
+    }
+
+    /// Select a free port within the port range.
+    pub(crate) fn select_free_port(&mut self) -> Result<u16> {
+        port_selector::select_free_port(self.0).context("failed to select free port")
+    }
 }
 
 #[allow(dead_code)]
@@ -86,38 +132,6 @@ impl Drop for ChildGuard {
                     eprintln!("Could not kill child process: {e}");
                 }
             }
-        };
-    }
-}
-
-pub struct FileGuard {
-    guard: Option<PathBuf>,
-}
-
-#[allow(dead_code)]
-impl FileGuard {
-    /// Create a new [FileGuard] from a path.
-    pub(crate) fn new(path: &str) -> Self {
-        Self {
-            guard: Some(PathBuf::from_str(path).unwrap()),
-        }
-    }
-
-    /// Take the path from the [FileGuard] and return the path as a [String].
-    pub(crate) fn take(mut self) -> String {
-        self.guard
-            .take()
-            .expect("Failed to take the inner `PathBuf`")
-            .display()
-            .to_string()
-    }
-}
-
-impl Drop for FileGuard {
-    fn drop(&mut self) {
-        if let Some(path) = self.guard.take() {
-            let path = path.display().to_string();
-            remove_db(&path);
         };
     }
 }
@@ -247,6 +261,45 @@ pub(crate) fn remove_db(name: &str) {
     let _ = fs::remove_file(format!("{name}-wal"));
 }
 
+/// ProcInfo struct for tests, filled with randomized ports and DB name.
+pub(crate) struct ProcInfo {
+    pub(crate) metrics_port: u16,
+    pub(crate) rpc_port: u16,
+    pub(crate) ws_port: u16,
+    pub(crate) db_path: PathBuf,
+    pub(crate) listen_port: u16,
+}
+
+impl ProcInfo {
+    pub(crate) fn new() -> Result<Self> {
+        let uuid = &uuid::Uuid::new_v4();
+        let name = format!("tests/fixtures/{}.db", uuid);
+
+        let proc_info = Self {
+            metrics_port: port_selector::random_free_tcp_port()
+                .ok_or(anyhow::anyhow!("failed to select free port for metrics"))?,
+            rpc_port: RpcSelector::new().select_free_port()?,
+            ws_port: port_selector::random_free_port().ok_or(anyhow::anyhow!(
+                "failed to select free port for JSON-RPC webserver"
+            ))?,
+            db_path: PathBuf::from_str(&name)?,
+            listen_port: port_selector::random_free_port().ok_or(anyhow::anyhow!(
+                "failed to select free port for listen address"
+            ))?,
+        };
+
+        Ok(proc_info)
+    }
+}
+
+impl Drop for ProcInfo {
+    fn drop(&mut self) {
+        if let Some(path) = self.db_path.to_str() {
+            remove_db(path);
+        };
+    }
+}
+
 /// Wait for socket connection or timeout
 pub(crate) fn wait_for_socket_connection(port: u16, exp_retry_base: u64) -> Result<(), ()> {
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
@@ -291,3 +344,66 @@ pub(crate) trait TimeoutFutureExt<T>: Future<Output = T> + Sized {
 }
 
 impl<T, U> TimeoutFutureExt<T> for U where U: Future<Output = T> + Sized {}
+
+/// Config wrapper for tests.
+#[derive(Debug)]
+pub(crate) struct TestConfig {
+    filename: String,
+    toml_config: toml::Table,
+}
+
+#[allow(dead_code)]
+impl TestConfig {
+    /// Save the [TestConfig] to the config directory.
+    pub(crate) fn save_fixture(&self) -> Result<()> {
+        let file_path = env::current_dir()?;
+        let mut write_file = File::create(file_path.join(&self.filename))?;
+        write_file.write_all(toml::to_string(&self.toml_config).unwrap().as_bytes())?;
+        Ok(())
+    }
+
+    /// Get the name of the [TestConfig].
+    pub(crate) fn filename(&self) -> &String {
+        &self.filename
+    }
+
+    /// Get the toml config of the [TestConfig].
+    pub(crate) fn config(&self) -> &toml::Table {
+        &self.toml_config
+    }
+
+    /// Create a new [TestConfig].
+    pub(crate) fn new(filename: String, toml: toml::Table) -> Self {
+        TestConfig {
+            filename: filename.to_string(),
+            toml_config: toml,
+        }
+    }
+}
+
+impl Drop for TestConfig {
+    fn drop(&mut self) {
+        let file_path = env::current_dir().unwrap();
+        fs::remove_file(file_path.join(&self.filename)).unwrap();
+    }
+}
+#[macro_export]
+macro_rules! make_config {
+    // For tests where all you want to do is write toml.
+    ($toml:expr) => {{
+        let uuid = uuid::Uuid::new_v4();
+        let name = format!("tests/fixtures/{}.toml", uuid);
+        let toml = $toml.parse::<toml::Table>().unwrap();
+        let test_config = $crate::utils::TestConfig::new(name.to_string(), toml);
+        test_config.save_fixture().unwrap();
+        test_config
+    }};
+    // For some finer control over the config.
+    ($name:expr, $toml:expr) => {{
+        let name = format!("tests/fixtures/{}.toml", $name);
+        let toml = $toml.parse::<toml::Table>().unwrap();
+        let test_config = $crate::utils::TestConfig::new(name.to_string(), toml);
+        test_config.save_fixture().unwrap();
+        test_config
+    }};
+}

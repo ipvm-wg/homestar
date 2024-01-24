@@ -98,9 +98,9 @@ pub fn runner_test(_attr: TokenStream, item: TokenStream) -> TokenStream {
             impl TestRunner {
                 fn start() -> TestRunner {
                     let mut settings = crate::Settings::load().unwrap();
-                    settings.node.network.webserver.port = crate::test_utils::ports::get_port() as u16;
-                    settings.node.network.rpc.port = crate::test_utils::ports::get_port() as u16;
-                    settings.node.network.metrics.port = crate::test_utils::ports::get_port() as u16;
+                    settings.node.network.webserver.port = port_selector::random_free_port().unwrap();
+                    settings.node.network.rpc.port = port_selector::random_free_port().unwrap();
+                    settings.node.network.metrics.port = port_selector::random_free_tcp_port().unwrap();
                     settings.node.db.url = Some(format!("{}.db", #func_name_as_string));
                     settings.node.network.webserver.websocket_receiver_timeout = std::time::Duration::from_millis(500);
                     let db = crate::test_utils::db::MemoryDb::setup_connection_pool(&settings.node, None).unwrap();

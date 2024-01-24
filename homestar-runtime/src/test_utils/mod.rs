@@ -1,7 +1,5 @@
 pub(crate) mod db;
 pub(crate) mod event;
-#[allow(dead_code)]
-pub(crate) mod ports;
 pub(crate) mod receipt;
 #[cfg(feature = "test-utils")]
 #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]

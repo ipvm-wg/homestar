@@ -279,12 +279,9 @@ fn port_available(host: IpAddr, port: u16) -> bool {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::{channel::AsyncChannel, test_utils::db::MemoryDb};
     #[cfg(feature = "websocket-notify")]
-    use crate::event_handler::notification::ReceiptNotification;
-    use crate::{
-        channel::AsyncChannel,
-        test_utils::{self, db::MemoryDb},
-    };
+    use crate::{event_handler::notification::ReceiptNotification, test_utils};
     #[cfg(feature = "websocket-notify")]
     use homestar_invocation::{
         authority::UcanPrf,
@@ -303,7 +300,7 @@ mod test {
     use std::net::Ipv4Addr;
 
     async fn metrics_handle() -> PrometheusHandle {
-        let port = test_utils::ports::get_port() as u16;
+        let port = port_selector::random_free_tcp_port().unwrap();
         let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
         let (recorder, _exporter) = PrometheusBuilder::new()
             .with_http_listener(socket)
