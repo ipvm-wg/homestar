@@ -2,7 +2,7 @@
 //! JSON Schemas for method params and notifications.
 
 use homestar_invocation::Receipt;
-use homestar_runtime::{Health, NetworkNotification, ReceiptNotification};
+use homestar_runtime::{Health, NetworkNotification, NodeInfo, ReceiptNotification};
 use homestar_workflow::Workflow;
 use schemars::{schema::RootSchema, schema_for};
 use std::{fs, io::Write};
@@ -20,6 +20,11 @@ fn main() {
     let _ = fs::File::create("schemas/docs/health.json")
         .unwrap()
         .write_all(&serde_json::to_vec_pretty(&health_schema).unwrap());
+
+    let node_info_schema = schema_for!(NodeInfo);
+    let _ = fs::File::create("schemas/docs/node_info.json")
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&node_info_schema).unwrap());
 
     let network_schema = schema_for!(NetworkNotification);
     let _ = fs::File::create("schemas/docs/network.json")
@@ -43,6 +48,7 @@ fn main() {
 
     let api_doc = generate_api_doc(
         health_schema,
+        node_info_schema,
         network_schema,
         workflow_schema,
         receipt_notification_schema,
@@ -55,6 +61,7 @@ fn main() {
 // Spec: https://github.com/open-rpc/spec/blob/1.2.6/spec.md
 fn generate_api_doc(
     health_schema: RootSchema,
+    node_info_schema: RootSchema,
     network_schema: RootSchema,
     workflow_schema: RootSchema,
     receipt_notification_schema: RootSchema,
@@ -73,6 +80,30 @@ fn generate_api_doc(
             description: None,
             required: Some(true),
             schema: JSONSchema::JsonSchemaObject(health_schema),
+            deprecated: Some(false),
+        }),
+        external_docs: None,
+        errors: None,
+        links: None,
+        examples: None,
+        deprecated: Some(false),
+        x_messages: None,
+    };
+
+    let node_info: MethodObject = MethodObject {
+        name: "node".to_string(),
+        description: None,
+        summary: None,
+        servers: None,
+        tags: None,
+        param_structure: Some(MethodObjectParamStructure::ByName),
+        params: vec![],
+        result: ContentDescriptorOrReference::ContentDescriptorObject(ContentDescriptorObject {
+            name: "node_info".to_string(),
+            summary: None,
+            description: None,
+            required: Some(true),
+            schema: JSONSchema::JsonSchemaObject(node_info_schema),
             deprecated: Some(false),
         }),
         external_docs: None,
@@ -176,7 +207,7 @@ fn generate_api_doc(
             url: "https://docs.everywhere.computer/homestar/what-is-homestar/".to_string(),
         }),
         servers: None,
-        methods: vec![health, network, workflow],
+        methods: vec![health, node_info, network, workflow],
         components: None,
     }
 }

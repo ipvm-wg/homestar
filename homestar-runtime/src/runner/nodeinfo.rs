@@ -1,11 +1,13 @@
 //! Node information.
 
 use libp2p::{Multiaddr, PeerId};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Node information.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(rename = "node_info")]
 pub struct NodeInfo {
     /// Static node information available at startup.
     #[serde(rename = "static")]
@@ -23,9 +25,11 @@ impl NodeInfo {
 }
 
 /// Static node information available at startup.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(rename = "static")]
 pub(crate) struct StaticNodeInfo {
     /// The [PeerId] of a node.
+    #[schemars(with = "String", description = "The peer ID of the node")]
     pub(crate) peer_id: PeerId,
 }
 
@@ -44,11 +48,17 @@ impl StaticNodeInfo {
 
 /// Dynamic node information available through events
 /// at runtime.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(rename = "dynamic")]
 pub(crate) struct DynamicNodeInfo {
     /// Listeners for the node.
+    #[schemars(with = "Vec<String>", description = "Listen addresses for the node")]
     pub(crate) listeners: Vec<Multiaddr>,
     /// Connections for the node.
+    #[schemars(
+        with = "HashMap<String, String>",
+        description = "Peers and their addresses that are connected to the node"
+    )]
     pub(crate) connections: HashMap<PeerId, Multiaddr>,
 }
 
