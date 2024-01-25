@@ -133,7 +133,7 @@ jobs:
         with:
           node-version: lts/*
           registry-url: "https://registry.npmjs.org"
-      - name: Install cargo get
+      - name: Install cargo-get
         run: cargo install cargo-get
       - name: Prepare os/arch packages
         shell: bash
@@ -180,7 +180,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: "https://registry.npmjs.org"
       - name: Install cargo get
         run: cargo install cargo-get
       - name: Publish main package to production
@@ -205,7 +205,7 @@ jobs:
           npm publish --access public --tag rc
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-  
+
   build-packages:
     needs: binary-builds
     runs-on: ubuntu-latest
@@ -302,10 +302,14 @@ jobs:
           sudo apt-get clean
           sudo rm -rf /usr/share/dotnet
 
-      - name: Get Current Version
+      - name: Install cargo-get
+        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
+        run: cargo install cargo-get
+
+      - name: Set Current Version
         if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
         id: crate-version
-        run: echo version=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "homestar-runtime") | .version') >> $GITHUB_OUTPUT
+        run: echo version=$(cargo get workspace.package.version)-rc.$(date +%s) >> $GITHUB_OUTPUT
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -339,8 +343,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # for targetted version builds
-            # type=semver,pattern={{version}},value=${{ steps.crate-version.outputs.version }}
+            type=semver,pattern={{version}},value=${{ steps.crate-version.outputs.version }}
             type=raw,value=latest
             type=sha
 
