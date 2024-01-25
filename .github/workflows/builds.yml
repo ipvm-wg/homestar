@@ -25,7 +25,7 @@ jobs:
   binary-builds:
     if: >
       startsWith(github.event.release.name, 'homestar-runtime') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.force-publish)
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
     strategy:
       fail-fast: false
       matrix:
@@ -100,7 +100,7 @@ jobs:
           include: LICENSE,README.md
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  npm-publish:
+  npm-publish-arch:
     needs: binary-builds
     runs-on: ubuntu-latest
     strategy:
@@ -133,7 +133,7 @@ jobs:
         with:
           node-version: lts/*
           registry-url: "https://registry.npmjs.org"
-      - name: Install cargo get
+      - name: Install cargo-get
         run: cargo install cargo-get
       - name: Prepare os/arch packages
         shell: bash
@@ -146,27 +146,62 @@ jobs:
           echo "node_pkg=${node_pkg}" >> "$GITHUB_ENV"
           cd homestar-runtime/npm
           mkdir -p "${node_pkg}/bin"
-          envsubst < package.json.tmpl > "${node_pkg}/package.json"
+          envsubst < package-json-arch.tmpl > "${node_pkg}/package.json"
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.target }}
           path: "homestar-runtime/npm/${{ env.node_pkg }}/bin"
-      - name: Publish production
+      - name: Publish arch packages to production
         if: github.event_name == 'release' && github.event.action == 'published'
         run: |
           cp homestar-runtime/README.md "homestar-runtime/npm/${{ env.node_pkg }}"
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
+          chmod +x bin/${{ matrix.bin }}
           npm publish --access=public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-      - name: Publish RC
+      - name: Publish arch packages RC
         if: github.event_name == 'workflow_dispatch'
         run: |
           cp homestar-runtime/README.md "homestar-runtime/npm/${{ env.node_pkg }}"
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
           chmod +x bin/${{ matrix.bin }}
           npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
+          npm publish --access public --tag rc
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+
+  npm-publish-main:
+    needs: npm-publish-arch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          registry-url: "https://registry.npmjs.org"
+      - name: Install cargo get
+        run: cargo install cargo-get
+      - name: Publish main package to production
+        if: github.event_name == 'release' && github.event.action == 'published'
+        run: |
+          export node_version=$(cargo get workspace.package.version)
+          cp homestar-runtime/README.md homestar-runtime/npm/base
+          cd homestar-runtime/npm
+          envsubst < package-json-base.tmpl > "base/package.json"
+          cd base
+          npm publish --access=public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      - name: Publish main package RC
+        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
+        run: |
+          export node_version="$(cargo get workspace.package.version)-rc.$(date +%s)"
+          cp homestar-runtime/README.md homestar-runtime/npm/base
+          cd homestar-runtime/npm
+          envsubst < package-json-baserc.tmpl > "base/package.json"
+          cd base
           npm publish --access public --tag rc
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
@@ -240,7 +275,7 @@ jobs:
   docker-build:
     if: >
       startsWith(github.event.release.name, 'homestar-runtime') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.force-publish)
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
     runs-on: ubuntu-latest
     env:
       DOCKER_BUILDKIT: "1"
@@ -267,10 +302,14 @@ jobs:
           sudo apt-get clean
           sudo rm -rf /usr/share/dotnet
 
-      - name: Get Current Version
-        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-publish)
+      - name: Install cargo-get
+        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
+        run: cargo install cargo-get
+
+      - name: Set Current Version
+        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
         id: crate-version
-        run: echo version=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "homestar-runtime") | .version') >> $GITHUB_OUTPUT
+        run: echo version=$(cargo get workspace.package.version)-rc.$(date +%s) >> $GITHUB_OUTPUT
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -298,7 +337,7 @@ jobs:
             type=sha
 
       - name: Metadata
-        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-publish)
+        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
         id: meta-dispatch
         uses: docker/metadata-action@v5
         with:
@@ -322,7 +361,7 @@ jobs:
           labels: ${{ steps.meta-release.outputs.labels }}
 
       - name: Docker Build & Push
-        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-publish)
+        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
         uses: docker/build-push-action@v5
         with:
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
