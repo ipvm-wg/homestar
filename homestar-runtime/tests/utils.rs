@@ -14,7 +14,7 @@ use predicates::prelude::*;
 use retry::delay::Fixed;
 use retry::{delay::Exponential, retry};
 use std::{
-    env, fs,
+    env, fmt, fs,
     fs::File,
     future::Future,
     io::Write,
@@ -26,6 +26,8 @@ use std::{
 };
 use tokio::time::{timeout, Timeout};
 use wait_timeout::ChildExt;
+#[cfg(windows)]
+use winapi::shared::winerror::ERROR_ACCESS_DENIED;
 
 /// Binary name, which is different than the crate name.
 pub(crate) const BIN_NAME: &str = "homestar";
@@ -55,11 +57,6 @@ pub(crate) fn multiaddr(port: u16, hash: &str) -> String {
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
-/// Guard for a [Child] process.
-pub(crate) struct ChildGuard {
-    guard: Option<Child>,
-}
-
 /// [port_selector::Selector] wrapper for tests.
 pub(crate) struct RpcSelector(pub(crate) Selector);
 
@@ -76,6 +73,21 @@ impl RpcSelector {
     /// Select a free port within the port range.
     pub(crate) fn select_free_port(&mut self) -> Result<u16> {
         port_selector::select_free_port(self.0).context("failed to select free port")
+    }
+}
+
+/// Guard for a [Child] process.
+#[derive(Debug)]
+pub(crate) struct ChildGuard {
+    guard: Option<Child>,
+}
+
+impl fmt::Display for ChildGuard {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.guard {
+            Some(child) => write!(f, "{}", child.id()),
+            None => write!(f, "None"),
+        }
     }
 }
 
@@ -125,14 +137,54 @@ impl ChildGuard {
 }
 
 impl Drop for ChildGuard {
+    #[cfg(windows)]
     fn drop(&mut self) {
         if let Some(mut child) = self.guard.take() {
             if matches!(child.try_wait(), Ok(None)) {
-                if let Err(e) = child.kill() {
-                    eprintln!("Could not kill child process: {e}");
+                if let Err(err) = child.kill() {
+                    const ACCESS_DENIED: Option<i32> = Some(ERROR_ACCESS_DENIED as i32);
+                    if !matches!(err.raw_os_error(), ACCESS_DENIED) {
+                        eprintln!("Failed to clean up child process {}: {}", self, err);
+                    }
+                }
+
+                // Sending a kill signal does NOT imply the process has exited. Wait for it to exit.
+                let wait_res = child.wait();
+                if let Ok(code) = wait_res.as_ref() {
+                    eprintln!("Child process {} killed, exited with code {:?}", self, code);
+                } else {
+                    eprintln!(
+                        "Failed to wait for child process {} that was terminated: {:?}",
+                        self, wait_res
+                    );
                 }
             }
-        };
+        }
+    }
+
+    #[cfg(unix)]
+    fn drop(&mut self) {
+        if let Some(mut child) = self.guard.take() {
+            // attempt to stop gracefully
+            let pid = child.id();
+            unsafe {
+                libc::kill(libc::pid_t::from_ne_bytes(pid.to_ne_bytes()), libc::SIGTERM);
+            }
+
+            for _ in 0..10 {
+                if child.try_wait().ok().flatten().is_some() {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+
+            if child.try_wait().ok().flatten().is_none() {
+                // still alive? kill it with fire
+                let _ = child.kill();
+            }
+
+            let _ = child.wait();
+        }
     }
 }
 

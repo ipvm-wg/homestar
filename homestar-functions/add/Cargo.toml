@@ -6,6 +6,7 @@ edition = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
+homestar-workspace-hack = { workspace = true }
 wit-bindgen = "0.16"
 
 [lib]

@@ -27,6 +27,7 @@ RUN echo "fn main() {}" > ./homestar-runtime/src/main.rs
 RUN mkdir -p ./homestar-runtime/src/test_utils/proc_macro ./homestar-runtime/migrations ./examples ./homestar-functions
 RUN bash -c 'pushd ./examples && cargo init dummy-app-examples && popd'
 RUN bash -c 'pushd ./homestar-functions && cargo init dummy-app-fns && popd'
+RUN cargo init homestar-workspace-hack
 
 # copy cargo.*
 COPY Cargo.lock Cargo.toml diesel.toml ./

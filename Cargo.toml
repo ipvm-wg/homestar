@@ -6,6 +6,7 @@ members = [
   "homestar-runtime",
   "homestar-wasm",
   "homestar-workflow",
+  "homestar-workspace-hack",
 ]
 default-members = [
   "homestar-invocation",
@@ -37,6 +38,7 @@ enum-assoc = "1.1"
 enum-as-inner = "0.6"
 faststr = { version = "0.2", default-features = false, features = ["serde"] }
 futures = { version = "0.3", default-features = false }
+homestar-workspace-hack = "0.1"
 humantime = { version = "2.1", default-features = false }
 itertools = "0.11"
 libipld = { version = "0.16", default-features = false, features = [
@@ -112,3 +114,10 @@ strip = "symbols"
 # 0/false: no debug info at all; 1: line tables only; 2/true: full debug info
 debug = false
 debug-assertions = false
+
+# Using the workspace-hack via this patch directive means that it only applies
+# while building within this workspace. If another workspace imports a crate
+# from here via a git dependency, it will not have the workspace-hack applied
+# to it.
+[patch.crates-io.homestar-workspace-hack]
+path = "homestar-workspace-hack"

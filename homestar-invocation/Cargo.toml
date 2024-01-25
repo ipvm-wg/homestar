@@ -32,6 +32,7 @@ futures = { workspace = true }
 generic-array = { version = "1.0", default-features = false, features = [
   "serde",
 ] }
+homestar-workspace-hack = { workspace = true }
 libipld = { workspace = true }
 libsqlite3-sys = { workspace = true, optional = true }
 rand = { workspace = true }

@@ -25,3 +25,6 @@ image = "freeznet/x86_64-apple-darwin-cross:11.3"
 
 [target.aarch64-apple-darwin]
 image = "freeznet/aarch64-apple-darwin-cross:11.3"
+
+[target.x86_64-pc-windows-gnu]
+image = "rustembedded/cross:x86_64-pc-windows-gnu"

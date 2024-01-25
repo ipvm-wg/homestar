@@ -32,6 +32,7 @@ const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
 const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
+#[serial_test::file_serial]
 fn test_libp2p_dht_records_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -365,6 +366,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::file_serial]
 fn test_libp2p_dht_quorum_failure_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -586,6 +588,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         [node.network.libp2p]
         listen_address = "{listen_addr1}"
         node_addresses = ["{node_addrb}"]
+        idle_connection_timeout = 180
         [node.network.libp2p.dht]
         receipt_quorum = 1
         workflow_quorum = 1
@@ -646,6 +649,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         [node.network.keypair_config]
         existing = {{ key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }}
         [node.network.libp2p]
+        idle_connection_timeout = 180
         listen_address = "{listen_addr2}"
         node_addresses = ["{node_addra}"]
         [node.network.libp2p.dht]
@@ -854,6 +858,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
 
 #[ignore]
 #[test]
+#[serial_test::file_serial]
 fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> {
     // NOTE: We are ignoring this test for now because we do not have a means
     // to properly isolate node a from node c. In the future when nodes are

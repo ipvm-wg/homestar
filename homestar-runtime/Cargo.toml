@@ -72,6 +72,7 @@ homestar-invocation = { version = "0.1", path = "../homestar-invocation", featur
 ] }
 homestar-wasm = { version = "0.1", path = "../homestar-wasm", default-features = false }
 homestar-workflow = { version = "0.1", path = "../homestar-workflow" }
+homestar-workspace-hack = { workspace = true }
 http = "0.2"
 http-serde = "1.1"
 humantime = { workspace = true }
@@ -210,6 +211,12 @@ tokio-tungstenite = { version = "0.21", default-features = false, features = [
   "connect",
 ] }
 wait-timeout = "0.2"
+
+[target.'cfg(not(windows))'.dev-dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dev-dependencies]
+winapi = "0.3"
 
 [features]
 default = ["wasmtime-default", "ipfs", "monitoring", "websocket-notify"]

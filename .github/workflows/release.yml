@@ -9,9 +9,9 @@ on:
         description: Publish Releases at Anytime
 
   workflow_run:
-    workflows: [ 🧪 Tests and Checks ]
+    workflows: [🧪 Tests and Checks]
     branches: [main]
-    types: [ completed ]
+    types: [completed]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -49,6 +49,11 @@ jobs:
 
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-hakari
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hakari
 
       - name: Run release-plz
         uses: MarcoIeni/release-plz-action@v0.5
