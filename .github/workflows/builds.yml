@@ -200,7 +200,7 @@ jobs:
           export node_version="$(cargo get workspace.package.version)-rc.$(date +%s)"
           cp homestar-runtime/README.md homestar-runtime/npm/base
           cd homestar-runtime/npm
-          envsubst < package-json-base.tmpl > "base/package.json"
+          envsubst < package-json-baserc.tmpl > "base/package.json"
           cd base
           npm publish --access public --tag rc
         env:
