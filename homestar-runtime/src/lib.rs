@@ -72,7 +72,7 @@ pub use db::{utils::Health, Db};
 pub(crate) mod libp2p;
 pub use logger::*;
 pub(crate) mod metrics;
-pub use event_handler::notification::swarm::NetworkNotification;
+pub use event_handler::notification::{receipt::ReceiptNotification, swarm::NetworkNotification};
 #[allow(unused_imports)]
 pub(crate) use event_handler::EventHandler;
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};

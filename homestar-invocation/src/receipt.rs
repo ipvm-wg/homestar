@@ -6,7 +6,15 @@ use crate::{
     task, Error, Pointer, Unit,
 };
 use libipld::{self, cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld};
-use std::collections::BTreeMap;
+use schemars::{
+    gen::SchemaGenerator,
+    schema::{InstanceType, Metadata, ObjectValidation, Schema, SchemaObject, SingleOrVec},
+    JsonSchema,
+};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 pub mod metadata;
 
@@ -176,5 +184,63 @@ impl TryFrom<Receipt<Ipld>> for Pointer {
 
     fn try_from(receipt: Receipt<Ipld>) -> Result<Self, Self::Error> {
         Ok(Pointer::new(receipt.to_cid()?))
+    }
+}
+
+impl<T> JsonSchema for Receipt<T> {
+    fn schema_name() -> String {
+        "receipt".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed("homestar-invocation::receipt::Receipt")
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        let meta_schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            metadata: Some(Box::new(Metadata {
+                title: Some("Receipt metadata".to_string()),
+                description: Some(
+                    "Receipt metadata including the operation that produced the receipt"
+                        .to_string(),
+                ),
+                ..Default::default()
+            })),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([("op".to_owned(), <String>::json_schema(gen))]),
+                required: BTreeSet::from(["op".to_string()]),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+
+        let schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            metadata: Some(Box::new(Metadata {
+                title: Some("Receipt".to_string()),
+                description: Some("A computed receipt".to_string()),
+                ..Default::default()
+            })),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([
+                    ("ran".to_owned(), gen.subschema_for::<Pointer>()),
+                    ("out".to_owned(), gen.subschema_for::<task::Result<()>>()),
+                    ("meta".to_owned(), Schema::Object(meta_schema)),
+                    ("iss".to_owned(), gen.subschema_for::<Option<Issuer>>()),
+                    ("prf".to_owned(), gen.subschema_for::<UcanPrf>()),
+                ]),
+                required: BTreeSet::from([
+                    "ran".to_string(),
+                    "out".to_string(),
+                    "meta".to_string(),
+                    "prf".to_string(),
+                ]),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+
+        schema.into()
     }
 }

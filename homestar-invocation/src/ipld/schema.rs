@@ -22,7 +22,7 @@ impl JsonSchema for IpldStub {
     }
 
     fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed("homestar-invocation::ipld::schema::IpldSchema")
+        Cow::Borrowed("homestar-invocation::ipld::schema::IpldStub")
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {
@@ -40,8 +40,85 @@ impl JsonSchema for IpldStub {
             instance_type: Some(SingleOrVec::Single(InstanceType::Number.into())),
             ..Default::default()
         };
-        let bytes_schema = SchemaObject {
+        let array_schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Array.into())),
+            ..Default::default()
+        };
+        let object_schema = SchemaObject {
             instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            ..Default::default()
+        };
+
+        schema.subschemas().one_of = Some(vec![
+            <()>::json_schema(gen),
+            <bool>::json_schema(gen),
+            Schema::Object(number_schema),
+            <String>::json_schema(gen),
+            gen.subschema_for::<IpldBytesStub>(),
+            Schema::Object(array_schema),
+            Schema::Object(object_schema),
+            gen.subschema_for::<IpldLinkStub>(),
+        ]);
+
+        schema.into()
+    }
+}
+
+/// Ipld link stub for JSON Schema generation
+#[derive(Debug)]
+#[doc(hidden)]
+pub struct IpldLinkStub(Ipld);
+
+impl JsonSchema for IpldLinkStub {
+    fn schema_name() -> String {
+        "ipld_link".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed("homestar-invocation::ipld::schema::IpldLinkStub")
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        let schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([('/'.to_string(), <String>::json_schema(gen))]),
+                ..Default::default()
+            })),
+            metadata: Some(Box::new(Metadata {
+                title: Some("IPLD link".to_string()),
+                description: Some("CID link that points to some IPLD data".to_string()),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+
+        schema.into()
+    }
+}
+
+/// Ipld bytes stub for JSON Schema generation
+#[derive(Debug)]
+#[doc(hidden)]
+pub struct IpldBytesStub(Ipld);
+
+impl JsonSchema for IpldBytesStub {
+    fn schema_name() -> String {
+        "ipld_bytes".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed("homestar-invocation::ipld::schema::IpldBytesStub")
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        let schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            metadata: Some(Box::new(Metadata {
+                title: Some("IPLD bytes".to_string()),
+                description: Some("Base64 encoded binary".to_string()),
+                ..Default::default()
+            })),
             object: Some(Box::new(ObjectValidation {
                 properties: BTreeMap::from([(
                     '/'.to_string(),
@@ -59,43 +136,8 @@ impl JsonSchema for IpldStub {
                 )]),
                 ..Default::default()
             })),
-            metadata: Some(Box::new(Metadata {
-                description: Some("Base64 encoded binary".to_string()),
-                ..Default::default()
-            })),
             ..Default::default()
         };
-        let array_schema = SchemaObject {
-            instance_type: Some(SingleOrVec::Single(InstanceType::Array.into())),
-            ..Default::default()
-        };
-        let object_schema = SchemaObject {
-            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
-            ..Default::default()
-        };
-        let link_schema = SchemaObject {
-            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
-            object: Some(Box::new(ObjectValidation {
-                properties: BTreeMap::from([('/'.to_string(), <String>::json_schema(gen))]),
-                ..Default::default()
-            })),
-            metadata: Some(Box::new(Metadata {
-                description: Some("CID link that points to some IPLD data".to_string()),
-                ..Default::default()
-            })),
-            ..Default::default()
-        };
-
-        schema.subschemas().one_of = Some(vec![
-            <()>::json_schema(gen),
-            <bool>::json_schema(gen),
-            Schema::Object(number_schema),
-            <String>::json_schema(gen),
-            Schema::Object(bytes_schema),
-            Schema::Object(array_schema),
-            Schema::Object(object_schema),
-            Schema::Object(link_schema),
-        ]);
 
         schema.into()
     }

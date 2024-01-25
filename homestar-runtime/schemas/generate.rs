@@ -1,7 +1,8 @@
 //! Standalone binary to generate OpenRPC API docs and
 //! JSON Schemas for method params and notifications.
 
-use homestar_runtime::{Health, NetworkNotification};
+use homestar_invocation::Receipt;
+use homestar_runtime::{Health, NetworkNotification, ReceiptNotification};
 use homestar_workflow::Workflow;
 use schemars::{schema::RootSchema, schema_for};
 use std::{fs, io::Write};
@@ -30,7 +31,22 @@ fn main() {
         .unwrap()
         .write_all(&serde_json::to_vec_pretty(&workflow_schema).unwrap());
 
-    let api_doc = generate_api_doc(health_schema, network_schema, workflow_schema);
+    let receipt_schema = schema_for!(Receipt<()>);
+    let _ = fs::File::create("schemas/docs/receipt.json")
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&receipt_schema).unwrap());
+
+    let receipt_notification_schema = schema_for!(ReceiptNotification);
+    let _ = fs::File::create("schemas/docs/receipt_notification.json")
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&receipt_notification_schema).unwrap());
+
+    let api_doc = generate_api_doc(
+        health_schema,
+        network_schema,
+        workflow_schema,
+        receipt_notification_schema,
+    );
     let _ = fs::File::create("schemas/docs/api.json")
         .unwrap()
         .write_all(&serde_json::to_vec_pretty(&api_doc).unwrap());
@@ -41,6 +57,7 @@ fn generate_api_doc(
     health_schema: RootSchema,
     network_schema: RootSchema,
     workflow_schema: RootSchema,
+    receipt_notification_schema: RootSchema,
 ) -> OpenrpcDocument {
     let health: MethodObject = MethodObject {
         name: "health".to_string(),
@@ -127,14 +144,14 @@ fn generate_api_doc(
         links: None,
         examples: None,
         deprecated: Some(false),
-        x_messages: None, // x_messages: Some(ContentDescriptorObject {
-                          //     name: "network subscription messages".to_string(),
-                          //     summary: None,
-                          //     description: None,
-                          //     required: Some(true),
-                          //     schema: JSONSchema::JsonSchemaObject(network_schema),
-                          //     deprecated: Some(false),
-                          // }),
+        x_messages: Some(ContentDescriptorObject {
+            name: "workflow subscription messages".to_string(),
+            summary: Some("receipt notifications from a running workflow".to_string()),
+            description: None,
+            required: Some(true),
+            schema: JSONSchema::JsonSchemaObject(receipt_notification_schema),
+            deprecated: Some(false),
+        }),
     };
 
     OpenrpcDocument {
