@@ -363,7 +363,7 @@ fn test_libp2p_connect_known_peers_integration() -> Result<()> {
         let http_resp = reqwest::get(format!("{}/node", http_url)).await.unwrap();
         assert_eq!(http_resp.status(), 200);
         let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
-        assert!(http_resp["nodeInfo"]["dynamic"]["connections"]
+        assert!(http_resp["dynamic"]["connections"]
             .as_object()
             .unwrap()
             .get(ED25519MULTIHASH)
@@ -372,10 +372,8 @@ fn test_libp2p_connect_known_peers_integration() -> Result<()> {
             .unwrap()
             .parse::<Multiaddr>()
             .is_ok());
-        let static_info = http_resp["nodeInfo"]["static"].as_object().unwrap();
-        let listeners = http_resp["nodeInfo"]["dynamic"]["listeners"]
-            .as_array()
-            .unwrap();
+        let static_info = http_resp["static"].as_object().unwrap();
+        let listeners = http_resp["dynamic"]["listeners"].as_array().unwrap();
         assert_eq!(static_info.get("peer_id").unwrap(), SECP256K1MULTIHASH);
         assert_eq!(listeners, &[listen_addr2.to_string()]);
     });

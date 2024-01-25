@@ -4,6 +4,24 @@ use libp2p::{Multiaddr, PeerId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Node information.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeInfo {
+    /// Static node information available at startup.
+    #[serde(rename = "static")]
+    pub(crate) stat: StaticNodeInfo,
+    /// Dynamic node information available through events
+    /// at runtime.
+    pub(crate) dynamic: DynamicNodeInfo,
+}
+
+impl NodeInfo {
+    /// Create an instance of [NodeInfo].
+    pub(crate) fn new(stat: StaticNodeInfo, dynamic: DynamicNodeInfo) -> Self {
+        Self { stat, dynamic }
+    }
+}
+
 /// Static node information available at startup.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct StaticNodeInfo {

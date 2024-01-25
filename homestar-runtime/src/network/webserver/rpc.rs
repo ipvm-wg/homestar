@@ -6,7 +6,10 @@ use super::notifier::{self, Header, Notifier, SubscriptionTyp};
 use super::{listener, prom::PrometheusData, Message};
 #[cfg(feature = "websocket-notify")]
 use crate::channel::AsyncChannel;
-use crate::{db::Database, runner::WsSender};
+use crate::{
+    db::Database,
+    runner::{NodeInfo, WsSender},
+};
 #[cfg(feature = "websocket-notify")]
 use anyhow::anyhow;
 use anyhow::Result;
@@ -193,8 +196,7 @@ where
             if let Ok(Message::AckNodeInfo((static_info, dyn_info))) =
                 rx.recv_deadline(std::time::Instant::now() + ctx.receiver_timeout)
             {
-                Ok(serde_json::json!({
-                    "nodeInfo": {"static": static_info, "dynamic": dyn_info}}))
+                Ok(serde_json::json!(NodeInfo::new(static_info, dyn_info)))
             } else {
                 error!(
                     subject = "call.node",

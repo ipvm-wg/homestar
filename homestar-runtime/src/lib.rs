@@ -76,7 +76,7 @@ pub use event_handler::notification::{receipt::ReceiptNotification, swarm::Netwo
 #[allow(unused_imports)]
 pub(crate) use event_handler::EventHandler;
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};
-pub use runner::Runner;
+pub use runner::{NodeInfo, Runner};
 pub(crate) use scheduler::TaskScheduler;
 pub use settings::Settings;
 pub(crate) use worker::Worker;
