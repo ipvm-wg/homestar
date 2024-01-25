@@ -18,7 +18,7 @@ static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME))
 
 #[test]
 #[serial_test::file_serial]
-fn test_libp2p_connect_after_mdns_discovery_integration() -> Result<()> {
+fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
 
@@ -176,7 +176,7 @@ fn test_libp2p_connect_after_mdns_discovery_integration() -> Result<()> {
 
 #[test]
 #[serial_test::file_serial]
-fn test_libp2p_disconnect_mdns_discovery_integration() -> Result<()> {
+fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
     // Start two nodes each configured to listen at 0.0.0.0 with no known peers.
     // The nodes are configured with port 0 to allow the OS to select a port.
 
