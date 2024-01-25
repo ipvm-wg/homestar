@@ -145,6 +145,30 @@ fn generate_api_doc(
         }),
     };
 
+    let network_unsubscribe: MethodObject = MethodObject {
+        name: "unsubscribe_network_events".to_string(),
+        description: None,
+        summary: None,
+        servers: None,
+        tags: None,
+        param_structure: Some(MethodObjectParamStructure::ByName),
+        params: vec![],
+        result: ContentDescriptorOrReference::ContentDescriptorObject(ContentDescriptorObject {
+            name: "unsubscribe result".to_string(),
+            summary: None,
+            description: None,
+            required: Some(true),
+            schema: JSONSchema::JsonSchemaObject(schema_for!(bool)),
+            deprecated: Some(false),
+        }),
+        external_docs: None,
+        errors: None,
+        links: None,
+        examples: None,
+        deprecated: Some(false),
+        x_messages: None,
+    };
+
     let workflow: MethodObject = MethodObject {
         name: "subscribe_run_workflow".to_string(),
         description: None,
@@ -185,6 +209,30 @@ fn generate_api_doc(
         }),
     };
 
+    let workflow_unsubscribe: MethodObject = MethodObject {
+        name: "unsubscribe_run_workflow".to_string(),
+        description: None,
+        summary: None,
+        servers: None,
+        tags: None,
+        param_structure: Some(MethodObjectParamStructure::ByName),
+        params: vec![],
+        result: ContentDescriptorOrReference::ContentDescriptorObject(ContentDescriptorObject {
+            name: "unsubscribe result".to_string(),
+            summary: None,
+            description: None,
+            required: Some(true),
+            schema: JSONSchema::JsonSchemaObject(schema_for!(bool)),
+            deprecated: Some(false),
+        }),
+        external_docs: None,
+        errors: None,
+        links: None,
+        examples: None,
+        deprecated: Some(false),
+        x_messages: None,
+    };
+
     OpenrpcDocument {
         openrpc: Openrpc::V26, // TODO Should we upgrade to latest spec at 1.3.2?
         info: InfoObject {
@@ -207,7 +255,14 @@ fn generate_api_doc(
             url: "https://docs.everywhere.computer/homestar/what-is-homestar/".to_string(),
         }),
         servers: None,
-        methods: vec![health, node_info, network, workflow],
+        methods: vec![
+            health,
+            node_info,
+            network,
+            network_unsubscribe,
+            workflow,
+            workflow_unsubscribe,
+        ],
         components: None,
     }
 }
