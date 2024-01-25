@@ -183,7 +183,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
       - name: Publish main package RC
-        if: github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
         run: |
           cp homestar-runtime/README.md "homestar-runtime/npm/base"
           cd homestar-runtime/npm
@@ -327,7 +327,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}},value=${{ steps.crate-version.outputs.version }}
+            # for targetted version builds
+            # type=semver,pattern={{version}},value=${{ steps.crate-version.outputs.version }}
             type=raw,value=latest
             type=sha
 
