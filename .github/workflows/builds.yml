@@ -100,7 +100,7 @@ jobs:
           include: LICENSE,README.md
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  npm-publish:
+  npm-publish-arch:
     needs: binary-builds
     runs-on: ubuntu-latest
     strategy:
@@ -146,7 +146,7 @@ jobs:
           echo "node_pkg=${node_pkg}" >> "$GITHUB_ENV"
           cd homestar-runtime/npm
           mkdir -p "${node_pkg}/bin"
-          envsubst < package.json.tmpl > "${node_pkg}/package.json"
+          envsubst < package-json-arch.tmpl > "${node_pkg}/package.json"
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -171,12 +171,24 @@ jobs:
           npm publish --access public --tag rc
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+
+  npm-publish-main:
+    needs: npm-publish-arch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          registry-url: 'https://registry.npmjs.org'
+      - name: Install cargo get
+        run: cargo install cargo-get
       - name: Publish main package to production
         if: github.event_name == 'release' && github.event.action == 'published'
         run: |
-          cp homestar-runtime/README.md "homestar-runtime/npm/base"
-          cd homestar-runtime/npm
           export node_version=$(cargo get workspace.package.version)
+          cp homestar-runtime/README.md homestar-runtime/npm/base
+          cd homestar-runtime/npm
           envsubst < package-json-base.tmpl > "base/package.json"
           cd base
           npm publish --access=public
@@ -185,15 +197,15 @@ jobs:
       - name: Publish main package RC
         if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
         run: |
-          cp homestar-runtime/README.md "homestar-runtime/npm/base"
-          cd homestar-runtime/npm
           export node_version="$(cargo get workspace.package.version)-rc.$(date +%s)"
+          cp homestar-runtime/README.md homestar-runtime/npm/base
+          cd homestar-runtime/npm
           envsubst < package-json-base.tmpl > "base/package.json"
           cd base
           npm publish --access public --tag rc
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-
+  
   build-packages:
     needs: binary-builds
     runs-on: ubuntu-latest
