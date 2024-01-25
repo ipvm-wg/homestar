@@ -9,7 +9,7 @@ readme = "README.md"
 edition = { workspace = true }
 rust-version = { workspace = true }
 documentation = "https://docs.rs/homestar-wasm"
-repository = "https://github.com/ipvm-wg/homestar/homestar-wasm"
+repository = "https://github.com/ipvm-wg/homestar/tree/main/homestar-wasm"
 authors = { workspace = true }
 
 [lib]
@@ -26,6 +26,7 @@ atomic_refcell = { workspace = true }
 enum-as-inner = { workspace = true }
 heck = "0.4"
 homestar-invocation = { version = "0.1", path = "../homestar-invocation" }
+homestar-workspace-hack = { workspace = true }
 itertools = { workspace = true }
 libipld = { workspace = true }
 rust_decimal = { version = "1.33", default-features = false }

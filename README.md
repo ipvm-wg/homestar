@@ -60,7 +60,7 @@
 - [Running Examples](#running-examples)
 - [Workspace](#workspace)
 - [Contributing](#contributing)
-- [Releases](#releases)
+- [Releases and Builds](#releases-and-builds)
 - [Getting Help](#getting-help)
 - [External Resources](#external-resources)
 - [License](#license)
@@ -167,15 +167,50 @@ We have a focused [development](./DEVELOPMENT.md) guide, as well as a
 more general [contributing](./CONTRIBUTING.md) guide to help you get involved.
 We always adhere to our [Code of Conduct](./CODE_OF_CONDUCT.md).
 
-## Releases
+## Releases and Builds
 
-TBA
+### Crates, Tags, and GitHub Releases
+
+Homestar uses [release-plz][release-plz] to publish [crates][rel-crates],
+[tags][rel-tags], changelogs, and [GitHub Releases][rel-gh]. Upon merging,
+a `release-plz` bot PR, four crates are continuously published,
+**all tied to the same cargo version currently** (though this may change in the
+future):
+
+- [homestar-runtime][crate-runtime]
+- [homestar-invocation][crate-invocation]
+- [homestar-workflow][crate-workflow]
+- [homestar-wasm][crate-wasm]
+
+### Build Targets
+
+Every [GitHub release of the homestar-runtime][rel-latest] contains build assets
+for running the `homestar-runtime` on different target architectures, as well as
+[DEB][deb] and [RPM][rpm] packages (tagged with the architectured they were
+compiled for). Our homebrew package for the runtime is also tied to releases
+and can be installed with `brew install fission-codes/fission/homestar`.
+
+We also leverage [cross][cross-rs] for [locally cross-compiling](./Cross.toml)
+to varying Linux and Apple target platforms.
+
+### NPM Packages
+
+We also release some of our cross-compiled runtime binaries as
+[npm binary packages](./homestar-runtime/npm/README.md):
+
+- [homestar-runtime](https://www.npmjs.com/package/homestar-runtime) - This is
+  the main package that installs the os specific binary package and runs it.
+- [homestar-darwin-arm64](https://www.npmjs.com/package/homestar-darwin-arm64)
+- [homestar-darwin-x64](https://www.npmjs.com/package/homestar-darwin-x64)
+- [homestar-linux-arm64](https://www.npmjs.com/package/homestar-linux-arm64)
+- [homestar-linux-x64](https://www.npmjs.com/package/homestar-linux-x64)
+- [homestar-windows-x64](https://www.npmjs.com/package/homestar-windows-x64)
 
 ## Getting Help
 
 For usage questions, usecases, or issues reach out to us in our [Discord channel](https://fission.codes/discord).
 
-We would be happy to try to answer your question or try opening a new issue on Github.
+We would be happy to try to answer your question or try opening a new issue on GitHub.
 
 ## External Resources
 
@@ -204,6 +239,12 @@ conditions.
 [apache]: https://www.apache.org/licenses/LICENSE-2.0
 [blog-1]: https://fission.codes/blog/ipfs-thing-breaking-down-ipvm/
 [cod-ipvm]: https://www.youtube.com/watch?v=3y1RB8wt_YY
+[crate-runtime]: https://crates.io/crates/homestar-runtime
+[crate-invocation]: https://crates.io/crates/homestar-invocation
+[crate-workflow]: https://crates.io/crates/homestar-workflow
+[crate-wasm]: https://crates.io/crates/homestar-wasm
+[cross-rs]: https://github.com/cross-rs/cross
+[deb]: https://www.debian.org/doc/manuals/debian-faq/pkg-basics.en.html
 [demo-1]: https://www.loom.com/share/3204037368fe426ba3b4c952b0691c5c
 [foundations-for-openworld-compute]: https://youtu.be/dRz5mau6fsY
 [guest]: https://github.com/bytecodealliance/wit-bindgen#supported-guest-languages
@@ -215,6 +256,12 @@ conditions.
 [ipvm-wg]: https://github.com/ipvm-wg
 [ipvm-workflow-spec]: https://github.com/ipvm-wg/workflow
 [mit]: http://opensource.org/licenses/MIT
+[rel-crates]: https://crates.io/search?q=homestar
+[rel-gh]: https://github.com/ipvm-wg/homestar/releases
+[rel-latest]: https://github.com/ipvm-wg/homestar/releases/latest
+[rel-tags]: https://github.com/ipvm-wg/homestar/tags
+[release-plz]: https://release-plz.ieni.dev/
+[rpm]: https://rpm.org/
 [research]: https://github.com/ipvm-wg/research
 [seamless-services]: https://youtu.be/Kr3B3sXh_VA
 [ucan-invocation]: https://github.com/ucan-wg/invocation

@@ -58,6 +58,7 @@
             "wasm32-wasi"
             "x86_64-apple-darwin"
             "aarch64-apple-darwin"
+            "x86_64-unknown-linux-gnu"
             "x86_64-unknown-linux-musl"
             "aarch64-unknown-linux-musl"
           ];
@@ -72,10 +73,11 @@
         ];
 
         cargo-installs = with pkgs; [
-          cargo-deny
           cargo-deb
+          # cargo-deny -> bring back on new release
           cargo-cross
           cargo-expand
+          cargo-hakari
           cargo-nextest
           cargo-sort
           cargo-unused-features

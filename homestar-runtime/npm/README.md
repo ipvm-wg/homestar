@@ -2,7 +2,8 @@
 
 ## Packages
 
-- [homestar-runtime](https://www.npmjs.com/package/homestar-runtime) - This is the main package that installs the os specific binary package and runs it.
+- [homestar-runtime](https://www.npmjs.com/package/homestar-runtime) - This is
+  the main package that installs the os specific binary package and runs it.
 - [homestar-darwin-arm64](https://www.npmjs.com/package/homestar-darwin-arm64)
 - [homestar-darwin-x64](https://www.npmjs.com/package/homestar-darwin-x64)
 - [homestar-linux-arm64](https://www.npmjs.com/package/homestar-linux-arm64)

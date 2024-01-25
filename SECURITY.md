@@ -9,7 +9,7 @@ should not be reported via the public GitHub Issue tracker.
 
 The project team is committed to transparency in the security issue disclosure
 process. The Fission team announces security advisories through our
-Github respository's [security portal][sec-advisories] and and the
+GitHub respository's [security portal][sec-advisories] and the
 [RustSec advisory database][rustsec-db].
 
 [fission]: https://fission.codes/

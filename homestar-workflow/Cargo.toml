@@ -9,7 +9,7 @@ readme = "README.md"
 edition = { workspace = true }
 rust-version = { workspace = true }
 documentation = "https://docs.rs/homestar-workflow"
-repository = "https://github.com/ipvm-wg/homestar/homestar-workflow"
+repository = "https://github.com/ipvm-wg/homestar/tree/main/homestar-workflow"
 authors = { workspace = true }
 
 [lib]
@@ -20,6 +20,7 @@ doctest = true
 [dependencies]
 fxhash = { version = "0.2", default-features = false }
 homestar-invocation = { version = "0.1", path = "../homestar-invocation" }
+homestar-workspace-hack = { workspace = true }
 indexmap = { version = "2.1", default-features = false }
 libipld = { workspace = true }
 serde = { workspace = true }

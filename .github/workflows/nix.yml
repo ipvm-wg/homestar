@@ -33,8 +33,6 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.nix == 'true' }}
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -51,8 +49,11 @@ jobs:
           ignore-missing-flake-lock: false
           fail-mode: true
 
-      - name: Nix Build
+      - name: Nix Develop Check
         run: |
           nix develop --show-trace -c irust --version
           nix develop --show-trace -c rustc --version
-          nix build . && ./result/bin/homestar --version
+
+      - name: Nix Homestar Build
+        if: ${{ github.event_name == 'push' }}
+        run: nix build . && ./result/bin/homestar --version

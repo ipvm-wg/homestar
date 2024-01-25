@@ -9,9 +9,9 @@ on:
         description: Publish Releases at Anytime
 
   workflow_run:
-    workflows: [ 🧪 Tests and Checks ]
+    workflows: [🧪 Tests and Checks]
     branches: [main]
-    types: [ completed ]
+    types: [completed]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

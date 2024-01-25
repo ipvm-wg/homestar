@@ -2,10 +2,10 @@ name: 🧪 Tests and Checks
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
   pull_request:
-    branches: [ '**' ]
+    branches: ["**"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -48,8 +48,8 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.examples == 'true' }}
     env:
-        SCCACHE_GHA_ENABLED: "true"
-        RUSTC_WRAPPER: "sccache"
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     strategy:
       fail-fast: false
       matrix:
@@ -90,12 +90,19 @@ jobs:
       - name: Run Linter
         run: cargo clippy --all -- -D warnings
 
-      # TODO: Return upon new version.
-      # - name: Verify Publishing of crates
-      #   uses: katyo/publish-crates@v2
-      #   if: ${{ matrix.rust-toolchain == 'stable' }}
-      #   with:
-      #     dry-run: true
+      - name: Install cargo-hakari
+        if: ${{ matrix.rust-toolchain == 'stable' }}
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hakari
+
+      - name: Check workspace-hack Cargo.toml is up-to-date
+        if: ${{ matrix.rust-toolchain == 'stable' }}
+        run: cargo hakari generate --diff
+
+      - name: Check Crates Depend on workspace-hack
+        if: ${{ matrix.rust-toolchain == 'stable' }}
+        run: cargo hakari manage-deps --dry-run
 
       # Only "test" release build on push event.
       - name: Test Release
@@ -140,8 +147,8 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.rust == 'true' }}
     env:
-        SCCACHE_GHA_ENABLED: "true"
-        RUSTC_WRAPPER: "sccache"
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     strategy:
       fail-fast: false
       matrix:
@@ -283,8 +290,8 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.rust == 'true' }}
     env:
-        SCCACHE_GHA_ENABLED: "true"
-        RUSTC_WRAPPER: "sccache"
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository

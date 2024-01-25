@@ -1,3 +1,4 @@
+
 *
 
 !**/Cargo.toml
@@ -10,5 +11,6 @@
 !diesel.toml
 !**/wit
 
-homestar-functions/src
-homestar-functions/**/wit
+examples
+homestar-functions
+homestar-workspace-hack

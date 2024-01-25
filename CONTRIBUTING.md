@@ -67,7 +67,7 @@ need to be the best programmer to contribute. Our discord is open for questions
       problems they may have encountered on similar issues.
 
  3. **Fork** the repository
-    - A fork creates a copy of the code on your Github, so you can work on it
+    - A fork creates a copy of the code on your GitHub, so you can work on it
       separately from everyone else.
     - You can learn more about forking [here][forking].
 

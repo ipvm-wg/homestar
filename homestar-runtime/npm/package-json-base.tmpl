@@ -1,0 +1,37 @@
+{
+  "name": "homestar-runtime",
+  "version": "${node_version}",
+  "description": "The IPVM reference implementation",
+  "author": "Hugo Dias <hugomrdias@gmail.com> (hugodias.me)",
+  "homepage": "https://github.com/ipvm-wg/homestar/tree/main/homestar-runtime",
+  "repository": {
+    "url": "ipvm-wg/homestar",
+    "directory": "homestar-runtime"
+  },
+  "keywords": [
+    "homestar",
+    "wasm",
+    "wit",
+    "webassembly",
+    "workflows",
+    "scheduling"
+  ],
+  "bin": {
+    "homestar": "index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "license": "Apache-2.0",
+  "optionalDependencies": {
+    "homestar-darwin-arm64": "${node_version}",
+    "homestar-darwin-x64": "${node_version}",
+    "homestar-linux-arm64": "${node_version}",
+    "homestar-linux-x64": "${node_version}",
+    "homestar-windows-x64": "${node_version}"
+  },
+  "dependencies": {
+    "execa": "^8.0.1"
+  }
+}
