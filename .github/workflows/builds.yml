@@ -132,7 +132,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
-          registry-url: "https://registry.npmjs.org"
+          registry-url: 'https://registry.npmjs.org'
       - name: Install cargo get
         run: cargo install cargo-get
       - name: Prepare os/arch packages
@@ -151,22 +151,45 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: "homestar-runtime/npm/${{ env.node_pkg }}/bin"
-      - name: Publish production
+          path: 'homestar-runtime/npm/${{ env.node_pkg }}/bin'
+      - name: Publish arch packages to production
         if: github.event_name == 'release' && github.event.action == 'published'
         run: |
           cp homestar-runtime/README.md "homestar-runtime/npm/${{ env.node_pkg }}"
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
+          chmod +x bin/${{ matrix.bin }}
           npm publish --access=public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-      - name: Publish RC
+      - name: Publish arch packages RC
         if: github.event_name == 'workflow_dispatch'
         run: |
           cp homestar-runtime/README.md "homestar-runtime/npm/${{ env.node_pkg }}"
           cd "homestar-runtime/npm/${{ env.node_pkg }}"
           chmod +x bin/${{ matrix.bin }}
           npm version $(cargo get package.version)-rc.$(date +%s) --git-tag-version false
+          npm publish --access public --tag rc
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      - name: Publish main package to production
+        if: github.event_name == 'release' && github.event.action == 'published'
+        run: |
+          cp homestar-runtime/README.md "homestar-runtime/npm/base"
+          cd homestar-runtime/npm
+          export node_version=$(cargo get workspace.package.version)
+          envsubst < package-json-base.tmpl > "base/package.json"
+          cd base
+          npm publish --access=public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      - name: Publish main package RC
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          cp homestar-runtime/README.md "homestar-runtime/npm/base"
+          cd homestar-runtime/npm
+          export node_version="$(cargo get workspace.package.version)-rc.$(date +%s)"
+          envsubst < package-json-base.tmpl > "base/package.json"
+          cd base
           npm publish --access public --tag rc
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
@@ -243,7 +266,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.force-publish)
     runs-on: ubuntu-latest
     env:
-      DOCKER_BUILDKIT: "1"
+      DOCKER_BUILDKIT: '1'
       REGISTRY: ghcr.io
       IMAGE_NAME: ${{ github.repository }}
 
