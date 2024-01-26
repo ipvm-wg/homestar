@@ -43,6 +43,7 @@ mod rpc;
 
 #[cfg(feature = "websocket-notify")]
 pub(crate) use notifier::Notifier;
+pub use prom::PrometheusData;
 #[cfg(feature = "websocket-notify")]
 pub(crate) use rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT;
 use rpc::{Context, JsonRpc};

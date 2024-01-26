@@ -5,8 +5,17 @@ use anyhow::{anyhow, bail, Result};
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use schemars::{
+    gen::SchemaGenerator,
+    schema::{InstanceType, Metadata, ObjectValidation, Schema, SchemaObject, SingleOrVec},
+    JsonSchema,
+};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use serde_json::json;
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet, HashMap},
+};
 
 const HISTOGRAM_TYPE: &str = "HISTOGRAM";
 const SUMMARY_TYPE: &str = "SUMMARY";
@@ -36,9 +45,11 @@ static MULTI_NEWLINE: Lazy<&Regex> = Lazy::new(|| {
 type Labels = HashMap<String, String>;
 type Value = String;
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, JsonSchema)]
 /// A parsed representation of the prometheus metrics data
-pub(crate) struct PrometheusData {
+#[allow(missing_debug_implementations)]
+#[schemars(title = "Metrics data", description = "Prometheus metrics data")]
+pub struct PrometheusData {
     metrics: Vec<MetricFamily>,
 }
 
@@ -74,6 +85,45 @@ struct Metric {
     value: Value,
 }
 
+impl JsonSchema for Metric {
+    fn schema_name() -> String {
+        "gauge".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed("homestar-runtime::network::webserver::prom::Metric")
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        let type_schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::String.into())),
+            const_value: Some(json!("metric")),
+            ..Default::default()
+        };
+
+        let schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            metadata: Some(Box::new(Metadata {
+                title: Some("Gauge data".to_string()),
+                description: Some("A gauge metric".to_string()),
+                ..Default::default()
+            })),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([
+                    ("type".to_string(), Schema::Object(type_schema)),
+                    ("labels".to_string(), <Option<Labels>>::json_schema(gen)),
+                    ("value".to_string(), <String>::json_schema(gen)),
+                ]),
+                required: BTreeSet::from(["type".to_string(), "value".to_string()]),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+
+        schema.into()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct Summary {
     labels: Option<Labels>,
@@ -90,8 +140,9 @@ struct Histogram {
     sum: Value,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
+#[schemars(title = "Metric type")]
 enum MetricType {
     Gauge,
     Histogram,
@@ -104,6 +155,88 @@ struct MetricFamily {
     metric_name: String,
     help: String,
     data: Vec<Box<dyn MetricLike>>,
+}
+
+impl JsonSchema for MetricFamily {
+    fn schema_name() -> String {
+        "metric".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed("homestar-runtime::network::webserver::prom::MetricFamily")
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        struct DataConditional {
+            if_schema: Schema,
+            then_schema: Schema,
+            else_schema: Schema,
+        }
+
+        fn data_conditional(gen: &mut SchemaGenerator) -> DataConditional {
+            let if_schema = SchemaObject {
+                instance_type: None,
+                object: Some(Box::new(ObjectValidation {
+                    properties: BTreeMap::from([(
+                        "metric_type".to_owned(),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(InstanceType::String.into())),
+                            const_value: Some(json!("gauge")),
+                            ..Default::default()
+                        }),
+                    )]),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            };
+
+            let then_schema = SchemaObject {
+                instance_type: None,
+                object: Some(Box::new(ObjectValidation {
+                    properties: BTreeMap::from([("data".to_string(), <Metric>::json_schema(gen))]),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            };
+
+            DataConditional {
+                if_schema: Schema::Object(if_schema),
+                then_schema: Schema::Object(then_schema),
+                else_schema: Schema::Bool(false),
+            }
+        }
+
+        let mut schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            metadata: Some(Box::new(Metadata {
+                title: Some("Metric family".to_string()),
+                description: Some("A prometheus gauge, summary, or histogram metric".to_string()),
+                ..Default::default()
+            })),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([
+                    ("metric_type".to_string(), <MetricType>::json_schema(gen)),
+                    ("metric_name".to_string(), <String>::json_schema(gen)),
+                    ("help".to_string(), <String>::json_schema(gen)),
+                ]),
+                required: BTreeSet::from([
+                    "metric_type".to_string(),
+                    "metric_name".to_string(),
+                    "help".to_string(),
+                    "data".to_string(),
+                ]),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+
+        let data = data_conditional(gen);
+        schema.subschemas().if_schema = Some(Box::new(data.if_schema));
+        schema.subschemas().then_schema = Some(Box::new(data.then_schema));
+        schema.subschemas().else_schema = Some(Box::new(data.else_schema));
+
+        schema.into()
+    }
 }
 
 #[typetag::serde(tag = "type")]
