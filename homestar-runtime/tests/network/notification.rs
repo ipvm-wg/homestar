@@ -175,10 +175,8 @@ fn test_connection_notifications_integration() -> Result<()> {
         assert_eq!(
             http_resp,
             serde_json::json!({
-                "nodeInfo": {
                     "static": {"peer_id": ED25519MULTIHASH},
                     "dynamic": {"listeners": [format!("{listen_addr1}")], "connections": {}}
-                }
             })
         );
     });
