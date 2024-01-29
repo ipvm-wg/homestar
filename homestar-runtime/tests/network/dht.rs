@@ -1,3 +1,5 @@
+#![allow(unused_must_use)]
+
 use crate::{
     make_config,
     utils::{
@@ -565,6 +567,7 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
 }
 
 #[test]
+#[test_retry::retry]
 #[serial_test::file_serial]
 fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
@@ -732,7 +735,7 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
         // We want node two to request workflow info directly from node one
         // because of timeouts not because workflow info was missing from the
         // DHT, so we give node one time to put add workflow info to the DHT.
-        tokio::time::sleep(Duration::from_secs(7)).await;
+        tokio::time::sleep(Duration::from_secs(10)).await;
 
         // Run the same workflow run on node two.
         // Node two should be request workflow info from

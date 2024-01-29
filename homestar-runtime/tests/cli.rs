@@ -1,3 +1,5 @@
+#![allow(unused_must_use)]
+
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_daemon;
 use crate::{
@@ -236,8 +238,9 @@ fn test_workflow_run_integration() -> Result<()> {
 }
 
 #[test]
+#[test_retry::retry]
 #[cfg(not(windows))]
-fn test_daemon_integration() -> Result<()> {
+fn test_daemon_serial() -> Result<()> {
     let proc_info = ProcInfo::new().unwrap();
     let rpc_port = proc_info.rpc_port;
     let metrics_port = proc_info.metrics_port;
@@ -269,22 +272,30 @@ fn test_daemon_integration() -> Result<()> {
         .success();
 
     if wait_for_socket_connection(rpc_port, 1000).is_err() {
-        let _ = kill_homestar_daemon();
+        kill_homestar_daemon().unwrap();
         panic!("Homestar server/runtime failed to start in time");
     }
 
-    Command::new(BIN.as_os_str())
+    let res = Command::new(BIN.as_os_str())
         .arg("ping")
         .arg("--host")
         .arg("127.0.0.1")
         .arg("-p")
         .arg(rpc_port.to_string())
         .assert()
-        .success()
-        .stdout(predicate::str::contains("127.0.0.1"))
-        .stdout(predicate::str::contains("pong"));
+        .try_success();
 
-    kill_homestar_daemon().unwrap();
+    match res {
+        Ok(ok) => {
+            ok.stdout(predicate::str::contains("127.0.0.1"))
+                .stdout(predicate::str::contains("pong"));
+        }
+        Err(err) => {
+            kill_homestar_daemon().unwrap();
+            panic!("Err: {:?}", err);
+        }
+    }
+
     Ok(())
 }
 

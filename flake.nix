@@ -2,8 +2,9 @@
   description = "homestar";
 
   inputs = {
+    nixpkgs.url = "nixpkgs/nixos-23.11";
     # we leverage unstable due to wasm-tools/wasm updates
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixos-unstable.url = "nixpkgs/nixos-unstable-small";
     flake-utils.url = "github:numtide/flake-utils";
     nixlib.url = "github:nix-community/nixpkgs.lib";
 
@@ -39,6 +40,7 @@
   outputs = {
     self,
     nixpkgs,
+    nixos-unstable,
     fenix,
     flake-compat,
     flake-utils,
@@ -50,6 +52,7 @@
       system: let
         overlays = [(import rust-overlay) fenix.overlays.default wit-deps.overlays.default];
         pkgs = import nixpkgs {inherit system overlays;};
+        unstable = import nixos-unstable {inherit system overlays;};
 
         rust-toolchain = (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml).override {
           extensions = ["cargo" "clippy" "llvm-tools-preview" "rustfmt" "rust-src" "rust-std"];
@@ -74,7 +77,7 @@
 
         cargo-installs = with pkgs; [
           cargo-deb
-          # cargo-deny -> bring back on new release
+          cargo-deny
           cargo-cross
           cargo-expand
           cargo-hakari
@@ -86,7 +89,8 @@
           rustup
           tokio-console
           twiggy
-          wasm-tools
+          unstable.cargo-component
+          unstable.wasm-tools
         ];
 
         ci = pkgs.writeScriptBin "ci" ''
@@ -282,7 +286,8 @@
               pre-commit
               diesel-cli
               direnv
-              nodejs_18
+              unstable.nodejs_20
+              unstable.nodePackages.pnpm
               kubo
               self.packages.${system}.irust
             ]

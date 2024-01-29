@@ -2576,6 +2576,7 @@ dependencies = [
  "sysinfo",
  "tabled",
  "tarpc",
+ "test_retry",
  "thiserror",
  "tokio",
  "tokio-serde",
@@ -6625,6 +6626,17 @@ name = "termtree"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
+
+[[package]]
+name = "test_retry"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "532fa61a8207816e2bf329548a15ceed1ab5a1fac0afed6475f95675cba1f412"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
 
 [[package]]
 name = "textwrap"

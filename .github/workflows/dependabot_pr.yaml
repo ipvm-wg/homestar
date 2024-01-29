@@ -1,4 +1,4 @@
-name: Dependabot PR
+name: 🤖 Dependabot PR
 
 on:
   pull_request_target:
