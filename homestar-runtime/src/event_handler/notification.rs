@@ -19,9 +19,7 @@ use tracing::{debug, warn};
 pub(crate) mod receipt;
 pub(crate) mod swarm;
 pub(crate) use receipt::ReceiptNotification;
-pub(crate) use swarm::{
-    ConnectionClosed, ConnectionEstablished, NetworkNotification, SwarmNotification,
-};
+pub(crate) use swarm::*;
 
 const TYPE_KEY: &str = "type";
 const DATA_KEY: &str = "data";
@@ -103,14 +101,14 @@ pub(crate) fn emit_network_event(
     );
 
     if let Ok(json) = notification.to_json() {
-        if let Err(err) = notifier.notify(Message::new(header, json)) {
-            debug!(
-                subject = "notification.err",
-                category = "notification",
-                err=?err,
-                "unable to send notification {:?}",
-                notification,
-            )
+        if let Err(_err) = notifier.notify(Message::new(header, json)) {
+            // debug!(
+            //     subject = "notification.err",
+            //     category = "notification",
+            //     err=?err,
+            //     "unable to send notification {:?}",
+            //     notification,
+            // )
         };
     } else {
         debug!(

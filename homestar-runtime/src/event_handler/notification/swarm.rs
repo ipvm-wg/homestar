@@ -7,9 +7,13 @@ use chrono::prelude::Utc;
 use homestar_invocation::ipld::DagJson;
 use libipld::{serde::from_ipld, Ipld};
 use libp2p::{Multiaddr, PeerId};
-use schemars::JsonSchema;
+use schemars::{
+    gen::SchemaGenerator,
+    schema::{InstanceType, Metadata, ObjectValidation, Schema, SchemaObject, SingleOrVec},
+    JsonSchema,
+};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, fmt, str::FromStr};
+use std::{borrow::Cow, collections::BTreeMap, fmt, str::FromStr};
 
 const TIMESTAMP_KEY: &str = "timestamp";
 
@@ -124,6 +128,9 @@ pub enum NetworkNotification {
     /// Connection closed notification.
     #[schemars(rename = "connection_closed")]
     ConnnectionClosed(ConnectionClosed),
+    /// mDNS discovered notification.
+    #[schemars(rename = "discovered_mdns")]
+    DiscoveredMdns(DiscoveredMdns),
 }
 
 impl DagJson for NetworkNotification {}
@@ -137,6 +144,9 @@ impl From<NetworkNotification> for Ipld {
             )])),
             NetworkNotification::ConnnectionClosed(n) => {
                 Ipld::Map(BTreeMap::from([("connection_closed".into(), n.into())]))
+            }
+            NetworkNotification::DiscoveredMdns(n) => {
+                Ipld::Map(BTreeMap::from([("discovered_mdns".into(), n.into())]))
             }
         }
     }
@@ -155,6 +165,9 @@ impl TryFrom<Ipld> for NetworkNotification {
                 )),
                 "connection_closed" => Ok(NetworkNotification::ConnnectionClosed(
                     ConnectionClosed::try_from(val.to_owned())?,
+                )),
+                "discovered_mdns" => Ok(NetworkNotification::DiscoveredMdns(
+                    DiscoveredMdns::try_from(val.to_owned())?,
                 )),
                 _ => Err(anyhow!("Unknown network notification tag type")),
             }
@@ -294,6 +307,116 @@ impl TryFrom<Ipld> for ConnectionClosed {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct DiscoveredMdns {
+    timestamp: i64,
+    peers: Vec<(String, String)>,
+}
+
+impl DiscoveredMdns {
+    pub(crate) fn new(peers: Vec<(PeerId, Multiaddr)>) -> DiscoveredMdns {
+        DiscoveredMdns {
+            timestamp: Utc::now().timestamp_millis(),
+            peers: peers
+                .iter()
+                .map(|(peer_id, address)| (peer_id.to_string(), address.to_string()))
+                .collect(),
+        }
+    }
+}
+
+impl DagJson for DiscoveredMdns {}
+
+impl From<DiscoveredMdns> for Ipld {
+    fn from(notification: DiscoveredMdns) -> Self {
+        let peers: BTreeMap<String, Ipld> = notification
+            .peers
+            .into_iter()
+            .map(|(peer_id, address)| (peer_id, address.into()))
+            .collect();
+
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            ("timestamp".into(), notification.timestamp.into()),
+            ("peers".into(), peers.into()),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for DiscoveredMdns {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let peers_key: &str = "peers";
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let peers_map = from_ipld::<BTreeMap<String, Ipld>>(
+            map.get(peers_key)
+                .ok_or_else(|| anyhow!("missing {peers_key}"))?
+                .to_owned(),
+        )?;
+
+        let mut peers: Vec<(String, String)> = vec![];
+        for peer in peers_map.iter() {
+            peers.push((peer.0.to_string(), from_ipld(peer.1.to_owned())?))
+        }
+
+        Ok(DiscoveredMdns { timestamp, peers })
+    }
+}
+
+impl JsonSchema for DiscoveredMdns {
+    fn schema_name() -> String {
+        "discovered_mdns".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed("homestar-runtime::event_handler::notification::swarm::DiscoveredMdns")
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        let schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([
+                    (
+                        "timestamp".to_string(),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(InstanceType::Number.into())),
+                            ..Default::default()
+                        }),
+                    ),
+                    (
+                        "peers".to_string(),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+                            metadata: Some(Box::new(Metadata {
+                                description: Some("Peers and their addresses".to_string()),
+                                ..Default::default()
+                            })),
+                            object: Some(Box::new(ObjectValidation {
+                                additional_properties: Some(Box::new(<String>::json_schema(gen))),
+                                ..Default::default()
+                            })),
+                            ..Default::default()
+                        }),
+                    ),
+                ]),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+        schema.into()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -302,12 +425,18 @@ mod test {
     struct Fixtures {
         peer_id: PeerId,
         address: Multiaddr,
+        peers: Vec<(PeerId, Multiaddr)>,
     }
 
     fn generate_notifications(fixtures: Fixtures) -> Vec<(i64, NetworkNotification)> {
-        let Fixtures { peer_id, address } = fixtures;
+        let Fixtures {
+            peer_id,
+            address,
+            peers,
+        } = fixtures;
         let connection_established = ConnectionEstablished::new(peer_id, address.clone());
         let connection_closed = ConnectionClosed::new(peer_id, address.clone());
+        let discovered_mdns = DiscoveredMdns::new(peers);
 
         vec![
             (
@@ -318,22 +447,40 @@ mod test {
                 connection_closed.timestamp,
                 NetworkNotification::ConnnectionClosed(connection_closed.clone()),
             ),
+            (
+                discovered_mdns.timestamp,
+                NetworkNotification::DiscoveredMdns(discovered_mdns.clone()),
+            ),
         ]
     }
 
     fn check_notification(timestamp: i64, notification: NetworkNotification, fixtures: Fixtures) {
-        let Fixtures { peer_id, address } = fixtures;
+        let Fixtures {
+            peer_id,
+            address,
+            peers,
+        } = fixtures;
 
         match notification {
             NetworkNotification::ConnnectionEstablished(n) => {
+                assert_eq!(n.timestamp, timestamp);
                 assert_eq!(PeerId::from_str(&n.peer_id).unwrap(), peer_id);
                 assert_eq!(Multiaddr::from_str(&n.address).unwrap(), address);
-                assert_eq!(n.timestamp, timestamp)
             }
             NetworkNotification::ConnnectionClosed(n) => {
+                assert_eq!(n.timestamp, timestamp);
                 assert_eq!(PeerId::from_str(&n.peer_id).unwrap(), peer_id);
                 assert_eq!(Multiaddr::from_str(&n.address).unwrap(), address);
-                assert_eq!(n.timestamp, timestamp)
+            }
+            NetworkNotification::DiscoveredMdns(n) => {
+                assert_eq!(n.timestamp, timestamp);
+
+                for peer in n.peers {
+                    assert!(peers.contains(&(
+                        PeerId::from_str(&peer.0).unwrap(),
+                        Multiaddr::from_str(&peer.1).unwrap()
+                    )))
+                }
             }
         }
     }
@@ -343,6 +490,16 @@ mod test {
         let fixtures = Fixtures {
             peer_id: PeerId::random(),
             address: Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
+            peers: vec![
+                (
+                    PeerId::random(),
+                    Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
+                ),
+                (
+                    PeerId::random(),
+                    Multiaddr::from_str("/ip4/127.0.0.1/tcp/7001").unwrap(),
+                ),
+            ],
         };
 
         // Generate notifications and convert them to bytes
@@ -366,6 +523,16 @@ mod test {
         let fixtures = Fixtures {
             peer_id: PeerId::random(),
             address: Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
+            peers: vec![
+                (
+                    PeerId::random(),
+                    Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
+                ),
+                (
+                    PeerId::random(),
+                    Multiaddr::from_str("/ip4/127.0.0.1/tcp/7001").unwrap(),
+                ),
+            ],
         };
 
         // Generate notifications and convert them to JSON strings

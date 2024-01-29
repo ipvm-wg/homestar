@@ -1022,7 +1022,7 @@ async fn handle_swarm_event<DB: Database>(
         }
 
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Discovered(list))) => {
-            for (peer_id, multiaddr) in list {
+            for (peer_id, multiaddr) in list.clone() {
                 debug!(
                     subject = "libp2p.mdns.discovered",
                     category = "handle_swarm_event",
@@ -1047,6 +1047,12 @@ async fn handle_swarm_event<DB: Database>(
                     )
                 }
             }
+
+            #[cfg(feature = "websocket-notify")]
+            notification::emit_network_event(
+                event_handler.ws_evt_sender(),
+                NetworkNotification::DiscoveredMdns(notification::DiscoveredMdns::new(list)),
+            )
         }
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Expired(list))) => {
             let behaviour = event_handler.swarm.behaviour_mut();
