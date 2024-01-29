@@ -297,51 +297,90 @@ impl TryFrom<Ipld> for ConnectionClosed {
 #[cfg(test)]
 mod test {
     use super::*;
-    use libp2p::PeerId;
+
+    #[derive(Clone, Debug)]
+    struct Fixtures {
+        peer_id: PeerId,
+        address: Multiaddr,
+    }
+
+    fn generate_notifications(fixtures: Fixtures) -> Vec<(i64, NetworkNotification)> {
+        let Fixtures { peer_id, address } = fixtures;
+        let connection_established = ConnectionEstablished::new(peer_id, address.clone());
+        let connection_closed = ConnectionClosed::new(peer_id, address.clone());
+
+        vec![
+            (
+                connection_established.timestamp,
+                NetworkNotification::ConnnectionEstablished(connection_established.clone()),
+            ),
+            (
+                connection_closed.timestamp,
+                NetworkNotification::ConnnectionClosed(connection_closed.clone()),
+            ),
+        ]
+    }
+
+    fn check_notification(timestamp: i64, notification: NetworkNotification, fixtures: Fixtures) {
+        let Fixtures { peer_id, address } = fixtures;
+
+        match notification {
+            NetworkNotification::ConnnectionEstablished(n) => {
+                assert_eq!(PeerId::from_str(&n.peer_id).unwrap(), peer_id);
+                assert_eq!(Multiaddr::from_str(&n.address).unwrap(), address);
+                assert_eq!(n.timestamp, timestamp)
+            }
+            NetworkNotification::ConnnectionClosed(n) => {
+                assert_eq!(PeerId::from_str(&n.peer_id).unwrap(), peer_id);
+                assert_eq!(Multiaddr::from_str(&n.address).unwrap(), address);
+                assert_eq!(n.timestamp, timestamp)
+            }
+        }
+    }
 
     #[test]
     fn notification_bytes_rountrip() {
-        let peer_id = PeerId::random();
-        let address = Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap();
-        let inner = ConnectionEstablished::new(peer_id, address.clone());
+        let fixtures = Fixtures {
+            peer_id: PeerId::random(),
+            address: Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
+        };
 
-        let notification = NetworkNotification::ConnnectionEstablished(inner.clone());
-        let bytes = notification.to_json().unwrap();
-        let parsed = NetworkNotification::from_json(bytes.as_ref()).unwrap();
+        // Generate notifications and convert them to bytes
+        let notifications: Vec<(i64, Vec<u8>)> = generate_notifications(fixtures.clone())
+            .into_iter()
+            .map(|(timestamp, notification)| (timestamp, notification.to_json().unwrap()))
+            .collect();
 
-        match parsed {
-            NetworkNotification::ConnnectionEstablished(n) => {
-                let parsed_peer_id = PeerId::from_str(&n.peer_id).unwrap();
-                let parsed_address = Multiaddr::from_str(&n.address).unwrap();
-
-                assert_eq!(parsed_peer_id, peer_id);
-                assert_eq!(parsed_address, address);
-                assert_eq!(n.timestamp, inner.timestamp);
-            }
-            _ => panic!("Parsed notification did not matched expected variant"),
+        // Convert notifications back and check them
+        for (timestamp, bytes) in notifications {
+            check_notification(
+                timestamp,
+                NetworkNotification::from_json(bytes.as_ref()).unwrap(),
+                fixtures.clone(),
+            )
         }
     }
 
     #[test]
     fn notification_json_string_rountrip() {
-        let peer_id = PeerId::random();
-        let address = Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap();
-        let inner = ConnectionEstablished::new(peer_id, address.clone());
+        let fixtures = Fixtures {
+            peer_id: PeerId::random(),
+            address: Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
+        };
 
-        let notification = NetworkNotification::ConnnectionEstablished(inner.clone());
-        let json_string = notification.to_json_string().unwrap();
-        let parsed = NetworkNotification::from_json_string(json_string).unwrap();
+        // Generate notifications and convert them to JSON strings
+        let notifications: Vec<(i64, String)> = generate_notifications(fixtures.clone())
+            .into_iter()
+            .map(|(timestamp, notification)| (timestamp, notification.to_json_string().unwrap()))
+            .collect();
 
-        match parsed {
-            NetworkNotification::ConnnectionEstablished(n) => {
-                let parsed_peer_id = PeerId::from_str(&n.peer_id).unwrap();
-                let parsed_address = Multiaddr::from_str(&n.address).unwrap();
-
-                assert_eq!(parsed_peer_id, peer_id);
-                assert_eq!(parsed_address, address);
-                assert_eq!(n.timestamp, inner.timestamp);
-            }
-            _ => panic!("Parsed notification did not matched expected variant"),
+        // Convert notifications back and check them
+        for (timestamp, json) in notifications {
+            check_notification(
+                timestamp,
+                NetworkNotification::from_json_string(json).unwrap(),
+                fixtures.clone(),
+            )
         }
     }
 }
