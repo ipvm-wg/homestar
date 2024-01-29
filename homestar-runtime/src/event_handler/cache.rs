@@ -51,6 +51,7 @@ pub(crate) enum CacheData {
 pub(crate) enum DispatchEvent {
     RegisterPeer,
     DiscoverPeers,
+    DialPeer,
 }
 
 /// Setup a cache with an eviction listener.
@@ -76,6 +77,11 @@ pub(crate) fn setup_cache(
                     if let Some(CacheData::Peer(rendezvous_node)) = val.data.get("rendezvous_node")
                     {
                         let _ = tx.send(Event::DiscoverPeers(rendezvous_node.to_owned()));
+                    };
+                }
+                DispatchEvent::DialPeer => {
+                    if let Some(CacheData::Peer(node)) = val.data.get("node") {
+                        let _ = tx.send(Event::DialPeer(node.to_owned()));
                     };
                 }
             }

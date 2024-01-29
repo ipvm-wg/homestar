@@ -26,6 +26,7 @@ announce_addresses = []
 transport_connection_timeout = 60
 max_connected_peers = 32
 max_announce_addresses = 10
+dial_interval = 30
 
 [node.network.libp2p.mdns]
 enable = true

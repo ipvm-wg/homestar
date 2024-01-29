@@ -39,6 +39,9 @@ pub(crate) struct Libp2p {
     /// Transport connection timeout.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) transport_connection_timeout: Duration,
+    /// Dial interval.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) dial_interval: Duration,
 }
 
 /// DHT settings.
@@ -138,6 +141,7 @@ impl Default for Libp2p {
             pubsub: Pubsub::default(),
             rendezvous: Rendezvous::default(),
             transport_connection_timeout: Duration::new(60, 0),
+            dial_interval: Duration::new(30, 0),
         }
     }
 }
