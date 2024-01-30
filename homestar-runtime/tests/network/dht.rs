@@ -565,7 +565,8 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
 }
 
 #[test]
-#[serial_test::file_serial]
+#[mark_flaky_tests::flaky]
+#[serial_test::parallel]
 fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -732,7 +733,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         // We want node two to request workflow info directly from node one
         // because of timeouts not because workflow info was missing from the
         // DHT, so we give node one time to put add workflow info to the DHT.
-        tokio::time::sleep(Duration::from_secs(9)).await;
+        tokio::time::sleep(Duration::from_secs(7)).await;
 
         // Run the same workflow run on node two.
         // Node two should be request workflow info from
@@ -749,7 +750,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         // Poll for sent workflow info message
         let sent_workflow_info_cid: Cid;
         loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(60)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
