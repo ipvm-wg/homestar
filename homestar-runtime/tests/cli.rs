@@ -1,5 +1,3 @@
-#![allow(unused_must_use)]
-
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_daemon;
 use crate::{
@@ -238,7 +236,7 @@ fn test_workflow_run_integration() -> Result<()> {
 }
 
 #[test]
-#[test_retry::retry]
+#[serial_test::file_serial]
 #[cfg(not(windows))]
 fn test_daemon_serial() -> Result<()> {
     let proc_info = ProcInfo::new().unwrap();

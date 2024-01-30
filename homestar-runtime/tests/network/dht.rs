@@ -1,5 +1,3 @@
-#![allow(unused_must_use)]
-
 use crate::{
     make_config,
     utils::{
@@ -567,7 +565,6 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
 }
 
 #[test]
-#[test_retry::retry]
 #[serial_test::file_serial]
 fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();

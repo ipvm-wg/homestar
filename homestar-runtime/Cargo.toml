@@ -206,7 +206,6 @@ rm_rf = "0.6"
 serial_test = { version = "3.0", features = ["file_locks"] }
 strip-ansi-escapes = "0.2.0"
 sysinfo = { version = "0.29", default-features = false }
-test_retry = "0.1"
 tokio-test = "0.4"
 tokio-tungstenite = { version = "0.21", default-features = false, features = [
   "connect",
