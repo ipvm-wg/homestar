@@ -21,6 +21,7 @@ test-group = 'serial'
 
 [[profile.default.overrides]]
 filter = 'test(/_integration$/)'
+threads-required = 3
 test-group = 'integration'
 
 [[profile.ci.overrides]]
@@ -29,4 +30,5 @@ test-group = 'serial'
 
 [[profile.ci.overrides]]
 filter = 'test(/_integration$/)'
+threads-required = 3
 test-group = 'integration'
