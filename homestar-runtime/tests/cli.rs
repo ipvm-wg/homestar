@@ -241,9 +241,9 @@ fn test_workflow_run_integration() -> Result<()> {
 }
 
 #[test]
-#[serial_test::file_serial]
+#[serial_test::parallel]
 #[cfg(not(windows))]
-fn test_daemon_serial() -> Result<()> {
+fn test_daemon_integration() -> Result<()> {
     let proc_info = ProcInfo::new().unwrap();
     let rpc_port = proc_info.rpc_port;
     let metrics_port = proc_info.metrics_port;
@@ -258,6 +258,7 @@ fn test_daemon_serial() -> Result<()> {
         [node.network.rpc]
         host = "127.0.0.1"
         port = {rpc_port}
+        server_timeout = 300
         [node.network.webserver]
         port = {ws_port}
         "#
