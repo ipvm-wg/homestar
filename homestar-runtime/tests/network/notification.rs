@@ -24,6 +24,7 @@ const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
 const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
+#[serial_test::parallel]
 fn test_connection_notifications_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -186,6 +187,7 @@ fn test_connection_notifications_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_libp2p_redial_on_connection_closed_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -360,6 +362,7 @@ fn test_libp2p_redial_on_connection_closed_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();

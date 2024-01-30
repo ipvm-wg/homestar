@@ -210,7 +210,6 @@ jobs:
     if: ${{ needs.changes.outputs.rust == 'true' }}
     env:
       RUSTFLAGS: -Dwarnings  -Ctarget-feature=+crt-static
-      CARGO_INCREMENTAL: 0
     strategy:
       fail-fast: false
       matrix:

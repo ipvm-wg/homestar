@@ -32,7 +32,7 @@ const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
 const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
-#[serial_test::file_serial]
+#[serial_test::parallel]
 fn test_libp2p_dht_records_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -366,7 +366,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
 }
 
 #[test]
-#[serial_test::file_serial]
+#[serial_test::parallel]
 fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -586,6 +586,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         [node.network.keypair_config]
         existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }}
         [node.network.libp2p]
+        idle_connection_timeout = 180
         listen_address = "{listen_addr1}"
         node_addresses = ["{node_addrb}"]
         [node.network.libp2p.dht]
@@ -648,6 +649,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         [node.network.keypair_config]
         existing = {{ key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }}
         [node.network.libp2p]
+        idle_connection_timeout = 180
         listen_address = "{listen_addr2}"
         node_addresses = ["{node_addra}"]
         [node.network.libp2p.dht]
@@ -747,7 +749,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         // Poll for sent workflow info message
         let sent_workflow_info_cid: Cid;
         loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(60)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
@@ -769,7 +771,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         // Poll for retrieved workflow info message
         let received_workflow_info_cid: Cid;
         loop {
-            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(60)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
@@ -856,7 +858,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
 
 #[ignore]
 #[test]
-#[serial_test::file_serial]
+#[serial_test::parallel]
 fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> {
     // NOTE: We are ignoring this test for now because we do not have a means
     // to properly isolate node a from node c. In the future when nodes are

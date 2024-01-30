@@ -16,3 +16,9 @@ crate-type = ["cdylib"]
 
 [features]
 default = []
+
+[package.metadata.cargo-machete]
+ignored = ["homestar-workspace-hack"]
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["homestar-workspace-hack"]

@@ -23,6 +23,7 @@ const UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "unsubscribe_run_workflow";
 const AWAIT_CID: &str = "bafyrmiga45pxzlihf726utrixg7a5zavauggtqqkqnc6bzybr7icpbdu6a";
 
 #[test]
+#[serial_test::parallel]
 fn test_workflow_run_integration() -> Result<()> {
     let proc_info = ProcInfo::new().unwrap();
     let rpc_port = proc_info.rpc_port;

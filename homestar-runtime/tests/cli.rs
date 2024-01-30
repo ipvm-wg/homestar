@@ -18,6 +18,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
 #[test]
+#[serial_test::parallel]
 fn test_help_integration() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("help")
@@ -45,6 +46,7 @@ fn test_help_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_version_integration() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("--version")
@@ -60,6 +62,7 @@ fn test_version_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_server_not_running_integration() -> Result<()> {
     Command::new(BIN.as_os_str())
         .arg("ping")
@@ -95,6 +98,7 @@ fn test_server_not_running_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_server_integration() -> Result<()> {
     let proc_info = ProcInfo::new().unwrap();
     let rpc_port = proc_info.rpc_port;
@@ -168,6 +172,7 @@ fn test_server_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_workflow_run_integration() -> Result<()> {
     let proc_info = ProcInfo::new().unwrap();
     let rpc_port = proc_info.rpc_port;
@@ -299,6 +304,7 @@ fn test_daemon_serial() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_server_v4_integration() -> Result<()> {
     let proc_info = ProcInfo::new().unwrap();
     let rpc_port = proc_info.rpc_port;

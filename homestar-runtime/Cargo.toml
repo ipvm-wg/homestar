@@ -310,3 +310,9 @@ assets = [
   { source = "../LICENSE", dest = "/usr/share/doc/homestar/LICENSE.md", mode = "644", doc = true },
   { source = "../README.md", dest = "/usr/share/doc/homestar/README.md", mode = "644", doc = true },
 ]
+
+[package.metadata.cargo-machete]
+ignored = ["homestar-workspace-hack", "libsqlite3-sys", "puffin", "puffin_egui"]
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["homestar-workspace-hack", "libsqlite3-sys", "puffin", "puffin_egui"]

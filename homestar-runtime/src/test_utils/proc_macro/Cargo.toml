@@ -10,7 +10,12 @@ proc_macro = true
 doc = false
 
 [dependencies]
-proc-macro2 = "1.0"
 quote = "1.0"
 syn = "2.0"
 homestar-workspace-hack = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = ["homestar-workspace-hack"]
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["homestar-workspace-hack"]

@@ -928,7 +928,6 @@ dependencies = [
  "anstream",
  "anstyle",
  "clap_lex",
- "strsim",
 ]
 
 [[package]]
@@ -2603,7 +2602,6 @@ name = "homestar-runtime-tests-proc-macro"
 version = "0.0.0"
 dependencies = [
  "homestar-workspace-hack",
- "proc-macro2",
  "quote",
  "syn 2.0.48",
 ]
@@ -8042,7 +8040,6 @@ dependencies = [
 name = "websocket-relay"
 version = "0.1.0"
 dependencies = [
- "clap",
  "homestar-runtime",
  "homestar-workspace-hack",
  "miette",

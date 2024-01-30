@@ -19,6 +19,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
 #[test]
+#[serial_test::parallel]
 fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -224,6 +225,7 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -399,6 +401,7 @@ fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_libp2p_rendezvous_renew_registration_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -529,6 +532,7 @@ fn test_libp2p_rendezvous_renew_registration_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_libp2p_rendezvous_rediscovery_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -659,6 +663,7 @@ fn test_libp2p_rendezvous_rediscovery_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
