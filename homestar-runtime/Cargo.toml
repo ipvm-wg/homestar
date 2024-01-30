@@ -188,6 +188,7 @@ daemonize = "0.5"
 [dev-dependencies]
 assert_cmd = "2.0"
 criterion = "0.5"
+flaky_test = "0.2"
 homestar-invocation = { version = "0.1", path = "../homestar-invocation", features = [
   "diesel",
   "test-utils",
@@ -196,7 +197,6 @@ homestar_runtime_proc_macro = { path = "src/test_utils/proc_macro", package = "h
 jsonrpsee = { version = "0.21", default-features = false, features = [
   "client",
 ] }
-mark-flaky-tests = "1.0"
 nix = { version = "0.27", features = ["signal"] }
 port-selector = "0.1"
 predicates = { version = "3.0", default-features = false }
