@@ -2538,7 +2538,7 @@ dependencies = [
  "indexmap 2.1.0",
  "ipfs-api",
  "ipfs-api-backend-hyper",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "jsonrpsee",
  "libc",
  "libipld",
@@ -2620,7 +2620,7 @@ dependencies = [
  "heck",
  "homestar-invocation",
  "homestar-workspace-hack",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "libipld",
  "rust_decimal",
  "serde",
@@ -2694,7 +2694,7 @@ dependencies = [
  "image",
  "indexmap 1.9.3",
  "indexmap 2.1.0",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "jsonrpsee",
  "jsonrpsee-core",
  "libc",
@@ -3163,15 +3163,6 @@ name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
 dependencies = [
  "either",
 ]
@@ -5137,7 +5128,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "efb6c9a1dd1def8e2124d17e83a20af56f1570d6c2d2bd9e266ccb768df3840e"
 dependencies = [
  "anyhow",
- "itertools 0.11.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.48",
