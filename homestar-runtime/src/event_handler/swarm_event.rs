@@ -37,11 +37,11 @@ use libp2p::{
     rendezvous::{self, Namespace, Registration},
     request_response,
     swarm::{dial_opts::DialOpts, SwarmEvent},
-    PeerId, StreamProtocol,
+    Multiaddr, PeerId, StreamProtocol,
 };
 #[cfg(feature = "websocket-notify")]
 use maplit::btreemap;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use tracing::{debug, error, info, warn};
 
 pub(crate) mod record;
@@ -306,6 +306,31 @@ async fn handle_swarm_event<DB: Database>(
                             }
                         }
 
+                        #[cfg(feature = "websocket-notify")]
+                        {
+                            println!("== Sending notification ==");
+
+                            notification::emit_network_event(
+                                event_handler.ws_evt_sender(),
+                                NetworkNotification::DiscoveredRendezvous(
+                                    notification::DiscoveredRendezvous::new(
+                                        rendezvous_node,
+                                        BTreeMap::from(
+                                            registrations
+                                                .iter()
+                                                .map(|registration| {
+                                                    (
+                                                        registration.record.peer_id(),
+                                                        registration.record.addresses().to_owned(),
+                                                    )
+                                                })
+                                                .collect::<BTreeMap<PeerId, Vec<Multiaddr>>>(),
+                                        ),
+                                    ),
+                                ),
+                            );
+                        }
+
                         // Discover peers again at discovery interval
                         event_handler
                             .cache
@@ -358,6 +383,14 @@ async fn handle_swarm_event<DB: Database>(
                         peer_id = rendezvous_node.to_string(),
                         ttl = ttl,
                         "registered self with rendezvous node"
+                    );
+
+                    #[cfg(feature = "websocket-notify")]
+                    notification::emit_network_event(
+                        event_handler.ws_evt_sender(),
+                        NetworkNotification::RegisteredRendezvous(
+                            notification::RegisteredRendezvous::new(rendezvous_node),
+                        ),
                     );
 
                     event_handler
@@ -417,12 +450,22 @@ async fn handle_swarm_event<DB: Database>(
         }
         SwarmEvent::Behaviour(ComposedEvent::RendezvousServer(rendezvous_server_event)) => {
             match rendezvous_server_event {
-                rendezvous::server::Event::DiscoverServed { enquirer, .. } => debug!(
-                    subject = "libp2p.rendezvous.server.discover",
-                    category = "handle_swarm_event",
-                    peer_id = enquirer.to_string(),
-                    "served rendezvous discover request to peer"
-                ),
+                rendezvous::server::Event::DiscoverServed { enquirer, .. } => {
+                    debug!(
+                        subject = "libp2p.rendezvous.server.discover",
+                        category = "handle_swarm_event",
+                        peer_id = enquirer.to_string(),
+                        "served rendezvous discover request to peer"
+                    );
+
+                    #[cfg(feature = "websocket-notify")]
+                    notification::emit_network_event(
+                        event_handler.ws_evt_sender(),
+                        NetworkNotification::DiscoverServedRendezvous(
+                            notification::DiscoverServedRendezvous::new(enquirer),
+                        ),
+                    );
+                }
                 rendezvous::server::Event::DiscoverNotServed { enquirer, error } => {
                     warn!(subject = "libp2p.rendezvous.server.discover.err",
                           category = "handle_swarm_event",
@@ -430,13 +473,24 @@ async fn handle_swarm_event<DB: Database>(
                           err=?error,
                           "did not serve rendezvous discover request")
                 }
-                rendezvous::server::Event::PeerRegistered { peer, .. } => {
+                rendezvous::server::Event::PeerRegistered { peer, registration } => {
                     debug!(
                         subject = "libp2p.rendezvous.server.peer_registered",
                         category = "handle_swarm_event",
                         peer_id = peer.to_string(),
                         "registered peer through rendezvous"
-                    )
+                    );
+
+                    #[cfg(feature = "websocket-notify")]
+                    notification::emit_network_event(
+                        event_handler.ws_evt_sender(),
+                        NetworkNotification::PeerRegisteredRendezvous(
+                            notification::PeerRegisteredRendezvous::new(
+                                peer,
+                                registration.record.addresses().to_owned(),
+                            ),
+                        ),
+                    );
                 }
                 rendezvous::server::Event::PeerNotRegistered {
                     peer,

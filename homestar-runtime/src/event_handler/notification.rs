@@ -101,14 +101,16 @@ pub(crate) fn emit_network_event(
     );
 
     if let Ok(json) = notification.to_json() {
-        if let Err(_err) = notifier.notify(Message::new(header, json)) {
-            // debug!(
-            //     subject = "notification.err",
-            //     category = "notification",
-            //     err=?err,
-            //     "unable to send notification {:?}",
-            //     notification,
-            // )
+        if let Err(err) = notifier.notify(Message::new(header, json)) {
+            // TODO Check on why this errs
+
+            debug!(
+                subject = "notification.err",
+                category = "notification",
+                err=?err,
+                "unable to send notification {:?}",
+                notification,
+            )
         };
     } else {
         debug!(

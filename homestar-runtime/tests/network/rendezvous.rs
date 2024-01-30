@@ -3,13 +3,19 @@ use crate::{
     utils::{
         check_for_line_with, count_lines_where, kill_homestar, listen_addr, multiaddr,
         retrieve_output, wait_for_socket_connection, wait_for_socket_connection_v6, ChildGuard,
-        ProcInfo, BIN_NAME, ED25519MULTIHASH, ED25519MULTIHASH2, ED25519MULTIHASH3,
-        ED25519MULTIHASH4, ED25519MULTIHASH5, SECP256K1MULTIHASH,
+        ProcInfo, TimeoutFutureExt, BIN_NAME, ED25519MULTIHASH, ED25519MULTIHASH2,
+        ED25519MULTIHASH3, ED25519MULTIHASH4, ED25519MULTIHASH5, SECP256K1MULTIHASH,
     },
 };
 use anyhow::Result;
+use jsonrpsee::{
+    core::client::{Subscription, SubscriptionClientT},
+    rpc_params,
+    ws_client::WsClientBuilder,
+};
 use once_cell::sync::Lazy;
 use std::{
+    net::Ipv4Addr,
     path::PathBuf,
     process::{Command, Stdio},
     thread,
@@ -17,6 +23,8 @@ use std::{
 };
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
+const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
+const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
 #[serial_test::parallel]
@@ -126,9 +134,14 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
     // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep
     thread::sleep(Duration::from_secs(2));
 
+    // TODO Add notification listener to check for when client 1 registers with server
+    // and server acknowledges registration
+
     let toml3 = format!(
         r#"
         [node]
+        [node.network]
+        poll_cache_interval = 1000
         [node.network.keypair_config]
         existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
         [node.network.libp2p]
@@ -157,7 +170,7 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
         .arg(config3.filename())
         .arg("--db")
         .arg(&proc_info3.db_path)
-        .stdout(Stdio::piped())
+        // .stdout(Stdio::piped())
         .spawn()
         .unwrap();
     let proc_guard_client2 = ChildGuard::new(rendezvous_client2);
@@ -166,60 +179,97 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
         panic!("Homestar server/runtime failed to start in time");
     }
 
-    // Collect logs for five seconds then kill proceses.
-    let dead_server = kill_homestar(proc_guard_server.take(), Some(Duration::from_secs(5)));
-    let _ = kill_homestar(proc_guard_client1.take(), Some(Duration::from_secs(5)));
-    let dead_client2 = kill_homestar(proc_guard_client2.take(), Some(Duration::from_secs(5)));
+    tokio_test::block_on(async {
+        let ws_url3 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port3);
+        let client3 = WsClientBuilder::default()
+            .build(ws_url3.clone())
+            .await
+            .unwrap();
 
-    // Retrieve logs.
-    let stdout_server = retrieve_output(dead_server);
-    let stdout_client2 = retrieve_output(dead_client2);
+        let mut sub3: Subscription<Vec<u8>> = client3
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
 
-    // Check rendezvous server registered the client one
-    let registered_client_one = check_for_line_with(
-        stdout_server.clone(),
-        vec!["registered peer through rendezvous", SECP256K1MULTIHASH],
-    );
+        println!("--- Created sub3 ---");
 
-    // Check rendezvous served a discover request to client two
-    let served_discovery_to_client_two = check_for_line_with(
-        stdout_server.clone(),
-        vec![
-            "served rendezvous discover request to peer",
-            ED25519MULTIHASH2,
-        ],
-    );
+        // TODO Listen for client 2 discovered, server discover served, and client 1 connected to client 2
 
-    assert!(registered_client_one);
-    assert!(served_discovery_to_client_two);
+        // Poll for discovered rendezvous message
+        loop {
+            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(60)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-    // Check that client two connected to client one.
-    let two_connected_to_one = check_for_line_with(
-        stdout_client2.clone(),
-        vec!["peer connection established", SECP256K1MULTIHASH],
-    );
+                println!("{json}");
 
-    // Check client one was added to the Kademlia table
-    let one_addded_to_dht = check_for_line_with(
-        stdout_client2.clone(),
-        vec![
-            "added identified node to kademlia routing table",
-            SECP256K1MULTIHASH,
-        ],
-    );
+                if json["discovered_rendezvous"].is_object() {
+                    break;
+                }
+            } else {
+                panic!("Node two did not receive rendezvous discovery from server in time");
+            }
+        }
 
-    // Check that DHT routing table was updated with client one
-    let one_in_dht_routing_table = check_for_line_with(
-        stdout_client2.clone(),
-        vec![
-            "kademlia routing table updated with peer",
-            SECP256K1MULTIHASH,
-        ],
-    );
+        // Collect logs for five seconds then kill proceses.
+        let dead_server = kill_homestar(proc_guard_server.take(), Some(Duration::from_secs(15)));
+        let _ = kill_homestar(proc_guard_client1.take(), Some(Duration::from_secs(15)));
+        let dead_client2 = kill_homestar(proc_guard_client2.take(), Some(Duration::from_secs(15)));
 
-    assert!(one_addded_to_dht);
-    assert!(one_in_dht_routing_table);
-    assert!(two_connected_to_one);
+        // Retrieve logs.
+        let stdout_server = retrieve_output(dead_server);
+        let stdout_client2 = retrieve_output(dead_client2);
+
+        // Check rendezvous server registered the client one
+        let registered_client_one = check_for_line_with(
+            stdout_server.clone(),
+            vec!["registered peer through rendezvous", SECP256K1MULTIHASH],
+        );
+
+        // Check rendezvous served a discover request to client two
+        let served_discovery_to_client_two = check_for_line_with(
+            stdout_server.clone(),
+            vec![
+                "served rendezvous discover request to peer",
+                ED25519MULTIHASH2,
+            ],
+        );
+
+        assert!(registered_client_one);
+        assert!(served_discovery_to_client_two);
+
+        // Check that client two connected to client one.
+        let two_connected_to_one = check_for_line_with(
+            stdout_client2.clone(),
+            vec!["peer connection established", SECP256K1MULTIHASH],
+        );
+
+        // Check client one was added to the Kademlia table
+        let one_addded_to_dht = check_for_line_with(
+            stdout_client2.clone(),
+            vec![
+                "added identified node to kademlia routing table",
+                SECP256K1MULTIHASH,
+            ],
+        );
+
+        // Check that DHT routing table was updated with client one
+        let one_in_dht_routing_table = check_for_line_with(
+            stdout_client2.clone(),
+            vec![
+                "kademlia routing table updated with peer",
+                SECP256K1MULTIHASH,
+            ],
+        );
+
+        assert!(one_addded_to_dht);
+        assert!(one_in_dht_routing_table);
+        assert!(two_connected_to_one);
+    });
 
     Ok(())
 }
@@ -332,6 +382,8 @@ fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
     // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep.
     thread::sleep(Duration::from_secs(2));
 
+    // TODO Wait for clint 1 to register with server, server confirm registration
+
     let toml3 = format!(
         r#"
         [node]
@@ -371,6 +423,8 @@ fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
     if wait_for_socket_connection(ws_port3, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
+
+    // TODO Listen for client 2 connection closed with client 1 (on client 2)
 
     // Kill server and client one after five seconds
     let _ = kill_homestar(proc_guard_server.take(), Some(Duration::from_secs(5)));
@@ -499,6 +553,9 @@ fn test_libp2p_rendezvous_renew_registration_integration() -> Result<()> {
         panic!("Homestar server/runtime failed to start in time");
     }
 
+    // TODO Listen for client registered and server registered peer messages
+    // with renewal should be more than one.
+
     // Collect logs for five seconds then kill proceses.
     let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
     let dead_client = kill_homestar(rendezvous_client1, Some(Duration::from_secs(5)));
@@ -591,6 +648,8 @@ fn test_libp2p_rendezvous_rediscovery_integration() -> Result<()> {
     let toml2 = format!(
         r#"
         [node]
+        [node.network]
+        poll_cache_interval = 100
         [node.network.keypair_config]
         existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_4.pem" }}
         [node.network.libp2p]
@@ -630,9 +689,12 @@ fn test_libp2p_rendezvous_rediscovery_integration() -> Result<()> {
         panic!("Homestar server/runtime failed to start in time");
     }
 
+    // TODO Listen for client discover and server discover served messages
+    // should be more than one for both (or move on at two)
+
     // Collect logs for five seconds then kill proceses.
-    let dead_server = kill_homestar(proc_guard_server.take(), Some(Duration::from_secs(5)));
-    let dead_client = kill_homestar(proc_guard_client1.take(), Some(Duration::from_secs(5)));
+    let dead_server = kill_homestar(proc_guard_server.take(), Some(Duration::from_secs(15)));
+    let dead_client = kill_homestar(proc_guard_client1.take(), Some(Duration::from_secs(15)));
 
     // Retrieve logs.
     let stdout_server = retrieve_output(dead_server);

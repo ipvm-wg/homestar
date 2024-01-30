@@ -5,7 +5,12 @@
 use anyhow::anyhow;
 use chrono::prelude::Utc;
 use homestar_invocation::ipld::DagJson;
-use libipld::{serde::from_ipld, Ipld};
+use itertools::Itertools;
+use jsonrpsee::core::StringError;
+use libipld::{
+    serde::{from_ipld, to_ipld},
+    Ipld,
+};
 use libp2p::{Multiaddr, PeerId};
 use schemars::{
     gen::SchemaGenerator,
@@ -131,6 +136,19 @@ pub enum NetworkNotification {
     /// mDNS discovered notification.
     #[schemars(rename = "discovered_mdns")]
     DiscoveredMdns(DiscoveredMdns),
+    /// Rendezvous client discovered notification.
+    #[schemars(rename = "discovered_rendezvous")]
+    DiscoveredRendezvous(DiscoveredRendezvous),
+    /// Rendezvous client discovered notification.
+    #[schemars(rename = "registered_rendezvous")]
+    RegisteredRendezvous(RegisteredRendezvous),
+    /// Rendezvous discover served notification.
+    #[schemars(rename = "discover_served_rendezvous")]
+    DiscoverServedRendezvous(DiscoverServedRendezvous),
+    // peer_discovered_rendezvous
+    /// Rendezvous peer registered notification.
+    #[schemars(rename = "peer_registered_rendezvous")]
+    PeerRegisteredRendezvous(PeerRegisteredRendezvous),
 }
 
 impl DagJson for NetworkNotification {}
@@ -148,6 +166,20 @@ impl From<NetworkNotification> for Ipld {
             NetworkNotification::DiscoveredMdns(n) => {
                 Ipld::Map(BTreeMap::from([("discovered_mdns".into(), n.into())]))
             }
+            NetworkNotification::DiscoveredRendezvous(n) => {
+                Ipld::Map(BTreeMap::from([("discovered_rendezvous".into(), n.into())]))
+            }
+            NetworkNotification::RegisteredRendezvous(n) => {
+                Ipld::Map(BTreeMap::from([("registered_rendezvous".into(), n.into())]))
+            }
+            NetworkNotification::DiscoverServedRendezvous(n) => Ipld::Map(BTreeMap::from([(
+                "discover_served_rendezvous".into(),
+                n.into(),
+            )])),
+            NetworkNotification::PeerRegisteredRendezvous(n) => Ipld::Map(BTreeMap::from([(
+                "peer_registered_rendezvous".into(),
+                n.into(),
+            )])),
         }
     }
 }
@@ -168,6 +200,18 @@ impl TryFrom<Ipld> for NetworkNotification {
                 )),
                 "discovered_mdns" => Ok(NetworkNotification::DiscoveredMdns(
                     DiscoveredMdns::try_from(val.to_owned())?,
+                )),
+                "discovered_rendezvous" => Ok(NetworkNotification::DiscoveredRendezvous(
+                    DiscoveredRendezvous::try_from(val.to_owned())?,
+                )),
+                "registered_rendezvous" => Ok(NetworkNotification::RegisteredRendezvous(
+                    RegisteredRendezvous::try_from(val.to_owned())?,
+                )),
+                "discover_served_rendezvous" => Ok(NetworkNotification::DiscoverServedRendezvous(
+                    DiscoverServedRendezvous::try_from(val.to_owned())?,
+                )),
+                "peer_registered_rendezvous" => Ok(NetworkNotification::PeerRegisteredRendezvous(
+                    PeerRegisteredRendezvous::try_from(val.to_owned())?,
                 )),
                 _ => Err(anyhow!("Unknown network notification tag type")),
             }
@@ -417,6 +461,293 @@ impl JsonSchema for DiscoveredMdns {
     }
 }
 
+#[derive(Debug, Clone, JsonSchema)]
+#[schemars(rename = "discovered_rendezvous")]
+pub struct DiscoveredRendezvous {
+    timestamp: i64,
+    server: String,
+    peers: BTreeMap<String, Vec<String>>,
+}
+
+impl DiscoveredRendezvous {
+    pub(crate) fn new(
+        server: PeerId,
+        peers: BTreeMap<PeerId, Vec<Multiaddr>>,
+    ) -> DiscoveredRendezvous {
+        println!("== Creating discovered rendezvous notification ==");
+        dbg!(peers.clone());
+        dbg!(server);
+
+        DiscoveredRendezvous {
+            timestamp: Utc::now().timestamp_millis(),
+            server: server.to_string(),
+            peers: peers
+                .iter()
+                .map(|(peer_id, addresses)| {
+                    (
+                        peer_id.to_string(),
+                        addresses
+                            .iter()
+                            .map(|address| address.to_string())
+                            .collect(),
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
+impl DagJson for DiscoveredRendezvous {}
+
+impl From<DiscoveredRendezvous> for Ipld {
+    fn from(notification: DiscoveredRendezvous) -> Self {
+        let peers: BTreeMap<String, Ipld> = notification
+            .peers
+            .into_iter()
+            .map(|(peer_id, addresses)| {
+                (
+                    peer_id,
+                    Ipld::List(
+                        addresses
+                            .iter()
+                            .map(|address| Ipld::String(address.to_owned()))
+                            .collect(),
+                    ),
+                )
+            })
+            .collect();
+
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            ("timestamp".into(), notification.timestamp.into()),
+            ("server".into(), notification.server.into()),
+            ("peers".into(), peers.into()),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for DiscoveredRendezvous {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let peers_key: &str = "peers";
+        let server_key: &str = "server";
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let server = from_ipld(
+            map.get(server_key)
+                .ok_or_else(|| anyhow!("missing {server_key}"))?
+                .to_owned(),
+        )?;
+
+        // dbg!(map.get(peers_key));
+
+        let peers = from_ipld::<BTreeMap<String, Vec<String>>>(
+            map.get(peers_key)
+                .ok_or_else(|| anyhow!("missing {peers_key}"))?
+                .to_owned(),
+        )?;
+
+        Ok(DiscoveredRendezvous {
+            timestamp,
+            server,
+            peers,
+        })
+    }
+}
+
+#[derive(JsonSchema, Debug, Clone)]
+#[schemars(rename = "registered_rendezvous")]
+pub struct RegisteredRendezvous {
+    timestamp: i64,
+    server: String,
+}
+
+impl RegisteredRendezvous {
+    pub(crate) fn new(server: PeerId) -> RegisteredRendezvous {
+        RegisteredRendezvous {
+            timestamp: Utc::now().timestamp_millis(),
+            server: server.to_string(),
+        }
+    }
+}
+
+impl DagJson for RegisteredRendezvous {}
+
+impl From<RegisteredRendezvous> for Ipld {
+    fn from(notification: RegisteredRendezvous) -> Self {
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            ("timestamp".into(), notification.timestamp.into()),
+            ("server".into(), notification.server.into()),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for RegisteredRendezvous {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let server_key: &str = "server";
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let server = from_ipld(
+            map.get(server_key)
+                .ok_or_else(|| anyhow!("missing {server_key}"))?
+                .to_owned(),
+        )?;
+
+        Ok(RegisteredRendezvous { timestamp, server })
+    }
+}
+
+#[derive(JsonSchema, Debug, Clone)]
+#[schemars(rename = "registered_rendezvous")]
+pub struct DiscoverServedRendezvous {
+    timestamp: i64,
+    enquirer: String,
+}
+
+impl DiscoverServedRendezvous {
+    pub(crate) fn new(enquirer: PeerId) -> DiscoverServedRendezvous {
+        DiscoverServedRendezvous {
+            timestamp: Utc::now().timestamp_millis(),
+            enquirer: enquirer.to_string(),
+        }
+    }
+}
+
+impl DagJson for DiscoverServedRendezvous {}
+
+impl From<DiscoverServedRendezvous> for Ipld {
+    fn from(notification: DiscoverServedRendezvous) -> Self {
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            ("timestamp".into(), notification.timestamp.into()),
+            ("enquirer".into(), notification.enquirer.into()),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for DiscoverServedRendezvous {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let enquirer_key: &str = "enquirer";
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let enquirer = from_ipld(
+            map.get(enquirer_key)
+                .ok_or_else(|| anyhow!("missing {enquirer_key}"))?
+                .to_owned(),
+        )?;
+
+        Ok(DiscoverServedRendezvous {
+            timestamp,
+            enquirer,
+        })
+    }
+}
+
+#[derive(JsonSchema, Debug, Clone)]
+#[schemars(rename = "peer_registered_rendezvous")]
+pub struct PeerRegisteredRendezvous {
+    timestamp: i64,
+    peer_id: String,
+    addresses: Vec<String>,
+}
+
+impl PeerRegisteredRendezvous {
+    pub(crate) fn new(peer_id: PeerId, addresses: Vec<Multiaddr>) -> PeerRegisteredRendezvous {
+        PeerRegisteredRendezvous {
+            timestamp: Utc::now().timestamp_millis(),
+            peer_id: peer_id.to_string(),
+            addresses: addresses
+                .iter()
+                .map(|address| address.to_string())
+                .collect(),
+        }
+    }
+}
+
+impl DagJson for PeerRegisteredRendezvous {}
+
+impl From<PeerRegisteredRendezvous> for Ipld {
+    fn from(notification: PeerRegisteredRendezvous) -> Self {
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            ("timestamp".into(), notification.timestamp.into()),
+            ("peer_id".into(), notification.peer_id.into()),
+            (
+                "addresses".into(),
+                Ipld::List(
+                    notification
+                        .addresses
+                        .iter()
+                        .map(|address| Ipld::String(address.to_owned()))
+                        .collect(),
+                ),
+            ),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for PeerRegisteredRendezvous {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let peer_key: &str = "peer_id";
+        let addresses_key: &str = "addresses";
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let peer_id = from_ipld(
+            map.get(peer_key)
+                .ok_or_else(|| anyhow!("missing {peer_key}"))?
+                .to_owned(),
+        )?;
+
+        let addresses = from_ipld(
+            map.get(addresses_key)
+                .ok_or_else(|| anyhow!("missing {addresses_key}"))?
+                .to_owned(),
+        )?;
+
+        Ok(PeerRegisteredRendezvous {
+            timestamp,
+            peer_id,
+            addresses,
+        })
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -425,18 +756,60 @@ mod test {
     struct Fixtures {
         peer_id: PeerId,
         address: Multiaddr,
+        addresses: Vec<Multiaddr>,
         peers: Vec<(PeerId, Multiaddr)>,
+        peers_vec_addr: BTreeMap<PeerId, Vec<Multiaddr>>,
+    }
+
+    fn generate_fixtures() -> Fixtures {
+        Fixtures {
+            peer_id: PeerId::random(),
+            address: Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
+            addresses: vec![
+                Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
+                Multiaddr::from_str("/ip4/127.0.0.1/tcp/7001").unwrap(),
+            ],
+            peers: vec![
+                (
+                    PeerId::random(),
+                    Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
+                ),
+                (
+                    PeerId::random(),
+                    Multiaddr::from_str("/ip4/127.0.0.1/tcp/7001").unwrap(),
+                ),
+            ],
+            peers_vec_addr: BTreeMap::from([
+                (
+                    PeerId::random(),
+                    vec![Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap()],
+                ),
+                (
+                    PeerId::random(),
+                    vec![
+                        Multiaddr::from_str("/ip4/127.0.0.1/tcp/7001").unwrap(),
+                        Multiaddr::from_str("/ip4/127.0.0.1/tcp/7002").unwrap(),
+                    ],
+                ),
+            ]),
+        }
     }
 
     fn generate_notifications(fixtures: Fixtures) -> Vec<(i64, NetworkNotification)> {
         let Fixtures {
             peer_id,
             address,
+            addresses,
             peers,
+            peers_vec_addr,
         } = fixtures;
         let connection_established = ConnectionEstablished::new(peer_id, address.clone());
         let connection_closed = ConnectionClosed::new(peer_id, address.clone());
         let discovered_mdns = DiscoveredMdns::new(peers);
+        let discovered_rendezvous = DiscoveredRendezvous::new(peer_id, peers_vec_addr);
+        let registered_rendezvous = RegisteredRendezvous::new(peer_id);
+        let discover_served_rendezvous = DiscoverServedRendezvous::new(peer_id);
+        let peer_registered_rendezvous = PeerRegisteredRendezvous::new(peer_id, addresses);
 
         vec![
             (
@@ -451,6 +824,22 @@ mod test {
                 discovered_mdns.timestamp,
                 NetworkNotification::DiscoveredMdns(discovered_mdns.clone()),
             ),
+            (
+                discovered_rendezvous.timestamp,
+                NetworkNotification::DiscoveredRendezvous(discovered_rendezvous.clone()),
+            ),
+            (
+                registered_rendezvous.timestamp,
+                NetworkNotification::RegisteredRendezvous(registered_rendezvous.clone()),
+            ),
+            (
+                discover_served_rendezvous.timestamp,
+                NetworkNotification::DiscoverServedRendezvous(discover_served_rendezvous.clone()),
+            ),
+            (
+                peer_registered_rendezvous.timestamp,
+                NetworkNotification::PeerRegisteredRendezvous(peer_registered_rendezvous.clone()),
+            ),
         ]
     }
 
@@ -458,7 +847,9 @@ mod test {
         let Fixtures {
             peer_id,
             address,
+            addresses,
             peers,
+            peers_vec_addr,
         } = fixtures;
 
         match notification {
@@ -482,25 +873,45 @@ mod test {
                     )))
                 }
             }
+            NetworkNotification::DiscoveredRendezvous(n) => {
+                assert_eq!(n.timestamp, timestamp);
+                assert_eq!(PeerId::from_str(&n.server).unwrap(), peer_id);
+
+                for peer in n.peers {
+                    assert_eq!(
+                        peer.1
+                            .iter()
+                            .map(|address| Multiaddr::from_str(address).unwrap())
+                            .collect::<Vec<Multiaddr>>(),
+                        peers_vec_addr[&PeerId::from_str(&peer.0).unwrap()]
+                    )
+                }
+            }
+            NetworkNotification::RegisteredRendezvous(n) => {
+                assert_eq!(n.timestamp, timestamp);
+                assert_eq!(PeerId::from_str(&n.server).unwrap(), peer_id);
+            }
+            NetworkNotification::DiscoverServedRendezvous(n) => {
+                assert_eq!(n.timestamp, timestamp);
+                assert_eq!(PeerId::from_str(&n.enquirer).unwrap(), peer_id);
+            }
+            NetworkNotification::PeerRegisteredRendezvous(n) => {
+                assert_eq!(n.timestamp, timestamp);
+                assert_eq!(PeerId::from_str(&n.peer_id).unwrap(), peer_id);
+                assert_eq!(
+                    n.addresses
+                        .iter()
+                        .map(|address| Multiaddr::from_str(address).unwrap())
+                        .collect::<Vec<Multiaddr>>(),
+                    addresses
+                );
+            }
         }
     }
 
     #[test]
     fn notification_bytes_rountrip() {
-        let fixtures = Fixtures {
-            peer_id: PeerId::random(),
-            address: Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
-            peers: vec![
-                (
-                    PeerId::random(),
-                    Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
-                ),
-                (
-                    PeerId::random(),
-                    Multiaddr::from_str("/ip4/127.0.0.1/tcp/7001").unwrap(),
-                ),
-            ],
-        };
+        let fixtures = generate_fixtures();
 
         // Generate notifications and convert them to bytes
         let notifications: Vec<(i64, Vec<u8>)> = generate_notifications(fixtures.clone())
@@ -520,20 +931,7 @@ mod test {
 
     #[test]
     fn notification_json_string_rountrip() {
-        let fixtures = Fixtures {
-            peer_id: PeerId::random(),
-            address: Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
-            peers: vec![
-                (
-                    PeerId::random(),
-                    Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
-                ),
-                (
-                    PeerId::random(),
-                    Multiaddr::from_str("/ip4/127.0.0.1/tcp/7001").unwrap(),
-                ),
-            ],
-        };
+        let fixtures = generate_fixtures();
 
         // Generate notifications and convert them to JSON strings
         let notifications: Vec<(i64, String)> = generate_notifications(fixtures.clone())

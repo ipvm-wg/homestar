@@ -217,6 +217,7 @@ where
                 let sink = pending.accept().await?;
                 let rx = ctx.evt_notifier.inner().subscribe();
                 let stream = BroadcastStream::new(rx);
+                println!("+++ About to handle event subscription");
                 Self::handle_event_subscription(
                     sink,
                     stream,
@@ -292,11 +293,14 @@ where
         let rt_hdl = Handle::current();
         rt_hdl.spawn(async move {
             loop {
+                println!("+*+_*+*+*+*+*+*+*+*+*+*++");
                 select! {
                     _ = sink.closed() => {
+                        println!("+++ SINK CLOSED +++");
                         break Ok(());
                     }
                     next_msg = stream.next() => {
+                        println!("+++ STREAM NEXT +++");
                         let msg = match next_msg {
                             Some(Ok(notifier::Message {
                                 header: Header {
@@ -304,16 +308,24 @@ where
                                     ..
                                 },
                                 payload,
-                            })) if evt == subscription_type => payload,
-                            Some(Ok(_)) => continue,
+                            })) if evt == subscription_type => {
+                                println!("+++ EVENT WITH PAYLOAD +++");
+                                payload
+                            },
+                            Some(Ok(_)) => {
+                                println!("+++ EVENT WITH SOME OTHER OK +++");
+                                continue },
                             Some(Err(err)) => {
+                                println!("+++ EVENT WITH ERROR +++");
                                 error!(subject = "subscription.event.err",
                                        category = "jsonrpc.subscription",
                                        err=?err,
                                        "subscription stream error");
                                 break Err(err.into());
                             }
-                            None => break Ok(()),
+                            None => {
+                                println!("+++ EVENT WITH NONE +++");
+                                break Ok(()) },
                         };
                         let sub_msg = SubscriptionMessage::from_json(&msg)?;
                         match sink.try_send(sub_msg) {

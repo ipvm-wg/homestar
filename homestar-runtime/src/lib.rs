@@ -72,6 +72,7 @@ pub use db::{utils::Health, Db};
 pub(crate) mod libp2p;
 pub use logger::*;
 pub(crate) mod metrics;
+#[cfg(feature = "websocket-notify")]
 pub use event_handler::notification::{receipt::ReceiptNotification, swarm::NetworkNotification};
 #[allow(unused_imports)]
 pub(crate) use event_handler::EventHandler;
