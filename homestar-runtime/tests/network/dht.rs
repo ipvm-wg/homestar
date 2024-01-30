@@ -32,6 +32,7 @@ const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
 const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
+#[serial_test::file_serial]
 fn test_libp2p_dht_records_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -365,6 +366,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::file_serial]
 fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -563,6 +565,7 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::file_serial]
 fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -853,6 +856,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
 
 #[ignore]
 #[test]
+#[serial_test::file_serial]
 fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> {
     // NOTE: We are ignoring this test for now because we do not have a means
     // to properly isolate node a from node c. In the future when nodes are
