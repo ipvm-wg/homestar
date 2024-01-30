@@ -296,6 +296,7 @@ fn test_daemon_serial() -> Result<()> {
         }
     }
 
+    kill_homestar_daemon().unwrap();
     Ok(())
 }
 
