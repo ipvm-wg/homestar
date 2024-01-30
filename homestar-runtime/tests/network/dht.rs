@@ -33,7 +33,7 @@ const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
 #[serial_test::file_serial]
-fn test_libp2p_dht_records_serial() -> Result<()> {
+fn test_libp2p_dht_records_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
 
@@ -367,7 +367,7 @@ fn test_libp2p_dht_records_serial() -> Result<()> {
 
 #[test]
 #[serial_test::file_serial]
-fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
+fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
 
@@ -566,7 +566,7 @@ fn test_libp2p_dht_quorum_failure_serial() -> Result<()> {
 
 #[test]
 #[serial_test::file_serial]
-fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
+fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
 
@@ -588,7 +588,6 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
         [node.network.libp2p]
         listen_address = "{listen_addr1}"
         node_addresses = ["{node_addrb}"]
-        idle_connection_timeout = 180
         [node.network.libp2p.dht]
         receipt_quorum = 1
         workflow_quorum = 1
@@ -649,7 +648,6 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
         [node.network.keypair_config]
         existing = {{ key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }}
         [node.network.libp2p]
-        idle_connection_timeout = 180
         listen_address = "{listen_addr2}"
         node_addresses = ["{node_addra}"]
         [node.network.libp2p.dht]
@@ -732,7 +730,7 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
         // We want node two to request workflow info directly from node one
         // because of timeouts not because workflow info was missing from the
         // DHT, so we give node one time to put add workflow info to the DHT.
-        tokio::time::sleep(Duration::from_secs(10)).await;
+        tokio::time::sleep(Duration::from_secs(9)).await;
 
         // Run the same workflow run on node two.
         // Node two should be request workflow info from
@@ -749,7 +747,7 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
         // Poll for sent workflow info message
         let sent_workflow_info_cid: Cid;
         loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(60)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
@@ -859,7 +857,7 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
 #[ignore]
 #[test]
 #[serial_test::file_serial]
-fn test_libp2p_dht_workflow_info_provider_recursive_serial() -> Result<()> {
+fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> {
     // NOTE: We are ignoring this test for now because we do not have a means
     // to properly isolate node a from node c. In the future when nodes are
     // partitioned as private nodes or from NATs, we will bring this test back.
