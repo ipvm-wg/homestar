@@ -14,10 +14,10 @@ use tracing::info;
 pub(crate) enum PubkeyConfig {
     #[serde(rename = "random")]
     Random,
-    /// Seed string should be a base64 encoded 32 bytes. This is used as the RNG seed to generate a ed25519 key.
+    /// Seed string should be a base64 encoded 32 bytes. This is used as the RNG seed to generate a key.
     #[serde(rename = "random_seed")]
     GenerateFromSeed(RNGSeed),
-    /// File path to a PEM encoded ed25519 key
+    /// File path to a PEM encoded key
     #[serde(rename = "existing")]
     Existing(ExistingKeyPath),
 }
