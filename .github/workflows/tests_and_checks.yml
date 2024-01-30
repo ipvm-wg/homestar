@@ -89,7 +89,7 @@ jobs:
 
       - name: Run Linter
         run: cargo clippy --all -- -D warnings
-        continue-on-error: ${{ matrix.rust-toolchain == 'nightly' && {{ matrix.os }} == 'macos-latest' }}
+        continue-on-error: ${{ matrix.rust-toolchain == 'nightly' && matrix.os  == 'macos-latest' }}
 
       - name: Install cargo-hakari
         if: ${{ matrix.rust-toolchain == 'stable' }}
