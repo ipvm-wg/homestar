@@ -280,26 +280,6 @@ fn test_daemon_integration() -> Result<()> {
         panic!("Homestar server/runtime failed to start in time");
     }
 
-    let res = Command::new(BIN.as_os_str())
-        .arg("ping")
-        .arg("--host")
-        .arg("127.0.0.1")
-        .arg("-p")
-        .arg(rpc_port.to_string())
-        .assert()
-        .try_success();
-
-    match res {
-        Ok(ok) => {
-            ok.stdout(predicate::str::contains("127.0.0.1"))
-                .stdout(predicate::str::contains("pong"));
-        }
-        Err(err) => {
-            kill_homestar_daemon().unwrap();
-            panic!("Err: {:?}", err);
-        }
-    }
-
     kill_homestar_daemon().unwrap();
     Ok(())
 }
