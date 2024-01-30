@@ -128,14 +128,19 @@ jobs:
             arch: x64
             bin: homestar.exe
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: lts/*
           registry-url: "https://registry.npmjs.org"
+
       - name: Install cargo-get
         run: cargo install cargo-get
-      - name: Prepare os/arch packages
+
+      - name: Prepare OS/Arch Packages
         shell: bash
         env:
           node_os: ${{ matrix.os }}
@@ -147,12 +152,14 @@ jobs:
           cd homestar-runtime/npm
           mkdir -p "${node_pkg}/bin"
           envsubst < package-json-arch.tmpl > "${node_pkg}/package.json"
-      - name: Download build artifacts
+
+      - name: Download Build Artifacts
         uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.target }}
           path: "homestar-runtime/npm/${{ env.node_pkg }}/bin"
-      - name: Publish arch packages to production
+
+      - name: Publish Arch Packages to Production
         if: github.event_name == 'release' && github.event.action == 'published'
         run: |
           cp homestar-runtime/README.md "homestar-runtime/npm/${{ env.node_pkg }}"
@@ -161,7 +168,8 @@ jobs:
           npm publish --access=public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-      - name: Publish arch packages RC
+
+      - name: Publish Arch Packages as RC
         if: github.event_name == 'workflow_dispatch'
         run: |
           cp homestar-runtime/README.md "homestar-runtime/npm/${{ env.node_pkg }}"
@@ -176,14 +184,19 @@ jobs:
     needs: npm-publish-arch
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: lts/*
           registry-url: "https://registry.npmjs.org"
+
       - name: Install cargo get
         run: cargo install cargo-get
-      - name: Publish main package to production
+
+      - name: Publish main package to Production
         if: github.event_name == 'release' && github.event.action == 'published'
         run: |
           export node_version=$(cargo get workspace.package.version)
@@ -194,7 +207,8 @@ jobs:
           npm publish --access=public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-      - name: Publish main package RC
+
+      - name: Publish main package as RC
         if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
         run: |
           export node_version="$(cargo get workspace.package.version)-rc.$(date +%s)"
