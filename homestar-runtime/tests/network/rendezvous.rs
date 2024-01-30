@@ -179,7 +179,7 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
         panic!("Homestar server/runtime failed to start in time");
     }
 
-    tokio_test::block_on(async {
+    tokio_test::task::spawn(async {
         let ws_url3 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port3);
         let client3 = WsClientBuilder::default()
             .build(ws_url3.clone())
