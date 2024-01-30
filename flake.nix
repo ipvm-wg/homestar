@@ -81,6 +81,7 @@
           cargo-cross
           cargo-expand
           cargo-hakari
+          cargo-machete
           cargo-nextest
           cargo-sort
           cargo-unused-features

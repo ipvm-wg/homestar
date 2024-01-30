@@ -399,6 +399,7 @@ mod test {
     }
 
     #[test]
+    #[serial_test::parallel]
     fn default_config() {
         let settings = Settings::load().unwrap();
         let default_config = Settings::build(Some("config/defaults.toml".into()))

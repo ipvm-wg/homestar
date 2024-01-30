@@ -64,3 +64,9 @@ test-utils = []
 all-features = true
 # defines the configuration attribute `docsrs`
 rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.cargo-machete]
+ignored = ["homestar-workspace-hack"]
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["homestar-workspace-hack"]

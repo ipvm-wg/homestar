@@ -27,6 +27,7 @@ mod rendezvous;
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
 #[test]
+#[serial_test::parallel]
 fn test_libp2p_generates_peer_id_integration() -> Result<()> {
     let proc_info = ProcInfo::new().unwrap();
     let rpc_port = proc_info.rpc_port;
@@ -81,6 +82,7 @@ fn test_libp2p_generates_peer_id_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_libp2p_listens_on_address_integration() -> Result<()> {
     let proc_info = ProcInfo::new().unwrap();
     let rpc_port = proc_info.rpc_port;
@@ -141,6 +143,7 @@ fn test_libp2p_listens_on_address_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_rpc_listens_on_address_integration() -> Result<()> {
     let proc_info = ProcInfo::new().unwrap();
     let rpc_port = proc_info.rpc_port;
@@ -197,6 +200,7 @@ fn test_rpc_listens_on_address_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_websocket_listens_on_address_integration() -> Result<()> {
     let proc_info = ProcInfo::new().unwrap();
     let rpc_port = proc_info.rpc_port;
@@ -253,6 +257,7 @@ fn test_websocket_listens_on_address_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_libp2p_connect_known_peers_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -440,6 +445,7 @@ fn test_libp2p_connect_known_peers_integration() -> Result<()> {
 }
 
 #[test]
+#[serial_test::parallel]
 fn test_libp2p_disconnect_known_peers_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();

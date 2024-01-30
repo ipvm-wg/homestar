@@ -14,6 +14,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
 #[test]
+#[serial_test::parallel]
 fn test_metrics_integration() -> Result<()> {
     fn sample_metrics(port: u16) -> Option<prometheus_parse::Value> {
         let url = format!("http://localhost:{}/metrics", port);

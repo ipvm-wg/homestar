@@ -188,6 +188,7 @@ daemonize = "0.5"
 [dev-dependencies]
 assert_cmd = "2.0"
 criterion = "0.5"
+flaky_test = "0.2"
 homestar-invocation = { version = "0.1", path = "../homestar-invocation", features = [
   "diesel",
   "test-utils",
@@ -310,3 +311,9 @@ assets = [
   { source = "../LICENSE", dest = "/usr/share/doc/homestar/LICENSE.md", mode = "644", doc = true },
   { source = "../README.md", dest = "/usr/share/doc/homestar/README.md", mode = "644", doc = true },
 ]
+
+[package.metadata.cargo-machete]
+ignored = ["homestar-workspace-hack", "libsqlite3-sys", "puffin", "puffin_egui"]
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["homestar-workspace-hack", "libsqlite3-sys", "puffin", "puffin_egui"]

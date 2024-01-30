@@ -6,7 +6,6 @@ edition = "2021"
 publish = false
 
 [dependencies]
-clap = "4.4"
 homestar-runtime = { path = "../../homestar-runtime", default-features = false, features = [
   "ansi-logs",
   "ipfs",
@@ -24,3 +23,9 @@ name = "example-websocket-relay"
 path = "src/main.rs"
 doc = false
 test = false
+
+[package.metadata.cargo-machete]
+ignored = ["homestar-workspace-hack"]
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["homestar-workspace-hack"]
