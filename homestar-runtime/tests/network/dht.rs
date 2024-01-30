@@ -3,7 +3,8 @@ use crate::{
     utils::{
         check_for_line_with, kill_homestar, listen_addr, multiaddr, retrieve_output,
         wait_for_socket_connection, ChildGuard, ProcInfo, TimeoutFutureExt, BIN_NAME,
-        ED25519MULTIHASH, ED25519MULTIHASH2, ED25519MULTIHASH3, SECP256K1MULTIHASH,
+        ED25519MULTIHASH, ED25519MULTIHASH2, ED25519MULTIHASH3, ED25519MULTIHASH5,
+        SECP256K1MULTIHASH,
     },
 };
 use anyhow::Result;
@@ -567,8 +568,8 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
 #[test]
 #[allow(unused_must_use)]
 #[flaky_test::flaky_test]
-#[serial_test::serial]
-fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
+#[serial_test::parallel]
+fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
 
@@ -580,15 +581,15 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
     let ws_port2 = proc_info2.ws_port;
     let listen_addr1 = listen_addr(proc_info1.listen_port);
     let listen_addr2 = listen_addr(proc_info2.listen_port);
-    let node_addra = multiaddr(proc_info1.listen_port, ED25519MULTIHASH);
-    let node_addrb = multiaddr(proc_info2.listen_port, SECP256K1MULTIHASH);
+    let node_addra = multiaddr(proc_info1.listen_port, ED25519MULTIHASH2);
+    let node_addrb = multiaddr(proc_info2.listen_port, ED25519MULTIHASH5);
     let toml1 = format!(
         r#"
         [node]
         [node.network.keypair_config]
-        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }}
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
         [node.network.libp2p]
-        idle_connection_timeout = 180
+        idle_connection_timeout = 240
         listen_address = "{listen_addr1}"
         node_addresses = ["{node_addrb}"]
         [node.network.libp2p.dht]
@@ -649,9 +650,9 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
             r#"
         [node]
         [node.network.keypair_config]
-        existing = {{ key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }}
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_5.pem" }}
         [node.network.libp2p]
-        idle_connection_timeout = 180
+        idle_connection_timeout = 240
         listen_address = "{listen_addr2}"
         node_addresses = ["{node_addra}"]
         [node.network.libp2p.dht]
@@ -734,7 +735,7 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
         // We want node two to request workflow info directly from node one
         // because of timeouts not because workflow info was missing from the
         // DHT, so we give node one time to put add workflow info to the DHT.
-        tokio::time::sleep(Duration::from_secs(7)).await;
+        tokio::time::sleep(Duration::from_secs(9)).await;
 
         // Run the same workflow run on node two.
         // Node two should be request workflow info from
@@ -826,7 +827,7 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
         // Check node two got workflow info providers
         let got_workflow_info_provider_logged = check_for_line_with(
             stdout2.clone(),
-            vec!["got workflow info providers", ED25519MULTIHASH],
+            vec!["got workflow info providers", ED25519MULTIHASH2],
         );
 
         // Check node one sent workflow info
@@ -834,7 +835,7 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
             stdout1.clone(),
             vec![
                 "sent workflow info to peer",
-                SECP256K1MULTIHASH,
+                ED25519MULTIHASH5,
                 "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4",
             ],
         );
@@ -844,7 +845,7 @@ fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
             stdout2.clone(),
             vec![
                 "received workflow info from peer",
-                ED25519MULTIHASH,
+                ED25519MULTIHASH2,
                 "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4",
             ],
         );

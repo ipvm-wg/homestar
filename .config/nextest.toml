@@ -5,7 +5,7 @@ threads-required = 1
 slow-timeout = { period = "60s", terminate-after = 1 }
 
 [profile.ci]
-retries = { backoff = "exponential", count = 5, delay = "30s", jitter = true, max-delay = "300s" }
+retries = { backoff = "exponential", count = 4, delay = "30s", jitter = true, max-delay = "300s" }
 failure-output = "immediate-final"
 leak-timeout = "800ms"
 slow-timeout = { period = "100s", terminate-after = 2 }
@@ -21,6 +21,7 @@ test-group = 'serial'
 
 [[profile.default.overrides]]
 filter = 'test(/_integration$/)'
+threads-required = 4
 test-group = 'integration'
 
 [[profile.ci.overrides]]
@@ -29,4 +30,5 @@ test-group = 'serial'
 
 [[profile.ci.overrides]]
 filter = 'test(/_integration$/)'
+threads-required = 4
 test-group = 'integration'
