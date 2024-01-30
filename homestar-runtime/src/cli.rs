@@ -16,6 +16,8 @@ use tarpc::context;
 
 mod error;
 pub use error::Error;
+mod init;
+pub use init::{handle_init_command, OutputMode};
 pub(crate) mod show;
 pub use show::ConsoleTable;
 
@@ -86,7 +88,7 @@ pub enum Command {
             group = "init_sink"
         )]
         runtime_config: Option<PathBuf>,
-        /// Skip writing to disk
+        /// Skip writing to disk.
         #[arg(
             long = "dry-run",
             help = "Skip writing to disk",
