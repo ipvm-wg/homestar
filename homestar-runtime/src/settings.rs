@@ -24,7 +24,7 @@ const HOME_VAR: &str = "USERPROFILE";
 const HOME_VAR: &str = "HOME";
 
 /// Application settings.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct Settings {
     #[serde(default)]
     pub(crate) node: Node,
@@ -314,6 +314,11 @@ impl Default for Webserver {
 }
 
 impl Settings {
+    /// Settings file path.
+    pub fn path() -> PathBuf {
+        config_file_with_extension("toml")
+    }
+
     /// Load settings.
     ///
     /// Inject environment variables naming them properly on the settings,
@@ -363,6 +368,11 @@ impl Settings {
 #[allow(dead_code)]
 fn config_file() -> PathBuf {
     config_dir().join("settings")
+}
+
+#[allow(dead_code)]
+fn config_file_with_extension(ext: &str) -> PathBuf {
+    config_file().with_extension(ext)
 }
 
 fn config_dir() -> PathBuf {

@@ -1,3 +1,8 @@
+use std::{
+    fs::File,
+    io::{ErrorKind, Write},
+};
+
 use clap::Parser;
 use homestar_runtime::{
     cli::{Cli, Command, ConsoleTable},
@@ -6,6 +11,7 @@ use homestar_runtime::{
     runner::response,
     Db, FileLogger, Logger, Runner, Settings,
 };
+use inquire::Confirm;
 use miette::{miette, Result};
 use tracing::info;
 
@@ -13,6 +19,54 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Command::Init { runtime_config } => {
+            let settings_path = runtime_config.unwrap_or_else(Settings::path);
+            let settings_file = File::options()
+                .read(true)
+                .write(true)
+                .create_new(true)
+                .open(&settings_path);
+
+            // This seemingly convoluted match is to avoid the risk of a
+            // TOCTOU race condition, where another process creates the file
+            // in between this one checking for its existence and opening it.
+            //
+            // TODO: there should probably be a flag for non-interactive use
+            // that automatically overwrites the file.
+            let mut settings_file = match settings_file {
+                Ok(file) => file,
+                Err(err) if err.kind() == ErrorKind::AlreadyExists => {
+                    let should_overwrite = Confirm::new(&format!(
+                        "Settings file already exists at {:?}, overwrite?",
+                        settings_path
+                    ))
+                    .with_default(false)
+                    .prompt()
+                    .expect("to prompt for overwrite");
+
+                    if !should_overwrite {
+                        println!("Aborting.");
+                        return Ok(());
+                    }
+
+                    File::options()
+                        .read(true)
+                        .write(true)
+                        .create_new(false)
+                        .open(&settings_path)
+                        .expect("to open settings file")
+                }
+                err => err.expect("to open settings file"),
+            };
+
+            println!("Writing settings to {:?}", settings_path);
+
+            let settings = Settings::default();
+            let settings_toml = toml::to_string_pretty(&settings).expect("to serialize settings");
+            settings_file
+                .write_all(settings_toml.as_bytes())
+                .expect("to write settings file");
+        }
         Command::Start {
             runtime_config,
             daemonize,
