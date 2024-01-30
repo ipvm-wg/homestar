@@ -82,6 +82,7 @@ http-serde = "1.1"
 humantime = { workspace = true }
 hyper = { version = "0.14", default-features = false }
 indexmap = { workspace = true }
+inquire = "0.6.2"
 ipfs-api = { version = "0.17", optional = true }
 ipfs-api-backend-hyper = { version = "0.6", default-features = false, features = [
   "with-builder",
@@ -166,7 +167,7 @@ tokio-stream = { version = "0.1", default-features = false, features = [
   "sync",
 ] }
 tokio-util = { version = "0.7", default-features = false }
-toml = { version = "0.8.8", features = ["preserve_order"] }
+toml = { version = "0.8.8", features = ["display", "preserve_order"] }
 tower = { version = "0.4", default-features = false, features = [
   "log",
   "timeout",

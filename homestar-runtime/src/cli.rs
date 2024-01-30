@@ -73,6 +73,18 @@ impl Default for RpcArgs {
 /// CLI Argument types.
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Initialize a Homestar configuration.
+    Init {
+        /// Runtime configuration file (.toml).
+        #[arg(
+            short = 'c',
+            long = "config",
+            value_hint = clap::ValueHint::FilePath,
+            value_name = "CONFIG",
+            help = "Runtime configuration file (.toml) [optional]"
+        )]
+        runtime_config: Option<PathBuf>,
+    },
     /// Start the Homestar runtime.
     Start {
         /// Database URL, defaults to homestar.db.
@@ -158,6 +170,7 @@ Supported:
 impl Command {
     fn name(&self) -> &'static str {
         match self {
+            Command::Init { .. } => "init",
             Command::Start { .. } => "start",
             Command::Stop { .. } => "stop",
             Command::Ping { .. } => "ping",
