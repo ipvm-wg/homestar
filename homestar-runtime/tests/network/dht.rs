@@ -567,8 +567,8 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
 #[test]
 #[allow(unused_must_use)]
 #[flaky_test::flaky_test]
-#[serial_test::parallel]
-fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
+#[serial_test::serial]
+fn test_libp2p_dht_workflow_info_provider_serial() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
 
@@ -751,7 +751,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         // Poll for sent workflow info message
         let sent_workflow_info_cid: Cid;
         loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(60)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
