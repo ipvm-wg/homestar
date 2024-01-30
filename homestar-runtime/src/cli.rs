@@ -5,7 +5,7 @@ use crate::{
     runner::{file, response},
 };
 use anyhow::anyhow;
-use clap::{Args, Parser, Subcommand};
+use clap::{ArgGroup, Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::{
     net::{IpAddr, Ipv6Addr, SocketAddr},
@@ -34,6 +34,7 @@ Usage: {usage}
 #[derive(Debug, Parser)]
 #[command(bin_name = "homestar", name = "homestar", author, version, about,
           long_about = None, help_template = HELP_TEMPLATE)]
+#[clap(group(ArgGroup::new("init_sink").args(&["config", "dry-run"])))]
 pub struct Cli {
     /// Homestar [Command].
     #[clap(subcommand)]
@@ -81,9 +82,19 @@ pub enum Command {
             long = "config",
             value_hint = clap::ValueHint::FilePath,
             value_name = "CONFIG",
-            help = "Runtime configuration file (.toml) [optional]"
+            help = "Runtime configuration file (.toml) [optional]",
+            group = "init_sink"
         )]
         runtime_config: Option<PathBuf>,
+        /// Skip writing to disk
+        #[arg(
+            long = "dry-run",
+            help = "Skip writing to disk",
+            default_value = "false",
+            help = "Skip writing to disk, instead writing configuration to stdout [optional]",
+            group = "init_sink"
+        )]
+        dry_run: bool,
     },
     /// Start the Homestar runtime.
     Start {
