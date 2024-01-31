@@ -1,3 +1,5 @@
+use std::io::{stdout, IsTerminal};
+
 use clap::Parser;
 use homestar_runtime::{
     cli::{handle_init_command, Cli, Command, ConsoleTable, OutputMode},
@@ -30,6 +32,10 @@ fn main() -> Result<()> {
                     force,
                 }
             };
+
+            // Run non-interactively if the input device is not a TTY
+            // or if the `--no-input` flag is passed.
+            let no_input = no_input || !stdout().is_terminal();
 
             handle_init_command(output_mode, quiet, no_input)?
         }
