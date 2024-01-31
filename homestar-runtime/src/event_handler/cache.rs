@@ -67,6 +67,7 @@ pub(crate) fn setup_cache(
 
             async move {
                 if let Some(CacheData::OnExpiration(event)) = val.data.get("on_expiration") {
+                    println!("event: {:?}", event);
                     if cause != Expired {
                         return;
                     }
@@ -76,14 +77,18 @@ pub(crate) fn setup_cache(
                             if let Some(CacheData::Peer(rendezvous_node)) =
                                 val.data.get("rendezvous_node")
                             {
-                                let _ = tx.send(Event::RegisterPeer(rendezvous_node.to_owned()));
+                                let _ = tx
+                                    .send_async(Event::RegisterPeer(rendezvous_node.to_owned()))
+                                    .await;
                             };
                         }
                         DispatchEvent::DiscoverPeers => {
                             if let Some(CacheData::Peer(rendezvous_node)) =
                                 val.data.get("rendezvous_node")
                             {
-                                let _ = tx.send(Event::DiscoverPeers(rendezvous_node.to_owned()));
+                                let _ = tx
+                                    .send_async(Event::DiscoverPeers(rendezvous_node.to_owned()))
+                                    .await;
                             };
                         }
                     }

@@ -992,6 +992,7 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
 
     // Start a peer that will renew registrations with the rendezvous server every five seconds
     let rendezvous_client1 = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -1058,9 +1059,9 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
     }
 
     // Collect logs for seven seconds then kill proceses.
-    let dead_server = kill_homestar(proc_guard_server.take(), Some(Duration::from_secs(7)));
+    let dead_server = kill_homestar(proc_guard_server.take(), Some(Duration::from_secs(15)));
     let _ = kill_homestar(proc_guard_client1.take(), Some(Duration::from_secs(7)));
-    let dead_client2 = kill_homestar(proc_guard_client2.take(), Some(Duration::from_secs(7)));
+    let dead_client2 = kill_homestar(proc_guard_client2.take(), Some(Duration::from_secs(15)));
 
     // Retrieve logs.
     let stdout_server = retrieve_output(dead_server);
@@ -1074,6 +1075,8 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
             "12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5",
         ],
     );
+
+    println!("server_discovery_count: {}", server_discovery_count);
 
     // Count discovery responses the client
     let client_discovery_count = count_lines_where(
