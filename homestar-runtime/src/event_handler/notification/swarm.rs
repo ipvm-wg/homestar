@@ -232,8 +232,8 @@ pub struct ConnectionEstablished {
 impl ConnectionEstablished {
     pub(crate) fn new(peer_id: PeerId, address: Multiaddr) -> ConnectionEstablished {
         ConnectionEstablished {
-            peer_id: peer_id.to_string(),
             timestamp: Utc::now().timestamp_millis(),
+            peer_id: peer_id.to_string(),
             address: address.to_string(),
         }
     }
@@ -474,10 +474,6 @@ impl DiscoveredRendezvous {
         server: PeerId,
         peers: BTreeMap<PeerId, Vec<Multiaddr>>,
     ) -> DiscoveredRendezvous {
-        println!("== Creating discovered rendezvous notification ==");
-        dbg!(peers.clone());
-        dbg!(server);
-
         DiscoveredRendezvous {
             timestamp: Utc::now().timestamp_millis(),
             server: server.to_string(),
@@ -546,8 +542,6 @@ impl TryFrom<Ipld> for DiscoveredRendezvous {
                 .ok_or_else(|| anyhow!("missing {server_key}"))?
                 .to_owned(),
         )?;
-
-        // dbg!(map.get(peers_key));
 
         let peers = from_ipld::<BTreeMap<String, Vec<String>>>(
             map.get(peers_key)

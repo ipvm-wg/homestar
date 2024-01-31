@@ -102,8 +102,7 @@ pub(crate) fn emit_network_event(
 
     if let Ok(json) = notification.to_json() {
         if let Err(err) = notifier.notify(Message::new(header, json)) {
-            // TODO Check on why this errs
-
+            // TODO Check on why this causes connection closed log errors
             debug!(
                 subject = "notification.err",
                 category = "notification",

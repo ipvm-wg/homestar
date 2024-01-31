@@ -130,18 +130,63 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
         panic!("Homestar server/runtime failed to start in time");
     }
 
-    // Wait for registration to complete
-    // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep
-    thread::sleep(Duration::from_secs(2));
+    tokio_test::task::spawn(async {
+        // Subscribe to rendezvous server
+        let ws_url1 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
+        let client1 = WsClientBuilder::default().build(ws_url1).await.unwrap();
+        let mut sub1: Subscription<Vec<u8>> = client1
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
 
-    // TODO Add notification listener to check for when client 1 registers with server
-    // and server acknowledges registration
+        // Subscribe to rendezvous client one
+        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
+        let client2 = WsClientBuilder::default().build(ws_url2).await.unwrap();
+        let mut sub2: Subscription<Vec<u8>> = client2
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
 
-    let toml3 = format!(
-        r#"
+        // Poll for client one registered with server
+        loop {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["registered_rendezvous"].is_object() {
+                    break;
+                }
+            } else {
+                panic!("Rendezvous client one did not register with server in time");
+            }
+        }
+
+        // Poll for server registered client one
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["peer_registered_rendezvous"].is_object() {
+                    break;
+                }
+            } else {
+                panic!("Rendezvous server did not confirm client one registration in time");
+            }
+        }
+
+        // Start a peer that will discover the registrant through the rendezvous server
+        let toml3 = format!(
+            r#"
         [node]
-        [node.network]
-        poll_cache_interval = 1000
         [node.network.keypair_config]
         existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
         [node.network.libp2p]
@@ -156,11 +201,10 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
         [node.network.webserver]
         port = {ws_port3}
         "#
-    );
-    let config3 = make_config!(toml3);
+        );
+        let config3 = make_config!(toml3);
 
-    // Start a peer that will discover the registrant through the rendezvous server
-    let rendezvous_client2 = Command::new(BIN.as_os_str())
+        let rendezvous_client2 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -170,22 +214,20 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
         .arg(config3.filename())
         .arg("--db")
         .arg(&proc_info3.db_path)
-        // .stdout(Stdio::piped())
+        .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let proc_guard_client2 = ChildGuard::new(rendezvous_client2);
+        let proc_guard_client2 = ChildGuard::new(rendezvous_client2);
 
-    if wait_for_socket_connection(ws_port3, 1000).is_err() {
-        panic!("Homestar server/runtime failed to start in time");
-    }
+        if wait_for_socket_connection(ws_port3, 1000).is_err() {
+            panic!("Homestar server/runtime failed to start in time");
+        }
 
-    tokio_test::task::spawn(async {
         let ws_url3 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port3);
         let client3 = WsClientBuilder::default()
             .build(ws_url3.clone())
             .await
             .unwrap();
-
         let mut sub3: Subscription<Vec<u8>> = client3
             .subscribe(
                 SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
@@ -195,30 +237,48 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
             .await
             .unwrap();
 
-        println!("--- Created sub3 ---");
-
-        // TODO Listen for client 2 discovered, server discover served, and client 1 connected to client 2
-
         // Poll for discovered rendezvous message
+        let mut discovered_rendezvous = false;
+        let mut connection_established = false;
         loop {
-            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(60)).await {
+            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                println!("{json}");
-
                 if json["discovered_rendezvous"].is_object() {
+                    discovered_rendezvous = true
+                } else if json["connection_established"].is_object()
+                    && json["connection_established"]["peer_id"] == SECP256K1MULTIHASH
+                {
+                    connection_established = true
+                }
+
+                if discovered_rendezvous && connection_established {
                     break;
                 }
             } else {
-                panic!("Node two did not receive rendezvous discovery from server in time");
+                panic!("Client two did not receive rendezvous discovery from server in time");
             }
         }
 
-        // Collect logs for five seconds then kill proceses.
-        let dead_server = kill_homestar(proc_guard_server.take(), Some(Duration::from_secs(15)));
-        let _ = kill_homestar(proc_guard_client1.take(), Some(Duration::from_secs(15)));
-        let dead_client2 = kill_homestar(proc_guard_client2.take(), Some(Duration::from_secs(15)));
+        // Poll for discovery served by rendezvous server
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["discover_served_rendezvous"].is_object() {
+                    break;
+                }
+            } else {
+                panic!("Rendezvous server did not serve discovery in time");
+            }
+        }
+
+        // Kill processes.
+        let dead_server = kill_homestar(proc_guard_server.take(), None);
+        let _ = kill_homestar(proc_guard_client1.take(), None);
+        let dead_client2 = kill_homestar(proc_guard_client2.take(), None);
 
         // Retrieve logs.
         let stdout_server = retrieve_output(dead_server);
@@ -378,14 +438,67 @@ fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
         panic!("Homestar server/runtime failed to start in time");
     }
 
-    // Wait for registration to complete.
-    // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep.
-    thread::sleep(Duration::from_secs(2));
+    tokio_test::task::spawn(async {
+        // Subscribe to rendezvous server
+        let ws_url1 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
+        let client1 = WsClientBuilder::default().build(ws_url1).await.unwrap();
+        let mut sub1: Subscription<Vec<u8>> = client1
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
 
-    // TODO Wait for clint 1 to register with server, server confirm registration
+        // Subscribe to rendezvous client one
+        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
+        let client2 = WsClientBuilder::default().build(ws_url2).await.unwrap();
+        let mut sub2: Subscription<Vec<u8>> = client2
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
 
-    let toml3 = format!(
-        r#"
+        // Wait for registration to complete.
+        // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep.
+        // thread::sleep(Duration::from_secs(2));
+
+        // TODO Wait for clint 1 to register with server, server confirm registration
+
+        // Poll for client one registered with server
+        loop {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["registered_rendezvous"].is_object() {
+                    break;
+                }
+            } else {
+                panic!("Rendezvous client one did not register with server in time");
+            }
+        }
+
+        // Poll for server registered client one
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["peer_registered_rendezvous"].is_object() {
+                    break;
+                }
+            } else {
+                panic!("Rendezvous server did not confirm client one registration in time");
+            }
+        }
+
+        let toml3 = format!(
+            r#"
         [node]
         [node.network.keypair_config]
         existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
@@ -401,11 +514,11 @@ fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
         [node.network.webserver]
         port = {ws_port3}
         "#
-    );
-    let config3 = make_config!(toml3);
+        );
+        let config3 = make_config!(toml3);
 
-    // Start a peer that will discover the registrant through the rendezvous server
-    let rendezvous_client2 = Command::new(BIN.as_os_str())
+        // Start a peer that will discover the registrant through the rendezvous server
+        let rendezvous_client2 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -418,38 +531,105 @@ fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let proc_guard_client2 = ChildGuard::new(rendezvous_client2);
+        let proc_guard_client2 = ChildGuard::new(rendezvous_client2);
 
-    if wait_for_socket_connection(ws_port3, 1000).is_err() {
-        panic!("Homestar server/runtime failed to start in time");
-    }
+        if wait_for_socket_connection(ws_port3, 1000).is_err() {
+            panic!("Homestar server/runtime failed to start in time");
+        }
 
-    // TODO Listen for client 2 connection closed with client 1 (on client 2)
+        let ws_url3 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port3);
+        let client3 = WsClientBuilder::default()
+            .build(ws_url3.clone())
+            .await
+            .unwrap();
+        let mut sub3: Subscription<Vec<u8>> = client3
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
 
-    // Kill server and client one after five seconds
-    let _ = kill_homestar(proc_guard_server.take(), Some(Duration::from_secs(5)));
-    let _ = kill_homestar(proc_guard_client1.take(), Some(Duration::from_secs(5)));
+        // Poll for discovered rendezvous message
+        let mut discovered_rendezvous = false;
+        let mut connection_established = false;
+        loop {
+            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-    // Collect logs for seven seconds then kill process.
-    let dead_client2 = kill_homestar(proc_guard_client2.take(), Some(Duration::from_secs(7)));
+                if json["discovered_rendezvous"].is_object() {
+                    discovered_rendezvous = true
+                } else if json["connection_established"].is_object()
+                    && json["connection_established"]["peer_id"] == SECP256K1MULTIHASH
+                {
+                    connection_established = true
+                }
 
-    // Retrieve logs.
-    let stdout = retrieve_output(dead_client2);
+                if discovered_rendezvous && connection_established {
+                    break;
+                }
+            } else {
+                panic!("Client two did not receive rendezvous discovery from server in time");
+            }
+        }
 
-    // Check that client two disconnected from client one.
-    let two_disconnected_from_one = check_for_line_with(
-        stdout.clone(),
-        vec!["peer connection closed", SECP256K1MULTIHASH],
-    );
+        // Poll for discovery served by rendezvous server
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-    // Check that client two was removed from the Kademlia table
-    let two_removed_from_dht_table = check_for_line_with(
-        stdout.clone(),
-        vec!["removed peer from kademlia table", SECP256K1MULTIHASH],
-    );
+                if json["discover_served_rendezvous"].is_object() {
+                    break;
+                }
+            } else {
+                panic!("Rendezvous server did not serve discovery in time");
+            }
+        }
 
-    assert!(two_disconnected_from_one);
-    assert!(two_removed_from_dht_table);
+        // Kill server and client one.
+        let _ = kill_homestar(proc_guard_server.take(), None);
+        let _ = kill_homestar(proc_guard_client1.take(), None);
+
+        // Poll for client two disconnected from client one.
+        loop {
+            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["connection_closed"].is_object()
+                    && json["connection_closed"]["peer_id"] == SECP256K1MULTIHASH
+                {
+                    break;
+                }
+            } else {
+                panic!("Client two did not receive rendezvous discovery from server in time");
+            }
+        }
+
+        // Kill client two.
+        let dead_client2 = kill_homestar(proc_guard_client2.take(), None);
+
+        // Retrieve logs.
+        let stdout = retrieve_output(dead_client2);
+
+        // Check that client two disconnected from client one.
+        let two_disconnected_from_one = check_for_line_with(
+            stdout.clone(),
+            vec!["peer connection closed", SECP256K1MULTIHASH],
+        );
+
+        // Check that client two was removed from the Kademlia table
+        let two_removed_from_dht_table = check_for_line_with(
+            stdout.clone(),
+            vec!["removed peer from kademlia table", SECP256K1MULTIHASH],
+        );
+
+        assert!(two_disconnected_from_one);
+        assert!(two_removed_from_dht_table);
+    });
 
     Ok(())
 }

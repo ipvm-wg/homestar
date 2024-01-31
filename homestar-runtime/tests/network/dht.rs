@@ -87,7 +87,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         .arg(config1.filename())
         .arg("--db")
         .arg(&proc_info1.db_path)
-        // .stdout(Stdio::piped())
+        .stdout(Stdio::piped())
         .spawn()
         .unwrap();
     let proc_guard1 = ChildGuard::new(homestar_proc1);

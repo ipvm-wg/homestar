@@ -307,29 +307,25 @@ async fn handle_swarm_event<DB: Database>(
                         }
 
                         #[cfg(feature = "websocket-notify")]
-                        {
-                            println!("== Sending notification ==");
-
-                            notification::emit_network_event(
-                                event_handler.ws_evt_sender(),
-                                NetworkNotification::DiscoveredRendezvous(
-                                    notification::DiscoveredRendezvous::new(
-                                        rendezvous_node,
-                                        BTreeMap::from(
-                                            registrations
-                                                .iter()
-                                                .map(|registration| {
-                                                    (
-                                                        registration.record.peer_id(),
-                                                        registration.record.addresses().to_owned(),
-                                                    )
-                                                })
-                                                .collect::<BTreeMap<PeerId, Vec<Multiaddr>>>(),
-                                        ),
+                        notification::emit_network_event(
+                            event_handler.ws_evt_sender(),
+                            NetworkNotification::DiscoveredRendezvous(
+                                notification::DiscoveredRendezvous::new(
+                                    rendezvous_node,
+                                    BTreeMap::from(
+                                        registrations
+                                            .iter()
+                                            .map(|registration| {
+                                                (
+                                                    registration.record.peer_id(),
+                                                    registration.record.addresses().to_owned(),
+                                                )
+                                            })
+                                            .collect::<BTreeMap<PeerId, Vec<Multiaddr>>>(),
                                     ),
                                 ),
-                            );
-                        }
+                            ),
+                        );
 
                         // Discover peers again at discovery interval
                         event_handler

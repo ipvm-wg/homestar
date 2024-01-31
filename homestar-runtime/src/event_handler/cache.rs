@@ -67,7 +67,6 @@ pub(crate) fn setup_cache(
 
             async move {
                 if let Some(CacheData::OnExpiration(event)) = val.data.get("on_expiration") {
-                    println!("~~~ Cache expiration {:?} ~~~", cause);
                     if cause != Expired {
                         return;
                     }
@@ -84,7 +83,6 @@ pub(crate) fn setup_cache(
                             if let Some(CacheData::Peer(rendezvous_node)) =
                                 val.data.get("rendezvous_node")
                             {
-                                println!("~~~ Sending discover peers cache ~~~");
                                 let _ = tx.send(Event::DiscoverPeers(rendezvous_node.to_owned()));
                             };
                         }
