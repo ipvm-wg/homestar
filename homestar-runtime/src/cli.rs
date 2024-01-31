@@ -80,14 +80,14 @@ pub enum Command {
     Init {
         /// Runtime configuration file (.toml).
         #[arg(
-            short = 'c',
-            long = "config",
+            short = 'o',
+            long = "output",
             value_hint = clap::ValueHint::FilePath,
-            value_name = "CONFIG",
-            help = "Runtime configuration file (.toml) [optional]",
+            value_name = "OUTPUT",
+            help = "Path to write initialized configuration file (.toml) [optional]",
             group = "init_sink"
         )]
-        runtime_config: Option<PathBuf>,
+        output_path: Option<PathBuf>,
         /// Skip writing to disk.
         #[arg(
             long = "dry-run",

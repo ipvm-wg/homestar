@@ -17,7 +17,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         Command::Init {
-            runtime_config,
+            output_path,
             dry_run,
             quiet,
             force,
@@ -28,7 +28,7 @@ fn main() -> Result<()> {
                 OutputMode::StdOut
             } else {
                 OutputMode::File {
-                    path: runtime_config.unwrap_or_else(Settings::path),
+                    path: output_path.unwrap_or_else(Settings::path),
                     force,
                 }
             };
