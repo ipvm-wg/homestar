@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{stdout, Write},
+    io::{empty, stdout, Write},
     path::PathBuf,
 };
 
@@ -19,19 +19,33 @@ pub enum OutputMode {
 }
 
 /// Handle the `init` command.
-pub fn handle_init_command(output_mode: OutputMode) -> Result<()> {
+pub fn handle_init_command(output_mode: OutputMode, quiet: bool) -> Result<()> {
     let settings = Settings::default();
-    let mut output_writer = handle_output_mode(output_mode)?;
+
+    let mut writer = handle_quiet(quiet)?;
+    let mut settings_writer = handle_output_mode(output_mode, &mut writer)?;
+
     let settings_toml = toml::to_string_pretty(&settings).expect("to serialize settings");
 
-    output_writer
+    settings_writer
         .write_all(settings_toml.as_bytes())
         .expect("to write settings file");
 
     Ok(())
 }
 
-fn handle_output_mode(output_mode: OutputMode) -> Result<Box<dyn Write>> {
+fn handle_quiet(quiet: bool) -> Result<Box<dyn Write>> {
+    if quiet {
+        Ok(Box::new(empty()))
+    } else {
+        Ok(Box::new(stdout()))
+    }
+}
+
+fn handle_output_mode(
+    output_mode: OutputMode,
+    writer: &mut Box<dyn Write>,
+) -> Result<Box<dyn Write>> {
     match output_mode {
         OutputMode::StdOut => Ok(Box::new(stdout())),
         OutputMode::File(path) => {
@@ -72,7 +86,7 @@ fn handle_output_mode(output_mode: OutputMode) -> Result<Box<dyn Write>> {
                 err => err.expect("to open settings file"),
             };
 
-            println!("Writing settings to {:?}", path);
+            writeln!(writer, "Writing settings to {:?}", path).expect("to write");
 
             Ok(Box::new(settings_file))
         }

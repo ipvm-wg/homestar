@@ -17,6 +17,7 @@ fn main() -> Result<()> {
         Command::Init {
             runtime_config,
             dry_run,
+            quiet,
             ..
         } => {
             let output_mode = if dry_run {
@@ -25,7 +26,7 @@ fn main() -> Result<()> {
                 OutputMode::File(runtime_config.unwrap_or_else(Settings::path))
             };
 
-            handle_init_command(output_mode)?
+            handle_init_command(output_mode, quiet)?
         }
         Command::Start {
             runtime_config,
