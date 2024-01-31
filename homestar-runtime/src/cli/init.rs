@@ -24,11 +24,11 @@ pub enum OutputMode {
 }
 
 /// Handle the `init` command.
-pub fn handle_init_command(output_mode: OutputMode, quiet: bool) -> Result<()> {
+pub fn handle_init_command(output_mode: OutputMode, quiet: bool, no_input: bool) -> Result<()> {
     let settings = Settings::default();
 
     let mut writer = handle_quiet(quiet)?;
-    let mut settings_writer = handle_output_mode(output_mode, &mut writer)?;
+    let mut settings_writer = handle_output_mode(output_mode, no_input, &mut writer)?;
 
     let settings_toml = toml::to_string_pretty(&settings).expect("to serialize settings");
 
@@ -49,6 +49,7 @@ fn handle_quiet(quiet: bool) -> Result<Box<dyn Write>> {
 
 fn handle_output_mode(
     output_mode: OutputMode,
+    no_input: bool,
     writer: &mut Box<dyn Write>,
 ) -> Result<Box<dyn Write>> {
     match output_mode {
@@ -81,6 +82,10 @@ fn handle_output_mode(
             let settings_file = match settings_file {
                 Ok(file) => file,
                 Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                    if no_input {
+                        bail!("Aborting... settings file already exists at {:?}. Pass `--force` to overwrite it", path);
+                    }
+
                     let should_overwrite = Confirm::new(&format!(
                         "Settings file already exists at {:?}, overwrite?",
                         path
@@ -90,7 +95,7 @@ fn handle_output_mode(
                     .expect("to prompt for overwrite");
 
                     if !should_overwrite {
-                        bail!("Aborting...");
+                        bail!("Aborting... not overwriting existing settings file");
                     }
 
                     File::options()
