@@ -113,6 +113,13 @@ pub enum Command {
             help = "Force destructive operations without prompting [optional]"
         )]
         force: bool,
+        /// Run in non-interactive mode by disabling all prompts.
+        #[arg(
+            long = "no-input",
+            default_value = "false",
+            help = "Run in non-interactive mode [optional]"
+        )]
+        no_input: bool,
     },
     /// Start the Homestar runtime.
     Start {

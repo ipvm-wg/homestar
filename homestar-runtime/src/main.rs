@@ -19,6 +19,7 @@ fn main() -> Result<()> {
             dry_run,
             quiet,
             force,
+            no_input,
             ..
         } => {
             let output_mode = if dry_run {
@@ -30,7 +31,7 @@ fn main() -> Result<()> {
                 }
             };
 
-            handle_init_command(output_mode, quiet)?
+            handle_init_command(output_mode, quiet, no_input)?
         }
         Command::Start {
             runtime_config,
