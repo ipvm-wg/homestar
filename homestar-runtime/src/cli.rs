@@ -97,6 +97,14 @@ pub enum Command {
             group = "init_sink"
         )]
         dry_run: bool,
+        /// Suppress auxiliary output.
+        #[arg(
+            short = 'q',
+            long = "quiet",
+            default_value = "false",
+            help = "Suppress auxiliary output [optional]"
+        )]
+        quiet: bool,
     },
     /// Start the Homestar runtime.
     Start {
