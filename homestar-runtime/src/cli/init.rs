@@ -15,7 +15,12 @@ pub enum OutputMode {
     /// Write to standard output.
     StdOut,
     /// Write to a file.
-    File(PathBuf),
+    File {
+        /// The path to write to.
+        path: PathBuf,
+        /// Automatically overwrite the file if it exists.
+        force: bool,
+    },
 }
 
 /// Handle the `init` command.
@@ -48,7 +53,19 @@ fn handle_output_mode(
 ) -> Result<Box<dyn Write>> {
     match output_mode {
         OutputMode::StdOut => Ok(Box::new(stdout())),
-        OutputMode::File(path) => {
+        OutputMode::File { path, force: true } => {
+            let settings_file = File::options()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open(&path)
+                .expect("to open settings file");
+
+            writeln!(writer, "Writing settings to {:?}", path).expect("to write");
+
+            Ok(Box::new(settings_file))
+        }
+        OutputMode::File { path, force: false } => {
             let settings_file = File::options()
                 .read(true)
                 .write(true)

@@ -18,12 +18,16 @@ fn main() -> Result<()> {
             runtime_config,
             dry_run,
             quiet,
+            force,
             ..
         } => {
             let output_mode = if dry_run {
                 OutputMode::StdOut
             } else {
-                OutputMode::File(runtime_config.unwrap_or_else(Settings::path))
+                OutputMode::File {
+                    path: runtime_config.unwrap_or_else(Settings::path),
+                    force,
+                }
             };
 
             handle_init_command(output_mode, quiet)?

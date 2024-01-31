@@ -105,6 +105,14 @@ pub enum Command {
             help = "Suppress auxiliary output [optional]"
         )]
         quiet: bool,
+        /// Force destructive operations without prompting.
+        #[arg(
+            short = 'f',
+            long = "force",
+            default_value = "false",
+            help = "Force destructive operations without prompting [optional]"
+        )]
+        force: bool,
     },
     /// Start the Homestar runtime.
     Start {
