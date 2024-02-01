@@ -312,17 +312,15 @@ async fn handle_swarm_event<DB: Database>(
                             NetworkNotification::DiscoveredRendezvous(
                                 notification::DiscoveredRendezvous::new(
                                     rendezvous_node,
-                                    BTreeMap::from(
-                                        registrations
-                                            .iter()
-                                            .map(|registration| {
-                                                (
-                                                    registration.record.peer_id(),
-                                                    registration.record.addresses().to_owned(),
-                                                )
-                                            })
-                                            .collect::<BTreeMap<PeerId, Vec<Multiaddr>>>(),
-                                    ),
+                                    registrations
+                                        .iter()
+                                        .map(|registration| {
+                                            (
+                                                registration.record.peer_id(),
+                                                registration.record.addresses().to_owned(),
+                                            )
+                                        })
+                                        .collect::<BTreeMap<PeerId, Vec<Multiaddr>>>(),
                                 ),
                             ),
                         );
@@ -1101,7 +1099,11 @@ async fn handle_swarm_event<DB: Database>(
             #[cfg(feature = "websocket-notify")]
             notification::emit_network_event(
                 event_handler.ws_evt_sender(),
-                NetworkNotification::DiscoveredMdns(notification::DiscoveredMdns::new(list)),
+                NetworkNotification::DiscoveredMdns(notification::DiscoveredMdns::new(
+                    list.iter()
+                        .map(|peer| (peer.0, peer.1.to_owned()))
+                        .collect::<BTreeMap<PeerId, Multiaddr>>(),
+                )),
             )
         }
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Expired(list))) => {

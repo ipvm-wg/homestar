@@ -61,17 +61,15 @@ pub(crate) enum DispatchEvent {
 pub(crate) fn setup_cache(
     sender: Arc<channel::AsyncChannelSender<Event>>,
 ) -> Cache<String, CacheValue> {
-    let eviction_listener =
-        move |_key: Arc<String>, val: CacheValue, cause: RemovalCause| -> ListenerFuture {
-            let tx = Arc::clone(&sender);
+    let eviction_listener = move |_key: Arc<String>,
+                                  val: CacheValue,
+                                  cause: RemovalCause|
+          -> ListenerFuture {
+        let tx = Arc::clone(&sender);
 
-            async move {
-                if let Some(CacheData::OnExpiration(event)) = val.data.get("on_expiration") {
-                    println!("event: {:?}", event);
-                    if cause != Expired {
-                        return;
-                    }
-
+        async move {
+            if let Some(CacheData::OnExpiration(event)) = val.data.get("on_expiration") {
+                if cause == Expired {
                     match event {
                         DispatchEvent::RegisterPeer => {
                             if let Some(CacheData::Peer(rendezvous_node)) =
@@ -99,8 +97,9 @@ pub(crate) fn setup_cache(
                     };
                 }
             }
-            .boxed()
-        };
+        }
+        .boxed()
+    };
 
     Cache::builder()
         .expire_after(Expiry)

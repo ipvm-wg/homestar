@@ -18,7 +18,6 @@ use std::{
     net::Ipv4Addr,
     path::PathBuf,
     process::{Command, Stdio},
-    thread,
     time::Duration,
 };
 
@@ -463,12 +462,6 @@ fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
             .await
             .unwrap();
 
-        // Wait for registration to complete.
-        // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep.
-        // thread::sleep(Duration::from_secs(2));
-
-        // TODO Wait for clint 1 to register with server, server confirm registration
-
         // Poll for client one registered with server
         loop {
             if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
@@ -733,37 +726,102 @@ fn test_libp2p_rendezvous_renew_registration_integration() -> Result<()> {
         panic!("Homestar server/runtime failed to start in time");
     }
 
-    // TODO Listen for client registered and server registered peer messages
-    // with renewal should be more than one.
+    tokio_test::task::spawn(async {
+        // Subscribe to rendezvous server
+        let ws_url1 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
+        let client1 = WsClientBuilder::default().build(ws_url1).await.unwrap();
+        let mut sub1: Subscription<Vec<u8>> = client1
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
 
-    // Collect logs for five seconds then kill proceses.
-    let dead_server = kill_homestar(rendezvous_server, Some(Duration::from_secs(5)));
-    let dead_client = kill_homestar(rendezvous_client1, Some(Duration::from_secs(5)));
+        // Subscribe to rendezvous client
+        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
+        let client2 = WsClientBuilder::default().build(ws_url2).await.unwrap();
+        let mut sub2: Subscription<Vec<u8>> = client2
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
 
-    // Retrieve logs.
-    let stdout_server = retrieve_output(dead_server);
-    let stdout_client = retrieve_output(dead_client);
+        // Poll for server registered client twice.
+        let mut peer_registered_count = 0;
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-    // Count registrations on the server
-    let server_registration_count = count_lines_where(
-        stdout_server,
-        vec![
-            "registered peer through rendezvous",
-            "12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq",
-        ],
-    );
+                if json["peer_registered_rendezvous"].is_object()
+                    && json["peer_registered_rendezvous"]["peer_id"] == ED25519MULTIHASH3
+                {
+                    peer_registered_count += 1;
+                }
+            } else {
+                panic!("Server did not register client twice in time");
+            }
 
-    // Count registrations on the client
-    let client_registration_count = count_lines_where(
-        stdout_client,
-        vec![
-            "registered self with rendezvous node",
-            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
-        ],
-    );
+            if peer_registered_count == 2 {
+                break;
+            }
+        }
 
-    assert!(server_registration_count > 1);
-    assert!(client_registration_count > 1);
+        // Poll for client registered with server twice.
+        let mut registered_count = 0;
+        loop {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["registered_rendezvous"].is_object()
+                    && json["registered_rendezvous"]["server"] == ED25519MULTIHASH
+                {
+                    registered_count += 1;
+                }
+            } else {
+                panic!("Client did not register with server twice in time");
+            }
+
+            if registered_count == 2 {
+                break;
+            }
+        }
+
+        // Collect logs for five seconds then kill proceses.
+        let dead_server = kill_homestar(rendezvous_server, None);
+        let dead_client = kill_homestar(rendezvous_client1, None);
+
+        // Retrieve logs.
+        let stdout_server = retrieve_output(dead_server);
+        let stdout_client = retrieve_output(dead_client);
+
+        // Count registrations on the server
+        let server_registration_count = count_lines_where(
+            stdout_server,
+            vec![
+                "registered peer through rendezvous",
+                "12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq",
+            ],
+        );
+
+        // Count registrations on the client
+        let client_registration_count = count_lines_where(
+            stdout_client,
+            vec![
+                "registered self with rendezvous node",
+                "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+            ],
+        );
+
+        assert!(server_registration_count > 1);
+        assert!(client_registration_count > 1);
+    });
 
     Ok(())
 }
@@ -869,37 +927,102 @@ fn test_libp2p_rendezvous_rediscovery_integration() -> Result<()> {
         panic!("Homestar server/runtime failed to start in time");
     }
 
-    // TODO Listen for client discover and server discover served messages
-    // should be more than one for both (or move on at two)
+    tokio_test::task::spawn(async {
+        // Subscribe to rendezvous server
+        let ws_url1 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
+        let client1 = WsClientBuilder::default().build(ws_url1).await.unwrap();
+        let mut sub1: Subscription<Vec<u8>> = client1
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
 
-    // Collect logs for five seconds then kill proceses.
-    let dead_server = kill_homestar(proc_guard_server.take(), Some(Duration::from_secs(15)));
-    let dead_client = kill_homestar(proc_guard_client1.take(), Some(Duration::from_secs(15)));
+        // Subscribe to rendezvous client
+        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
+        let client2 = WsClientBuilder::default().build(ws_url2).await.unwrap();
+        let mut sub2: Subscription<Vec<u8>> = client2
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
 
-    // Retrieve logs.
-    let stdout_server = retrieve_output(dead_server);
-    let stdout_client = retrieve_output(dead_client);
+        // Poll for server provided discovery twice twice
+        let mut discover_served_count = 0;
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-    // Count discover requests on the server
-    let server_discovery_count = count_lines_where(
-        stdout_server,
-        vec![
-            "served rendezvous discover request to peer",
-            ED25519MULTIHASH4,
-        ],
-    );
+                if json["discover_served_rendezvous"].is_object()
+                    && json["discover_served_rendezvous"]["enquirer"] == ED25519MULTIHASH4
+                {
+                    discover_served_count += 1;
+                }
+            } else {
+                panic!("Server did not provide discovery twice in time");
+            }
 
-    // Count discovery responses the client
-    let client_discovery_count = count_lines_where(
-        stdout_client,
-        vec![
-            "received discovery from rendezvous server",
-            ED25519MULTIHASH,
-        ],
-    );
+            if discover_served_count == 2 {
+                break;
+            }
+        }
 
-    assert!(server_discovery_count > 1);
-    assert!(client_discovery_count > 1);
+        // Poll for client discovered twice
+        let mut discovered_count = 0;
+        loop {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["discovered_rendezvous"].is_object()
+                    && json["discovered_rendezvous"]["server"] == ED25519MULTIHASH
+                {
+                    discovered_count += 1;
+                }
+            } else {
+                panic!("Client did not discover twice in time");
+            }
+
+            if discovered_count == 2 {
+                break;
+            }
+        }
+
+        // Collect logs for five seconds then kill proceses.
+        let dead_server = kill_homestar(proc_guard_server.take(), None);
+        let dead_client = kill_homestar(proc_guard_client1.take(), None);
+
+        // Retrieve logs.
+        let stdout_server = retrieve_output(dead_server);
+        let stdout_client = retrieve_output(dead_client);
+
+        // Count discover requests on the server
+        let server_discovery_count = count_lines_where(
+            stdout_server,
+            vec![
+                "served rendezvous discover request to peer",
+                ED25519MULTIHASH4,
+            ],
+        );
+
+        // Count discovery responses the client
+        let client_discovery_count = count_lines_where(
+            stdout_client,
+            vec![
+                "received discovery from rendezvous server",
+                ED25519MULTIHASH,
+            ],
+        );
+
+        assert!(server_discovery_count > 1);
+        assert!(client_discovery_count > 1);
+    });
 
     Ok(())
 }
@@ -1011,16 +1134,41 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
         panic!("Homestar server/runtime failed to start in time");
     }
 
-    // Wait for registration to complete.
-    // TODO When we have WebSocket push events, listen on a registration event instead of using an arbitrary sleep.
-    thread::sleep(Duration::from_secs(2));
+    tokio_test::task::spawn(async {
+        // Subscribe to rendezvous client one
+        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
+        let client2 = WsClientBuilder::default().build(ws_url2).await.unwrap();
+        let mut sub2: Subscription<Vec<u8>> = client2
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
 
-    // Start a peer that will discover with the rendezvous server when
-    // a discovered registration expires. Note that by default discovery only
-    // occurs every ten minutes, so discovery requests in this test are driven
-    // by expirations.
-    let toml3 = format!(
-        r#"
+        // Poll for client one registered with server the first time
+        loop {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["registered_rendezvous"].is_object()
+                    && json["registered_rendezvous"]["server"] == ED25519MULTIHASH
+                {
+                    break;
+                }
+            } else {
+                panic!("Client did not register with server twice in time");
+            }
+        }
+
+        // Start a peer that will discover with the rendezvous server when
+        // a discovered registration expires. Note that by default discovery only
+        // occurs every ten minutes, so discovery requests in this test are driven
+        // by client one expirations.
+        let toml3 = format!(
+            r#"
         [node]
         [node.network.keypair_config]
         existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
@@ -1036,10 +1184,10 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
         [node.network.webserver]
         port = {ws_port3}
         "#
-    );
-    let config3 = make_config!(toml3);
+        );
+        let config3 = make_config!(toml3);
 
-    let rendezvous_client2 = Command::new(BIN.as_os_str())
+        let rendezvous_client2 = Command::new(BIN.as_os_str())
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -1052,43 +1200,77 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let proc_guard_client2 = ChildGuard::new(rendezvous_client2);
+        let proc_guard_client2 = ChildGuard::new(rendezvous_client2);
 
-    if wait_for_socket_connection(ws_port3, 1000).is_err() {
-        panic!("Homestar server/runtime failed to start in time");
-    }
+        if wait_for_socket_connection(ws_port3, 1000).is_err() {
+            panic!("Homestar server/runtime failed to start in time");
+        }
 
-    // Collect logs for seven seconds then kill proceses.
-    let dead_server = kill_homestar(proc_guard_server.take(), Some(Duration::from_secs(15)));
-    let _ = kill_homestar(proc_guard_client1.take(), Some(Duration::from_secs(7)));
-    let dead_client2 = kill_homestar(proc_guard_client2.take(), Some(Duration::from_secs(15)));
+        // Subscribe to rendezvous client two
+        let ws_url3 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port3);
+        let client3 = WsClientBuilder::default().build(ws_url3).await.unwrap();
+        let mut sub3: Subscription<Vec<u8>> = client3
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
 
-    // Retrieve logs.
-    let stdout_server = retrieve_output(dead_server);
-    let stdout_client2 = retrieve_output(dead_client2);
+        // Poll for client two discovered twice
+        let mut discovered_count = 0;
+        loop {
+            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-    // Count discover requests on the server
-    let server_discovery_count = count_lines_where(
-        stdout_server,
-        vec![
-            "served rendezvous discover request to peer",
-            "12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5",
-        ],
-    );
+                if json["discovered_rendezvous"].is_object()
+                    && json["discovered_rendezvous"]["server"] == ED25519MULTIHASH
+                {
+                    discovered_count += 1;
+                }
+            } else {
+                panic!("Client did not discover twice in time");
+            }
 
-    println!("server_discovery_count: {}", server_discovery_count);
+            if discovered_count == 2 {
+                break;
+            }
+        }
 
-    // Count discovery responses the client
-    let client_discovery_count = count_lines_where(
-        stdout_client2,
-        vec![
-            "received discovery from rendezvous server",
-            "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
-        ],
-    );
+        // Collect logs for seven seconds then kill proceses.
+        let dead_server = kill_homestar(proc_guard_server.take(), None);
+        let _ = kill_homestar(proc_guard_client1.take(), None);
+        let dead_client2 = kill_homestar(proc_guard_client2.take(), None);
 
-    assert!(server_discovery_count > 1);
-    assert!(client_discovery_count > 1);
+        // Retrieve logs.
+        let stdout_server = retrieve_output(dead_server);
+        let stdout_client2 = retrieve_output(dead_client2);
+
+        // Count discover requests on the server
+        let server_discovery_count = count_lines_where(
+            stdout_server,
+            vec![
+                "served rendezvous discover request to peer",
+                "12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5",
+            ],
+        );
+
+        println!("server_discovery_count: {}", server_discovery_count);
+
+        // Count discovery responses the client
+        let client_discovery_count = count_lines_where(
+            stdout_client2,
+            vec![
+                "received discovery from rendezvous server",
+                "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN",
+            ],
+        );
+
+        assert!(server_discovery_count > 1);
+        assert!(client_discovery_count > 1);
+    });
 
     Ok(())
 }
