@@ -1141,13 +1141,11 @@ async fn handle_swarm_event<DB: Database>(
             );
 
             #[cfg(feature = "websocket-notify")]
-            notification::emit_event(
+            notification::emit_network_event(
                 event_handler.ws_evt_sender(),
-                EventNotificationTyp::SwarmNotification(SwarmNotification::ListeningOn),
-                btreemap! {
-                    "peerId" => Ipld::String(local_peer.to_string()),
-                    "address" => Ipld::String(address.to_string())
-                },
+                NetworkNotification::NewListenAddr(notification::NewListenAddr::new(
+                    local_peer, address,
+                )),
             );
         }
         SwarmEvent::IncomingConnection { .. } => {}
@@ -1313,14 +1311,12 @@ async fn handle_swarm_event<DB: Database>(
             }
 
             #[cfg(feature = "websocket-notify")]
-            notification::emit_event(
+            notification::emit_network_event(
                 event_handler.ws_evt_sender(),
-                EventNotificationTyp::SwarmNotification(SwarmNotification::OutgoingConnectionError),
-                btreemap! {
-                    "peerId" => peer_id.map_or(Ipld::Null, |p| Ipld::String(p.to_string())),
-                    "error" => Ipld::String(error.to_string())
-                },
-            );
+                NetworkNotification::OutgoingConnectionError(
+                    notification::OutgoingConnectionError::new(peer_id, error),
+                ),
+            )
         }
         SwarmEvent::IncomingConnectionError {
             connection_id,
@@ -1337,13 +1333,12 @@ async fn handle_swarm_event<DB: Database>(
                   "incoming connection error");
 
             #[cfg(feature = "websocket-notify")]
-            notification::emit_event(
+            notification::emit_network_event(
                 event_handler.ws_evt_sender(),
-                EventNotificationTyp::SwarmNotification(SwarmNotification::IncomingConnectionError),
-                btreemap! {
-                    "error" => Ipld::String(error.to_string())
-                },
-            );
+                NetworkNotification::IncomingConnectionError(
+                    notification::IncomingConnectionError::new(error),
+                ),
+            )
         }
         SwarmEvent::ListenerError { listener_id, error } => {
             error!(subject = "libp2p.listener.err",
