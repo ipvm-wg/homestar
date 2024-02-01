@@ -142,6 +142,31 @@ pub enum NetworkNotification {
     PeerRegisteredRendezvous(PeerRegisteredRendezvous),
 }
 
+impl fmt::Display for NetworkNotification {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            NetworkNotification::NewListenAddr(_) => write!(f, "new_listen_addr"),
+            NetworkNotification::ConnnectionEstablished(_) => write!(f, "connection_established"),
+            NetworkNotification::ConnnectionClosed(_) => write!(f, "connection_closed"),
+            NetworkNotification::OutgoingConnectionError(_) => {
+                write!(f, "outgoing_connection_error")
+            }
+            NetworkNotification::IncomingConnectionError(_) => {
+                write!(f, "incoming_connection_error")
+            }
+            NetworkNotification::DiscoveredMdns(_) => write!(f, "discovered_mdns"),
+            NetworkNotification::DiscoveredRendezvous(_) => write!(f, "discovered_rendezvous"),
+            NetworkNotification::RegisteredRendezvous(_) => write!(f, "registered_rendezvous"),
+            NetworkNotification::DiscoverServedRendezvous(_) => {
+                write!(f, "discover_served_rendezvous")
+            }
+            NetworkNotification::PeerRegisteredRendezvous(_) => {
+                write!(f, "peer_registered_rendezvous")
+            }
+        }
+    }
+}
+
 impl DagJson for NetworkNotification {}
 
 impl From<NetworkNotification> for Ipld {
