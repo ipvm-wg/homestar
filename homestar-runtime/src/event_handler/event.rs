@@ -5,7 +5,9 @@ use super::swarm_event::FoundEvent;
 use super::EventHandler;
 #[cfg(feature = "websocket-notify")]
 use crate::event_handler::{
-    notification::{self, emit_receipt, EventNotificationTyp, SwarmNotification},
+    notification::{
+        self, emit_receipt, EventNotificationTyp, NetworkNotification, SwarmNotification,
+    },
     swarm_event::{ReceiptEvent, WorkflowInfoEvent},
 };
 #[cfg(feature = "ipfs")]
@@ -367,16 +369,12 @@ impl Captured {
                     );
 
                     #[cfg(feature = "websocket-notify")]
-                    notification::emit_event(
+                    notification::emit_network_event(
                         event_handler.ws_evt_sender(),
-                        EventNotificationTyp::SwarmNotification(
-                            SwarmNotification::PublishedReceiptPubsub,
+                        NetworkNotification::PublishedReceiptPubsub(
+                            notification::PublishedReceiptPubsub::new(receipt.cid(), receipt.ran()),
                         ),
-                        btreemap! {
-                            "cid" => Ipld::String(receipt.cid().to_string()),
-                            "ran" => Ipld::String(receipt.ran().to_string())
-                        },
-                    );
+                    )
                 }
                 Err(err) => {
                     warn!(
@@ -576,16 +574,15 @@ impl Replay {
                         );
 
                         #[cfg(feature = "websocket-notify")]
-                        notification::emit_event(
+                        notification::emit_network_event(
                             event_handler.ws_evt_sender(),
-                            EventNotificationTyp::SwarmNotification(
-                                SwarmNotification::PublishedReceiptPubsub,
+                            NetworkNotification::PublishedReceiptPubsub(
+                                notification::PublishedReceiptPubsub::new(
+                                    receipt.cid(),
+                                    receipt.ran(),
+                                ),
                             ),
-                            btreemap! {
-                                "cid" => Ipld::String(receipt.cid().to_string()),
-                                "ran" => Ipld::String(receipt.ran().to_string())
-                            },
-                        );
+                        )
                     })
                     .map_err(|err| {
                         warn!(

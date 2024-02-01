@@ -187,9 +187,9 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:publishedReceiptPubsub" {
+                if json["published_receipt_pubsub"].is_object() {
                     published_cids.push(
-                        Cid::from_str(json["data"]["cid"].as_str().unwrap())
+                        Cid::from_str(json["published_receipt_pubsub"]["cid"].as_str().unwrap())
                             .expect("Unable to parse published receipt CID."),
                     );
                 }
@@ -209,9 +209,9 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:receivedReceiptPubsub" {
+                if json["received_receipt_pubsub"].is_object() {
                     received_cids.push(
-                        Cid::from_str(json["data"]["cid"].as_str().unwrap())
+                        Cid::from_str(json["received_receipt_pubsub"]["cid"].as_str().unwrap())
                             .expect("Unable to parse received receipt CID."),
                     );
                 }

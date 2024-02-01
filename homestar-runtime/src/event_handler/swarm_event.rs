@@ -536,17 +536,16 @@ async fn handle_swarm_event<DB: Database>(
                             .map(|conn| Db::store_receipt(receipt.clone(), conn));
 
                         #[cfg(feature = "websocket-notify")]
-                        notification::emit_event(
+                        notification::emit_network_event(
                             event_handler.ws_evt_sender(),
-                            EventNotificationTyp::SwarmNotification(
-                                SwarmNotification::ReceivedReceiptPubsub,
+                            NetworkNotification::ReceivedReceiptPubsub(
+                                notification::ReceivedReceiptPubsub::new(
+                                    propagation_source,
+                                    receipt.cid(),
+                                    receipt.ran(),
+                                ),
                             ),
-                            btreemap! {
-                                "publisher" => Ipld::String(propagation_source.to_string()),
-                                "cid" => Ipld::String(receipt.cid().to_string()),
-                                "ran" => Ipld::String(receipt.ran().to_string())
-                            },
-                        );
+                        )
                     }
                     Err(err) => debug!(subject = "libp2p.gossipsub.err",
                                        category = "handle_swarm_event",

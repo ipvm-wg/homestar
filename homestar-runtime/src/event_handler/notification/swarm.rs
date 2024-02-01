@@ -5,7 +5,7 @@
 use anyhow::anyhow;
 use chrono::prelude::Utc;
 use homestar_invocation::ipld::DagJson;
-use libipld::{serde::from_ipld, Ipld};
+use libipld::{serde::from_ipld, Cid, Ipld};
 use libp2p::{
     swarm::{DialError, ListenError},
     Multiaddr, PeerId,
@@ -16,18 +16,19 @@ use std::{collections::BTreeMap, fmt, str::FromStr};
 
 const ADDRESS_KEY: &str = "address";
 const ADDRESSES_KEY: &str = "addresses";
+const CID_KEY: &str = "cid";
 const ENQUIRER_KEY: &str = "enquirer";
 const ERROR_KEY: &str = "error";
 const PEER_KEY: &str = "peer_id";
 const PEERS_KEY: &str = "peers";
+const PUBLISHER_KEY: &str = "publisher";
+const RAN_KEY: &str = "ran";
 const SERVER_KEY: &str = "server";
 const TIMESTAMP_KEY: &str = "timestamp";
 
 // Swarm notification types sent to clients
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum SwarmNotification {
-    PublishedReceiptPubsub,
-    ReceivedReceiptPubsub,
     GotReceiptDht,
     PutReceiptDht,
     GotWorkflowInfoDht,
@@ -44,12 +45,6 @@ pub(crate) enum SwarmNotification {
 impl fmt::Display for SwarmNotification {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            SwarmNotification::ReceivedReceiptPubsub => {
-                write!(f, "receivedReceiptPubsub")
-            }
-            SwarmNotification::PublishedReceiptPubsub => {
-                write!(f, "publishedReceiptPubsub")
-            }
             SwarmNotification::PutReceiptDht => {
                 write!(f, "putReceiptDht")
             }
@@ -89,8 +84,6 @@ impl FromStr for SwarmNotification {
 
     fn from_str(ty: &str) -> Result<Self, Self::Err> {
         match ty {
-            "receivedReceiptPubsub" => Ok(Self::ReceivedReceiptPubsub),
-            "publishedReceiptPubsub" => Ok(Self::PublishedReceiptPubsub),
             "putReciptDht" => Ok(Self::PutReceiptDht),
             "gotReceiptDht" => Ok(Self::GotReceiptDht),
             "putWorkflowInfoDht" => Ok(Self::PutWorkflowInfoDht),
@@ -140,6 +133,12 @@ pub enum NetworkNotification {
     /// Rendezvous peer registered notification.
     #[schemars(rename = "peer_registered_rendezvous")]
     PeerRegisteredRendezvous(PeerRegisteredRendezvous),
+    /// Published receipt pubsub notification.
+    #[schemars(rename = "published_receipt_pubsub")]
+    PublishedReceiptPubsub(PublishedReceiptPubsub),
+    /// Received receipt pubsub notification.
+    #[schemars(rename = "received_receipt_pubsub")]
+    ReceivedReceiptPubsub(ReceivedReceiptPubsub),
 }
 
 impl fmt::Display for NetworkNotification {
@@ -163,6 +162,8 @@ impl fmt::Display for NetworkNotification {
             NetworkNotification::PeerRegisteredRendezvous(_) => {
                 write!(f, "peer_registered_rendezvous")
             }
+            NetworkNotification::PublishedReceiptPubsub(_) => write!(f, "published_receipt_pubsub"),
+            NetworkNotification::ReceivedReceiptPubsub(_) => write!(f, "received_receipt_pubsub"),
         }
     }
 }
@@ -207,6 +208,14 @@ impl From<NetworkNotification> for Ipld {
                 "peer_registered_rendezvous".into(),
                 n.into(),
             )])),
+            NetworkNotification::PublishedReceiptPubsub(n) => Ipld::Map(BTreeMap::from([(
+                "published_receipt_pubsub".into(),
+                n.into(),
+            )])),
+            NetworkNotification::ReceivedReceiptPubsub(n) => Ipld::Map(BTreeMap::from([(
+                "received_receipt_pubsub".into(),
+                n.into(),
+            )])),
         }
     }
 }
@@ -248,6 +257,12 @@ impl TryFrom<Ipld> for NetworkNotification {
                 )),
                 "peer_registered_rendezvous" => Ok(NetworkNotification::PeerRegisteredRendezvous(
                     PeerRegisteredRendezvous::try_from(val.to_owned())?,
+                )),
+                "published_receipt_pubsub" => Ok(NetworkNotification::PublishedReceiptPubsub(
+                    PublishedReceiptPubsub::try_from(val.to_owned())?,
+                )),
+                "received_receipt_pubsub" => Ok(NetworkNotification::ReceivedReceiptPubsub(
+                    ReceivedReceiptPubsub::try_from(val.to_owned())?,
                 )),
                 _ => Err(anyhow!("Unknown network notification tag type")),
             }
@@ -293,6 +308,12 @@ impl TryFrom<Ipld> for NewListenAddr {
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
 
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
         let peer_id = from_ipld(
             map.get(PEER_KEY)
                 .ok_or_else(|| anyhow!("missing {PEER_KEY}"))?
@@ -302,12 +323,6 @@ impl TryFrom<Ipld> for NewListenAddr {
         let address = from_ipld(
             map.get(ADDRESS_KEY)
                 .ok_or_else(|| anyhow!("missing {ADDRESS_KEY}"))?
-                .to_owned(),
-        )?;
-
-        let timestamp = from_ipld(
-            map.get(TIMESTAMP_KEY)
-                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
                 .to_owned(),
         )?;
 
@@ -355,6 +370,12 @@ impl TryFrom<Ipld> for ConnectionEstablished {
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
 
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
         let peer_id = from_ipld(
             map.get(PEER_KEY)
                 .ok_or_else(|| anyhow!("missing {PEER_KEY}"))?
@@ -364,12 +385,6 @@ impl TryFrom<Ipld> for ConnectionEstablished {
         let address = from_ipld(
             map.get(ADDRESS_KEY)
                 .ok_or_else(|| anyhow!("missing {ADDRESS_KEY}"))?
-                .to_owned(),
-        )?;
-
-        let timestamp = from_ipld(
-            map.get(TIMESTAMP_KEY)
-                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
                 .to_owned(),
         )?;
 
@@ -417,6 +432,12 @@ impl TryFrom<Ipld> for ConnectionClosed {
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
 
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
         let peer_id = from_ipld(
             map.get(PEER_KEY)
                 .ok_or_else(|| anyhow!("missing {PEER_KEY}"))?
@@ -426,12 +447,6 @@ impl TryFrom<Ipld> for ConnectionClosed {
         let address = from_ipld(
             map.get(ADDRESS_KEY)
                 .ok_or_else(|| anyhow!("missing {ADDRESS_KEY}"))?
-                .to_owned(),
-        )?;
-
-        let timestamp = from_ipld(
-            map.get(TIMESTAMP_KEY)
-                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
                 .to_owned(),
         )?;
 
@@ -485,6 +500,12 @@ impl TryFrom<Ipld> for OutgoingConnectionError {
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
 
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
         let peer_id = map
             .get(PEER_KEY)
             .and_then(|ipld| match ipld {
@@ -496,12 +517,6 @@ impl TryFrom<Ipld> for OutgoingConnectionError {
         let error = from_ipld(
             map.get(ERROR_KEY)
                 .ok_or_else(|| anyhow!("missing {ERROR_KEY}"))?
-                .to_owned(),
-        )?;
-
-        let timestamp = from_ipld(
-            map.get(TIMESTAMP_KEY)
-                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
                 .to_owned(),
         )?;
 
@@ -546,15 +561,15 @@ impl TryFrom<Ipld> for IncomingConnectionError {
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
 
-        let error = from_ipld(
-            map.get(ERROR_KEY)
-                .ok_or_else(|| anyhow!("missing {ERROR_KEY}"))?
-                .to_owned(),
-        )?;
-
         let timestamp = from_ipld(
             map.get(TIMESTAMP_KEY)
                 .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let error = from_ipld(
+            map.get(ERROR_KEY)
+                .ok_or_else(|| anyhow!("missing {ERROR_KEY}"))?
                 .to_owned(),
         )?;
 
@@ -904,17 +919,164 @@ impl TryFrom<Ipld> for PeerRegisteredRendezvous {
     }
 }
 
+#[derive(Debug, Clone, JsonSchema)]
+#[schemars(rename = "published_receipt_pubsub")]
+pub struct PublishedReceiptPubsub {
+    timestamp: i64,
+    #[schemars(description = "Receipt CID")]
+    cid: String,
+    #[schemars(description = "Ran receipt CID")]
+    ran: String,
+}
+
+impl PublishedReceiptPubsub {
+    pub(crate) fn new(cid: Cid, ran: String) -> PublishedReceiptPubsub {
+        PublishedReceiptPubsub {
+            timestamp: Utc::now().timestamp_millis(),
+            cid: cid.to_string(),
+            ran,
+        }
+    }
+}
+
+impl DagJson for PublishedReceiptPubsub {}
+
+impl From<PublishedReceiptPubsub> for Ipld {
+    fn from(notification: PublishedReceiptPubsub) -> Self {
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (CID_KEY.into(), notification.cid.into()),
+            (RAN_KEY.into(), notification.ran.into()),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for PublishedReceiptPubsub {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let cid = from_ipld(
+            map.get(CID_KEY)
+                .ok_or_else(|| anyhow!("missing {CID_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let ran = from_ipld(
+            map.get(RAN_KEY)
+                .ok_or_else(|| anyhow!("missing {RAN_KEY}"))?
+                .to_owned(),
+        )?;
+
+        Ok(PublishedReceiptPubsub {
+            timestamp,
+            cid,
+            ran,
+        })
+    }
+}
+
+#[derive(Debug, Clone, JsonSchema)]
+#[schemars(rename = "received_receipt_pubsub")]
+pub struct ReceivedReceiptPubsub {
+    timestamp: i64,
+    #[schemars(description = "Receipt publisher peer ID")]
+    publisher: String,
+    #[schemars(description = "Receipt CID")]
+    cid: String,
+    #[schemars(description = "Ran receipt CID")]
+    ran: String,
+}
+
+impl ReceivedReceiptPubsub {
+    pub(crate) fn new(publisher: PeerId, cid: Cid, ran: String) -> ReceivedReceiptPubsub {
+        ReceivedReceiptPubsub {
+            timestamp: Utc::now().timestamp_millis(),
+            publisher: publisher.to_string(),
+            cid: cid.to_string(),
+            ran,
+        }
+    }
+}
+
+impl DagJson for ReceivedReceiptPubsub {}
+
+impl From<ReceivedReceiptPubsub> for Ipld {
+    fn from(notification: ReceivedReceiptPubsub) -> Self {
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (PUBLISHER_KEY.into(), notification.publisher.into()),
+            (CID_KEY.into(), notification.cid.into()),
+            (RAN_KEY.into(), notification.ran.into()),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for ReceivedReceiptPubsub {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let publisher = from_ipld(
+            map.get(PUBLISHER_KEY)
+                .ok_or_else(|| anyhow!("missing {PUBLISHER_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let cid = from_ipld(
+            map.get(CID_KEY)
+                .ok_or_else(|| anyhow!("missing {CID_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let ran = from_ipld(
+            map.get(RAN_KEY)
+                .ok_or_else(|| anyhow!("missing {RAN_KEY}"))?
+                .to_owned(),
+        )?;
+
+        Ok(ReceivedReceiptPubsub {
+            timestamp,
+            publisher,
+            cid,
+            ran,
+        })
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use homestar_invocation::test_utils::cid::generate_cid;
+    use rand::thread_rng;
 
     #[derive(Clone, Debug)]
     struct Fixtures {
         address: Multiaddr,
         addresses: Vec<Multiaddr>,
+        cid: Cid,
         peer_id: PeerId,
         peers: BTreeMap<PeerId, Multiaddr>,
         peers_vec_addr: BTreeMap<PeerId, Vec<Multiaddr>>,
+        ran: Cid,
     }
 
     fn generate_fixtures() -> Fixtures {
@@ -924,6 +1086,7 @@ mod test {
                 Multiaddr::from_str("/ip4/127.0.0.1/tcp/7000").unwrap(),
                 Multiaddr::from_str("/ip4/127.0.0.1/tcp/7001").unwrap(),
             ],
+            cid: generate_cid(&mut thread_rng()),
             peer_id: PeerId::random(),
             peers: BTreeMap::from([
                 (
@@ -948,6 +1111,7 @@ mod test {
                     ],
                 ),
             ]),
+            ran: generate_cid(&mut thread_rng()),
         }
     }
 
@@ -955,10 +1119,13 @@ mod test {
         let Fixtures {
             address,
             addresses,
+            cid,
             peer_id,
             peers,
             peers_vec_addr,
+            ran,
         } = fixtures;
+
         let new_listen_addr = NewListenAddr::new(peer_id, address.clone());
         let connection_established = ConnectionEstablished::new(peer_id, address.clone());
         let connection_closed = ConnectionClosed::new(peer_id, address.clone());
@@ -970,6 +1137,8 @@ mod test {
         let registered_rendezvous = RegisteredRendezvous::new(peer_id);
         let discover_served_rendezvous = DiscoverServedRendezvous::new(peer_id);
         let peer_registered_rendezvous = PeerRegisteredRendezvous::new(peer_id, addresses);
+        let published_receipt_pubsub = PublishedReceiptPubsub::new(cid, ran.to_string());
+        let received_receipt_pubsub = ReceivedReceiptPubsub::new(peer_id, cid, ran.to_string());
 
         vec![
             (
@@ -1012,6 +1181,14 @@ mod test {
                 peer_registered_rendezvous.timestamp,
                 NetworkNotification::PeerRegisteredRendezvous(peer_registered_rendezvous),
             ),
+            (
+                published_receipt_pubsub.timestamp,
+                NetworkNotification::PublishedReceiptPubsub(published_receipt_pubsub),
+            ),
+            (
+                received_receipt_pubsub.timestamp,
+                NetworkNotification::ReceivedReceiptPubsub(received_receipt_pubsub),
+            ),
         ]
     }
 
@@ -1019,9 +1196,11 @@ mod test {
         let Fixtures {
             address,
             addresses,
+            cid,
             peer_id,
             peers,
             peers_vec_addr,
+            ran,
         } = fixtures;
 
         match notification {
@@ -1095,6 +1274,17 @@ mod test {
                         .collect::<Vec<Multiaddr>>(),
                     addresses
                 );
+            }
+            NetworkNotification::PublishedReceiptPubsub(n) => {
+                assert_eq!(n.timestamp, timestamp);
+                assert_eq!(Cid::from_str(&n.cid).unwrap(), cid);
+                assert_eq!(Cid::from_str(&n.ran).unwrap(), ran);
+            }
+            NetworkNotification::ReceivedReceiptPubsub(n) => {
+                assert_eq!(n.timestamp, timestamp);
+                assert_eq!(PeerId::from_str(&n.publisher).unwrap(), peer_id);
+                assert_eq!(Cid::from_str(&n.cid).unwrap(), cid);
+                assert_eq!(Cid::from_str(&n.ran).unwrap(), ran);
             }
         }
     }
