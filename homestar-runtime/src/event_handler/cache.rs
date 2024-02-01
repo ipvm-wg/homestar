@@ -89,12 +89,12 @@ pub(crate) fn setup_cache(
                                     .await;
                             };
                         }
+                        DispatchEvent::DialPeer => {
+                            if let Some(CacheData::Peer(node)) = val.data.get("node") {
+                                let _ = tx.send(Event::DialPeer(node.to_owned()));
+                            };
+                        }
                     }
-                }
-                DispatchEvent::DialPeer => {
-                    if let Some(CacheData::Peer(node)) = val.data.get("node") {
-                        let _ = tx.send(Event::DialPeer(node.to_owned()));
-                    };
                 }
             }
         }
