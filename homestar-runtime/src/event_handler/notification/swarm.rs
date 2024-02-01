@@ -280,9 +280,9 @@ impl DagJson for NewListenAddr {}
 impl From<NewListenAddr> for Ipld {
     fn from(notification: NewListenAddr) -> Self {
         Ipld::Map(BTreeMap::from([
-            ("timestamp".into(), notification.timestamp.into()),
-            ("peer_id".into(), notification.peer_id.into()),
-            ("address".into(), notification.address.into()),
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (PEER_KEY.into(), notification.peer_id.into()),
+            (ADDRESS_KEY.into(), notification.address.into()),
         ]))
     }
 }
@@ -342,9 +342,9 @@ impl DagJson for ConnectionEstablished {}
 impl From<ConnectionEstablished> for Ipld {
     fn from(notification: ConnectionEstablished) -> Self {
         Ipld::Map(BTreeMap::from([
-            ("timestamp".into(), notification.timestamp.into()),
-            ("peer_id".into(), notification.peer_id.into()),
-            ("address".into(), notification.address.into()),
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (PEER_KEY.into(), notification.peer_id.into()),
+            (ADDRESS_KEY.into(), notification.address.into()),
         ]))
     }
 }
@@ -404,9 +404,9 @@ impl DagJson for ConnectionClosed {}
 impl From<ConnectionClosed> for Ipld {
     fn from(notification: ConnectionClosed) -> Self {
         Ipld::Map(BTreeMap::from([
-            ("timestamp".into(), notification.timestamp.into()),
-            ("peer_id".into(), notification.peer_id.into()),
-            ("address".into(), notification.address.into()),
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (PEER_KEY.into(), notification.peer_id.into()),
+            (ADDRESS_KEY.into(), notification.address.into()),
         ]))
     }
 }
@@ -466,15 +466,15 @@ impl DagJson for OutgoingConnectionError {}
 impl From<OutgoingConnectionError> for Ipld {
     fn from(notification: OutgoingConnectionError) -> Self {
         Ipld::Map(BTreeMap::from([
-            ("timestamp".into(), notification.timestamp.into()),
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
             (
-                "peer_id".into(),
+                PEER_KEY.into(),
                 notification
                     .peer_id
                     .map(|peer_id| peer_id.into())
                     .unwrap_or(Ipld::Null),
             ),
-            ("error".into(), notification.error.into()),
+            (ERROR_KEY.into(), notification.error.into()),
         ]))
     }
 }
@@ -534,8 +534,8 @@ impl DagJson for IncomingConnectionError {}
 impl From<IncomingConnectionError> for Ipld {
     fn from(notification: IncomingConnectionError) -> Self {
         Ipld::Map(BTreeMap::from([
-            ("timestamp".into(), notification.timestamp.into()),
-            ("error".into(), notification.error.into()),
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (ERROR_KEY.into(), notification.error.into()),
         ]))
     }
 }
@@ -593,8 +593,8 @@ impl From<DiscoveredMdns> for Ipld {
             .collect();
 
         let map: BTreeMap<String, Ipld> = BTreeMap::from([
-            ("timestamp".into(), notification.timestamp.into()),
-            ("peers".into(), peers.into()),
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (PEERS_KEY.into(), peers.into()),
         ]);
 
         Ipld::Map(map)
@@ -678,9 +678,9 @@ impl From<DiscoveredRendezvous> for Ipld {
             .collect();
 
         let map: BTreeMap<String, Ipld> = BTreeMap::from([
-            ("timestamp".into(), notification.timestamp.into()),
-            ("server".into(), notification.server.into()),
-            ("peers".into(), peers.into()),
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (SERVER_KEY.into(), notification.server.into()),
+            (PEERS_KEY.into(), peers.into()),
         ]);
 
         Ipld::Map(map)
@@ -741,8 +741,8 @@ impl DagJson for RegisteredRendezvous {}
 impl From<RegisteredRendezvous> for Ipld {
     fn from(notification: RegisteredRendezvous) -> Self {
         let map: BTreeMap<String, Ipld> = BTreeMap::from([
-            ("timestamp".into(), notification.timestamp.into()),
-            ("server".into(), notification.server.into()),
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (SERVER_KEY.into(), notification.server.into()),
         ]);
 
         Ipld::Map(map)
@@ -793,8 +793,8 @@ impl DagJson for DiscoverServedRendezvous {}
 impl From<DiscoverServedRendezvous> for Ipld {
     fn from(notification: DiscoverServedRendezvous) -> Self {
         let map: BTreeMap<String, Ipld> = BTreeMap::from([
-            ("timestamp".into(), notification.timestamp.into()),
-            ("enquirer".into(), notification.enquirer.into()),
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (ENQUIRER_KEY.into(), notification.enquirer.into()),
         ]);
 
         Ipld::Map(map)
@@ -854,10 +854,10 @@ impl DagJson for PeerRegisteredRendezvous {}
 impl From<PeerRegisteredRendezvous> for Ipld {
     fn from(notification: PeerRegisteredRendezvous) -> Self {
         let map: BTreeMap<String, Ipld> = BTreeMap::from([
-            ("timestamp".into(), notification.timestamp.into()),
-            ("peer_id".into(), notification.peer_id.into()),
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (PEER_KEY.into(), notification.peer_id.into()),
             (
-                "addresses".into(),
+                ADDRESSES_KEY.into(),
                 Ipld::List(
                     notification
                         .addresses
