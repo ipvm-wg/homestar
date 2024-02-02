@@ -773,15 +773,14 @@ async fn handle_swarm_event<DB: Database>(
                                 ),
                             ),
                         ),
-                        CapsuleTag::Workflow => notification::emit_event(
+                        CapsuleTag::Workflow => notification::emit_network_event(
                             event_handler.ws_evt_sender(),
-                            EventNotificationTyp::SwarmNotification(
-                                SwarmNotification::WorkflowInfoQuorumSuccess,
+                            NetworkNotification::WorkflowInfoQuorumSuccessDht(
+                                notification::WorkflowInfoQuorumSuccessDht::new(
+                                    key.cid,
+                                    event_handler.workflow_quorum,
+                                ),
                             ),
-                            btreemap! {
-                                "cid" => Ipld::String(key.cid.to_string()),
-                                "quorum" => Ipld::Integer(event_handler.workflow_quorum as i128),
-                            },
                         ),
                     }
                 }
@@ -816,17 +815,16 @@ async fn handle_swarm_event<DB: Database>(
                                     ),
                                 ),
                             ),
-                            CapsuleTag::Workflow => notification::emit_event(
+                            CapsuleTag::Workflow => notification::emit_network_event(
                                 event_handler.ws_evt_sender(),
-                                EventNotificationTyp::SwarmNotification(
-                                    SwarmNotification::WorkflowInfoQuorumFailure,
+                                NetworkNotification::WorkflowInfoQuorumFailureDht(
+                                    notification::WorkflowInfoQuorumFailureDht::new(
+                                        key.cid,
+                                        event_handler.workflow_quorum,
+                                        event_handler.connections.peers.len(),
+                                        success,
+                                    ),
                                 ),
-                                btreemap! {
-                                    "cid" => Ipld::String(key.cid.to_string()),
-                                    "quorum" => Ipld::Integer(event_handler.workflow_quorum as i128),
-                                    "connectedPeers" => Ipld::Integer(event_handler.connections.peers.len() as i128),
-                                    "storedToPeers" => Ipld::List(success.iter().map(|cid| Ipld::String(cid.to_string())).collect())
-                                },
                             ),
                         }
                     }

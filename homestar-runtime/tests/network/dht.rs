@@ -214,7 +214,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
                     put_workflow_info = true;
                 } else if json["receipt_quorum_success_dht"].is_object() {
                     receipt_quorum_success = true;
-                } else if json["type"].as_str().unwrap() == "network:workflowInfoQuorumSuccess" {
+                } else if json["workflow_info_quorum_success_dht"].is_object() {
                     workflow_info_quorum_success = true;
                 }
             } else {
@@ -525,11 +525,11 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
                     receipt_quorum_failure = true
                 }
 
-                // if json["receipt_quorum_failure_dht"].is_object() {
-                //     receipt_quorum_failure = true
-                // } else if json["type"].as_str().unwrap() == "network:workflowInfoQuorumFailure" {
-                //     workflow_info_quorum_failure = true
-                // }
+                if json["receipt_quorum_failure_dht"].is_object() {
+                    receipt_quorum_failure = true
+                } else if json["workflow_info_quorum_failure_dht"].is_object() {
+                    workflow_info_quorum_failure = true
+                }
             } else {
                 panic!(
                     r#"Expected notifications from node one did not arrive in time:
@@ -540,8 +540,7 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
                 );
             }
 
-            // if receipt_quorum_failure && workflow_info_quorum_failure {
-            if receipt_quorum_failure {
+            if receipt_quorum_failure && workflow_info_quorum_failure {
                 break;
             }
         }

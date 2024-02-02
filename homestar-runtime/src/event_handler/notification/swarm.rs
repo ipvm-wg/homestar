@@ -37,8 +37,6 @@ const TIMESTAMP_KEY: &str = "timestamp";
 // Swarm notification types sent to clients
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum SwarmNotification {
-    WorkflowInfoQuorumSuccess,
-    WorkflowInfoQuorumFailure,
     SentWorkflowInfo,
     ReceivedWorkflowInfo,
 }
@@ -46,12 +44,6 @@ pub(crate) enum SwarmNotification {
 impl fmt::Display for SwarmNotification {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            SwarmNotification::WorkflowInfoQuorumSuccess => {
-                write!(f, "workflowInfoQuorumSuccess")
-            }
-            SwarmNotification::WorkflowInfoQuorumFailure => {
-                write!(f, "workflowInfoQuorumFailure")
-            }
             SwarmNotification::SentWorkflowInfo => {
                 write!(f, "sentWorkflowInfo")
             }
@@ -67,8 +59,6 @@ impl FromStr for SwarmNotification {
 
     fn from_str(ty: &str) -> Result<Self, Self::Err> {
         match ty {
-            "workflowInfoQuorumSuccess" => Ok(Self::WorkflowInfoQuorumSuccess),
-            "workflowInfoQuorumFailure" => Ok(Self::WorkflowInfoQuorumFailure),
             "sentWorkflowInfo" => Ok(Self::SentWorkflowInfo),
             "receivedWorkflowInfo" => Ok(Self::ReceivedWorkflowInfo),
             _ => Err(anyhow!("Missing swarm notification type: {}", ty)),
@@ -134,6 +124,12 @@ pub enum NetworkNotification {
     /// Receipt quorum failure notification.
     #[schemars(rename = "receipt_quorum_failure_dht")]
     ReceiptQuorumFailureDht(ReceiptQuorumFailureDht),
+    /// Wokflow info quorum success notification.
+    #[schemars(rename = "workflow_info_quorum_success_dht")]
+    WorkflowInfoQuorumSuccessDht(WorkflowInfoQuorumSuccessDht),
+    /// Wokflow info quorum failure notification.
+    #[schemars(rename = "workflow_info_quorum_failure_dht")]
+    WorkflowInfoQuorumFailureDht(WorkflowInfoQuorumFailureDht),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -174,6 +170,12 @@ impl fmt::Display for NetworkNotification {
             }
             NetworkNotification::ReceiptQuorumFailureDht(_) => {
                 write!(f, "receipt_quorum_failure_dht")
+            }
+            NetworkNotification::WorkflowInfoQuorumSuccessDht(_) => {
+                write!(f, "workflow_info_quorum_success_dht")
+            }
+            NetworkNotification::WorkflowInfoQuorumFailureDht(_) => {
+                write!(f, "workflow_info_quorum_failure_dht")
             }
         }
     }
@@ -247,6 +249,14 @@ impl From<NetworkNotification> for Ipld {
                 "receipt_quorum_failure_dht".into(),
                 n.into(),
             )])),
+            NetworkNotification::WorkflowInfoQuorumSuccessDht(n) => Ipld::Map(BTreeMap::from([(
+                "workflow_info_quorum_success_dht".into(),
+                n.into(),
+            )])),
+            NetworkNotification::WorkflowInfoQuorumFailureDht(n) => Ipld::Map(BTreeMap::from([(
+                "workflow_info_quorum_failure_dht".into(),
+                n.into(),
+            )])),
         }
     }
 }
@@ -313,6 +323,16 @@ impl TryFrom<Ipld> for NetworkNotification {
                 "receipt_quorum_failure_dht" => Ok(NetworkNotification::ReceiptQuorumFailureDht(
                     ReceiptQuorumFailureDht::try_from(val.to_owned())?,
                 )),
+                "workflow_info_quorum_success_dht" => {
+                    Ok(NetworkNotification::WorkflowInfoQuorumSuccessDht(
+                        WorkflowInfoQuorumSuccessDht::try_from(val.to_owned())?,
+                    ))
+                }
+                "workflow_info_quorum_failure_dht" => {
+                    Ok(NetworkNotification::WorkflowInfoQuorumFailureDht(
+                        WorkflowInfoQuorumFailureDht::try_from(val.to_owned())?,
+                    ))
+                }
                 _ => Err(anyhow!("Unknown network notification tag type")),
             }
         } else {
@@ -1703,6 +1723,177 @@ impl TryFrom<Ipld> for ReceiptQuorumFailureDht {
     }
 }
 
+#[derive(Debug, Clone, JsonSchema)]
+#[schemars(rename = "workflow_info_quorum_success_dht")]
+pub struct WorkflowInfoQuorumSuccessDht {
+    timestamp: i64,
+    #[schemars(description = "Workflow info CID")]
+    cid: String,
+    #[schemars(description = "Number of peers participating in quorum")]
+    quorum: usize,
+}
+
+impl WorkflowInfoQuorumSuccessDht {
+    pub(crate) fn new(cid: FastStr, quorum: usize) -> WorkflowInfoQuorumSuccessDht {
+        WorkflowInfoQuorumSuccessDht {
+            timestamp: Utc::now().timestamp_millis(),
+            cid: cid.to_string(),
+            quorum,
+        }
+    }
+}
+
+impl DagJson for WorkflowInfoQuorumSuccessDht {}
+
+impl From<WorkflowInfoQuorumSuccessDht> for Ipld {
+    fn from(notification: WorkflowInfoQuorumSuccessDht) -> Self {
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (CID_KEY.into(), notification.cid.into()),
+            (QUORUM_KEY.into(), notification.quorum.into()),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for WorkflowInfoQuorumSuccessDht {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let cid = from_ipld(
+            map.get(CID_KEY)
+                .ok_or_else(|| anyhow!("missing {CID_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let quorum = from_ipld(
+            map.get(QUORUM_KEY)
+                .ok_or_else(|| anyhow!("missing {QUORUM_KEY}"))?
+                .to_owned(),
+        )?;
+
+        Ok(WorkflowInfoQuorumSuccessDht {
+            timestamp,
+            cid,
+            quorum,
+        })
+    }
+}
+
+#[derive(Debug, Clone, JsonSchema)]
+#[schemars(rename = "workflow_info_quorum_failure_dht")]
+pub struct WorkflowInfoQuorumFailureDht {
+    timestamp: i64,
+    #[schemars(description = "Workflow info CID")]
+    cid: String,
+    #[schemars(description = "Number of peers required for quorum")]
+    quorum: usize,
+    #[schemars(description = "Number of connected peers")]
+    connected_peer_count: usize,
+    #[schemars(description = "Peers participating in quorum")]
+    stored_to_peers: Vec<String>,
+}
+
+impl WorkflowInfoQuorumFailureDht {
+    pub(crate) fn new(
+        cid: FastStr,
+        quorum: usize,
+        connected_peer_count: usize,
+        stored_to_peers: Vec<PeerId>,
+    ) -> WorkflowInfoQuorumFailureDht {
+        WorkflowInfoQuorumFailureDht {
+            timestamp: Utc::now().timestamp_millis(),
+            cid: cid.to_string(),
+            quorum,
+            connected_peer_count,
+            stored_to_peers: stored_to_peers.iter().map(|p| p.to_string()).collect(),
+        }
+    }
+}
+
+impl DagJson for WorkflowInfoQuorumFailureDht {}
+
+impl From<WorkflowInfoQuorumFailureDht> for Ipld {
+    fn from(notification: WorkflowInfoQuorumFailureDht) -> Self {
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (CID_KEY.into(), notification.cid.into()),
+            (QUORUM_KEY.into(), notification.quorum.into()),
+            (
+                CONNECTED_PEER_COUNT_KEY.into(),
+                notification.connected_peer_count.into(),
+            ),
+            (
+                STORED_TO_PEERS_KEY.into(),
+                Ipld::List(
+                    notification
+                        .stored_to_peers
+                        .iter()
+                        .map(|p| Ipld::String(p.to_string()))
+                        .collect(),
+                ),
+            ),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for WorkflowInfoQuorumFailureDht {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let cid = from_ipld(
+            map.get(CID_KEY)
+                .ok_or_else(|| anyhow!("missing {CID_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let quorum = from_ipld(
+            map.get(QUORUM_KEY)
+                .ok_or_else(|| anyhow!("missing {QUORUM_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let connected_peer_count = from_ipld(
+            map.get(CONNECTED_PEER_COUNT_KEY)
+                .ok_or_else(|| anyhow!("missing {CONNECTED_PEER_COUNT_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let stored_to_peers = from_ipld(
+            map.get(STORED_TO_PEERS_KEY)
+                .ok_or_else(|| anyhow!("missing {STORED_TO_PEERS_KEY}"))?
+                .to_owned(),
+        )?;
+
+        Ok(WorkflowInfoQuorumFailureDht {
+            timestamp,
+            cid,
+            quorum,
+            connected_peer_count,
+            stored_to_peers,
+        })
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1824,6 +2015,14 @@ mod test {
             FastStr::new(cid.to_string()),
             quorum,
             connected_peer_count,
+            peers.clone(),
+        );
+        let workflow_info_quorum_success_dht =
+            WorkflowInfoQuorumSuccessDht::new(FastStr::new(cid.to_string()), quorum);
+        let workflow_info_quorum_failure_dht = WorkflowInfoQuorumFailureDht::new(
+            FastStr::new(cid.to_string()),
+            quorum,
+            connected_peer_count,
             peers,
         );
 
@@ -1899,6 +2098,14 @@ mod test {
             (
                 receipt_quorum_failure_dht.timestamp,
                 NetworkNotification::ReceiptQuorumFailureDht(receipt_quorum_failure_dht),
+            ),
+            (
+                workflow_info_quorum_success_dht.timestamp,
+                NetworkNotification::WorkflowInfoQuorumSuccessDht(workflow_info_quorum_success_dht),
+            ),
+            (
+                workflow_info_quorum_failure_dht.timestamp,
+                NetworkNotification::WorkflowInfoQuorumFailureDht(workflow_info_quorum_failure_dht),
             ),
         ]
     }
@@ -2055,6 +2262,24 @@ mod test {
                 assert_eq!(n.quorum, quorum);
             }
             NetworkNotification::ReceiptQuorumFailureDht(n) => {
+                assert_eq!(n.timestamp, timestamp);
+                assert_eq!(FastStr::new(n.cid), FastStr::new(cid.to_string()));
+                assert_eq!(n.quorum, quorum);
+                assert_eq!(n.connected_peer_count, connected_peer_count);
+                assert_eq!(
+                    n.stored_to_peers
+                        .iter()
+                        .map(|p| PeerId::from_str(p).unwrap())
+                        .collect::<Vec<PeerId>>(),
+                    peers
+                );
+            }
+            NetworkNotification::WorkflowInfoQuorumSuccessDht(n) => {
+                assert_eq!(n.timestamp, timestamp);
+                assert_eq!(FastStr::new(n.cid), FastStr::new(cid.to_string()));
+                assert_eq!(n.quorum, quorum);
+            }
+            NetworkNotification::WorkflowInfoQuorumFailureDht(n) => {
                 assert_eq!(n.timestamp, timestamp);
                 assert_eq!(FastStr::new(n.cid), FastStr::new(cid.to_string()));
                 assert_eq!(n.quorum, quorum);
