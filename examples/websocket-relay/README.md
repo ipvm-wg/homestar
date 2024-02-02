@@ -35,7 +35,7 @@ To get started, please install:
 
 ## Usage
 
-1. Run `cargo run -- start` to start the runtime and an IPFS daemon as a
+1. Run `cargo run` to start the runtime and an IPFS daemon as a
    background process. This runtime includes ANSI-coded logging by default.
 
 2. In a separate terminal window, run `npm install --prefix relay-app` to
@@ -61,38 +61,45 @@ if they've been previously run.
 
 ## Tips & Common Issues
 
-On macOS, for example, a simple homebrew install would install everything you
-need: `brew install rust npm ipfs`
+- On macOS, for example, a simple homebrew install would install everything you
+  need: `brew install rust npm ipfs`.
 
-We have packaged homestar binaries using brew, so
-`brew install fission-codes/fission/homestar` will install everything you need,
-including `ipfs`. You will still need `npm` to run this example. From this folder,
-you can then run the example like this:
+- Running `homestar` via `cargo run` here requires a minimum Rust version of
+  `1.73.0`. If you've got an older install of rust, update it with
+  `rustup update`.
 
-```
-homestar start --db homestar.db
-```
+- You do not have to start Kubo (IPFS) on your own. The example will do this
+  for you, and use `examples/websocket-relay/tmp/.ipfs` as a local blockstore.
+  Feel free to discard it when you don't need it.
 
-Running `homestar` via `cargo run` requires a minimum Rust version of
-`1.73.0`. If you've got an older install of rust, update it with
-`rustup update`.
+- If you're already running an IPFS instance, for example [IPFS Desktop][ipfs-desktop],
+  the application will check for it and not start a new, local one.
+  However, the application expects a default IPFS host and port. The expected
+  IPFS `host` and `port` can be updated in the `homestar` network settings:
 
-You do not have to start Kubo (IPFS) on your own. The example will do this
-for you, and use `examples/websocket-relay/tmp/.ipfs` as a local blockstore.
-Feel free to discard it when you don't need it.
+  ``` toml
+  [node]
 
-If you're already running an IPFS instance, for example [IPFS Desktop][ipfs-desktop],
-the application will check for it and not start a new, local one.
-However, the application expects a default IPFS host and port. The expected
-IPFS `host` and `port` can be updated in the `homestar` network settings:
+  [node.network.ipfs]
+  host = "127.0.0.1"
+  port = 5001
+  ```
 
-``` toml
-[node]
+- We have officially packaged homestar binaries using brew, so
+  `brew install fission-codes/fission/homestar` will install mostly everything
+  you need, including `ipfs`. You will still need `npm` to run this example, and
+  you'll have to manually `ipfs add` the `synthcat.ping` and `example_test.wasm`
+  files located in this directory. Then, from this folder, you can then run the
+  example like this:
 
-[node.network.ipfs]
-host = "127.0.0.1"
-port = 5001
-```
+  ```
+  homestar start --db homestar.db
+  ```
+
+  Afterward, as mentioned above, you can then run `npm install --prefix relay-app` to
+  install dependencies and `npm run --prefix relay-app dev` to start the
+  relay web application (UI) on `http://localhost:5173/` by default.
+
 
 [@fission-codes/homestar]: https://www.npmjs.com/package/@fission-codes/homestar
 [install-ipfs]: https://docs.ipfs.tech/install/

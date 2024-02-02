@@ -2548,6 +2548,7 @@ dependencies = [
  "flume 0.11.0",
  "fnv",
  "futures",
+ "hickory-resolver",
  "homestar-invocation",
  "homestar-runtime-tests-proc-macro",
  "homestar-wasm",
@@ -2735,6 +2736,7 @@ dependencies = [
  "ring 0.17.7",
  "rustc-hash",
  "rustix",
+ "rustls 0.21.10",
  "scopeguard",
  "serde",
  "serde_json",
@@ -3289,7 +3291,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "url",
- "webpki-roots",
+ "webpki-roots 0.26.0",
 ]
 
 [[package]]
@@ -3545,6 +3547,7 @@ dependencies = [
  "libp2p-swarm",
  "libp2p-tcp",
  "libp2p-upnp",
+ "libp2p-websocket",
  "libp2p-yamux",
  "multiaddr 0.18.1",
  "pin-project",
@@ -3690,6 +3693,7 @@ dependencies = [
  "multihash 0.19.1",
  "quick-protobuf",
  "rand",
+ "ring 0.17.7",
  "serde",
  "sha2 0.10.8",
  "thiserror",
@@ -3947,6 +3951,26 @@ dependencies = [
  "tokio",
  "tracing",
  "void",
+]
+
+[[package]]
+name = "libp2p-websocket"
+version = "0.43.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4846d51afd08180e164291c3754ba30dd4fbac6fac65571be56403c16431a5e"
+dependencies = [
+ "either",
+ "futures",
+ "futures-rustls",
+ "libp2p-core",
+ "libp2p-identity",
+ "parking_lot",
+ "pin-project-lite",
+ "rw-stream-sink",
+ "soketto",
+ "tracing",
+ "url",
+ "webpki-roots 0.25.3",
 ]
 
 [[package]]
@@ -8048,6 +8072,12 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
 ]
+
+[[package]]
+name = "webpki-roots"
+version = "0.25.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1778a42e8b3b90bff8d0f5032bf22250792889a5cdc752aa0020c84abe3aaf10"
 
 [[package]]
 name = "webpki-roots"

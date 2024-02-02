@@ -2,13 +2,20 @@
 
 use libp2p::{Multiaddr, PeerId};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
+use tabled::Tabled;
 
 /// Static node information available at startup.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Tabled)]
 pub(crate) struct StaticNodeInfo {
     /// The [PeerId] of a node.
     pub(crate) peer_id: PeerId,
+}
+
+impl fmt::Display for StaticNodeInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "peer_id: {}", self.peer_id)
+    }
 }
 
 impl StaticNodeInfo {
@@ -32,6 +39,16 @@ pub(crate) struct DynamicNodeInfo {
     pub(crate) listeners: Vec<Multiaddr>,
     /// Connections for the node.
     pub(crate) connections: HashMap<PeerId, Multiaddr>,
+}
+
+impl fmt::Display for DynamicNodeInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "listeners: {:?}, connections: {:?}",
+            self.listeners, self.connections
+        )
+    }
 }
 
 impl DynamicNodeInfo {

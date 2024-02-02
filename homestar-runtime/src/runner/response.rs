@@ -18,6 +18,8 @@ use tabled::{
     Table, Tabled,
 };
 
+use super::{DynamicNodeInfo, StaticNodeInfo};
+
 /// Workflow information specified for response / display upon
 /// acknowledgement of running a workflow.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Tabled)]
@@ -109,7 +111,7 @@ impl show::ConsoleTable for AckWorkflow {
 
         let receipt_table = receipt_table_builder.build();
 
-        let tbl = col![table, resource_table, receipt_table].default();
+        let tbl = col![table, resource_table, receipt_table].default_with_title("run");
 
         tbl.echo()
     }
@@ -131,10 +133,86 @@ impl Ping {
 
 impl show::ConsoleTable for Ping {
     fn table(&self) -> show::Output {
-        Table::new(vec![&self]).default()
+        Table::new(vec![&self]).default_with_title("ping/pong")
     }
 
     fn echo_table(&self) -> Result<(), std::io::Error> {
         self.table().echo()
+    }
+}
+
+/// Node identity response for display.
+#[derive(Debug, Clone, Serialize, Deserialize, Tabled)]
+pub struct AckNodeInfo {
+    /// Static node information.
+    static_info: StaticNodeInfo,
+    /// Dynamic node information.
+    dyn_info: DynamicNodeInfo,
+}
+
+impl fmt::Display for AckNodeInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "")
+    }
+}
+
+impl AckNodeInfo {
+    /// Create a new [AckNodeInfo] response.
+    pub(crate) fn new(static_info: StaticNodeInfo, dyn_info: DynamicNodeInfo) -> Self {
+        Self {
+            static_info,
+            dyn_info,
+        }
+    }
+}
+
+impl show::ConsoleTable for AckNodeInfo {
+    fn table(&self) -> show::Output {
+        show::Output::new(Table::new(vec![self]).to_string())
+    }
+
+    fn echo_table(&self) -> Result<(), std::io::Error> {
+        let static_info_table = Table::new(vec![&self.static_info]);
+
+        let mut listeners_table = Table::new(
+            self.dyn_info
+                .listeners
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>(),
+        );
+
+        let conns = self
+            .dyn_info
+            .connections
+            .iter()
+            .map(|(k, v)| vec![k.to_string(), v.to_string()])
+            .collect::<Vec<Vec<String>>>();
+
+        let mut conns_table_builder = tabled::builder::Builder::from_iter(conns);
+
+        // If there are no connections, add a placeholder row.
+        if conns_table_builder.count_rows() == 0 {
+            conns_table_builder.push_record([
+                "Connections".to_string(),
+                "".to_string(),
+                "".to_string(),
+            ]);
+            conns_table_builder.push_record(["<none>".to_string(), "".to_string(), "".to_string()]);
+        } else {
+            conns_table_builder.insert_record(
+                0,
+                ["Connections".to_string(), "".to_string(), "".to_string()],
+            );
+        }
+
+        listeners_table.with(
+            Modify::new(Rows::first()).with(Format::content(|_s| "Listen Addresses".to_string())),
+        );
+        let conns_table = conns_table_builder.build();
+
+        let tbl = col![static_info_table, listeners_table, conns_table].default_with_title("node");
+
+        tbl.echo()
     }
 }

@@ -30,6 +30,8 @@ pub(crate) struct Libp2p {
     /// Multiaddrs of the trusted nodes to connect to on startup.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
     pub(crate) node_addresses: Vec<libp2p::Multiaddr>,
+    /// Quic Settings.
+    pub(crate) quic: Quic,
     /// mDNS Settings.
     pub(crate) mdns: Mdns,
     /// Pubsub Settings.
@@ -42,6 +44,16 @@ pub(crate) struct Libp2p {
     /// Dial interval.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) dial_interval: Duration,
+    /// Bootstrap dial interval.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) bootstrap_interval: Duration,
+}
+
+/// DHT settings.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub(crate) struct Quic {
+    /// Enable Quic transport.
+    pub(crate) enable: bool,
 }
 
 /// DHT settings.
@@ -136,12 +148,14 @@ impl Default for Libp2p {
             listen_address: Uri::from_static("/ip4/0.0.0.0/tcp/0"),
             max_connected_peers: 32,
             max_announce_addresses: 10,
+            quic: Quic::default(),
             mdns: Mdns::default(),
             node_addresses: Vec::new(),
             pubsub: Pubsub::default(),
             rendezvous: Rendezvous::default(),
             transport_connection_timeout: Duration::new(60, 0),
             dial_interval: Duration::new(30, 0),
+            bootstrap_interval: Duration::new(30, 0),
         }
     }
 }
@@ -167,6 +181,12 @@ impl Default for Dht {
             receipt_quorum: 2,
             workflow_quorum: 3,
         }
+    }
+}
+
+impl Default for Quic {
+    fn default() -> Self {
+        Self { enable: true }
     }
 }
 

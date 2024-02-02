@@ -46,7 +46,7 @@ jobs:
 
   run-checks:
     needs: changes
-    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.examples == 'true' }}
+    if: ${{ needs.changes.outputs.rust == 'true' }}
     env:
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"
@@ -210,7 +210,7 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.rust == 'true' }}
     env:
-      RUSTFLAGS: -Dwarnings  -Ctarget-feature=+crt-static
+      RUSTFLAGS: -Dwarnings -Ctarget-feature=+crt-static
     strategy:
       fail-fast: false
       matrix:
@@ -262,6 +262,9 @@ jobs:
   run-cargo-tests:
     needs: changes
     if: ${{ needs.changes.outputs.rust == 'true' }}
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     runs-on: ubuntu-latest
     steps:
       - name: Setup IPFS
@@ -283,11 +286,14 @@ jobs:
           shared-key: test-all-stable-ubuntu-latest
           save-if: ${{ github.event_name == 'push' }}
 
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
+
       - name: Run Tests (all-features)
         run: cargo test --workspace --all-features
 
   run-docs:
-    needs: changes
+    needs: [changes]
     if: ${{ needs.changes.outputs.rust == 'true' }}
     env:
       SCCACHE_GHA_ENABLED: "true"
@@ -306,6 +312,7 @@ jobs:
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
         with:
+          cache-on-failure: true
           shared-key: doc
           save-if: ${{ github.event_name == 'push' }}
 
@@ -316,3 +323,42 @@ jobs:
         env:
           RUSTDOCFLAGS: -Dwarnings
         run: cargo doc --workspace --document-private-items
+
+  build-and-run-examples:
+    needs: changes
+    if: ${{ needs.changes.outputs.examples == 'true' }}
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup IPFS
+        uses: ibnesayeed/setup-ipfs@master
+        with:
+          run_daemon: false
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Use mold-linker
+        uses: rui314/setup-mold@v1
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: cargo-examples
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
+
+      - name: Build example-websocket-relay
+        run: cargo build -p websocket-relay
+
+      - name: Run example-websocket-relay
+        shell: bash
+        run: timeout 10s cargo run -p websocket-relay || true

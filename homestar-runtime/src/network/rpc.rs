@@ -47,6 +47,12 @@ pub(crate) enum ServerMessage {
     ///
     /// [Workflow]: homestar_workflow::Workflow
     RunErr(runner::Error),
+    /// Message sent to the [Runner] to identify the node.
+    ///
+    /// [Runner]: crate::Runner
+    NodeInfo,
+    /// Acknowledgement of the node's identity/info.
+    NodeInfoAck(response::AckNodeInfo),
     /// For skipping server messages.
     Skip,
 }
@@ -63,6 +69,8 @@ pub(crate) trait Interface {
     async fn ping() -> String;
     /// Stop the server.
     async fn stop() -> Result<(), Error>;
+    /// Identify the node.
+    async fn node_info() -> Result<response::AckNodeInfo, Error>;
 }
 
 /// RPC server state information.
@@ -154,6 +162,33 @@ impl Interface for ServerHandler {
             .send_async((ServerMessage::ShutdownCmd, None))
             .await
             .map_err(|e| Error::FailureToSendOnChannel(e.to_string()))
+    }
+    async fn node_info(self, _: context::Context) -> Result<response::AckNodeInfo, Error> {
+        let (tx, rx) = AsyncChannel::oneshot();
+        self.runner_sender
+            .send_async((ServerMessage::NodeInfo, Some(tx)))
+            .await
+            .map_err(|e| Error::FailureToSendOnChannel(e.to_string()))?;
+
+        let now = time::Instant::now();
+        select! {
+            Ok(msg) = rx.recv_async() => {
+                match msg {
+                    ServerMessage::NodeInfoAck(response) => {
+                        println!("response: {:?}", response);
+                        Ok(response)
+                    }
+                    _ => Err(Error::FailureToSendOnChannel("unexpected message".into())),
+                }
+            },
+            _ = time::sleep_until(now + self.timeout) => {
+                let s = format!("server timeout of {} ms reached", self.timeout.as_millis());
+                info!(subject = "rpc.timeout",
+                      category = "rpc",
+                      "{s}");
+                Err(Error::FailureToReceiveOnChannel(s))
+            }
+        }
     }
 }
 
@@ -255,6 +290,11 @@ impl Client {
     /// Stop the server.
     pub async fn stop(&self) -> Result<Result<(), Error>, RpcError> {
         self.cli.stop(self.ctx).await
+    }
+
+    /// Identify the node.
+    pub async fn node_info(&self) -> Result<Result<response::AckNodeInfo, Error>, RpcError> {
+        self.cli.node_info(self.ctx).await
     }
 
     /// Run a [Workflow].

@@ -55,6 +55,7 @@ pub(crate) trait ConsoleTable {
 /// Style trait for console table output responses.
 pub(crate) trait ApplyStyle {
     fn default(&mut self) -> Output;
+    fn default_with_title(&mut self, ext_title: &str) -> Output;
 }
 
 impl ApplyStyle for Table {
@@ -62,6 +63,18 @@ impl ApplyStyle for Table {
         let table = self
             .with(Style::modern())
             .with(Panel::header(TABLE_TITLE))
+            .with(Modify::new(Rows::first()).with(Alignment::left()))
+            .with(BorderColor::filled(Color::FG_WHITE))
+            .with(BorderSpanCorrection)
+            .to_string();
+
+        Output(table)
+    }
+
+    fn default_with_title(&mut self, ext_title: &str) -> Output {
+        let table = self
+            .with(Style::modern())
+            .with(Panel::header(format!("{TABLE_TITLE} - {ext_title}")))
             .with(Modify::new(Rows::first()).with(Alignment::left()))
             .with(BorderColor::filled(Color::FG_WHITE))
             .with(BorderSpanCorrection)

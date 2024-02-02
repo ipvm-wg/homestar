@@ -4,6 +4,7 @@ use crate::{
     make_config,
     utils::{
         wait_for_socket_connection, wait_for_socket_connection_v6, ChildGuard, ProcInfo, BIN_NAME,
+        ED25519MULTIHASH,
     },
 };
 use anyhow::Result;
@@ -107,6 +108,8 @@ fn test_server_integration() -> Result<()> {
     let toml = format!(
         r#"
         [node]
+        [node.network.keypair_config]
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }}
         [node.network.libp2p.mdns]
         enable = false
         [node.network.metrics]
@@ -154,6 +157,16 @@ fn test_server_integration() -> Result<()> {
         .success()
         .stdout(predicate::str::contains("::1"))
         .stdout(predicate::str::contains("pong"));
+
+    Command::new(BIN.as_os_str())
+        .arg("node")
+        .arg("--host")
+        .arg("::1")
+        .arg("-p")
+        .arg(rpc_port.to_string())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(ED25519MULTIHASH.to_string()));
 
     Command::new(BIN.as_os_str())
         .arg("ping")
@@ -212,7 +225,6 @@ fn test_workflow_run_integration() -> Result<()> {
         .arg("run")
         .arg("-p")
         .arg(rpc_port.to_string())
-        .arg("-w")
         .arg("tests/fixtures/test-workflow-add-one.json")
         .assert()
         .success()
@@ -227,7 +239,6 @@ fn test_workflow_run_integration() -> Result<()> {
         .arg("run")
         .arg("-p")
         .arg(rpc_port.to_string())
-        .arg("-w")
         .arg("tests/fixtures/test-workflow-add-one.json")
         .assert()
         .success()

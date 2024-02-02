@@ -211,6 +211,7 @@ iana-time-zone = { version = "0.1", default-features = false, features = ["fallb
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.x86_64-apple-darwin.build-dependencies]
@@ -219,6 +220,7 @@ iana-time-zone = { version = "0.1", default-features = false, features = ["fallb
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.aarch64-apple-darwin.dependencies]
@@ -227,6 +229,7 @@ iana-time-zone = { version = "0.1", default-features = false, features = ["fallb
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.aarch64-apple-darwin.build-dependencies]
@@ -235,6 +238,7 @@ iana-time-zone = { version = "0.1", default-features = false, features = ["fallb
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
@@ -244,6 +248,7 @@ linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", 
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
@@ -253,6 +258,7 @@ linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", 
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.x86_64-unknown-linux-musl.dependencies]
@@ -262,6 +268,7 @@ linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", 
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.x86_64-unknown-linux-musl.build-dependencies]
@@ -271,6 +278,7 @@ linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", 
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.aarch64-unknown-linux-musl.dependencies]
@@ -280,6 +288,7 @@ linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", 
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.aarch64-unknown-linux-musl.build-dependencies]
@@ -289,6 +298,7 @@ linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", 
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 ### END HAKARI SECTION

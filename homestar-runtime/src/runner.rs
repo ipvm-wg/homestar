@@ -268,10 +268,16 @@ impl Runner {
                         match handle {
                             Ok(ControlFlow::Break(())) => break now.elapsed(),
                             Ok(ControlFlow::Continue(rpc::ServerMessage::Skip)) => {},
+                            Ok(ControlFlow::Continue(msg @ rpc::ServerMessage::NodeInfoAck(_))) => {
+                                debug!(subject = "rpc.ack",
+                                       category = "rpc",
+                                       "sending node_info message to rpc server");
+                                let _ = oneshot_tx.send_async(msg).await;
+                            },
                             Ok(ControlFlow::Continue(msg @ rpc::ServerMessage::RunAck(_))) => {
                                 debug!(subject = "rpc.ack",
                                        category = "rpc",
-                                       "sending message to rpc server");
+                                       "sending workflow_run message to rpc server");
                                 let _ = oneshot_tx.send_async(msg).await;
                             },
                             Err(err) => {
@@ -609,6 +615,26 @@ impl Runner {
         now: time::Instant,
     ) -> Result<ControlFlow<(), rpc::ServerMessage>> {
         match msg {
+            rpc::ServerMessage::NodeInfo => {
+                info!(
+                    subject = "rpc.command",
+                    category = "rpc",
+                    "RPC node command received, sending node info"
+                );
+
+                let (tx, rx) = AsyncChannel::oneshot();
+                let _ = self.event_sender.send_async(Event::GetNodeInfo(tx)).await;
+
+                let dyn_node_info = if let Ok(info) = rx.recv_async().await {
+                    info
+                } else {
+                    DynamicNodeInfo::default()
+                };
+
+                Ok(ControlFlow::Continue(rpc::ServerMessage::NodeInfoAck(
+                    response::AckNodeInfo::new(self.node_info.clone(), dyn_node_info),
+                )))
+            }
             rpc::ServerMessage::ShutdownCmd => {
                 info!(
                     subject = "rpc.command",
@@ -631,6 +657,11 @@ impl Runner {
                 }
             }
             rpc::ServerMessage::Run((name, workflow_file)) => {
+                info!(
+                    subject = "rpc.command",
+                    category = "rpc",
+                    "RPC run command received, running workflow"
+                );
                 let (workflow, workflow_settings) =
                     workflow_file.validate_and_parse().await.with_context(|| {
                         format!("failed to validate/parse workflow @ path: {workflow_file}",)

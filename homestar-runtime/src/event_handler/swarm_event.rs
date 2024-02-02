@@ -523,7 +523,7 @@ async fn handle_swarm_event<DB: Database>(
                 QueryResult::Bootstrap(Ok(BootstrapOk { peer, .. })) => debug!(
                     subject = "libp2p.kad.bootstrap",
                     category = "handle_swarm_event",
-                    "successfully bootstrapped peer: {peer}"
+                    "successfully bootstrapped node: {peer}"
                 ),
                 QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders {
                     key: _,
@@ -733,7 +733,7 @@ async fn handle_swarm_event<DB: Database>(
                             ),
                             btreemap! {
                                 "cid" => Ipld::String(key.cid.to_string()),
-                                "quorum" => Ipld::Integer(event_handler.receipt_quorum as i128),
+                                "quorum" => Ipld::Integer(event_handler.quorum.receipt as i128),
                             },
                         ),
                         CapsuleTag::Workflow => notification::emit_event(
@@ -743,7 +743,7 @@ async fn handle_swarm_event<DB: Database>(
                             ),
                             btreemap! {
                                 "cid" => Ipld::String(key.cid.to_string()),
-                                "quorum" => Ipld::Integer(event_handler.workflow_quorum as i128),
+                                "quorum" => Ipld::Integer(event_handler.quorum.workflow as i128),
                             },
                         ),
                     }
@@ -775,7 +775,7 @@ async fn handle_swarm_event<DB: Database>(
                                 ),
                                 btreemap! {
                                     "cid" => Ipld::String(key.cid.to_string()),
-                                    "quorum" => Ipld::Integer(event_handler.receipt_quorum as i128),
+                                    "quorum" => Ipld::Integer(event_handler.quorum.receipt as i128),
                                     "connectedPeers" => Ipld::Integer(event_handler.connections.peers.len() as i128),
                                     "storedToPeers" => Ipld::List(success.iter().map(|cid| Ipld::String(cid.to_string())).collect())
                                 },
@@ -787,7 +787,7 @@ async fn handle_swarm_event<DB: Database>(
                                 ),
                                 btreemap! {
                                     "cid" => Ipld::String(key.cid.to_string()),
-                                    "quorum" => Ipld::Integer(event_handler.workflow_quorum as i128),
+                                    "quorum" => Ipld::Integer(event_handler.quorum.workflow as i128),
                                     "connectedPeers" => Ipld::Integer(event_handler.connections.peers.len() as i128),
                                     "storedToPeers" => Ipld::List(success.iter().map(|cid| Ipld::String(cid.to_string())).collect())
                                 },
@@ -1089,6 +1089,48 @@ async fn handle_swarm_event<DB: Database>(
                     "address" => Ipld::String(address.to_string())
                 },
             );
+
+            // Bootstrap the DHT
+            if event_handler
+                .swarm
+                .connected_peers()
+                .peekable()
+                .peek()
+                .is_some()
+            {
+                let _ = event_handler
+                    .swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .bootstrap()
+                    .map(|_| {
+                        debug!(
+                            subject = "libp2p.kad.bootstrap",
+                            category = "handle_swarm_event",
+                            "bootstrapped kademlia"
+                        )
+                    })
+                    .map_err(|err| {
+                        warn!(subject = "libp2p.kad.bootstrap.err",
+                          category = "handle_swarm_event",
+                          err=?err,
+                          "error bootstrapping kademlia")
+                    });
+            }
+
+            event_handler
+                .cache
+                .insert(
+                    "bootstrap".to_string(),
+                    CacheValue::new(
+                        event_handler.bootstrap.interval,
+                        HashMap::from([(
+                            "on_expiration".to_string(),
+                            CacheData::OnExpiration(cache::DispatchEvent::Bootstrap),
+                        )]),
+                    ),
+                )
+                .await;
         }
         SwarmEvent::IncomingConnection { .. } => {}
         SwarmEvent::ConnectionEstablished {

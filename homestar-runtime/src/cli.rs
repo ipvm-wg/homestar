@@ -134,16 +134,22 @@ pub enum Command {
         /// Supported:
         ///   - JSON (.json).
         #[arg(
-            short='w',
-            long = "workflow",
             value_hint = clap::ValueHint::FilePath,
             value_name = "FILE",
             value_parser = clap::value_parser!(file::ReadWorkflow),
+            index = 1,
+            required = true,
             help = r#"IPVM-configured workflow file to run.
 Supported:
   - JSON (.json)"#
         )]
         workflow: file::ReadWorkflow,
+    },
+    /// Get node identity / information.
+    Node {
+        /// RPC host / port arguments.
+        #[clap(flatten)]
+        args: RpcArgs,
     },
 }
 
@@ -154,6 +160,7 @@ impl Command {
             Command::Stop { .. } => "stop",
             Command::Ping { .. } => "ping",
             Command::Run { .. } => "run",
+            Command::Node { .. } => "node",
         }
     }
 
@@ -190,6 +197,16 @@ impl Command {
                     let client = args.client().await?;
                     let response = client.run(name.map(|n| n.into()), workflow_file).await??;
                     Ok::<Box<response::AckWorkflow>, Error>(response)
+                })?;
+
+                response.echo_table()?;
+                Ok(())
+            }
+            Command::Node { args } => {
+                let response = rt.block_on(async {
+                    let client = args.client().await?;
+                    let response = client.node_info().await??;
+                    Ok::<response::AckNodeInfo, Error>(response)
                 })?;
 
                 response.echo_table()?;
