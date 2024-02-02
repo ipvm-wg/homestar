@@ -176,19 +176,16 @@ impl Event {
             #[cfg(feature = "websocket-notify")]
             #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
             Event::StoredRecord(event) => match event {
-                FoundEvent::Receipt(ReceiptEvent {
-                    peer_id,
-                    receipt,
-                    notification_type,
-                }) => notification::emit_event(
-                    event_handler.ws_evt_sender(),
-                    notification_type,
-                    btreemap! {
-                        "publisher" => peer_id.map_or(Ipld::Null, |peer_id| Ipld::String(peer_id.to_string())),
-                        "cid" => Ipld::String(receipt.cid().to_string()),
-                        "ran" => Ipld::String(receipt.ran().to_string())
-                    },
-                ),
+                FoundEvent::Receipt(ReceiptEvent { peer_id, receipt }) => {
+                    notification::emit_network_event(
+                        event_handler.ws_evt_sender(),
+                        NetworkNotification::GotReceiptDht(notification::GotReceiptDht::new(
+                            peer_id,
+                            receipt.cid(),
+                            receipt.ran(),
+                        )),
+                    )
+                }
                 FoundEvent::Workflow(WorkflowInfoEvent {
                     peer_id,
                     workflow_info,
@@ -431,16 +428,13 @@ impl Captured {
                         );
 
                         #[cfg(feature = "websocket-notify")]
-                        notification::emit_event(
+                        notification::emit_network_event(
                             event_handler.ws_evt_sender(),
-                            EventNotificationTyp::SwarmNotification(
-                                SwarmNotification::PutReceiptDht,
-                            ),
-                            btreemap! {
-                                "cid" => Ipld::String(receipt.cid().to_string()),
-                                "ran" => Ipld::String(receipt.ran().to_string())
-                            },
-                        );
+                            NetworkNotification::PutReceiptDht(notification::PutReceiptDht::new(
+                                receipt.cid(),
+                                receipt.ran(),
+                            )),
+                        )
                     },
                 );
 

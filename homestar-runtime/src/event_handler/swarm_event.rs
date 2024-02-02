@@ -76,9 +76,6 @@ pub(crate) enum FoundEvent {
 pub(crate) struct ReceiptEvent {
     pub(crate) peer_id: Option<PeerId>,
     pub(crate) receipt: Receipt,
-    #[cfg(feature = "websocket-notify")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
-    pub(crate) notification_type: EventNotificationTyp,
 }
 
 /// [FoundEvent] variant for workflow info found on the DHT.
@@ -641,11 +638,6 @@ async fn handle_swarm_event<DB: Database>(
                                         FoundEvent::Receipt(ReceiptEvent {
                                             peer_id,
                                             receipt: receipt.clone(),
-                                            #[cfg(feature = "websocket-notify")]
-                                            notification_type:
-                                                EventNotificationTyp::SwarmNotification(
-                                                    SwarmNotification::GotReceiptDht,
-                                                ),
                                         }),
                                     ));
 

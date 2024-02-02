@@ -29,8 +29,6 @@ const TIMESTAMP_KEY: &str = "timestamp";
 // Swarm notification types sent to clients
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum SwarmNotification {
-    GotReceiptDht,
-    PutReceiptDht,
     GotWorkflowInfoDht,
     PutWorkflowInfoDht,
     ReceiptQuorumSuccess,
@@ -41,16 +39,9 @@ pub(crate) enum SwarmNotification {
     ReceivedWorkflowInfo,
 }
 
-// TODO Fill these in for NetworkNotification
 impl fmt::Display for SwarmNotification {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            SwarmNotification::PutReceiptDht => {
-                write!(f, "putReceiptDht")
-            }
-            SwarmNotification::GotReceiptDht => {
-                write!(f, "gotReceiptDht")
-            }
             SwarmNotification::PutWorkflowInfoDht => {
                 write!(f, "putWorkflowInfoDht")
             }
@@ -84,8 +75,6 @@ impl FromStr for SwarmNotification {
 
     fn from_str(ty: &str) -> Result<Self, Self::Err> {
         match ty {
-            "putReciptDht" => Ok(Self::PutReceiptDht),
-            "gotReceiptDht" => Ok(Self::GotReceiptDht),
             "putWorkflowInfoDht" => Ok(Self::PutWorkflowInfoDht),
             "gotWorkflowInfoDht" => Ok(Self::GotWorkflowInfoDht),
             "receiptQuorumSuccess" => Ok(Self::ReceiptQuorumSuccess),
@@ -139,6 +128,12 @@ pub enum NetworkNotification {
     /// Received receipt pubsub notification.
     #[schemars(rename = "received_receipt_pubsub")]
     ReceivedReceiptPubsub(ReceivedReceiptPubsub),
+    /// Put receipt DHT notification.
+    #[schemars(rename = "put_receipt_dht")]
+    PutReceiptDht(PutReceiptDht),
+    /// Got receipt DHT notification.
+    #[schemars(rename = "got_receipt_dht")]
+    GotReceiptDht(GotReceiptDht),
 }
 
 impl fmt::Display for NetworkNotification {
@@ -164,6 +159,8 @@ impl fmt::Display for NetworkNotification {
             }
             NetworkNotification::PublishedReceiptPubsub(_) => write!(f, "published_receipt_pubsub"),
             NetworkNotification::ReceivedReceiptPubsub(_) => write!(f, "received_receipt_pubsub"),
+            NetworkNotification::PutReceiptDht(_) => write!(f, "put_receipt_dht"),
+            NetworkNotification::GotReceiptDht(_) => write!(f, "got_receipt_dht"),
         }
     }
 }
@@ -216,6 +213,12 @@ impl From<NetworkNotification> for Ipld {
                 "received_receipt_pubsub".into(),
                 n.into(),
             )])),
+            NetworkNotification::PutReceiptDht(n) => {
+                Ipld::Map(BTreeMap::from([("put_receipt_dht".into(), n.into())]))
+            }
+            NetworkNotification::GotReceiptDht(n) => {
+                Ipld::Map(BTreeMap::from([("got_receipt_dht".into(), n.into())]))
+            }
         }
     }
 }
@@ -263,6 +266,12 @@ impl TryFrom<Ipld> for NetworkNotification {
                 )),
                 "received_receipt_pubsub" => Ok(NetworkNotification::ReceivedReceiptPubsub(
                     ReceivedReceiptPubsub::try_from(val.to_owned())?,
+                )),
+                "put_receipt_dht" => Ok(NetworkNotification::PutReceiptDht(
+                    PutReceiptDht::try_from(val.to_owned())?,
+                )),
+                "got_receipt_dht" => Ok(NetworkNotification::GotReceiptDht(
+                    GotReceiptDht::try_from(val.to_owned())?,
                 )),
                 _ => Err(anyhow!("Unknown network notification tag type")),
             }
@@ -1062,6 +1071,157 @@ impl TryFrom<Ipld> for ReceivedReceiptPubsub {
     }
 }
 
+#[derive(Debug, Clone, JsonSchema)]
+#[schemars(rename = "put_receipt_dht")]
+pub struct PutReceiptDht {
+    timestamp: i64,
+    #[schemars(description = "Receipt CID")]
+    cid: String,
+    #[schemars(description = "Ran receipt CID")]
+    ran: String,
+}
+
+impl PutReceiptDht {
+    pub(crate) fn new(cid: Cid, ran: String) -> PutReceiptDht {
+        PutReceiptDht {
+            timestamp: Utc::now().timestamp_millis(),
+            cid: cid.to_string(),
+            ran,
+        }
+    }
+}
+
+impl DagJson for PutReceiptDht {}
+
+impl From<PutReceiptDht> for Ipld {
+    fn from(notification: PutReceiptDht) -> Self {
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (CID_KEY.into(), notification.cid.into()),
+            (RAN_KEY.into(), notification.ran.into()),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for PutReceiptDht {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let cid = from_ipld(
+            map.get(CID_KEY)
+                .ok_or_else(|| anyhow!("missing {CID_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let ran = from_ipld(
+            map.get(RAN_KEY)
+                .ok_or_else(|| anyhow!("missing {RAN_KEY}"))?
+                .to_owned(),
+        )?;
+
+        Ok(PutReceiptDht {
+            timestamp,
+            cid,
+            ran,
+        })
+    }
+}
+
+#[derive(Debug, Clone, JsonSchema)]
+#[schemars(rename = "got_receipt_dht")]
+pub struct GotReceiptDht {
+    timestamp: i64,
+    #[schemars(description = "Receipt publisher peer ID")]
+    publisher: Option<String>,
+    #[schemars(description = "Receipt CID")]
+    cid: String,
+    #[schemars(description = "Ran receipt CID")]
+    ran: String,
+}
+
+impl GotReceiptDht {
+    pub(crate) fn new(publisher: Option<PeerId>, cid: Cid, ran: String) -> GotReceiptDht {
+        GotReceiptDht {
+            timestamp: Utc::now().timestamp_millis(),
+            publisher: publisher.map(|p| p.to_string()),
+            cid: cid.to_string(),
+            ran,
+        }
+    }
+}
+
+impl DagJson for GotReceiptDht {}
+
+impl From<GotReceiptDht> for Ipld {
+    fn from(notification: GotReceiptDht) -> Self {
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (
+                PUBLISHER_KEY.into(),
+                notification
+                    .publisher
+                    .map(|peer_id| peer_id.into())
+                    .unwrap_or(Ipld::Null),
+            ),
+            (CID_KEY.into(), notification.cid.into()),
+            (RAN_KEY.into(), notification.ran.into()),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for GotReceiptDht {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let publisher = map
+            .get(PUBLISHER_KEY)
+            .and_then(|ipld| match ipld {
+                Ipld::Null => None,
+                ipld => Some(ipld),
+            })
+            .and_then(|ipld| from_ipld(ipld.to_owned()).ok());
+
+        let cid = from_ipld(
+            map.get(CID_KEY)
+                .ok_or_else(|| anyhow!("missing {CID_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let ran = from_ipld(
+            map.get(RAN_KEY)
+                .ok_or_else(|| anyhow!("missing {RAN_KEY}"))?
+                .to_owned(),
+        )?;
+
+        Ok(GotReceiptDht {
+            timestamp,
+            publisher,
+            cid,
+            ran,
+        })
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1139,6 +1299,8 @@ mod test {
         let peer_registered_rendezvous = PeerRegisteredRendezvous::new(peer_id, addresses);
         let published_receipt_pubsub = PublishedReceiptPubsub::new(cid, ran.to_string());
         let received_receipt_pubsub = ReceivedReceiptPubsub::new(peer_id, cid, ran.to_string());
+        let put_receipt_dht = PutReceiptDht::new(cid, ran.to_string());
+        let got_receipt_dht = GotReceiptDht::new(Some(peer_id), cid, ran.to_string());
 
         vec![
             (
@@ -1189,6 +1351,14 @@ mod test {
                 received_receipt_pubsub.timestamp,
                 NetworkNotification::ReceivedReceiptPubsub(received_receipt_pubsub),
             ),
+            (
+                put_receipt_dht.timestamp,
+                NetworkNotification::PutReceiptDht(put_receipt_dht),
+            ),
+            (
+                got_receipt_dht.timestamp,
+                NetworkNotification::GotReceiptDht(got_receipt_dht),
+            ),
         ]
     }
 
@@ -1222,8 +1392,7 @@ mod test {
             NetworkNotification::OutgoingConnectionError(n) => {
                 assert_eq!(n.timestamp, timestamp);
                 assert_eq!(
-                    n.peer_id
-                        .map_or(None, |p| Some(PeerId::from_str(&p).unwrap())),
+                    n.peer_id.and_then(|p| Some(PeerId::from_str(&p).unwrap())),
                     Some(peer_id)
                 );
                 assert_eq!(n.error, DialError::NoAddresses.to_string());
@@ -1283,6 +1452,21 @@ mod test {
             NetworkNotification::ReceivedReceiptPubsub(n) => {
                 assert_eq!(n.timestamp, timestamp);
                 assert_eq!(PeerId::from_str(&n.publisher).unwrap(), peer_id);
+                assert_eq!(Cid::from_str(&n.cid).unwrap(), cid);
+                assert_eq!(Cid::from_str(&n.ran).unwrap(), ran);
+            }
+            NetworkNotification::PutReceiptDht(n) => {
+                assert_eq!(n.timestamp, timestamp);
+                assert_eq!(Cid::from_str(&n.cid).unwrap(), cid);
+                assert_eq!(Cid::from_str(&n.ran).unwrap(), ran);
+            }
+            NetworkNotification::GotReceiptDht(n) => {
+                assert_eq!(n.timestamp, timestamp);
+                assert_eq!(
+                    n.publisher
+                        .and_then(|p| Some(PeerId::from_str(&p).unwrap())),
+                    Some(peer_id)
+                );
                 assert_eq!(Cid::from_str(&n.cid).unwrap(), cid);
                 assert_eq!(Cid::from_str(&n.ran).unwrap(), ran);
             }

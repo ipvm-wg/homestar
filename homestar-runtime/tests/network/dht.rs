@@ -208,7 +208,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:putReceiptDht" {
+                if json["put_receipt_dht"].is_object() {
                     put_receipt = true;
                 } else if json["type"].as_str().unwrap() == "network:putWorkflowInfoDht" {
                     put_workflow_info = true;
@@ -262,8 +262,8 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         //         let json: serde_json::Value =
         //             serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-        //         if json["type"].as_str().unwrap() == "network:gotReceiptDht" {
-        //             received_receipt_cid = Cid::from_str(json["data"]["cid"].as_str().unwrap())
+        //         if json["got_receipt_dht"].is_object() {
+        //             received_receipt_cid = Cid::from_str(json["got_receipt_dht"]["cid"].as_str().unwrap())
         //                 .expect("Unable to parse received receipt CID.");
         //             break;
         //         }
