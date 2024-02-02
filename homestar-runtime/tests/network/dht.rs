@@ -210,7 +210,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
 
                 if json["put_receipt_dht"].is_object() {
                     put_receipt = true;
-                } else if json["type"].as_str().unwrap() == "network:putWorkflowInfoDht" {
+                } else if json["put_workflow_info_dht"].is_object() {
                     put_workflow_info = true;
                 } else if json["type"].as_str().unwrap() == "network:receiptQuorumSuccess" {
                     receipt_quorum_success = true;
@@ -291,9 +291,9 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:gotWorkflowInfoDht" {
+                if json["got_workflow_info_dht"].is_object() {
                     received_workflow_info_cid =
-                        Cid::from_str(json["data"]["cid"].as_str().unwrap())
+                        Cid::from_str(json["got_workflow_info_dht"]["cid"].as_str().unwrap())
                             .expect("Unable to parse received workflow info CID.");
                     break;
                 }
@@ -876,9 +876,9 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
     // 2. Wait for connection between a and b to be established
     // 3. Wait for connection between a and c to be established
     // 4. Run workflow on a
-    // 5. Wait for network:putWorkflowInfoDht on a
+    // 5. Wait for put_workflow_info_dht on a
     // 6. Run workflow on b
-    // 7. Wait for network:GotWorkflowInfoDht on b
+    // 7. Wait for got_workflow_info_dht on b
     // 8. Delete a's DB
     // 9. Run workflow on c
     // 10. Wait for network:receivedWorkflowInfo on c (from b, through a)
@@ -1149,9 +1149,9 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
 
                 println!("node1: {json}");
 
-                if json["type"].as_str().unwrap() == "network:putWorkflowInfoDht" {
+                if json["put_workflow_info_dht"].is_object() {
                     assert_eq!(
-                        json["data"]["cid"].as_str().unwrap(),
+                        json["put_workflow_info_dht"]["cid"].as_str().unwrap(),
                         "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq"
                     );
 
@@ -1179,9 +1179,9 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
 
                 println!("node2: {json}");
 
-                if json["type"].as_str().unwrap() == "network:gotWorkflowInfoDht" {
+                if json["got_workflow_info_dht"].is_object() {
                     assert_eq!(
-                        json["data"]["cid"].as_str().unwrap(),
+                        json["got_workflow_info_dht"]["cid"].as_str().unwrap(),
                         "bafyrmihctgawsskx54qyt3clcaq2quc42pqxzhr73o6qjlc3rc4mhznotq"
                     );
 

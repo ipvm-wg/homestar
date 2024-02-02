@@ -4,6 +4,7 @@
 
 use anyhow::anyhow;
 use chrono::prelude::Utc;
+use faststr::FastStr;
 use homestar_invocation::ipld::DagJson;
 use libipld::{serde::from_ipld, Cid, Ipld};
 use libp2p::{
@@ -19,8 +20,12 @@ const ADDRESSES_KEY: &str = "addresses";
 const CID_KEY: &str = "cid";
 const ENQUIRER_KEY: &str = "enquirer";
 const ERROR_KEY: &str = "error";
+const NAME_KEY: &str = "name";
+const NUM_TASKS_KEY: &str = "num_tasks";
 const PEER_KEY: &str = "peer_id";
 const PEERS_KEY: &str = "peers";
+const PROGRESS_KEY: &str = "progress";
+const PROGRESS_COUNT_KEY: &str = "progress_count";
 const PUBLISHER_KEY: &str = "publisher";
 const RAN_KEY: &str = "ran";
 const SERVER_KEY: &str = "server";
@@ -29,8 +34,6 @@ const TIMESTAMP_KEY: &str = "timestamp";
 // Swarm notification types sent to clients
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum SwarmNotification {
-    GotWorkflowInfoDht,
-    PutWorkflowInfoDht,
     ReceiptQuorumSuccess,
     ReceiptQuorumFailure,
     WorkflowInfoQuorumSuccess,
@@ -42,12 +45,6 @@ pub(crate) enum SwarmNotification {
 impl fmt::Display for SwarmNotification {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            SwarmNotification::PutWorkflowInfoDht => {
-                write!(f, "putWorkflowInfoDht")
-            }
-            SwarmNotification::GotWorkflowInfoDht => {
-                write!(f, "gotWorkflowInfoDht")
-            }
             SwarmNotification::ReceiptQuorumSuccess => {
                 write!(f, "receiptQuorumSuccess")
             }
@@ -75,8 +72,6 @@ impl FromStr for SwarmNotification {
 
     fn from_str(ty: &str) -> Result<Self, Self::Err> {
         match ty {
-            "putWorkflowInfoDht" => Ok(Self::PutWorkflowInfoDht),
-            "gotWorkflowInfoDht" => Ok(Self::GotWorkflowInfoDht),
             "receiptQuorumSuccess" => Ok(Self::ReceiptQuorumSuccess),
             "receiptQuorumFailure" => Ok(Self::ReceiptQuorumFailure),
             "workflowInfoQuorumSuccess" => Ok(Self::WorkflowInfoQuorumSuccess),
@@ -134,6 +129,18 @@ pub enum NetworkNotification {
     /// Got receipt DHT notification.
     #[schemars(rename = "got_receipt_dht")]
     GotReceiptDht(GotReceiptDht),
+    /// Put workflow info DHT notification.
+    #[schemars(rename = "put_workflow_info_dht")]
+    PutWorkflowInfoDht(PutWorkflowInfoDht),
+    /// Put workflow info DHT notification.
+    #[schemars(rename = "got_workflow_info_dht")]
+    GotWorkflowInfoDht(GotWorkflowInfoDht),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum WorkflowInfoSource {
+    Dht,
+    RequestResponse,
 }
 
 impl fmt::Display for NetworkNotification {
@@ -161,6 +168,8 @@ impl fmt::Display for NetworkNotification {
             NetworkNotification::ReceivedReceiptPubsub(_) => write!(f, "received_receipt_pubsub"),
             NetworkNotification::PutReceiptDht(_) => write!(f, "put_receipt_dht"),
             NetworkNotification::GotReceiptDht(_) => write!(f, "got_receipt_dht"),
+            NetworkNotification::PutWorkflowInfoDht(_) => write!(f, "put_workflow_info_dht"),
+            NetworkNotification::GotWorkflowInfoDht(_) => write!(f, "got_workflow_info_dht"),
         }
     }
 }
@@ -219,6 +228,12 @@ impl From<NetworkNotification> for Ipld {
             NetworkNotification::GotReceiptDht(n) => {
                 Ipld::Map(BTreeMap::from([("got_receipt_dht".into(), n.into())]))
             }
+            NetworkNotification::PutWorkflowInfoDht(n) => {
+                Ipld::Map(BTreeMap::from([("put_workflow_info_dht".into(), n.into())]))
+            }
+            NetworkNotification::GotWorkflowInfoDht(n) => {
+                Ipld::Map(BTreeMap::from([("got_workflow_info_dht".into(), n.into())]))
+            }
         }
     }
 }
@@ -272,6 +287,12 @@ impl TryFrom<Ipld> for NetworkNotification {
                 )),
                 "got_receipt_dht" => Ok(NetworkNotification::GotReceiptDht(
                     GotReceiptDht::try_from(val.to_owned())?,
+                )),
+                "put_workflow_info_dht" => Ok(NetworkNotification::PutWorkflowInfoDht(
+                    PutWorkflowInfoDht::try_from(val.to_owned())?,
+                )),
+                "got_workflow_info_dht" => Ok(NetworkNotification::GotWorkflowInfoDht(
+                    GotWorkflowInfoDht::try_from(val.to_owned())?,
                 )),
                 _ => Err(anyhow!("Unknown network notification tag type")),
             }
@@ -1222,6 +1243,276 @@ impl TryFrom<Ipld> for GotReceiptDht {
     }
 }
 
+#[derive(Debug, Clone, JsonSchema)]
+#[schemars(rename = "put_workflow_info_dht")]
+pub struct PutWorkflowInfoDht {
+    timestamp: i64,
+    #[schemars(description = "Workflow info CID")]
+    cid: String,
+    #[schemars(description = "Optional workflow name")]
+    name: Option<String>,
+    #[schemars(description = "Number of tasks in workflow")]
+    num_tasks: u32,
+    #[schemars(description = "Completed task CIDs")]
+    progress: Vec<String>,
+    #[schemars(description = "Number of workflow tasks completed")]
+    progress_count: u32,
+}
+
+impl PutWorkflowInfoDht {
+    pub(crate) fn new(
+        cid: Cid,
+        name: Option<FastStr>,
+        num_tasks: u32,
+        progress: Vec<Cid>,
+        progress_count: u32,
+    ) -> PutWorkflowInfoDht {
+        PutWorkflowInfoDht {
+            timestamp: Utc::now().timestamp_millis(),
+            cid: cid.to_string(),
+            name: name.map(|n| n.into()),
+            num_tasks,
+            progress: progress.iter().map(|cid| cid.to_string()).collect(),
+            progress_count,
+        }
+    }
+}
+
+impl DagJson for PutWorkflowInfoDht {}
+
+impl From<PutWorkflowInfoDht> for Ipld {
+    fn from(notification: PutWorkflowInfoDht) -> Self {
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (CID_KEY.into(), notification.cid.into()),
+            (
+                NAME_KEY.into(),
+                notification
+                    .name
+                    .map(|peer_id| peer_id.into())
+                    .unwrap_or(Ipld::Null),
+            ),
+            (NUM_TASKS_KEY.into(), notification.num_tasks.into()),
+            (
+                PROGRESS_KEY.into(),
+                Ipld::List(
+                    notification
+                        .progress
+                        .iter()
+                        .map(|cid| Ipld::String(cid.to_string()))
+                        .collect(),
+                ),
+            ),
+            (
+                PROGRESS_COUNT_KEY.into(),
+                notification.progress_count.into(),
+            ),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for PutWorkflowInfoDht {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let cid = from_ipld(
+            map.get(CID_KEY)
+                .ok_or_else(|| anyhow!("missing {CID_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let name = map
+            .get(NAME_KEY)
+            .and_then(|ipld| match ipld {
+                Ipld::Null => None,
+                ipld => Some(ipld),
+            })
+            .and_then(|ipld| from_ipld(ipld.to_owned()).ok());
+
+        let num_tasks = from_ipld(
+            map.get(NUM_TASKS_KEY)
+                .ok_or_else(|| anyhow!("missing {NUM_TASKS_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let progress = from_ipld::<Vec<String>>(
+            map.get(PROGRESS_KEY)
+                .ok_or_else(|| anyhow!("missing {PROGRESS_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let progress_count = from_ipld(
+            map.get(PROGRESS_COUNT_KEY)
+                .ok_or_else(|| anyhow!("missing {PROGRESS_COUNT_KEY}"))?
+                .to_owned(),
+        )?;
+
+        Ok(PutWorkflowInfoDht {
+            timestamp,
+            cid,
+            name,
+            num_tasks,
+            progress,
+            progress_count,
+        })
+    }
+}
+
+#[derive(Debug, Clone, JsonSchema)]
+#[schemars(rename = "got_workflow_info_dht")]
+pub struct GotWorkflowInfoDht {
+    timestamp: i64,
+    #[schemars(description = "Workflow info publisher peer ID")]
+    publisher: Option<String>,
+    #[schemars(description = "Workflow info CID")]
+    cid: String,
+    #[schemars(description = "Optional workflow name")]
+    name: Option<String>,
+    #[schemars(description = "Number of tasks in workflow")]
+    num_tasks: u32,
+    #[schemars(description = "Completed task CIDs")]
+    progress: Vec<String>,
+    #[schemars(description = "Number of workflow tasks completed")]
+    progress_count: u32,
+}
+
+impl GotWorkflowInfoDht {
+    pub(crate) fn new(
+        publisher: Option<PeerId>,
+        cid: Cid,
+        name: Option<FastStr>,
+        num_tasks: u32,
+        progress: Vec<Cid>,
+        progress_count: u32,
+    ) -> GotWorkflowInfoDht {
+        GotWorkflowInfoDht {
+            timestamp: Utc::now().timestamp_millis(),
+            publisher: publisher.map(|p| p.to_string()),
+            cid: cid.to_string(),
+            name: name.map(|n| n.into()),
+            num_tasks,
+            progress: progress.iter().map(|cid| cid.to_string()).collect(),
+            progress_count,
+        }
+    }
+}
+
+impl DagJson for GotWorkflowInfoDht {}
+
+impl From<GotWorkflowInfoDht> for Ipld {
+    fn from(notification: GotWorkflowInfoDht) -> Self {
+        let map: BTreeMap<String, Ipld> = BTreeMap::from([
+            (TIMESTAMP_KEY.into(), notification.timestamp.into()),
+            (
+                PUBLISHER_KEY.into(),
+                notification
+                    .publisher
+                    .map(|peer_id| peer_id.into())
+                    .unwrap_or(Ipld::Null),
+            ),
+            (CID_KEY.into(), notification.cid.into()),
+            (
+                NAME_KEY.into(),
+                notification
+                    .name
+                    .map(|peer_id| peer_id.into())
+                    .unwrap_or(Ipld::Null),
+            ),
+            (NUM_TASKS_KEY.into(), notification.num_tasks.into()),
+            (
+                PROGRESS_KEY.into(),
+                Ipld::List(
+                    notification
+                        .progress
+                        .iter()
+                        .map(|cid| Ipld::String(cid.to_string()))
+                        .collect(),
+                ),
+            ),
+            (
+                PROGRESS_COUNT_KEY.into(),
+                notification.progress_count.into(),
+            ),
+        ]);
+
+        Ipld::Map(map)
+    }
+}
+
+impl TryFrom<Ipld> for GotWorkflowInfoDht {
+    type Error = anyhow::Error;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        let map = from_ipld::<BTreeMap<String, Ipld>>(ipld)?;
+
+        let timestamp = from_ipld(
+            map.get(TIMESTAMP_KEY)
+                .ok_or_else(|| anyhow!("missing {TIMESTAMP_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let publisher = map
+            .get(PUBLISHER_KEY)
+            .and_then(|ipld| match ipld {
+                Ipld::Null => None,
+                ipld => Some(ipld),
+            })
+            .and_then(|ipld| from_ipld(ipld.to_owned()).ok());
+
+        let cid = from_ipld(
+            map.get(CID_KEY)
+                .ok_or_else(|| anyhow!("missing {CID_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let name = map
+            .get(NAME_KEY)
+            .and_then(|ipld| match ipld {
+                Ipld::Null => None,
+                ipld => Some(ipld),
+            })
+            .and_then(|ipld| from_ipld(ipld.to_owned()).ok());
+
+        let num_tasks = from_ipld(
+            map.get(NUM_TASKS_KEY)
+                .ok_or_else(|| anyhow!("missing {NUM_TASKS_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let progress = from_ipld::<Vec<String>>(
+            map.get(PROGRESS_KEY)
+                .ok_or_else(|| anyhow!("missing {PROGRESS_KEY}"))?
+                .to_owned(),
+        )?;
+
+        let progress_count = from_ipld(
+            map.get(PROGRESS_COUNT_KEY)
+                .ok_or_else(|| anyhow!("missing {PROGRESS_COUNT_KEY}"))?
+                .to_owned(),
+        )?;
+
+        Ok(GotWorkflowInfoDht {
+            timestamp,
+            publisher,
+            cid,
+            name,
+            num_tasks,
+            progress,
+            progress_count,
+        })
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1233,9 +1524,13 @@ mod test {
         address: Multiaddr,
         addresses: Vec<Multiaddr>,
         cid: Cid,
+        name: FastStr,
+        num_tasks: u32,
         peer_id: PeerId,
         peers: BTreeMap<PeerId, Multiaddr>,
         peers_vec_addr: BTreeMap<PeerId, Vec<Multiaddr>>,
+        progress: Vec<Cid>,
+        progress_count: u32,
         ran: Cid,
     }
 
@@ -1247,6 +1542,8 @@ mod test {
                 Multiaddr::from_str("/ip4/127.0.0.1/tcp/7001").unwrap(),
             ],
             cid: generate_cid(&mut thread_rng()),
+            name: FastStr::new("Strong Bad"),
+            num_tasks: 1,
             peer_id: PeerId::random(),
             peers: BTreeMap::from([
                 (
@@ -1271,6 +1568,8 @@ mod test {
                     ],
                 ),
             ]),
+            progress: vec![generate_cid(&mut thread_rng())],
+            progress_count: 1,
             ran: generate_cid(&mut thread_rng()),
         }
     }
@@ -1280,9 +1579,13 @@ mod test {
             address,
             addresses,
             cid,
+            name,
+            num_tasks,
             peer_id,
             peers,
             peers_vec_addr,
+            progress,
+            progress_count,
             ran,
         } = fixtures;
 
@@ -1301,6 +1604,21 @@ mod test {
         let received_receipt_pubsub = ReceivedReceiptPubsub::new(peer_id, cid, ran.to_string());
         let put_receipt_dht = PutReceiptDht::new(cid, ran.to_string());
         let got_receipt_dht = GotReceiptDht::new(Some(peer_id), cid, ran.to_string());
+        let put_workflow_info_dht = PutWorkflowInfoDht::new(
+            cid,
+            Some(name.clone()),
+            num_tasks,
+            progress.clone(),
+            progress_count,
+        );
+        let got_workflow_info_dht = GotWorkflowInfoDht::new(
+            Some(peer_id),
+            cid,
+            Some(name),
+            num_tasks,
+            progress,
+            progress_count,
+        );
 
         vec![
             (
@@ -1359,6 +1677,14 @@ mod test {
                 got_receipt_dht.timestamp,
                 NetworkNotification::GotReceiptDht(got_receipt_dht),
             ),
+            (
+                put_workflow_info_dht.timestamp,
+                NetworkNotification::PutWorkflowInfoDht(put_workflow_info_dht),
+            ),
+            (
+                got_workflow_info_dht.timestamp,
+                NetworkNotification::GotWorkflowInfoDht(got_workflow_info_dht),
+            ),
         ]
     }
 
@@ -1367,9 +1693,13 @@ mod test {
             address,
             addresses,
             cid,
+            name,
+            num_tasks,
             peer_id,
             peers,
             peers_vec_addr,
+            progress,
+            progress_count,
             ran,
         } = fixtures;
 
@@ -1392,7 +1722,7 @@ mod test {
             NetworkNotification::OutgoingConnectionError(n) => {
                 assert_eq!(n.timestamp, timestamp);
                 assert_eq!(
-                    n.peer_id.and_then(|p| Some(PeerId::from_str(&p).unwrap())),
+                    n.peer_id.map(|p| PeerId::from_str(&p).unwrap()),
                     Some(peer_id)
                 );
                 assert_eq!(n.error, DialError::NoAddresses.to_string());
@@ -1463,12 +1793,44 @@ mod test {
             NetworkNotification::GotReceiptDht(n) => {
                 assert_eq!(n.timestamp, timestamp);
                 assert_eq!(
+                    n.publisher.map(|p| PeerId::from_str(&p).unwrap()),
+                    Some(peer_id)
+                );
+                assert_eq!(Cid::from_str(&n.cid).unwrap(), cid);
+                assert_eq!(Cid::from_str(&n.ran).unwrap(), ran);
+            }
+            NetworkNotification::PutWorkflowInfoDht(n) => {
+                assert_eq!(n.timestamp, timestamp);
+                assert_eq!(Cid::from_str(&n.cid).unwrap(), cid);
+                assert_eq!(n.name.map(|name| FastStr::new(name)), Some(name));
+                assert_eq!(n.num_tasks, num_tasks);
+                assert_eq!(
+                    n.progress
+                        .iter()
+                        .map(|cid| Cid::from_str(&cid).unwrap())
+                        .collect::<Vec<Cid>>(),
+                    progress
+                );
+                assert_eq!(n.progress_count, progress_count);
+            }
+            NetworkNotification::GotWorkflowInfoDht(n) => {
+                assert_eq!(n.timestamp, timestamp);
+                assert_eq!(
                     n.publisher
                         .and_then(|p| Some(PeerId::from_str(&p).unwrap())),
                     Some(peer_id)
                 );
                 assert_eq!(Cid::from_str(&n.cid).unwrap(), cid);
-                assert_eq!(Cid::from_str(&n.ran).unwrap(), ran);
+                assert_eq!(n.name.map(|name| FastStr::new(name)), Some(name));
+                assert_eq!(n.num_tasks, num_tasks);
+                assert_eq!(
+                    n.progress
+                        .iter()
+                        .map(|cid| Cid::from_str(&cid).unwrap())
+                        .collect::<Vec<Cid>>(),
+                    progress
+                );
+                assert_eq!(n.progress_count, progress_count);
             }
         }
     }

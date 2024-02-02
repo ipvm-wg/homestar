@@ -5,9 +5,7 @@ use super::swarm_event::FoundEvent;
 use super::EventHandler;
 #[cfg(feature = "websocket-notify")]
 use crate::event_handler::{
-    notification::{
-        self, emit_receipt, EventNotificationTyp, NetworkNotification, SwarmNotification,
-    },
+    notification::{self, emit_receipt, NetworkNotification},
     swarm_event::{ReceiptEvent, WorkflowInfoEvent},
 };
 #[cfg(feature = "ipfs")]
@@ -34,7 +32,6 @@ use libp2p::{
     PeerId,
 };
 #[cfg(feature = "websocket-notify")]
-use maplit::btreemap;
 use std::{
     collections::{HashMap, HashSet},
     num::NonZeroUsize,
@@ -189,23 +186,26 @@ impl Event {
                 FoundEvent::Workflow(WorkflowInfoEvent {
                     peer_id,
                     workflow_info,
-                    notification_type,
-                }) => {
-                    if let Some(peer_label) = notification_type.workflow_info_source_label() {
-                        notification::emit_event(
-                            event_handler.ws_evt_sender(),
-                            notification_type,
-                            btreemap! {
-                                peer_label => peer_id.map_or(Ipld::Null, |peer_id| Ipld::String(peer_id.to_string())),
-                                "cid" => Ipld::String(workflow_info.cid().to_string()),
-                                "name" => workflow_info.name.map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
-                                "numTasks" => Ipld::Integer(workflow_info.num_tasks as i128),
-                                "progress" => Ipld::List(workflow_info.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
-                                "progressCount" => Ipld::Integer(workflow_info.progress_count as i128),
-                            },
-                        )
-                    }
-                }
+                    workflow_source,
+                }) => notification::emit_network_event(
+                    event_handler.ws_evt_sender(),
+                    match workflow_source {
+                        notification::WorkflowInfoSource::Dht => {
+                            NetworkNotification::GotWorkflowInfoDht(
+                                notification::GotWorkflowInfoDht::new(
+                                    peer_id,
+                                    workflow_info.cid(),
+                                    workflow_info.name,
+                                    workflow_info.num_tasks,
+                                    workflow_info.progress,
+                                    workflow_info.progress_count,
+                                ),
+                            )
+                        }
+                        // TODO Fill this case in!
+                        notification::WorkflowInfoSource::RequestResponse => todo!(),
+                    },
+                ),
             },
             Event::OutboundRequest(PeerRequest {
                 peer,
@@ -470,18 +470,17 @@ impl Captured {
                             );
 
                             #[cfg(feature = "websocket-notify")]
-                            notification::emit_event(
+                            notification::emit_network_event(
                                 event_handler.ws_evt_sender(),
-                                EventNotificationTyp::SwarmNotification(
-                                    SwarmNotification::PutWorkflowInfoDht,
+                                NetworkNotification::PutWorkflowInfoDht(
+                                    notification::PutWorkflowInfoDht::new(
+                                        self.workflow.cid(),
+                                        self.workflow.name.to_owned(),
+                                        self.workflow.num_tasks,
+                                        self.workflow.progress.to_owned(),
+                                        self.workflow.progress_count,
+                                    ),
                                 ),
-                                btreemap! {
-                                    "cid" => Ipld::String(self.workflow.cid().to_string()),
-                                    "name" => self.workflow.name.as_ref().map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
-                                    "numTasks" => Ipld::Integer(self.workflow.num_tasks as i128),
-                                    "progress" => Ipld::List(self.workflow.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
-                                    "progressCount" => Ipld::Integer(self.workflow.progress_count as i128),
-                                },
                             )
                         },
                     );

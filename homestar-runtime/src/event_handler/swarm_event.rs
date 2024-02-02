@@ -85,7 +85,7 @@ pub(crate) struct WorkflowInfoEvent {
     pub(crate) workflow_info: workflow::Info,
     #[cfg(feature = "websocket-notify")]
     #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
-    pub(crate) notification_type: EventNotificationTyp,
+    pub(crate) workflow_source: notification::WorkflowInfoSource,
 }
 
 #[async_trait]
@@ -665,10 +665,7 @@ async fn handle_swarm_event<DB: Database>(
                                             peer_id,
                                             workflow_info: workflow_info.clone(),
                                             #[cfg(feature = "websocket-notify")]
-                                            notification_type:
-                                                EventNotificationTyp::SwarmNotification(
-                                                    SwarmNotification::GotWorkflowInfoDht,
-                                                ),
+                                            workflow_source: notification::WorkflowInfoSource::Dht,
                                         }),
                                     ));
 
@@ -1008,9 +1005,8 @@ async fn handle_swarm_event<DB: Database>(
                                         peer_id,
                                         workflow_info: workflow_info.clone(),
                                         #[cfg(feature = "websocket-notify")]
-                                        notification_type: EventNotificationTyp::SwarmNotification(
-                                            SwarmNotification::ReceivedWorkflowInfo,
-                                        ),
+                                        workflow_source:
+                                            notification::WorkflowInfoSource::RequestResponse,
                                     }),
                                 ));
 
