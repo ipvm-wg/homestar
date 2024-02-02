@@ -764,15 +764,14 @@ async fn handle_swarm_event<DB: Database>(
 
                     #[cfg(feature = "websocket-notify")]
                     match key.capsule_tag {
-                        CapsuleTag::Receipt => notification::emit_event(
+                        CapsuleTag::Receipt => notification::emit_network_event(
                             event_handler.ws_evt_sender(),
-                            EventNotificationTyp::SwarmNotification(
-                                SwarmNotification::ReceiptQuorumSuccess,
+                            NetworkNotification::ReceiptQuorumSuccessDht(
+                                notification::ReceiptQuorumSuccessDht::new(
+                                    key.cid,
+                                    event_handler.receipt_quorum,
+                                ),
                             ),
-                            btreemap! {
-                                "cid" => Ipld::String(key.cid.to_string()),
-                                "quorum" => Ipld::Integer(event_handler.receipt_quorum as i128),
-                            },
                         ),
                         CapsuleTag::Workflow => notification::emit_event(
                             event_handler.ws_evt_sender(),
@@ -806,17 +805,16 @@ async fn handle_swarm_event<DB: Database>(
                     #[cfg(feature = "websocket-notify")]
                     if let kad::PutRecordError::QuorumFailed { success, .. } = err {
                         match key.capsule_tag {
-                            CapsuleTag::Receipt => notification::emit_event(
+                            CapsuleTag::Receipt => notification::emit_network_event(
                                 event_handler.ws_evt_sender(),
-                                EventNotificationTyp::SwarmNotification(
-                                    SwarmNotification::ReceiptQuorumFailure,
+                                NetworkNotification::ReceiptQuorumFailureDht(
+                                    notification::ReceiptQuorumFailureDht::new(
+                                        key.cid,
+                                        event_handler.receipt_quorum,
+                                        event_handler.connections.peers.len(),
+                                        success,
+                                    ),
                                 ),
-                                btreemap! {
-                                    "cid" => Ipld::String(key.cid.to_string()),
-                                    "quorum" => Ipld::Integer(event_handler.receipt_quorum as i128),
-                                    "connectedPeers" => Ipld::Integer(event_handler.connections.peers.len() as i128),
-                                    "storedToPeers" => Ipld::List(success.iter().map(|cid| Ipld::String(cid.to_string())).collect())
-                                },
                             ),
                             CapsuleTag::Workflow => notification::emit_event(
                                 event_handler.ws_evt_sender(),
