@@ -923,19 +923,18 @@ async fn handle_swarm_event<DB: Database>(
                                 );
 
                                 #[cfg(feature = "websocket-notify")]
-                                notification::emit_event(
+                                notification::emit_network_event(
                                     event_handler.ws_evt_sender(),
-                                    EventNotificationTyp::SwarmNotification(
-                                        SwarmNotification::SentWorkflowInfo,
+                                    NetworkNotification::SentWorkflowInfo(
+                                        notification::SentWorkflowInfo::new(
+                                            peer,
+                                            workflow_info.cid(),
+                                            workflow_info.name,
+                                            workflow_info.num_tasks,
+                                            workflow_info.progress,
+                                            workflow_info.progress_count,
+                                        ),
                                     ),
-                                    btreemap! {
-                                        "requestor" => Ipld::String(peer.to_string()),
-                                        "cid" => Ipld::String(workflow_info.cid().to_string()),
-                                        "name" => workflow_info.name.as_ref().map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
-                                        "numTasks" => Ipld::Integer(workflow_info.num_tasks as i128),
-                                        "progress" => Ipld::List(workflow_info.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
-                                        "progressCount" => Ipld::Integer(workflow_info.progress_count as i128),
-                                    },
                                 )
                             } else {
                                 let _ = event_handler

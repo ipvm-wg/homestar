@@ -760,9 +760,10 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:sentWorkflowInfo" {
-                    sent_workflow_info_cid = Cid::from_str(json["data"]["cid"].as_str().unwrap())
-                        .expect("Unable to parse sent workflow info CID.");
+                if json["sent_workflow_info"].is_object() {
+                    sent_workflow_info_cid =
+                        Cid::from_str(json["sent_workflow_info"]["cid"].as_str().unwrap())
+                            .expect("Unable to parse sent workflow info CID.");
                     break;
                 }
             } else {
@@ -782,9 +783,9 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:receivedWorkflowInfo" {
+                if json["received_workflow_info"].is_object() {
                     received_workflow_info_cid =
-                        Cid::from_str(json["data"]["cid"].as_str().unwrap())
+                        Cid::from_str(json["received_workflow_info"]["cid"].as_str().unwrap())
                             .expect("Unable to parse received workflow info CID.");
                     break;
                 }

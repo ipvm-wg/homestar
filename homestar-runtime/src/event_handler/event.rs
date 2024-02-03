@@ -202,8 +202,18 @@ impl Event {
                                 ),
                             )
                         }
-                        // TODO Fill this case in!
-                        notification::WorkflowInfoSource::RequestResponse => todo!(),
+                        notification::WorkflowInfoSource::RequestResponse => {
+                            NetworkNotification::ReceivedWorkflowInfo(
+                                notification::ReceivedWorkflowInfo::new(
+                                    peer_id,
+                                    workflow_info.cid(),
+                                    workflow_info.name,
+                                    workflow_info.num_tasks,
+                                    workflow_info.progress,
+                                    workflow_info.progress_count,
+                                ),
+                            )
+                        }
                     },
                 ),
             },
