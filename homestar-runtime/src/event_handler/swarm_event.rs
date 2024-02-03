@@ -2,9 +2,7 @@
 
 use super::EventHandler;
 #[cfg(feature = "websocket-notify")]
-use crate::event_handler::notification::{
-    self, EventNotificationTyp, NetworkNotification, SwarmNotification,
-};
+use crate::event_handler::notification::{self, NetworkNotification};
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
@@ -27,8 +25,6 @@ use crate::{
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use libipld::Cid;
-#[cfg(feature = "websocket-notify")]
-use libipld::Ipld;
 use libp2p::{
     gossipsub, identify, kad,
     kad::{AddProviderOk, BootstrapOk, GetProvidersOk, GetRecordOk, PutRecordOk, QueryResult},
@@ -39,8 +35,6 @@ use libp2p::{
     swarm::{dial_opts::DialOpts, SwarmEvent},
     Multiaddr, PeerId, StreamProtocol,
 };
-#[cfg(feature = "websocket-notify")]
-use maplit::btreemap;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use tracing::{debug, error, info, warn};
 

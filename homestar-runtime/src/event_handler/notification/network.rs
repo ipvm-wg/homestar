@@ -12,8 +12,7 @@ use libp2p::{
     Multiaddr, PeerId,
 };
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, fmt, str::FromStr};
+use std::{collections::BTreeMap, fmt};
 
 const ADDRESS_KEY: &str = "address";
 const ADDRESSES_KEY: &str = "addresses";
@@ -35,26 +34,6 @@ const RAN_KEY: &str = "ran";
 const SERVER_KEY: &str = "server";
 const STORED_TO_PEERS_KEY: &str = "stored_to_peers";
 const TIMESTAMP_KEY: &str = "timestamp";
-
-// Swarm notification types sent to clients
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) enum SwarmNotification {}
-
-impl fmt::Display for SwarmNotification {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {}
-    }
-}
-
-impl FromStr for SwarmNotification {
-    type Err = anyhow::Error;
-
-    fn from_str(ty: &str) -> Result<Self, Self::Err> {
-        match ty {
-            _ => Err(anyhow!("Missing swarm notification type: {}", ty)),
-        }
-    }
-}
 
 /// Network notification type.
 #[derive(Debug, Clone, JsonSchema)]
@@ -2196,6 +2175,7 @@ mod test {
     use super::*;
     use homestar_invocation::test_utils::cid::generate_cid;
     use rand::thread_rng;
+    use std::str::FromStr;
 
     #[derive(Clone, Debug)]
     struct Fixtures {

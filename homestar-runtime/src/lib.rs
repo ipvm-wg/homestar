@@ -73,7 +73,7 @@ pub(crate) mod libp2p;
 pub use logger::*;
 pub(crate) mod metrics;
 #[cfg(feature = "websocket-notify")]
-pub use event_handler::notification::{receipt::ReceiptNotification, swarm::NetworkNotification};
+pub use event_handler::notification::{network::NetworkNotification, receipt::ReceiptNotification};
 #[allow(unused_imports)]
 pub(crate) use event_handler::EventHandler;
 pub use network::webserver::PrometheusData;
