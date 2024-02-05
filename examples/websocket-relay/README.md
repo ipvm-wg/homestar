@@ -88,7 +88,7 @@ if they've been previously run.
 - We have officially packaged homestar binaries using brew, so
   `brew install fission-codes/fission/homestar` will install mostly everything
   you need, including `ipfs`. You will still need `npm` to run this example, and
-  you'll have to manually `ipfs add` the `synthcat.ping` and `example_test.wasm`
+  you'll have to manually `ipfs add` the `synthcat.png` and `example_test.wasm`
   files located in this directory. Then, from this folder, you can then run the
   example like this:
 
