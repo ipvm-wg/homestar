@@ -87,7 +87,7 @@ unsigned-varint = { version = "0.7", default-features = false, features = ["asyn
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["fast-rng", "v4"] }
 wasmtime = { version = "16", features = ["component-model"] }
-wasmtime-jit = { version = "16", default-features = false, features = ["addr2line", "debug-builtins", "demangle", "profiling"] }
+wasmtime-jit = { version = "17", default-features = false, features = ["addr2line", "debug-builtins", "demangle", "profiling"] }
 wasmtime-runtime = { version = "16", default-features = false, features = ["async", "component-model", "debug-builtins", "pooling-allocator"] }
 zeroize = { version = "1", features = ["zeroize_derive"] }
 
@@ -167,7 +167,7 @@ unsigned-varint = { version = "0.7", default-features = false, features = ["asyn
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["fast-rng", "v4"] }
 wasmtime = { version = "16", features = ["component-model"] }
-wasmtime-jit = { version = "16", default-features = false, features = ["addr2line", "debug-builtins", "demangle", "profiling"] }
+wasmtime-jit = { version = "17", default-features = false, features = ["addr2line", "debug-builtins", "demangle", "profiling"] }
 wasmtime-runtime = { version = "16", default-features = false, features = ["async", "component-model", "debug-builtins", "pooling-allocator"] }
 zeroize = { version = "1", features = ["zeroize_derive"] }
 
