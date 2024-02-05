@@ -89,7 +89,7 @@ if they've been previously run.
   `brew install fission-codes/fission/homestar` will install mostly everything
   you need, including `ipfs`. You will still need `npm` to run this example, and
   you'll have to manually `ipfs add` the `synthcat.png` and `example_test.wasm`
-  files located in this directory. Then, from this folder, you can then run the
+  files located in this directory. Then, from this folder, you can run the
   example like this:
 
   ```
