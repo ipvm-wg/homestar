@@ -1,0 +1,912 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "network",
+  "description": "Network notification type.",
+  "oneOf": [
+    {
+      "description": "Listening on new address notification.",
+      "type": "object",
+      "required": [
+        "new_listen_addr"
+      ],
+      "properties": {
+        "new_listen_addr": {
+          "$ref": "#/definitions/new_listen_addr"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Connection established notification.",
+      "type": "object",
+      "required": [
+        "connection_established"
+      ],
+      "properties": {
+        "connection_established": {
+          "$ref": "#/definitions/connection_established"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Connection closed notification.",
+      "type": "object",
+      "required": [
+        "connection_closed"
+      ],
+      "properties": {
+        "connection_closed": {
+          "$ref": "#/definitions/connection_closed"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Outgoing conenction error notification.",
+      "type": "object",
+      "required": [
+        "outgoing_connection_error"
+      ],
+      "properties": {
+        "outgoing_connection_error": {
+          "$ref": "#/definitions/outgoing_connection_error"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Incoming conenction error notification.",
+      "type": "object",
+      "required": [
+        "incoming_connection_error"
+      ],
+      "properties": {
+        "incoming_connection_error": {
+          "$ref": "#/definitions/incoming_connection_error"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "mDNS discovered notification.",
+      "type": "object",
+      "required": [
+        "discovered_mdns"
+      ],
+      "properties": {
+        "discovered_mdns": {
+          "$ref": "#/definitions/discovered_mdns"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Rendezvous client discovered notification.",
+      "type": "object",
+      "required": [
+        "discovered_rendezvous"
+      ],
+      "properties": {
+        "discovered_rendezvous": {
+          "$ref": "#/definitions/discovered_rendezvous"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Rendezvous client discovered notification.",
+      "type": "object",
+      "required": [
+        "registered_rendezvous"
+      ],
+      "properties": {
+        "registered_rendezvous": {
+          "$ref": "#/definitions/registered_rendezvous"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Rendezvous discover served notification.",
+      "type": "object",
+      "required": [
+        "discover_served_rendezvous"
+      ],
+      "properties": {
+        "discover_served_rendezvous": {
+          "$ref": "#/definitions/registered_rendezvous"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Rendezvous peer registered notification.",
+      "type": "object",
+      "required": [
+        "peer_registered_rendezvous"
+      ],
+      "properties": {
+        "peer_registered_rendezvous": {
+          "$ref": "#/definitions/peer_registered_rendezvous"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Published receipt pubsub notification.",
+      "type": "object",
+      "required": [
+        "published_receipt_pubsub"
+      ],
+      "properties": {
+        "published_receipt_pubsub": {
+          "$ref": "#/definitions/published_receipt_pubsub"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Received receipt pubsub notification.",
+      "type": "object",
+      "required": [
+        "received_receipt_pubsub"
+      ],
+      "properties": {
+        "received_receipt_pubsub": {
+          "$ref": "#/definitions/received_receipt_pubsub"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Put receipt DHT notification.",
+      "type": "object",
+      "required": [
+        "put_receipt_dht"
+      ],
+      "properties": {
+        "put_receipt_dht": {
+          "$ref": "#/definitions/put_receipt_dht"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Got receipt DHT notification.",
+      "type": "object",
+      "required": [
+        "got_receipt_dht"
+      ],
+      "properties": {
+        "got_receipt_dht": {
+          "$ref": "#/definitions/got_receipt_dht"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Put workflow info DHT notification.",
+      "type": "object",
+      "required": [
+        "put_workflow_info_dht"
+      ],
+      "properties": {
+        "put_workflow_info_dht": {
+          "$ref": "#/definitions/put_workflow_info_dht"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Put workflow info DHT notification.",
+      "type": "object",
+      "required": [
+        "got_workflow_info_dht"
+      ],
+      "properties": {
+        "got_workflow_info_dht": {
+          "$ref": "#/definitions/got_workflow_info_dht"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Receipt quorum success notification.",
+      "type": "object",
+      "required": [
+        "receipt_quorum_success_dht"
+      ],
+      "properties": {
+        "receipt_quorum_success_dht": {
+          "$ref": "#/definitions/receipt_quorum_success_dht"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Receipt quorum failure notification.",
+      "type": "object",
+      "required": [
+        "receipt_quorum_failure_dht"
+      ],
+      "properties": {
+        "receipt_quorum_failure_dht": {
+          "$ref": "#/definitions/receipt_quorum_failure_dht"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Workflow info quorum success notification.",
+      "type": "object",
+      "required": [
+        "workflow_info_quorum_success_dht"
+      ],
+      "properties": {
+        "workflow_info_quorum_success_dht": {
+          "$ref": "#/definitions/workflow_info_quorum_success_dht"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Workflow info quorum failure notification.",
+      "type": "object",
+      "required": [
+        "workflow_info_quorum_failure_dht"
+      ],
+      "properties": {
+        "workflow_info_quorum_failure_dht": {
+          "$ref": "#/definitions/workflow_info_quorum_failure_dht"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Sent workflow info notification.",
+      "type": "object",
+      "required": [
+        "sent_workflow_info"
+      ],
+      "properties": {
+        "sent_workflow_info": {
+          "$ref": "#/definitions/sent_workflow_info"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Received workflow info notification.",
+      "type": "object",
+      "required": [
+        "received_workflow_info"
+      ],
+      "properties": {
+        "received_workflow_info": {
+          "$ref": "#/definitions/received_workflow_info"
+        }
+      },
+      "additionalProperties": false
+    }
+  ],
+  "definitions": {
+    "connection_closed": {
+      "type": "object",
+      "required": [
+        "address",
+        "peer_id",
+        "timestamp"
+      ],
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "peer_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "connection_established": {
+      "type": "object",
+      "required": [
+        "address",
+        "peer_id",
+        "timestamp"
+      ],
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "peer_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "discovered_mdns": {
+      "type": "object",
+      "required": [
+        "peers",
+        "timestamp"
+      ],
+      "properties": {
+        "peers": {
+          "description": "Peers discovered by peer ID and multiaddress",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "discovered_rendezvous": {
+      "type": "object",
+      "required": [
+        "peers",
+        "server",
+        "timestamp"
+      ],
+      "properties": {
+        "peers": {
+          "description": "Peers discovered by peer ID and multiaddresses",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "server": {
+          "description": "Server that fulfilled the discovery request",
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "got_receipt_dht": {
+      "type": "object",
+      "required": [
+        "cid",
+        "ran",
+        "timestamp"
+      ],
+      "properties": {
+        "cid": {
+          "description": "Receipt CID",
+          "type": "string"
+        },
+        "publisher": {
+          "description": "Receipt publisher peer ID",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ran": {
+          "description": "Ran receipt CID",
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "got_workflow_info_dht": {
+      "type": "object",
+      "required": [
+        "cid",
+        "num_tasks",
+        "progress",
+        "progress_count",
+        "timestamp"
+      ],
+      "properties": {
+        "cid": {
+          "description": "Workflow info CID",
+          "type": "string"
+        },
+        "name": {
+          "description": "Optional workflow name",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "num_tasks": {
+          "description": "Number of tasks in workflow",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "progress": {
+          "description": "Completed task CIDs",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "progress_count": {
+          "description": "Number of workflow tasks completed",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "publisher": {
+          "description": "Workflow info publisher peer ID",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "incoming_connection_error": {
+      "type": "object",
+      "required": [
+        "error",
+        "timestamp"
+      ],
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "new_listen_addr": {
+      "type": "object",
+      "required": [
+        "address",
+        "peer_id",
+        "timestamp"
+      ],
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "peer_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "outgoing_connection_error": {
+      "type": "object",
+      "required": [
+        "error",
+        "timestamp"
+      ],
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "peer_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "peer_registered_rendezvous": {
+      "type": "object",
+      "required": [
+        "addresses",
+        "peer_id",
+        "timestamp"
+      ],
+      "properties": {
+        "addresses": {
+          "description": "Multiaddresses for peer",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "peer_id": {
+          "description": "Peer registered",
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "published_receipt_pubsub": {
+      "type": "object",
+      "required": [
+        "cid",
+        "ran",
+        "timestamp"
+      ],
+      "properties": {
+        "cid": {
+          "description": "Receipt CID",
+          "type": "string"
+        },
+        "ran": {
+          "description": "Ran receipt CID",
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "put_receipt_dht": {
+      "type": "object",
+      "required": [
+        "cid",
+        "ran",
+        "timestamp"
+      ],
+      "properties": {
+        "cid": {
+          "description": "Receipt CID",
+          "type": "string"
+        },
+        "ran": {
+          "description": "Ran receipt CID",
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "put_workflow_info_dht": {
+      "type": "object",
+      "required": [
+        "cid",
+        "num_tasks",
+        "progress",
+        "progress_count",
+        "timestamp"
+      ],
+      "properties": {
+        "cid": {
+          "description": "Workflow info CID",
+          "type": "string"
+        },
+        "name": {
+          "description": "Optional workflow name",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "num_tasks": {
+          "description": "Number of tasks in workflow",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "progress": {
+          "description": "Completed task CIDs",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "progress_count": {
+          "description": "Number of workflow tasks completed",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "receipt_quorum_failure_dht": {
+      "type": "object",
+      "required": [
+        "cid",
+        "connected_peer_count",
+        "quorum",
+        "stored_to_peers",
+        "timestamp"
+      ],
+      "properties": {
+        "cid": {
+          "description": "Receipt CID",
+          "type": "string"
+        },
+        "connected_peer_count": {
+          "description": "Number of connected peers",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "quorum": {
+          "description": "Number of peers required for quorum",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "stored_to_peers": {
+          "description": "Peers participating in quorum",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "receipt_quorum_success_dht": {
+      "type": "object",
+      "required": [
+        "cid",
+        "quorum",
+        "timestamp"
+      ],
+      "properties": {
+        "cid": {
+          "description": "Receipt CID",
+          "type": "string"
+        },
+        "quorum": {
+          "description": "Number of peers participating in quorum",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "received_receipt_pubsub": {
+      "type": "object",
+      "required": [
+        "cid",
+        "publisher",
+        "ran",
+        "timestamp"
+      ],
+      "properties": {
+        "cid": {
+          "description": "Receipt CID",
+          "type": "string"
+        },
+        "publisher": {
+          "description": "Receipt publisher peer ID",
+          "type": "string"
+        },
+        "ran": {
+          "description": "Ran receipt CID",
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "received_workflow_info": {
+      "type": "object",
+      "required": [
+        "cid",
+        "num_tasks",
+        "progress",
+        "progress_count",
+        "timestamp"
+      ],
+      "properties": {
+        "cid": {
+          "description": "Workflow info CID",
+          "type": "string"
+        },
+        "name": {
+          "description": "Optional workflow name",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "num_tasks": {
+          "description": "Number of tasks in workflow",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "progress": {
+          "description": "Completed task CIDs",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "progress_count": {
+          "description": "Number of workflow tasks completed",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "provider": {
+          "description": "Workflow info provider peer ID",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "registered_rendezvous": {
+      "type": "object",
+      "required": [
+        "server",
+        "timestamp"
+      ],
+      "properties": {
+        "server": {
+          "description": "Server that accepted registration",
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "sent_workflow_info": {
+      "type": "object",
+      "required": [
+        "cid",
+        "num_tasks",
+        "progress",
+        "progress_count",
+        "requestor",
+        "timestamp"
+      ],
+      "properties": {
+        "cid": {
+          "description": "Workflow info CID",
+          "type": "string"
+        },
+        "name": {
+          "description": "Optional workflow name",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "num_tasks": {
+          "description": "Number of tasks in workflow",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "progress": {
+          "description": "Completed task CIDs",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "progress_count": {
+          "description": "Number of workflow tasks completed",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "requestor": {
+          "description": "Peer that requested workflow info",
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "workflow_info_quorum_failure_dht": {
+      "type": "object",
+      "required": [
+        "cid",
+        "connected_peer_count",
+        "quorum",
+        "stored_to_peers",
+        "timestamp"
+      ],
+      "properties": {
+        "cid": {
+          "description": "Workflow info CID",
+          "type": "string"
+        },
+        "connected_peer_count": {
+          "description": "Number of connected peers",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "quorum": {
+          "description": "Number of peers required for quorum",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "stored_to_peers": {
+          "description": "Peers participating in quorum",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "workflow_info_quorum_success_dht": {
+      "type": "object",
+      "required": [
+        "cid",
+        "quorum",
+        "timestamp"
+      ],
+      "properties": {
+        "cid": {
+          "description": "Workflow info CID",
+          "type": "string"
+        },
+        "quorum": {
+          "description": "Number of peers participating in quorum",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    }
+  }
+}

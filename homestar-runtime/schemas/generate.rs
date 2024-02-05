@@ -16,7 +16,6 @@ use openrpc::document::{
     MethodObjectParamStructure, Openrpc, OpenrpcDocument,
 };
 
-// Generate docs with `cargo run --bin schemas`
 fn main() {
     let health_schema = schema_for!(Health);
     let _ = fs::File::create("schemas/docs/health.json")
@@ -267,7 +266,7 @@ fn generate_api_doc(
     };
 
     OpenrpcDocument {
-        openrpc: Openrpc::V26, // TODO Should we upgrade to latest spec at 1.3.2?
+        openrpc: Openrpc::V26,
         info: InfoObject {
             title: "homestar".to_string(),
             description: Some(env!("CARGO_PKG_DESCRIPTION").into()),

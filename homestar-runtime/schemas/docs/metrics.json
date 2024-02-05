@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Metrics data",
+  "description": "Prometheus metrics data",
+  "type": "object",
+  "required": [
+    "metrics"
+  ],
+  "properties": {
+    "metrics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/metric"
+      }
+    }
+  },
+  "definitions": {
+    "metric": {
+      "title": "Metric family",
+      "description": "A prometheus gauge, summary, or histogram metric",
+      "type": "object",
+      "if": {
+        "properties": {
+          "metric_type": {
+            "type": "string",
+            "const": "gauge"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "title": "Gauge data",
+            "description": "A gauge metric",
+            "type": "object",
+            "required": [
+              "type",
+              "value"
+            ],
+            "properties": {
+              "labels": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "type": {
+                "type": "string",
+                "const": "metric"
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "else": false,
+      "required": [
+        "data",
+        "help",
+        "metric_name",
+        "metric_type"
+      ],
+      "properties": {
+        "help": {
+          "type": "string"
+        },
+        "metric_name": {
+          "type": "string"
+        },
+        "metric_type": {
+          "title": "Metric type",
+          "type": "string",
+          "enum": [
+            "gauge",
+            "histogram",
+            "summary"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,184 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Receipt notification",
+  "description": "A receipt notification associated with a running workflow",
+  "type": "object",
+  "required": [
+    "receipt",
+    "receipt_cid"
+  ],
+  "properties": {
+    "metadata": {
+      "title": "Metadata",
+      "description": "Workflow metadata to contextualize the receipt",
+      "type": "object",
+      "required": [
+        "name",
+        "receipt",
+        "receipt_cid"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        },
+        "workflow": {
+          "$ref": "#/definitions/ipld_link"
+        }
+      }
+    },
+    "receipt": {
+      "$ref": "#/definitions/receipt"
+    },
+    "receipt_cid": {
+      "$ref": "#/definitions/ipld_link"
+    }
+  },
+  "definitions": {
+    "ipld": {
+      "title": "Ipld",
+      "description": "DAG-JSON encoded IPLD: https://github.com/ipld/ipld/blob/master/specs/codecs/dag-json/spec.md",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/definitions/ipld_bytes"
+        },
+        {
+          "type": "array"
+        },
+        {
+          "type": "object"
+        },
+        {
+          "$ref": "#/definitions/ipld_link"
+        }
+      ]
+    },
+    "ipld_bytes": {
+      "title": "IPLD bytes",
+      "description": "Base64 encoded binary",
+      "type": "object",
+      "properties": {
+        "/": {
+          "type": "object",
+          "properties": {
+            "bytes": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "ipld_link": {
+      "title": "IPLD link",
+      "description": "CID link that points to some IPLD data",
+      "type": "object",
+      "properties": {
+        "/": {
+          "type": "string"
+        }
+      }
+    },
+    "iss": {
+      "title": "Issuer",
+      "description": "Principal that issued the receipt",
+      "type": "string"
+    },
+    "out": {
+      "title": "Computation result",
+      "description": "Result tuple with ok/err/just result and associated output",
+      "type": "object",
+      "items": [
+        {
+          "type": "object",
+          "enum": [
+            "ok",
+            "error",
+            "just"
+          ]
+        },
+        {
+          "$ref": "#/definitions/ipld"
+        }
+      ],
+      "maxItems": 2,
+      "minItems": 2
+    },
+    "pointer": {
+      "description": "CID reference to an invocation, task, instruction, or receipt",
+      "type": "object",
+      "properties": {
+        "/": {
+          "type": "string"
+        }
+      }
+    },
+    "prf": {
+      "description": "CIDs referencing UCAN proofs",
+      "type": [
+        "array"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "receipt": {
+      "title": "Receipt",
+      "description": "A computed receipt",
+      "type": "object",
+      "required": [
+        "meta",
+        "out",
+        "prf",
+        "ran"
+      ],
+      "properties": {
+        "iss": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/iss"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "meta": {
+          "title": "Receipt metadata",
+          "description": "Receipt metadata including the operation that produced the receipt",
+          "type": "object",
+          "required": [
+            "op"
+          ],
+          "properties": {
+            "op": {
+              "type": "string"
+            }
+          }
+        },
+        "out": {
+          "$ref": "#/definitions/out"
+        },
+        "prf": {
+          "$ref": "#/definitions/prf"
+        },
+        "ran": {
+          "$ref": "#/definitions/pointer"
+        }
+      }
+    }
+  }
+}

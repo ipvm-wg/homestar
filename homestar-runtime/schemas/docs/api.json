@@ -1,0 +1,1668 @@
+{
+  "openrpc": "1.2.6",
+  "info": {
+    "title": "homestar",
+    "description": "Homestar runtime implementation",
+    "version": "0.10.0",
+    "contact": {
+      "name": null,
+      "email": null,
+      "url": "https://github.com/ipvm-wg/homestar/tree/main/homestar-runtime"
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "url": null
+    }
+  },
+  "externalDocs": {
+    "description": null,
+    "url": "https://docs.everywhere.computer/homestar/what-is-homestar/"
+  },
+  "methods": [
+    {
+      "name": "health",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "health",
+        "schema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "health",
+          "description": "Health status of the server and database connection.",
+          "type": "object",
+          "required": [
+            "healthy"
+          ],
+          "properties": {
+            "healthy": {
+              "description": "Health status.",
+              "type": "boolean"
+            }
+          }
+        },
+        "required": true,
+        "deprecated": false
+      },
+      "deprecated": false
+    },
+    {
+      "name": "metrics",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "metrics",
+        "schema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "Metrics data",
+          "description": "Prometheus metrics data",
+          "type": "object",
+          "required": [
+            "metrics"
+          ],
+          "properties": {
+            "metrics": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/metric"
+              }
+            }
+          },
+          "definitions": {
+            "metric": {
+              "title": "Metric family",
+              "description": "A prometheus gauge, summary, or histogram metric",
+              "type": "object",
+              "if": {
+                "properties": {
+                  "metric_type": {
+                    "type": "string",
+                    "const": "gauge"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "data": {
+                    "title": "Gauge data",
+                    "description": "A gauge metric",
+                    "type": "object",
+                    "required": [
+                      "type",
+                      "value"
+                    ],
+                    "properties": {
+                      "labels": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "type": {
+                        "type": "string",
+                        "const": "metric"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "else": false,
+              "required": [
+                "data",
+                "help",
+                "metric_name",
+                "metric_type"
+              ],
+              "properties": {
+                "help": {
+                  "type": "string"
+                },
+                "metric_name": {
+                  "type": "string"
+                },
+                "metric_type": {
+                  "title": "Metric type",
+                  "type": "string",
+                  "enum": [
+                    "gauge",
+                    "histogram",
+                    "summary"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "required": true,
+        "deprecated": false
+      },
+      "deprecated": false
+    },
+    {
+      "name": "node",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "node_info",
+        "schema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "node_info",
+          "description": "Node information.",
+          "type": "object",
+          "required": [
+            "dynamic",
+            "static"
+          ],
+          "properties": {
+            "dynamic": {
+              "description": "Dynamic node information available through events at runtime.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/dynamic"
+                }
+              ]
+            },
+            "static": {
+              "description": "Static node information available at startup.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/static"
+                }
+              ]
+            }
+          },
+          "definitions": {
+            "dynamic": {
+              "description": "Dynamic node information available through events at runtime.",
+              "type": "object",
+              "required": [
+                "connections",
+                "listeners"
+              ],
+              "properties": {
+                "connections": {
+                  "description": "Peers and their addresses that are connected to the node",
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "listeners": {
+                  "description": "Listen addresses for the node",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "static": {
+              "description": "Static node information available at startup.",
+              "type": "object",
+              "required": [
+                "peer_id"
+              ],
+              "properties": {
+                "peer_id": {
+                  "description": "The peer ID of the node",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": true,
+        "deprecated": false
+      },
+      "deprecated": false
+    },
+    {
+      "name": "subscribe_network_events",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "subscription_id",
+        "schema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "String",
+          "type": "string"
+        },
+        "required": true,
+        "deprecated": false
+      },
+      "deprecated": false,
+      "x-messages": {
+        "name": "network subscription messages",
+        "schema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "network",
+          "description": "Network notification type.",
+          "oneOf": [
+            {
+              "description": "Listening on new address notification.",
+              "type": "object",
+              "required": [
+                "new_listen_addr"
+              ],
+              "properties": {
+                "new_listen_addr": {
+                  "$ref": "#/definitions/new_listen_addr"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Connection established notification.",
+              "type": "object",
+              "required": [
+                "connection_established"
+              ],
+              "properties": {
+                "connection_established": {
+                  "$ref": "#/definitions/connection_established"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Connection closed notification.",
+              "type": "object",
+              "required": [
+                "connection_closed"
+              ],
+              "properties": {
+                "connection_closed": {
+                  "$ref": "#/definitions/connection_closed"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Outgoing conenction error notification.",
+              "type": "object",
+              "required": [
+                "outgoing_connection_error"
+              ],
+              "properties": {
+                "outgoing_connection_error": {
+                  "$ref": "#/definitions/outgoing_connection_error"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Incoming conenction error notification.",
+              "type": "object",
+              "required": [
+                "incoming_connection_error"
+              ],
+              "properties": {
+                "incoming_connection_error": {
+                  "$ref": "#/definitions/incoming_connection_error"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "mDNS discovered notification.",
+              "type": "object",
+              "required": [
+                "discovered_mdns"
+              ],
+              "properties": {
+                "discovered_mdns": {
+                  "$ref": "#/definitions/discovered_mdns"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Rendezvous client discovered notification.",
+              "type": "object",
+              "required": [
+                "discovered_rendezvous"
+              ],
+              "properties": {
+                "discovered_rendezvous": {
+                  "$ref": "#/definitions/discovered_rendezvous"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Rendezvous client discovered notification.",
+              "type": "object",
+              "required": [
+                "registered_rendezvous"
+              ],
+              "properties": {
+                "registered_rendezvous": {
+                  "$ref": "#/definitions/registered_rendezvous"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Rendezvous discover served notification.",
+              "type": "object",
+              "required": [
+                "discover_served_rendezvous"
+              ],
+              "properties": {
+                "discover_served_rendezvous": {
+                  "$ref": "#/definitions/registered_rendezvous"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Rendezvous peer registered notification.",
+              "type": "object",
+              "required": [
+                "peer_registered_rendezvous"
+              ],
+              "properties": {
+                "peer_registered_rendezvous": {
+                  "$ref": "#/definitions/peer_registered_rendezvous"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Published receipt pubsub notification.",
+              "type": "object",
+              "required": [
+                "published_receipt_pubsub"
+              ],
+              "properties": {
+                "published_receipt_pubsub": {
+                  "$ref": "#/definitions/published_receipt_pubsub"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Received receipt pubsub notification.",
+              "type": "object",
+              "required": [
+                "received_receipt_pubsub"
+              ],
+              "properties": {
+                "received_receipt_pubsub": {
+                  "$ref": "#/definitions/received_receipt_pubsub"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Put receipt DHT notification.",
+              "type": "object",
+              "required": [
+                "put_receipt_dht"
+              ],
+              "properties": {
+                "put_receipt_dht": {
+                  "$ref": "#/definitions/put_receipt_dht"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Got receipt DHT notification.",
+              "type": "object",
+              "required": [
+                "got_receipt_dht"
+              ],
+              "properties": {
+                "got_receipt_dht": {
+                  "$ref": "#/definitions/got_receipt_dht"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Put workflow info DHT notification.",
+              "type": "object",
+              "required": [
+                "put_workflow_info_dht"
+              ],
+              "properties": {
+                "put_workflow_info_dht": {
+                  "$ref": "#/definitions/put_workflow_info_dht"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Put workflow info DHT notification.",
+              "type": "object",
+              "required": [
+                "got_workflow_info_dht"
+              ],
+              "properties": {
+                "got_workflow_info_dht": {
+                  "$ref": "#/definitions/got_workflow_info_dht"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Receipt quorum success notification.",
+              "type": "object",
+              "required": [
+                "receipt_quorum_success_dht"
+              ],
+              "properties": {
+                "receipt_quorum_success_dht": {
+                  "$ref": "#/definitions/receipt_quorum_success_dht"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Receipt quorum failure notification.",
+              "type": "object",
+              "required": [
+                "receipt_quorum_failure_dht"
+              ],
+              "properties": {
+                "receipt_quorum_failure_dht": {
+                  "$ref": "#/definitions/receipt_quorum_failure_dht"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Workflow info quorum success notification.",
+              "type": "object",
+              "required": [
+                "workflow_info_quorum_success_dht"
+              ],
+              "properties": {
+                "workflow_info_quorum_success_dht": {
+                  "$ref": "#/definitions/workflow_info_quorum_success_dht"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Workflow info quorum failure notification.",
+              "type": "object",
+              "required": [
+                "workflow_info_quorum_failure_dht"
+              ],
+              "properties": {
+                "workflow_info_quorum_failure_dht": {
+                  "$ref": "#/definitions/workflow_info_quorum_failure_dht"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Sent workflow info notification.",
+              "type": "object",
+              "required": [
+                "sent_workflow_info"
+              ],
+              "properties": {
+                "sent_workflow_info": {
+                  "$ref": "#/definitions/sent_workflow_info"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Received workflow info notification.",
+              "type": "object",
+              "required": [
+                "received_workflow_info"
+              ],
+              "properties": {
+                "received_workflow_info": {
+                  "$ref": "#/definitions/received_workflow_info"
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "definitions": {
+            "connection_closed": {
+              "type": "object",
+              "required": [
+                "address",
+                "peer_id",
+                "timestamp"
+              ],
+              "properties": {
+                "address": {
+                  "type": "string"
+                },
+                "peer_id": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "connection_established": {
+              "type": "object",
+              "required": [
+                "address",
+                "peer_id",
+                "timestamp"
+              ],
+              "properties": {
+                "address": {
+                  "type": "string"
+                },
+                "peer_id": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "discovered_mdns": {
+              "type": "object",
+              "required": [
+                "peers",
+                "timestamp"
+              ],
+              "properties": {
+                "peers": {
+                  "description": "Peers discovered by peer ID and multiaddress",
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "discovered_rendezvous": {
+              "type": "object",
+              "required": [
+                "peers",
+                "server",
+                "timestamp"
+              ],
+              "properties": {
+                "peers": {
+                  "description": "Peers discovered by peer ID and multiaddresses",
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "server": {
+                  "description": "Server that fulfilled the discovery request",
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "got_receipt_dht": {
+              "type": "object",
+              "required": [
+                "cid",
+                "ran",
+                "timestamp"
+              ],
+              "properties": {
+                "cid": {
+                  "description": "Receipt CID",
+                  "type": "string"
+                },
+                "publisher": {
+                  "description": "Receipt publisher peer ID",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "ran": {
+                  "description": "Ran receipt CID",
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "got_workflow_info_dht": {
+              "type": "object",
+              "required": [
+                "cid",
+                "num_tasks",
+                "progress",
+                "progress_count",
+                "timestamp"
+              ],
+              "properties": {
+                "cid": {
+                  "description": "Workflow info CID",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Optional workflow name",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "num_tasks": {
+                  "description": "Number of tasks in workflow",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "progress": {
+                  "description": "Completed task CIDs",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "progress_count": {
+                  "description": "Number of workflow tasks completed",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "publisher": {
+                  "description": "Workflow info publisher peer ID",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "incoming_connection_error": {
+              "type": "object",
+              "required": [
+                "error",
+                "timestamp"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "new_listen_addr": {
+              "type": "object",
+              "required": [
+                "address",
+                "peer_id",
+                "timestamp"
+              ],
+              "properties": {
+                "address": {
+                  "type": "string"
+                },
+                "peer_id": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "outgoing_connection_error": {
+              "type": "object",
+              "required": [
+                "error",
+                "timestamp"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "peer_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "peer_registered_rendezvous": {
+              "type": "object",
+              "required": [
+                "addresses",
+                "peer_id",
+                "timestamp"
+              ],
+              "properties": {
+                "addresses": {
+                  "description": "Multiaddresses for peer",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "peer_id": {
+                  "description": "Peer registered",
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "published_receipt_pubsub": {
+              "type": "object",
+              "required": [
+                "cid",
+                "ran",
+                "timestamp"
+              ],
+              "properties": {
+                "cid": {
+                  "description": "Receipt CID",
+                  "type": "string"
+                },
+                "ran": {
+                  "description": "Ran receipt CID",
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "put_receipt_dht": {
+              "type": "object",
+              "required": [
+                "cid",
+                "ran",
+                "timestamp"
+              ],
+              "properties": {
+                "cid": {
+                  "description": "Receipt CID",
+                  "type": "string"
+                },
+                "ran": {
+                  "description": "Ran receipt CID",
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "put_workflow_info_dht": {
+              "type": "object",
+              "required": [
+                "cid",
+                "num_tasks",
+                "progress",
+                "progress_count",
+                "timestamp"
+              ],
+              "properties": {
+                "cid": {
+                  "description": "Workflow info CID",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Optional workflow name",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "num_tasks": {
+                  "description": "Number of tasks in workflow",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "progress": {
+                  "description": "Completed task CIDs",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "progress_count": {
+                  "description": "Number of workflow tasks completed",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "receipt_quorum_failure_dht": {
+              "type": "object",
+              "required": [
+                "cid",
+                "connected_peer_count",
+                "quorum",
+                "stored_to_peers",
+                "timestamp"
+              ],
+              "properties": {
+                "cid": {
+                  "description": "Receipt CID",
+                  "type": "string"
+                },
+                "connected_peer_count": {
+                  "description": "Number of connected peers",
+                  "type": "integer",
+                  "format": "uint",
+                  "minimum": 0.0
+                },
+                "quorum": {
+                  "description": "Number of peers required for quorum",
+                  "type": "integer",
+                  "format": "uint",
+                  "minimum": 0.0
+                },
+                "stored_to_peers": {
+                  "description": "Peers participating in quorum",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "receipt_quorum_success_dht": {
+              "type": "object",
+              "required": [
+                "cid",
+                "quorum",
+                "timestamp"
+              ],
+              "properties": {
+                "cid": {
+                  "description": "Receipt CID",
+                  "type": "string"
+                },
+                "quorum": {
+                  "description": "Number of peers participating in quorum",
+                  "type": "integer",
+                  "format": "uint",
+                  "minimum": 0.0
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "received_receipt_pubsub": {
+              "type": "object",
+              "required": [
+                "cid",
+                "publisher",
+                "ran",
+                "timestamp"
+              ],
+              "properties": {
+                "cid": {
+                  "description": "Receipt CID",
+                  "type": "string"
+                },
+                "publisher": {
+                  "description": "Receipt publisher peer ID",
+                  "type": "string"
+                },
+                "ran": {
+                  "description": "Ran receipt CID",
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "received_workflow_info": {
+              "type": "object",
+              "required": [
+                "cid",
+                "num_tasks",
+                "progress",
+                "progress_count",
+                "timestamp"
+              ],
+              "properties": {
+                "cid": {
+                  "description": "Workflow info CID",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Optional workflow name",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "num_tasks": {
+                  "description": "Number of tasks in workflow",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "progress": {
+                  "description": "Completed task CIDs",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "progress_count": {
+                  "description": "Number of workflow tasks completed",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "provider": {
+                  "description": "Workflow info provider peer ID",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "registered_rendezvous": {
+              "type": "object",
+              "required": [
+                "server",
+                "timestamp"
+              ],
+              "properties": {
+                "server": {
+                  "description": "Server that accepted registration",
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "sent_workflow_info": {
+              "type": "object",
+              "required": [
+                "cid",
+                "num_tasks",
+                "progress",
+                "progress_count",
+                "requestor",
+                "timestamp"
+              ],
+              "properties": {
+                "cid": {
+                  "description": "Workflow info CID",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Optional workflow name",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "num_tasks": {
+                  "description": "Number of tasks in workflow",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "progress": {
+                  "description": "Completed task CIDs",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "progress_count": {
+                  "description": "Number of workflow tasks completed",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "requestor": {
+                  "description": "Peer that requested workflow info",
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "workflow_info_quorum_failure_dht": {
+              "type": "object",
+              "required": [
+                "cid",
+                "connected_peer_count",
+                "quorum",
+                "stored_to_peers",
+                "timestamp"
+              ],
+              "properties": {
+                "cid": {
+                  "description": "Workflow info CID",
+                  "type": "string"
+                },
+                "connected_peer_count": {
+                  "description": "Number of connected peers",
+                  "type": "integer",
+                  "format": "uint",
+                  "minimum": 0.0
+                },
+                "quorum": {
+                  "description": "Number of peers required for quorum",
+                  "type": "integer",
+                  "format": "uint",
+                  "minimum": 0.0
+                },
+                "stored_to_peers": {
+                  "description": "Peers participating in quorum",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            },
+            "workflow_info_quorum_success_dht": {
+              "type": "object",
+              "required": [
+                "cid",
+                "quorum",
+                "timestamp"
+              ],
+              "properties": {
+                "cid": {
+                  "description": "Workflow info CID",
+                  "type": "string"
+                },
+                "quorum": {
+                  "description": "Number of peers participating in quorum",
+                  "type": "integer",
+                  "format": "uint",
+                  "minimum": 0.0
+                },
+                "timestamp": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          }
+        },
+        "required": true,
+        "deprecated": false
+      }
+    },
+    {
+      "name": "unsubscribe_network_events",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "unsubscribe result",
+        "schema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "Boolean",
+          "type": "boolean"
+        },
+        "required": true,
+        "deprecated": false
+      },
+      "deprecated": false
+    },
+    {
+      "name": "subscribe_run_workflow",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workflow",
+          "schema": {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "title": "Workflow",
+            "description": "Workflow composed of tasks",
+            "type": "object",
+            "required": [
+              "tasks"
+            ],
+            "properties": {
+              "tasks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/task"
+                }
+              }
+            },
+            "definitions": {
+              "await_result": {
+                "title": "Await result",
+                "description": "Branches of a promise that is awaited",
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "await/ok": {
+                        "$ref": "#/definitions/pointer"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "await/error": {
+                        "$ref": "#/definitions/pointer"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "await/*": {
+                        "$ref": "#/definitions/pointer"
+                      }
+                    }
+                  }
+                ]
+              },
+              "ipld": {
+                "title": "Ipld",
+                "description": "DAG-JSON encoded IPLD: https://github.com/ipld/ipld/blob/master/specs/codecs/dag-json/spec.md",
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/definitions/ipld_bytes"
+                  },
+                  {
+                    "type": "array"
+                  },
+                  {
+                    "type": "object"
+                  },
+                  {
+                    "$ref": "#/definitions/ipld_link"
+                  }
+                ]
+              },
+              "ipld_bytes": {
+                "title": "IPLD bytes",
+                "description": "Base64 encoded binary",
+                "type": "object",
+                "properties": {
+                  "/": {
+                    "type": "object",
+                    "properties": {
+                      "bytes": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "ipld_link": {
+                "title": "IPLD link",
+                "description": "CID link that points to some IPLD data",
+                "type": "object",
+                "properties": {
+                  "/": {
+                    "type": "string"
+                  }
+                }
+              },
+              "pointer": {
+                "description": "CID reference to an invocation, task, instruction, or receipt",
+                "type": "object",
+                "properties": {
+                  "/": {
+                    "type": "string"
+                  }
+                }
+              },
+              "prf": {
+                "description": "CIDs referencing UCAN proofs",
+                "type": [
+                  "array"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "resources": {
+                "description": "Resource configuration for fuel quota, memory allowance, and timeout",
+                "type": "object",
+                "properties": {
+                  "fuel": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "format": "uint64",
+                    "minimum": 0.0
+                  },
+                  "memory": {
+                    "description": "Memory in bytes",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "format": "uint64",
+                    "minimum": 0.0
+                  },
+                  "time": {
+                    "description": "Timeout in milliseconds",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "format": "uint64",
+                    "minimum": 0.0
+                  }
+                }
+              },
+              "run": {
+                "title": "Run instruction",
+                "description": "An instruction that runs a function from a resource, executor that will run the function, inputs to the executor, and optional nonce",
+                "type": "object",
+                "if": {
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "wasm/run"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "input": {
+                      "type": "object",
+                      "required": [
+                        "args",
+                        "func"
+                      ],
+                      "properties": {
+                        "args": {
+                          "description": "Arguments to the function. May await a result from another task.",
+                          "type": "array",
+                          "items": [
+                            {
+                              "$ref": "#/definitions/ipld"
+                            },
+                            {
+                              "$ref": "#/definitions/await_result"
+                            }
+                          ]
+                        },
+                        "func": {
+                          "description": "The function to call on the Wasm resource",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "else": false,
+                "required": [
+                  "input",
+                  "nnc",
+                  "op",
+                  "rsc"
+                ],
+                "properties": {
+                  "nnc": {
+                    "description": "A 12-byte or 16-byte nonce. Use empty string for no nonce.",
+                    "type": "string"
+                  },
+                  "op": {
+                    "description": "Function executor",
+                    "type": "string",
+                    "enum": [
+                      "wasm/run"
+                    ]
+                  },
+                  "rsc": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              },
+              "task": {
+                "description": "Contains a run instruction, configuration, optional reference to receipt that caused task to run, and authorization",
+                "type": "object",
+                "required": [
+                  "meta",
+                  "prf",
+                  "run"
+                ],
+                "properties": {
+                  "cause": {
+                    "title": "Receipt reference",
+                    "anyOf": [
+                      {
+                        "$ref": "#/definitions/pointer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "meta": {
+                    "title": "Task Configuration",
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/resources"
+                      }
+                    ]
+                  },
+                  "prf": {
+                    "title": "UCAN Authorization",
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/prf"
+                      }
+                    ]
+                  },
+                  "run": {
+                    "title": "Run instruction",
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/run"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "required": true,
+          "deprecated": false
+        }
+      ],
+      "result": {
+        "name": "subscription_id",
+        "schema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "String",
+          "type": "string"
+        },
+        "required": true,
+        "deprecated": false
+      },
+      "deprecated": false,
+      "x-messages": {
+        "name": "workflow subscription messages",
+        "summary": "receipt notifications from a running workflow",
+        "schema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "Receipt notification",
+          "description": "A receipt notification associated with a running workflow",
+          "type": "object",
+          "required": [
+            "receipt",
+            "receipt_cid"
+          ],
+          "properties": {
+            "metadata": {
+              "title": "Metadata",
+              "description": "Workflow metadata to contextualize the receipt",
+              "type": "object",
+              "required": [
+                "name",
+                "receipt",
+                "receipt_cid"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "workflow": {
+                  "$ref": "#/definitions/ipld_link"
+                }
+              }
+            },
+            "receipt": {
+              "$ref": "#/definitions/receipt"
+            },
+            "receipt_cid": {
+              "$ref": "#/definitions/ipld_link"
+            }
+          },
+          "definitions": {
+            "ipld": {
+              "title": "Ipld",
+              "description": "DAG-JSON encoded IPLD: https://github.com/ipld/ipld/blob/master/specs/codecs/dag-json/spec.md",
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/definitions/ipld_bytes"
+                },
+                {
+                  "type": "array"
+                },
+                {
+                  "type": "object"
+                },
+                {
+                  "$ref": "#/definitions/ipld_link"
+                }
+              ]
+            },
+            "ipld_bytes": {
+              "title": "IPLD bytes",
+              "description": "Base64 encoded binary",
+              "type": "object",
+              "properties": {
+                "/": {
+                  "type": "object",
+                  "properties": {
+                    "bytes": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "ipld_link": {
+              "title": "IPLD link",
+              "description": "CID link that points to some IPLD data",
+              "type": "object",
+              "properties": {
+                "/": {
+                  "type": "string"
+                }
+              }
+            },
+            "iss": {
+              "title": "Issuer",
+              "description": "Principal that issued the receipt",
+              "type": "string"
+            },
+            "out": {
+              "title": "Computation result",
+              "description": "Result tuple with ok/err/just result and associated output",
+              "type": "object",
+              "items": [
+                {
+                  "type": "object",
+                  "enum": [
+                    "ok",
+                    "error",
+                    "just"
+                  ]
+                },
+                {
+                  "$ref": "#/definitions/ipld"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "pointer": {
+              "description": "CID reference to an invocation, task, instruction, or receipt",
+              "type": "object",
+              "properties": {
+                "/": {
+                  "type": "string"
+                }
+              }
+            },
+            "prf": {
+              "description": "CIDs referencing UCAN proofs",
+              "type": [
+                "array"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "receipt": {
+              "title": "Receipt",
+              "description": "A computed receipt",
+              "type": "object",
+              "required": [
+                "meta",
+                "out",
+                "prf",
+                "ran"
+              ],
+              "properties": {
+                "iss": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/definitions/iss"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "meta": {
+                  "title": "Receipt metadata",
+                  "description": "Receipt metadata including the operation that produced the receipt",
+                  "type": "object",
+                  "required": [
+                    "op"
+                  ],
+                  "properties": {
+                    "op": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "out": {
+                  "$ref": "#/definitions/out"
+                },
+                "prf": {
+                  "$ref": "#/definitions/prf"
+                },
+                "ran": {
+                  "$ref": "#/definitions/pointer"
+                }
+              }
+            }
+          }
+        },
+        "required": true,
+        "deprecated": false
+      }
+    },
+    {
+      "name": "unsubscribe_run_workflow",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "unsubscribe result",
+        "schema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "Boolean",
+          "type": "boolean"
+        },
+        "required": true,
+        "deprecated": false
+      },
+      "deprecated": false
+    }
+  ]
+}
