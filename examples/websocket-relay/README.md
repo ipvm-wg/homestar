@@ -96,9 +96,9 @@ if they've been previously run.
   homestar start --db homestar.db
   ```
 
-  Afterward, as mentioned above, you can then run `npm install --prefix relay-app` to
-  install dependencies and `npm run --prefix relay-app dev` to start the
-  relay web application (UI) on `http://localhost:5173/` by default.
+  Afterward, run `npm install --prefix relay-app` to install dependencies
+  and `npm run --prefix relay-app dev` to start the relay web
+  application (UI) on `http://localhost:5173/` by default.
 
 
 [@fission-codes/homestar]: https://www.npmjs.com/package/@fission-codes/homestar
