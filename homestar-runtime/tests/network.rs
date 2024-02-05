@@ -280,6 +280,7 @@ fn test_libp2p_connect_known_peers_integration() -> Result<()> {
         [node.network.libp2p]
         listen_address = "{listen_addr1}"
         node_addresses = ["{node_addrb}"]
+        bootstrap_interval = 1
         [node.network.libp2p.mdns]
         enable = false
         [node.network.libp2p.rendezvous]
@@ -388,6 +389,12 @@ fn test_libp2p_connect_known_peers_integration() -> Result<()> {
     let stdout1 = retrieve_output(dead_proc1);
     let stdout2 = retrieve_output(dead_proc2);
 
+    // Check that node bootsrapped itself on the 1 second delay.
+    let bootstrapped = check_for_line_with(
+        stdout1.clone(),
+        vec!["successfully bootstrapped node", ED25519MULTIHASH],
+    );
+
     // Check node two was added to the Kademlia table
     let two_added_to_dht = check_for_line_with(
         stdout1.clone(),
@@ -412,6 +419,7 @@ fn test_libp2p_connect_known_peers_integration() -> Result<()> {
         vec!["peer connection established", SECP256K1MULTIHASH],
     );
 
+    assert!(bootstrapped);
     assert!(one_connected_to_two);
     assert!(two_in_dht_routing_table);
     assert!(two_added_to_dht);
@@ -568,6 +576,74 @@ fn test_libp2p_disconnect_known_peers_integration() -> Result<()> {
 
     assert!(two_disconnected_from_one);
     assert!(!two_removed_from_dht_table);
+
+    Ok(())
+}
+
+#[test]
+#[serial_test::parallel]
+fn test_libp2p_configured_with_known_dns_multiaddr() -> Result<()> {
+    let proc_info = ProcInfo::new().unwrap();
+    let rpc_port = proc_info.rpc_port;
+    let metrics_port = proc_info.metrics_port;
+    let ws_port = proc_info.ws_port;
+    let listen_addr = listen_addr(proc_info.listen_port);
+
+    let known_peer_id = "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN";
+    // from ipfs bootstrap list
+    let dns_node_addr = format!("/dnsaddr/bootstrap.libp2p.io/p2p/{}", known_peer_id);
+    let toml = format!(
+        r#"
+        [node]
+        [node.network.keypair_config]
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
+        [node.network.libp2p]
+        listen_address = "{listen_addr}"
+        node_addresses = ["{dns_node_addr}"]
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.libp2p.rendezvous]
+        enable_client = false
+        enable_server = false
+        [node.network.metrics]
+        port = {metrics_port}
+        [node.network.rpc]
+        port = {rpc_port}
+        [node.network.webserver]
+        port = {ws_port}
+        "#
+    );
+
+    let config = make_config!(toml);
+
+    let homestar_proc = Command::new(BIN.as_os_str())
+        .arg("start")
+        .arg("-c")
+        .arg(config.filename())
+        .arg("--db")
+        .arg(&proc_info.db_path)
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let proc_guard = ChildGuard::new(homestar_proc);
+
+    if wait_for_socket_connection_v6(rpc_port, 1000).is_err() {
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
+    let dead_proc = kill_homestar(proc_guard.take(), None);
+    let stdout = retrieve_output(dead_proc);
+
+    let multiaddr_not_supported =
+        check_for_line_with(stdout.clone(), vec!["MultiaddrNotSupported"]);
+
+    // This can connect to known dns multiaddrs, but won't over GHA.
+    // let connected_to_known_peer =
+    //     check_for_line_with(stdout, vec!["peer connection established", known_peer_id]);
+    // assert!(connected_to_known_peer);
+
+    // Check that we don't receive a MultiaddrNotSupported error.
+    assert!(!multiaddr_not_supported);
 
     Ok(())
 }

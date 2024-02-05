@@ -781,6 +781,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo_metadata"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d886547e41f740c616ae73108f6eb70afe6d940c7bc697cb30f13daec073037"
+dependencies = [
+ "camino",
+ "cargo-platform",
+ "semver",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2548,6 +2562,7 @@ dependencies = [
  "flume 0.11.0",
  "fnv",
  "futures",
+ "hickory-resolver",
  "homestar-invocation",
  "homestar-runtime-tests-proc-macro",
  "homestar-wasm",
@@ -2615,6 +2630,7 @@ dependencies = [
  "typetag",
  "url",
  "uuid",
+ "vergen",
  "wait-timeout",
  "winapi",
 ]
@@ -2721,6 +2737,7 @@ dependencies = [
  "libsecp256k1-core",
  "libsqlite3-sys",
  "linux-raw-sys",
+ "memchr",
  "miette",
  "miniz_oxide",
  "multibase",
@@ -2735,7 +2752,9 @@ dependencies = [
  "ring 0.17.7",
  "rustc-hash",
  "rustix",
+ "rustls 0.21.10",
  "scopeguard",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -3289,7 +3308,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "url",
- "webpki-roots",
+ "webpki-roots 0.26.0",
 ]
 
 [[package]]
@@ -3545,6 +3564,7 @@ dependencies = [
  "libp2p-swarm",
  "libp2p-tcp",
  "libp2p-upnp",
+ "libp2p-websocket",
  "libp2p-yamux",
  "multiaddr 0.18.1",
  "pin-project",
@@ -3690,6 +3710,7 @@ dependencies = [
  "multihash 0.19.1",
  "quick-protobuf",
  "rand",
+ "ring 0.17.7",
  "serde",
  "sha2 0.10.8",
  "thiserror",
@@ -3947,6 +3968,26 @@ dependencies = [
  "tokio",
  "tracing",
  "void",
+]
+
+[[package]]
+name = "libp2p-websocket"
+version = "0.43.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4846d51afd08180e164291c3754ba30dd4fbac6fac65571be56403c16431a5e"
+dependencies = [
+ "either",
+ "futures",
+ "futures-rustls",
+ "libp2p-core",
+ "libp2p-identity",
+ "parking_lot",
+ "pin-project-lite",
+ "rw-stream-sink",
+ "soketto",
+ "tracing",
+ "url",
+ "webpki-roots 0.25.3",
 ]
 
 [[package]]
@@ -4655,6 +4696,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4161fcb6d602d4d2081af7c3a45852d875a03dd337a6bfdd6e06407b61342a43"
 dependencies = [
  "hermit-abi",
+ "libc",
+]
+
+[[package]]
+name = "num_threads"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2819ce041d2ee131036f4fc9d6ae7ae125a3a40e97ba64d04fe799ad9dabbb44"
+dependencies = [
  "libc",
 ]
 
@@ -6184,7 +6234,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16d23b015676c90a0f01c197bfdc786c20342c73a0afdda9025adb0bc42940a8"
 dependencies = [
  "bytecount",
- "cargo_metadata",
+ "cargo_metadata 0.14.2",
  "error-chain",
  "glob",
  "pulldown-cmark",
@@ -6687,6 +6737,8 @@ checksum = "f657ba42c3f86e7680e53c8cd3af8abbe56b5491790b46e22e19c0d57463583e"
 dependencies = [
  "deranged",
  "itoa",
+ "libc",
+ "num_threads",
  "powerfmt",
  "serde",
  "time-core",
@@ -7381,6 +7433,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bda7c41ca331fe9a1c278a9e7ee055f4be7f5eb1c2b72f079b4ff8b5fce9d5c"
 
 [[package]]
+name = "vergen"
+version = "8.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e27d6bdd219887a9eadd19e1c34f32e47fa332301184935c6d9bca26f3cca525"
+dependencies = [
+ "anyhow",
+ "cargo_metadata 0.18.1",
+ "cfg-if",
+ "regex",
+ "rustversion",
+ "time",
+]
+
+[[package]]
 name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8048,6 +8114,12 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
 ]
+
+[[package]]
+name = "webpki-roots"
+version = "0.25.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1778a42e8b3b90bff8d0f5032bf22250792889a5cdc752aa0020c84abe3aaf10"
 
 [[package]]
 name = "webpki-roots"

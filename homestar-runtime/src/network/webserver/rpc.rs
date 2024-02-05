@@ -182,7 +182,6 @@ where
             }
         })?;
 
-        #[cfg(not(test))]
         module.register_async_method(NODE_INFO_ENDPOINT, |_, ctx| async move {
             let (tx, rx) = crate::channel::AsyncChannel::oneshot();
             ctx.runner_sender

@@ -176,7 +176,6 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
             .arg("run")
             .arg("-p")
             .arg(rpc_port1.to_string())
-            .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 

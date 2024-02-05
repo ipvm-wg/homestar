@@ -11,20 +11,27 @@ use anyhow::{Context, Result};
 use const_format::formatcp;
 use enum_assoc::Assoc;
 use faststr::FastStr;
+use futures::future::Either;
 use libp2p::{
-    core::upgrade,
+    core::{
+        muxing::StreamMuxerBox,
+        transport::{self, OptionalTransport},
+        upgrade,
+    },
+    dns,
     gossipsub::{self, MessageId, TopicHash},
     identify,
+    identity::Keypair,
     kad::{
         self,
         store::{MemoryStore, MemoryStoreConfig},
     },
     mdns,
     multiaddr::Protocol,
-    noise, rendezvous,
+    noise, quic, rendezvous,
     request_response::{self, ProtocolSupport},
     swarm::{self, behaviour::toggle::Toggle, NetworkBehaviour, Swarm},
-    tcp, yamux, PeerId, StreamProtocol, Transport,
+    yamux, PeerId, StreamProtocol, Transport,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -50,12 +57,7 @@ pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBe
         "local peer ID generated"
     );
 
-    let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
-        .upgrade(upgrade::Version::V1Lazy)
-        .authenticate(noise::Config::new(&keypair)?)
-        .multiplex(yamux::Config::default())
-        .timeout(settings.libp2p.transport_connection_timeout)
-        .boxed();
+    let transport = build_transport(settings, keypair.clone())?;
 
     let mut swarm = Swarm::new(
         transport,
@@ -399,4 +401,50 @@ impl From<identify::Event> for ComposedEvent {
     fn from(event: identify::Event) -> Self {
         ComposedEvent::Identify(event)
     }
+}
+
+fn build_transport(
+    settings: &settings::Network,
+    keypair: Keypair,
+) -> Result<transport::Boxed<(PeerId, StreamMuxerBox)>> {
+    let build_tcp = || libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::new().nodelay(true));
+    let build_ws_or_tcp = libp2p::websocket::WsConfig::new(build_tcp()).or_transport(build_tcp());
+    let build_quic = if settings.libp2p.quic.enable {
+        OptionalTransport::some(quic::tokio::Transport::new(quic::Config::new(&keypair)))
+    } else {
+        OptionalTransport::none()
+    };
+
+    let transport = build_ws_or_tcp
+        .upgrade(upgrade::Version::V1Lazy)
+        .authenticate(noise::Config::new(&keypair)?)
+        .multiplex(yamux::Config::default())
+        .timeout(settings.libp2p.transport_connection_timeout)
+        .or_transport(build_quic)
+        .map(|either_output, _| match either_output {
+            Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
+            Either::Right((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
+        });
+
+    let transport = if let Ok((conf, opts)) = hickory_resolver::system_conf::read_system_conf() {
+        info!(
+            subject = "swarm.init",
+            category = "libp2p.swarm",
+            "using system DNS configuration from /etc/resolv.conf"
+        );
+        dns::tokio::Transport::custom(transport, conf, opts)
+    } else {
+        info!(
+            subject = "swarm.init",
+            category = "libp2p.swarm",
+            "using cloudflare DNS configuration as a fallback"
+        );
+        dns::tokio::Transport::custom(
+            transport,
+            dns::ResolverConfig::cloudflare(),
+            dns::ResolverOpts::default(),
+        )
+    };
+
+    Ok(transport.boxed())
 }

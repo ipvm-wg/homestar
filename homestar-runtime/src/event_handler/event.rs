@@ -134,6 +134,8 @@ pub(crate) enum Event {
     GetNodeInfo(AsyncChannelSender<DynamicNodeInfo>),
     /// Dial a peer.
     DialPeer(PeerId),
+    /// Bootstrap the node to join the DHT.
+    Bootstrap,
 }
 
 #[allow(unreachable_patterns)]
@@ -301,6 +303,38 @@ impl Event {
                     .dial(peer_id)
                     .map_err(anyhow::Error::new)?;
             }
+            Event::Bootstrap => {
+                // Bootstrapping requires at least one node of the DHT to be
+                // known.
+                //
+                // See `libp2p::Behaviour::add_address`.
+                if event_handler
+                    .swarm
+                    .connected_peers()
+                    .peekable()
+                    .peek()
+                    .is_some()
+                {
+                    let _ = event_handler
+                        .swarm
+                        .behaviour_mut()
+                        .kademlia
+                        .bootstrap()
+                        .map(|_| {
+                            debug!(
+                                subject = "libp2p.kad.bootstrap",
+                                category = "handle_event",
+                                "bootstrapped kademlia"
+                            )
+                        })
+                        .map_err(|err| {
+                            warn!(subject = "libp2p.kad.bootstrap.err",
+                          category = "handle_event",
+                          err=?err,
+                          "error bootstrapping kademlia")
+                        });
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -391,14 +425,14 @@ impl Captured {
             }
         }
 
-        let receipt_quorum = if event_handler.receipt_quorum > 0 {
-            unsafe { Quorum::N(NonZeroUsize::new_unchecked(event_handler.receipt_quorum)) }
+        let receipt_quorum = if event_handler.quorum.receipt > 0 {
+            unsafe { Quorum::N(NonZeroUsize::new_unchecked(event_handler.quorum.receipt)) }
         } else {
             Quorum::One
         };
 
-        let workflow_quorum = if event_handler.workflow_quorum > 0 {
-            unsafe { Quorum::N(NonZeroUsize::new_unchecked(event_handler.receipt_quorum)) }
+        let workflow_quorum = if event_handler.quorum.workflow > 0 {
+            unsafe { Quorum::N(NonZeroUsize::new_unchecked(event_handler.quorum.receipt)) }
         } else {
             Quorum::One
         };
