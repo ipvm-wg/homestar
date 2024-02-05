@@ -190,6 +190,14 @@ uuid = { version = "1.6.1", features = ["v4"] }
 [target.'cfg(not(windows))'.dependencies]
 daemonize = "0.5"
 
+[build-dependencies]
+vergen = { version = "8.3", default-features = false, features = [
+  "build",
+  "cargo",
+  "git",
+  "gitcl",
+] }
+
 [dev-dependencies]
 assert_cmd = "2.0"
 criterion = "0.5"

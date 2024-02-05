@@ -304,6 +304,10 @@ impl Event {
                     .map_err(anyhow::Error::new)?;
             }
             Event::Bootstrap => {
+                // Bootstrapping requires at least one node of the DHT to be
+                // known.
+                //
+                // See `libp2p::Behaviour::add_address`.
                 if event_handler
                     .swarm
                     .connected_peers()

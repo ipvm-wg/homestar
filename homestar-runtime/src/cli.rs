@@ -17,7 +17,7 @@ use tarpc::context;
 mod error;
 pub use error::Error;
 pub(crate) mod show;
-pub(crate) use show::ConsoleTable;
+pub use show::ConsoleTable;
 
 const DEFAULT_DB_PATH: &str = "homestar.db";
 const TMP_DIR: &str = "/tmp";
@@ -151,6 +151,8 @@ Supported:
         #[clap(flatten)]
         args: RpcArgs,
     },
+    /// Get Homestar binary and other information.
+    Info,
 }
 
 impl Command {
@@ -161,6 +163,7 @@ impl Command {
             Command::Ping { .. } => "ping",
             Command::Run { .. } => "run",
             Command::Node { .. } => "node",
+            Command::Info => "info",
         }
     }
 

@@ -45,7 +45,7 @@ use tracing::{debug, error, info, warn};
 mod error;
 pub(crate) mod file;
 mod nodeinfo;
-pub(crate) mod response;
+pub mod response;
 pub(crate) use error::Error;
 pub(crate) use nodeinfo::{DynamicNodeInfo, StaticNodeInfo};
 

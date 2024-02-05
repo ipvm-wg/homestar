@@ -1,11 +1,12 @@
 use clap::Parser;
 use homestar_runtime::{
-    cli::{Cli, Command},
+    cli::{Cli, Command, ConsoleTable},
     daemon,
     db::Database,
+    runner::response,
     Db, FileLogger, Logger, Runner, Settings,
 };
-use miette::Result;
+use miette::{miette, Result};
 use tracing::info;
 
 fn main() -> Result<()> {
@@ -54,6 +55,12 @@ fn main() -> Result<()> {
 
             info!("starting Homestar runtime...");
             Runner::start(settings, db).expect("Failed to start runtime")
+        }
+        Command::Info => {
+            let response = response::Info::default();
+            response
+                .echo_table()
+                .map_err(|_| miette!("failed to extract binary information"))?
         }
         cmd => cmd.handle_rpc_command()?,
     }

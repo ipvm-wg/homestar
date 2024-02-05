@@ -118,7 +118,7 @@ impl show::ConsoleTable for AckWorkflow {
 }
 
 /// Ping response for display.
-#[derive(Tabled)]
+#[derive(Debug, Tabled)]
 pub(crate) struct Ping {
     address: SocketAddr,
     response: String,
@@ -214,5 +214,40 @@ impl show::ConsoleTable for AckNodeInfo {
         let tbl = col![static_info_table, listeners_table, conns_table].default_with_title("node");
 
         tbl.echo()
+    }
+}
+
+/// Info response for display.
+#[derive(Debug, Tabled)]
+pub struct Info {
+    version: String,
+    git_sha: String,
+    features: String,
+}
+
+impl Default for Info {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Info {
+    /// Create a new [Info] response.
+    pub(crate) fn new() -> Self {
+        Self {
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            git_sha: env!("VERGEN_GIT_SHA").to_string(),
+            features: env!("VERGEN_CARGO_FEATURES").to_string(),
+        }
+    }
+}
+
+impl show::ConsoleTable for Info {
+    fn table(&self) -> show::Output {
+        Table::new(vec![&self]).default_with_title("info")
+    }
+
+    fn echo_table(&self) -> Result<(), std::io::Error> {
+        self.table().echo()
     }
 }

@@ -1090,7 +1090,12 @@ async fn handle_swarm_event<DB: Database>(
                 },
             );
 
-            // Bootstrap the DHT
+            // Init bootstrapping of the DHT
+            //
+            // Bootstrapping requires at least one node of the DHT to be
+            // known.
+            //
+            // See `libp2p::Behaviour::add_address`.
             if event_handler
                 .swarm
                 .connected_peers()

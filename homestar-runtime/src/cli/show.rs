@@ -18,7 +18,7 @@ pub(crate) const TABLE_TITLE: &str = "homestar(╯°□°)╯";
 
 /// Output response wrapper.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Output(String);
+pub struct Output(String);
 
 impl fmt::Display for Output {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -47,8 +47,10 @@ impl Output {
 }
 
 /// Trait for console table output responses.
-pub(crate) trait ConsoleTable {
+pub trait ConsoleTable {
+    /// Get the table as an output response.
     fn table(&self) -> Output;
+    /// Print the table to console.
     fn echo_table(&self) -> Result<(), io::Error>;
 }
 

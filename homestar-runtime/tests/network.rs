@@ -636,8 +636,6 @@ fn test_libp2p_configured_with_known_dns_multiaddr() -> Result<()> {
 
     let multiaddr_not_supported =
         check_for_line_with(stdout.clone(), vec!["MultiaddrNotSupported"]);
-    // let bootstrapped =
-    //     check_for_line_with(stdout.clone(), vec![""]);
 
     // This can connect to known dns multiaddrs, but won't over GHA.
     // let connected_to_known_peer =
