@@ -64,8 +64,8 @@ if they've been previously run.
 - On macOS, for example, a simple homebrew install would install everything you
   need: `brew install rust npm ipfs`.
 
-- Running `homestar` via `cargo run` here requires a minimum Rust version of
-  `1.73.0`. If you've got an older install of rust, update it with
+- Running `homestar` using `cargo run` requires a minimum Rust version of
+  `1.73.0`. If you've got an older version of rust, update it with
   `rustup update`.
 
 - You do not have to start Kubo (IPFS) on your own. The example will do this
