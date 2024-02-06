@@ -52,6 +52,7 @@ pub(crate) enum CacheData {
 /// Events to be dispatched on cache expiration.
 #[derive(Clone, Debug)]
 pub(crate) enum DispatchEvent {
+    Bootstrap,
     RegisterPeer,
     DiscoverPeers,
     DialPeer,
@@ -71,6 +72,9 @@ pub(crate) fn setup_cache(
             if let Some(CacheData::OnExpiration(event)) = val.data.get("on_expiration") {
                 if cause == Expired {
                     match event {
+                        DispatchEvent::Bootstrap => {
+                            let _ = tx.send_async(Event::Bootstrap).await;
+                        }
                         DispatchEvent::RegisterPeer => {
                             if let Some(CacheData::Peer(rendezvous_node)) =
                                 val.data.get("rendezvous_node")

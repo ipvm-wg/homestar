@@ -3,7 +3,8 @@
 use libp2p::{Multiaddr, PeerId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
+use tabled::Tabled;
 
 /// Node information.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -25,12 +26,18 @@ impl NodeInfo {
 }
 
 /// Static node information available at startup.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, Tabled, JsonSchema)]
 #[schemars(rename = "static")]
 pub(crate) struct StaticNodeInfo {
     /// The [PeerId] of a node.
     #[schemars(with = "String", description = "The peer ID of the node")]
     pub(crate) peer_id: PeerId,
+}
+
+impl fmt::Display for StaticNodeInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "peer_id: {}", self.peer_id)
+    }
 }
 
 impl StaticNodeInfo {
@@ -60,6 +67,16 @@ pub(crate) struct DynamicNodeInfo {
         description = "Peers and their addresses that are connected to the node"
     )]
     pub(crate) connections: HashMap<PeerId, Multiaddr>,
+}
+
+impl fmt::Display for DynamicNodeInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "listeners: {:?}, connections: {:?}",
+            self.listeners, self.connections
+        )
+    }
 }
 
 impl DynamicNodeInfo {

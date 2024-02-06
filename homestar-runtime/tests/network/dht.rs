@@ -194,7 +194,6 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
             .arg("run")
             .arg("-p")
             .arg(rpc_port1.to_string())
-            .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one-part-one.json")
             .output();
 
@@ -251,7 +250,6 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         //     .arg("run")
         //     .arg("-p")
         //     .arg(rpc_port2.to_string())
-        //     .arg("-w")
         //     .arg("tests/fixtures/test-workflow-add-one-part-two.json")
         //     .output();
 
@@ -280,7 +278,6 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
             .arg("run")
             .arg("-p")
             .arg(rpc_port2.to_string())
-            .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one-part-one.json")
             .output();
 
@@ -509,7 +506,6 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
             .arg("run")
             .arg("-p")
             .arg(rpc_port1.to_string())
-            .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 
@@ -732,7 +728,6 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             .arg("run")
             .arg("-p")
             .arg(rpc_port1.to_string())
-            .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 
@@ -749,7 +744,6 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             .arg("run")
             .arg("-p")
             .arg(rpc_port2.to_string())
-            .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 
@@ -1142,7 +1136,6 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
             .arg("run")
             .arg("-p")
             .arg(rpc_port1.to_string())
-            .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 
@@ -1172,7 +1165,6 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
             .arg("run")
             .arg("-p")
             .arg(rpc_port2.to_string())
-            .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 
@@ -1220,7 +1212,6 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
             .arg("run")
             .arg("-p")
             .arg(rpc_port3.to_string())
-            .arg("-w")
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
 

@@ -563,7 +563,7 @@ async fn handle_swarm_event<DB: Database>(
                 QueryResult::Bootstrap(Ok(BootstrapOk { peer, .. })) => debug!(
                     subject = "libp2p.kad.bootstrap",
                     category = "handle_swarm_event",
-                    "successfully bootstrapped peer: {peer}"
+                    "successfully bootstrapped node: {peer}"
                 ),
                 QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders {
                     key: _,
@@ -763,7 +763,7 @@ async fn handle_swarm_event<DB: Database>(
                             NetworkNotification::ReceiptQuorumSuccessDht(
                                 notification::ReceiptQuorumSuccessDht::new(
                                     key.cid,
-                                    event_handler.receipt_quorum,
+                                    event_handler.quorum.receipt,
                                 ),
                             ),
                         ),
@@ -772,7 +772,7 @@ async fn handle_swarm_event<DB: Database>(
                             NetworkNotification::WorkflowInfoQuorumSuccessDht(
                                 notification::WorkflowInfoQuorumSuccessDht::new(
                                     key.cid,
-                                    event_handler.workflow_quorum,
+                                    event_handler.quorum.workflow,
                                 ),
                             ),
                         ),
@@ -803,7 +803,7 @@ async fn handle_swarm_event<DB: Database>(
                                 NetworkNotification::ReceiptQuorumFailureDht(
                                     notification::ReceiptQuorumFailureDht::new(
                                         key.cid,
-                                        event_handler.receipt_quorum,
+                                        event_handler.quorum.receipt,
                                         event_handler.connections.peers.len(),
                                         success,
                                     ),
@@ -814,7 +814,7 @@ async fn handle_swarm_event<DB: Database>(
                                 NetworkNotification::WorkflowInfoQuorumFailureDht(
                                     notification::WorkflowInfoQuorumFailureDht::new(
                                         key.cid,
-                                        event_handler.workflow_quorum,
+                                        event_handler.quorum.workflow,
                                         event_handler.connections.peers.len(),
                                         success,
                                     ),
@@ -1123,6 +1123,53 @@ async fn handle_swarm_event<DB: Database>(
                     local_peer, address,
                 )),
             );
+
+            // Init bootstrapping of the DHT
+            //
+            // Bootstrapping requires at least one node of the DHT to be
+            // known.
+            //
+            // See `libp2p::Behaviour::add_address`.
+            if event_handler
+                .swarm
+                .connected_peers()
+                .peekable()
+                .peek()
+                .is_some()
+            {
+                let _ = event_handler
+                    .swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .bootstrap()
+                    .map(|_| {
+                        debug!(
+                            subject = "libp2p.kad.bootstrap",
+                            category = "handle_swarm_event",
+                            "bootstrapped kademlia"
+                        )
+                    })
+                    .map_err(|err| {
+                        warn!(subject = "libp2p.kad.bootstrap.err",
+                          category = "handle_swarm_event",
+                          err=?err,
+                          "error bootstrapping kademlia")
+                    });
+            }
+
+            event_handler
+                .cache
+                .insert(
+                    "bootstrap".to_string(),
+                    CacheValue::new(
+                        event_handler.bootstrap.interval,
+                        HashMap::from([(
+                            "on_expiration".to_string(),
+                            CacheData::OnExpiration(cache::DispatchEvent::Bootstrap),
+                        )]),
+                    ),
+                )
+                .await;
         }
         SwarmEvent::IncomingConnection { .. } => {}
         SwarmEvent::ConnectionEstablished {

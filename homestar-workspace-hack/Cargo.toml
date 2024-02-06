@@ -57,6 +57,7 @@ jsonrpsee-core = { version = "0.21", features = ["async-client", "async-wasm-cli
 libc = { version = "0.2", features = ["extra_traits"] }
 libsecp256k1-core = { version = "0.3" }
 libsqlite3-sys = { version = "0.27", features = ["bundled"] }
+memchr = { version = "2" }
 miette = { version = "5", features = ["fancy"] }
 miniz_oxide = { version = "0.7", features = ["simd"] }
 multibase = { version = "0.9" }
@@ -68,12 +69,13 @@ regex-syntax = { version = "0.8" }
 retry = { version = "2" }
 rustc-hash = { version = "1" }
 scopeguard = { version = "1" }
+semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
-serde_json = { version = "1", features = ["alloc", "float_roundtrip", "raw_value"] }
+serde_json = { version = "1", features = ["alloc", "float_roundtrip", "raw_value", "unbounded_depth"] }
 sha2 = { version = "0.10" }
 signature = { version = "2", default-features = false, features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
-time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
+time = { version = "0.3", features = ["formatting", "local-offset", "macros", "parsing"] }
 tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "rt-multi-thread", "signal", "test-util", "tracing"] }
 tokio-stream = { version = "0.1", features = ["net", "sync"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io", "time"] }
@@ -134,6 +136,7 @@ jsonrpsee-core = { version = "0.21", features = ["async-client", "async-wasm-cli
 libc = { version = "0.2", features = ["extra_traits"] }
 libsecp256k1-core = { version = "0.3" }
 libsqlite3-sys = { version = "0.27", features = ["bundled"] }
+memchr = { version = "2" }
 miette = { version = "5", features = ["fancy"] }
 miniz_oxide = { version = "0.7", features = ["simd"] }
 multibase = { version = "0.9" }
@@ -146,14 +149,15 @@ regex-syntax = { version = "0.8" }
 retry = { version = "2" }
 rustc-hash = { version = "1" }
 scopeguard = { version = "1" }
+semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
-serde_json = { version = "1", features = ["alloc", "float_roundtrip", "raw_value"] }
+serde_json = { version = "1", features = ["alloc", "float_roundtrip", "raw_value", "unbounded_depth"] }
 sha2 = { version = "0.10" }
 signature = { version = "2", default-features = false, features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 syn-dff4ba8e3ae991db = { package = "syn", version = "1", features = ["extra-traits", "full", "visit"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
-time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
+time = { version = "0.3", features = ["formatting", "local-offset", "macros", "parsing"] }
 tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "rt-multi-thread", "signal", "test-util", "tracing"] }
 tokio-stream = { version = "0.1", features = ["net", "sync"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io", "time"] }
@@ -211,6 +215,7 @@ iana-time-zone = { version = "0.1", default-features = false, features = ["fallb
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.x86_64-apple-darwin.build-dependencies]
@@ -219,6 +224,7 @@ iana-time-zone = { version = "0.1", default-features = false, features = ["fallb
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.aarch64-apple-darwin.dependencies]
@@ -227,6 +233,7 @@ iana-time-zone = { version = "0.1", default-features = false, features = ["fallb
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.aarch64-apple-darwin.build-dependencies]
@@ -235,6 +242,7 @@ iana-time-zone = { version = "0.1", default-features = false, features = ["fallb
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
@@ -244,6 +252,7 @@ linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", 
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
@@ -253,6 +262,7 @@ linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", 
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.x86_64-unknown-linux-musl.dependencies]
@@ -262,6 +272,7 @@ linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", 
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.x86_64-unknown-linux-musl.build-dependencies]
@@ -271,6 +282,7 @@ linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", 
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.aarch64-unknown-linux-musl.dependencies]
@@ -280,6 +292,7 @@ linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", 
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 [target.aarch64-unknown-linux-musl.build-dependencies]
@@ -289,6 +302,7 @@ linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", 
 object = { version = "0.32", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17", features = ["std"] }
 rustix = { version = "0.38", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
+rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 subtle = { version = "2" }
 
 ### END HAKARI SECTION

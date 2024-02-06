@@ -2,7 +2,9 @@ use homestar_runtime::{db::Database, Db, Logger, Runner, Settings};
 use miette::Result;
 use retry::{delay::Fixed, retry};
 use std::{
+    fs,
     net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream},
+    path::PathBuf,
     process::{Child, Command, Stdio},
 };
 use sysinfo::{System, SystemExt};
@@ -37,6 +39,7 @@ fn main() -> Result<()> {
         }
     }
 
+    #[cfg(not(feature = "ci"))]
     Ok(())
 }
 
@@ -47,6 +50,7 @@ fn ipfs_setup() -> Option<Child> {
         println!("`ipfs` was found!");
         None
     } else {
+        let _ = fs::create_dir("./tmp");
         let mut ipfs_daemon = Command::new("ipfs")
             .args(["--repo-dir", "./tmp/.ipfs", "--offline", "daemon", "--init"])
             .stderr(Stdio::piped())
@@ -77,7 +81,16 @@ fn ipfs_setup() -> Option<Child> {
     let mut add_image_args = args.clone();
     let mut add_wasm_args = args.clone();
 
-    add_image_args.append(&mut vec!["add", "--cid-version", "1", "./synthcat.png"]);
+    let mut image_file = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    image_file.push("synthcat.png");
+    let image_file = fs::canonicalize(image_file).expect("synthcat.png to be found");
+
+    add_image_args.append(&mut vec![
+        "add",
+        "--cid-version",
+        "1",
+        image_file.to_str().unwrap(),
+    ]);
 
     let ipfs_add_img = Command::new("ipfs")
         .args(add_image_args)
@@ -87,11 +100,15 @@ fn ipfs_setup() -> Option<Child> {
 
     println!("synthcat.png added to local IPFS instance");
 
+    let mut wasm_file = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    wasm_file.push("example_test.wasm");
+    let wasm_file = fs::canonicalize(wasm_file).expect("example_test.wasm to be found");
+
     add_wasm_args.append(&mut vec![
         "add",
         "--cid-version",
         "1",
-        "./example_test.wasm",
+        wasm_file.to_str().unwrap(),
     ]);
 
     let ipfs_add_wasm = Command::new("ipfs")

@@ -18,7 +18,7 @@ pub(crate) const TABLE_TITLE: &str = "homestar(╯°□°)╯";
 
 /// Output response wrapper.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Output(String);
+pub struct Output(String);
 
 impl fmt::Display for Output {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -47,14 +47,17 @@ impl Output {
 }
 
 /// Trait for console table output responses.
-pub(crate) trait ConsoleTable {
+pub trait ConsoleTable {
+    /// Get the table as an output response.
     fn table(&self) -> Output;
+    /// Print the table to console.
     fn echo_table(&self) -> Result<(), io::Error>;
 }
 
 /// Style trait for console table output responses.
 pub(crate) trait ApplyStyle {
     fn default(&mut self) -> Output;
+    fn default_with_title(&mut self, ext_title: &str) -> Output;
 }
 
 impl ApplyStyle for Table {
@@ -62,6 +65,18 @@ impl ApplyStyle for Table {
         let table = self
             .with(Style::modern())
             .with(Panel::header(TABLE_TITLE))
+            .with(Modify::new(Rows::first()).with(Alignment::left()))
+            .with(BorderColor::filled(Color::FG_WHITE))
+            .with(BorderSpanCorrection)
+            .to_string();
+
+        Output(table)
+    }
+
+    fn default_with_title(&mut self, ext_title: &str) -> Output {
+        let table = self
+            .with(Style::modern())
+            .with(Panel::header(format!("{TABLE_TITLE} - {ext_title}")))
             .with(Modify::new(Rows::first()).with(Alignment::left()))
             .with(BorderColor::filled(Color::FG_WHITE))
             .with(BorderSpanCorrection)

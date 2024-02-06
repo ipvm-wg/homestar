@@ -34,6 +34,17 @@ pub(crate) use event::Event;
 
 type P2PSender = channel::AsyncChannelSender<ResponseEvent>;
 
+struct Quorum {
+    /// Minimum number of peers required to receive a receipt.
+    receipt: usize,
+    /// Minimum number of peers required to receive workflow information.
+    workflow: usize,
+}
+
+struct Bootstrap {
+    interval: Duration,
+}
+
 /// Handler trait for [EventHandler] events.
 #[async_trait]
 pub(crate) trait Handler<DB>
@@ -52,10 +63,7 @@ where
 #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
 #[allow(missing_debug_implementations, dead_code)]
 pub(crate) struct EventHandler<DB: Database> {
-    /// Minimum number of peers required to receive a receipt.
-    receipt_quorum: usize,
-    /// Minimum number of peers required to receive workflow information.
-    workflow_quorum: usize,
+    quorum: Quorum,
     /// Timeout for p2p workflow info record requests.
     p2p_workflow_info_timeout: Duration,
     /// Timeout for p2p workflow info record requests from a provider.
@@ -94,16 +102,15 @@ pub(crate) struct EventHandler<DB: Database> {
     external_address_limit: u32,
     /// Interval for polling the cache for expired entries.
     poll_cache_interval: Duration,
+    /// Bootstrap configuration.
+    bootstrap: Bootstrap,
 }
 
 /// Event loop handler for libp2p network events and commands.
 #[cfg(not(feature = "websocket-notify"))]
 #[allow(missing_debug_implementations, dead_code)]
 pub(crate) struct EventHandler<DB: Database> {
-    /// Minimum number of peers required to receive a receipt.
-    receipt_quorum: usize,
-    /// Minimum number of peers required to receive workflow information.
-    workflow_quorum: usize,
+    quorum: Quorum,
     /// Timeout for p2p workflow info record requests.
     p2p_workflow_info_timeout: Duration,
     /// Timeout for p2p workflow info record requests from a provider.
@@ -136,6 +143,8 @@ pub(crate) struct EventHandler<DB: Database> {
     external_address_limit: u32,
     /// Interval for polling the cache for expired entries.
     poll_cache_interval: Duration,
+    /// Bootstrap configuration.
+    bootstrap: Bootstrap,
 }
 
 /// Rendezvous protocol configurations and state
@@ -179,8 +188,10 @@ where
         let (sender, receiver) = Self::setup_channel(settings);
         let sender = Arc::new(sender);
         Self {
-            receipt_quorum: settings.libp2p.dht.receipt_quorum,
-            workflow_quorum: settings.libp2p.dht.workflow_quorum,
+            quorum: Quorum {
+                receipt: settings.libp2p.dht.receipt_quorum,
+                workflow: settings.libp2p.dht.workflow_quorum,
+            },
             p2p_workflow_info_timeout: settings.libp2p.dht.p2p_workflow_info_timeout,
             p2p_provider_timeout: settings.libp2p.dht.p2p_provider_timeout,
             db,
@@ -208,6 +219,9 @@ where
             announce_addresses: settings.libp2p.announce_addresses.clone(),
             external_address_limit: settings.libp2p.max_announce_addresses,
             poll_cache_interval: settings.poll_cache_interval,
+            bootstrap: Bootstrap {
+                interval: settings.libp2p.bootstrap_interval,
+            },
         }
     }
 
@@ -221,8 +235,10 @@ where
         let (sender, receiver) = Self::setup_channel(settings);
         let sender = Arc::new(sender);
         Self {
-            receipt_quorum: settings.libp2p.dht.receipt_quorum,
-            workflow_quorum: settings.libp2p.dht.workflow_quorum,
+            quorum: Quorum {
+                receipt: settings.libp2p.dht.receipt_quorum,
+                workflow: settings.libp2p.dht.workflow_quorum,
+            },
             p2p_workflow_info_timeout: settings.libp2p.dht.p2p_workflow_info_timeout,
             p2p_provider_timeout: settings.libp2p.dht.p2p_provider_timeout,
             db,
@@ -248,6 +264,9 @@ where
             announce_addresses: settings.libp2p.announce_addresses.clone(),
             external_address_limit: settings.libp2p.max_announce_addresses,
             poll_cache_interval: settings.poll_cache_interval,
+            bootstrap: Bootstrap {
+                interval: settings.libp2p.bootstrap_interval,
+            },
         }
     }
 
