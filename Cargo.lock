@@ -2695,7 +2695,7 @@ dependencies = [
  "ahash",
  "anyhow",
  "arrayvec",
- "base64 0.13.1",
+ "base64 0.21.7",
  "bitflags 2.4.2",
  "bytes",
  "cc",
