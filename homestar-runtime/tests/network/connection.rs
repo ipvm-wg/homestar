@@ -241,19 +241,6 @@ fn test_connection_notifications_integration() -> Result<()> {
         assert!(one_addded_to_dht);
         assert!(one_in_dht_routing_table);
         assert!(two_connected_to_one);
-
-        // Check node endpoint to match
-        // let http_url = format!("http://localhost:{}", ws_port1);
-        // let http_resp = reqwest::get(format!("{}/node", http_url)).await.unwrap();
-        // assert_eq!(http_resp.status(), 200);
-        // let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
-        // assert_eq!(
-        //     http_resp,
-        //     serde_json::json!({
-        //             "static": {"peer_id": ED25519MULTIHASH},
-        //             "dynamic": {"listeners": [format!("{listen_addr1}")], "connections": {}}
-        //     })
-        // );
     });
 
     Ok(())
