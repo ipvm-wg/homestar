@@ -85,7 +85,9 @@ with `experimental` and `buildkit` set to `true`, for example:
 - Build a multi-plaform Docker image via [buildx][buildx]:
 
   ```console
-  docker buildx build --build-arg git_sha=$(git rev-parse HEAD) --file docker/Dockerfile --platform=linux/amd64,linux/arm64 -t homestar --progress=plain .
+  docker buildx build --build-arg git_sha=$(git rev-parse HEAD) \
+  --build-arg git_timestamp=$(git log -1 --pretty=format:'%cI') \
+  --file docker/Dockerfile --platform=linux/amd64,linux/arm64 -t homestar --progress=plain .
   ```
 
 - Run a Docker image (depending on your platform):
