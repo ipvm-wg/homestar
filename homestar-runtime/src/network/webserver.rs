@@ -251,6 +251,10 @@ impl Server {
                 rpc::METRICS_ENDPOINT,
             )?)
             .layer(ProxyGetRequestLayer::new("/node", rpc::NODE_INFO_ENDPOINT)?)
+            .layer(ProxyGetRequestLayer::new(
+                "/rpc_discover",
+                rpc::DISCOVER_ENDPOINT,
+            )?)
             .layer(cors)
             .layer(SetSensitiveRequestHeadersLayer::new(once(AUTHORIZATION)))
             .timeout(self.webserver_timeout);

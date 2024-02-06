@@ -20,6 +20,21 @@
   },
   "methods": [
     {
+      "name": "rpc.discover",
+      "description": "OpenRPC schema as a description of this service",
+      "paramStructure": "either",
+      "params": [],
+      "result": {
+        "name": "OpenRPC Schema",
+        "schema": {
+          "$ref": "https://github.com/ipvm-wg/homestar/blob/main/homestar-runtime/schemas/docs/api.json"
+        },
+        "required": true,
+        "deprecated": false
+      },
+      "deprecated": false
+    },
+    {
       "name": "health",
       "paramStructure": "by-name",
       "params": [],

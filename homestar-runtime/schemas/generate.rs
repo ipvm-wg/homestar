@@ -6,7 +6,10 @@ use homestar_runtime::{
     Health, NetworkNotification, NodeInfo, PrometheusData, ReceiptNotification,
 };
 use homestar_workflow::Workflow;
-use schemars::{schema::RootSchema, schema_for};
+use schemars::{
+    schema::{RootSchema, SchemaObject},
+    schema_for,
+};
 use std::{fs, io::Write};
 
 mod openrpc;
@@ -74,6 +77,36 @@ fn generate_api_doc(
     workflow_schema: RootSchema,
     receipt_notification_schema: RootSchema,
 ) -> OpenrpcDocument {
+    let discover: MethodObject = MethodObject {
+        name: "rpc.discover".to_string(),
+        description: Some("OpenRPC schema as a description of this service".to_string()),
+        summary: None,
+        servers: None,
+        tags: None,
+        param_structure: Some(MethodObjectParamStructure::Either),
+        params: vec![],
+        result: ContentDescriptorOrReference::ContentDescriptorObject(ContentDescriptorObject {
+            name: "OpenRPC Schema".to_string(),
+            summary: None,
+            description: None,
+            required: Some(true),
+            schema: JSONSchema::JsonSchemaObject(RootSchema {
+                schema: SchemaObject {
+                  reference: Some("https://github.com/ipvm-wg/homestar/blob/main/homestar-runtime/schemas/docs/api.json".to_string()),
+                  ..Default::default()
+                },
+                ..Default::default()
+            }),
+            deprecated: Some(false),
+        }),
+        external_docs: None,
+        errors: None,
+        links: None,
+        examples: None,
+        deprecated: Some(false),
+        x_messages: None,
+    };
+
     let health: MethodObject = MethodObject {
         name: "health".to_string(),
         description: None,
@@ -288,6 +321,7 @@ fn generate_api_doc(
         }),
         servers: None,
         methods: vec![
+            discover,
             health,
             metrics,
             node_info,

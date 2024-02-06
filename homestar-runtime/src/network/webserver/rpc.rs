@@ -44,6 +44,11 @@ use tracing::debug;
 #[allow(unused_imports)]
 use tracing::{error, warn};
 
+/// OpenRPC API document
+const API_SCHEMA_DOC: &str = include_str!("../../../schemas/docs/api.json");
+
+/// OpenRPC API discovery endpoint.
+pub(crate) const DISCOVER_ENDPOINT: &str = "rpc_discover";
 /// Health endpoint.
 pub(crate) const HEALTH_ENDPOINT: &str = "health";
 /// Metrics endpoint for prometheus / openmetrics polling.
@@ -154,6 +159,8 @@ where
 
     async fn register(ctx: Context<DB>) -> Result<RpcModule<Context<DB>>> {
         let mut module = RpcModule::new(ctx);
+
+        module.register_method(DISCOVER_ENDPOINT, |_, _| serde_json::json!(API_SCHEMA_DOC))?;
 
         module.register_async_method(HEALTH_ENDPOINT, |_, ctx| async move {
             match ctx.db.conn() {
