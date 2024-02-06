@@ -20,7 +20,7 @@ authors = { workspace = true }
 ahash = { version = "0.8", default-features = false, features = ["no-rng", "std"] }
 anyhow = { version = "1", features = ["backtrace"] }
 arrayvec = { version = "0.7" }
-base64 = { version = "0.21", features = ["alloc"] }
+base64 = { version = "0.13", features = ["alloc"] }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 bytes = { version = "1", features = ["serde"] }
 clap = { version = "4", default-features = false, features = ["color", "derive", "env", "help", "std", "usage"] }
@@ -97,7 +97,7 @@ zeroize = { version = "1", features = ["zeroize_derive"] }
 ahash = { version = "0.8", default-features = false, features = ["no-rng", "std"] }
 anyhow = { version = "1", features = ["backtrace"] }
 arrayvec = { version = "0.7" }
-base64 = { version = "0.21", features = ["alloc"] }
+base64 = { version = "0.13", features = ["alloc"] }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 bytes = { version = "1", features = ["serde"] }
 cc = { version = "1", default-features = false, features = ["parallel"] }
