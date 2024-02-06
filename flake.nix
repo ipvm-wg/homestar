@@ -242,7 +242,7 @@
 
         testCleanup = pkgs.writeScriptBin "test-clean" ''
           #!${pkgs.stdenv.shell}
-          rm -rf homestar-runtime/tests/fixtures/*.db
+          rm -rf homestar-runtime/tests/fixtures/*.db*
           rm -rf homestar-runtime/tests/fixtures/*.toml
         '';
 
