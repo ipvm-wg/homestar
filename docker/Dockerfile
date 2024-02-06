@@ -14,6 +14,8 @@ ENV DATABASE_URL=${database_url}
 
 RUN adduser --disabled-password --disabled-login --gecos "" --no-create-home homestar
 
+RUN apt install -y git
+
 RUN cargo init
 RUN rm -Rf src
 

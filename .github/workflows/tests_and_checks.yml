@@ -53,7 +53,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-14-large, windows-latest]
+        os: [ubuntu-latest, macos-14, windows-latest]
         rust-toolchain: [stable, nightly, 1.73.0]
     runs-on: ${{ matrix.os }}
     steps:
@@ -89,7 +89,7 @@ jobs:
 
       - name: Run Linter
         run: cargo clippy --all -- -D warnings
-        continue-on-error: ${{ matrix.rust-toolchain == 'nightly' && matrix.os  == 'macos-14-large' }}
+        continue-on-error: ${{ matrix.rust-toolchain == 'nightly' && matrix.os  == 'macos-14' }}
 
       - name: Install cargo-hakari
         if: ${{ matrix.rust-toolchain == 'stable' }}
@@ -153,7 +153,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-14-large]
+        os: [ubuntu-latest, macos-14]
         rust-toolchain: [stable, nightly]
         default-features: [all, none]
     runs-on: ${{ matrix.os }}
