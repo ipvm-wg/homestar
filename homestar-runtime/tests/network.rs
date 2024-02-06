@@ -321,3 +321,69 @@ fn test_node_info_endpoint_integration() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+#[serial_test::parallel]
+fn test_discovery_endpoint_integration() -> Result<()> {
+    let proc_info = ProcInfo::new().unwrap();
+
+    let rpc_port = proc_info.rpc_port;
+    let metrics_port = proc_info.metrics_port;
+    let ws_port = proc_info.ws_port;
+    let listen_addr = listen_addr(proc_info.listen_port);
+
+    let toml = format!(
+        r#"
+        [node]
+        [node.network.keypair_config]
+        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }}
+        [node.network.libp2p]
+        listen_address = "{listen_addr}"
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.libp2p.rendezvous]
+        enable_client = false
+        [node.network.metrics]
+        port = {metrics_port}
+        [node.network.rpc]
+        port = {rpc_port}
+        [node.network.webserver]
+        port = {ws_port}
+        "#
+    );
+    let config1 = make_config!(toml);
+
+    let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env(
+            "RUST_LOG",
+            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+        )
+        .arg("start")
+        .arg("-c")
+        .arg(config1.filename())
+        .arg("--db")
+        .arg(&proc_info.db_path)
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let _proc_guard1 = ChildGuard::new(homestar_proc1);
+
+    if wait_for_socket_connection(ws_port, 1000).is_err() {
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
+    tokio_test::block_on(async {
+        // Check discovery endpoint to match
+        let http_url = format!("http://localhost:{}", ws_port);
+        let http_resp = reqwest::get(format!("{}/rpc_discover", http_url))
+            .await
+            .unwrap();
+        assert_eq!(http_resp.status(), 200);
+        let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
+
+        const API_SCHEMA_DOC: &str = include_str!("../schemas/docs/api.json");
+        assert_eq!(http_resp, serde_json::json!(API_SCHEMA_DOC));
+    });
+
+    Ok(())
+}
