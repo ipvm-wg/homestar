@@ -144,7 +144,9 @@
         dockerBuild = arch:
           pkgs.writeScriptBin "docker-${arch}" ''
             #!${pkgs.stdenv.shell}
-            docker buildx build --file docker/Dockerfile --platform=linux/${arch} -t homestar-runtime --progress=plain .
+            docker buildx build --build-arg git_sha=$(git rev-parse HEAD) \
+            --build-arg git_timestamp=$(git log -1 --pretty=format:'%cI') \
+            --file docker/Dockerfile --platform=linux/${arch} -t homestar --progress=plain .
           '';
 
         xFunc = cmd:
@@ -289,6 +291,7 @@
               direnv
               unstable.nodejs_20
               unstable.nodePackages.pnpm
+              action-validator
               kubo
               self.packages.${system}.irust
             ]

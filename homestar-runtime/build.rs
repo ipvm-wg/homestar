@@ -3,8 +3,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     vergen::EmitBuilder::builder()
         .fail_on_error()
-        .use_local_build()
         .git_sha(true)
+        // TODO: Look into why this returns old date/times under nix.
+        //.git_commit_timestamp()
         .cargo_features()
         .emit()?;
 

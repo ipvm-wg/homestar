@@ -222,6 +222,8 @@ impl show::ConsoleTable for AckNodeInfo {
 pub struct Info {
     version: String,
     git_sha: String,
+    // TODO: Look into why this returns old date/times under nix.
+    //timestamp: String,
     features: String,
 }
 
@@ -236,7 +238,12 @@ impl Info {
     pub(crate) fn new() -> Self {
         Self {
             version: env!("CARGO_PKG_VERSION").to_string(),
-            git_sha: env!("VERGEN_GIT_SHA").to_string(),
+            git_sha: option_env!("VERGEN_GIT_SHA")
+                .unwrap_or("unknown")
+                .to_string(),
+            // timestamp: option_env!("VERGEN_GIT_COMMIT_TIMESTAMP")
+            //     .unwrap_or("unknown")
+            //     .to_string(),
             features: env!("VERGEN_CARGO_FEATURES").to_string(),
         }
     }

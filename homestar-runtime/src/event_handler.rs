@@ -34,10 +34,12 @@ pub(crate) use event::Event;
 
 type P2PSender = channel::AsyncChannelSender<ResponseEvent>;
 
+/// Quorum configuration specifies the minimum number of distinct nodes that
+/// must be successfully contacted in order for a query to succeed.
 struct Quorum {
-    /// Minimum number of peers required to receive a receipt.
+    /// Minimum number of peers required to achieve quorum for a receipt.
     receipt: usize,
-    /// Minimum number of peers required to receive workflow information.
+    /// Minimum number of peers required to achieve quorum for workflow information.
     workflow: usize,
 }
 
