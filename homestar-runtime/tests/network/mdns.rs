@@ -37,7 +37,7 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
     let ws_port1 = proc_info1.ws_port;
     let ws_port2 = proc_info2.ws_port;
 
-    tokio_test::block_on(async {
+    tokio_test::task::spawn(async {
         let toml1 = format!(
             r#"
         [node]
@@ -127,11 +127,26 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
         .unwrap();
         let proc_guard2 = ChildGuard::new(homestar_proc2);
 
-        if wait_for_socket_connection_v6(rpc_port2, 1000).is_err() {
+        if wait_for_socket_connection(ws_port2, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
-        // Poll for mDNS discovered message and conenection established messages
+        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
+        let client2 = WsClientBuilder::default()
+            .build(ws_url2.clone())
+            .await
+            .unwrap();
+
+        let mut sub2: Subscription<Vec<u8>> = client2
+            .subscribe(
+                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+                rpc_params![],
+                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            )
+            .await
+            .unwrap();
+
+        // Poll for mDNS discovered message and conenection established messages on node one
         let mut discovered_mdns = false;
         let mut connection_established = false;
         loop {
@@ -159,7 +174,35 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
             }
         }
 
-        // Collect logs for seven seconds then kill processes.
+        // Poll for mDNS discovered message and conenection established messages on node two
+        let mut discovered_mdns = false;
+        let mut connection_established = false;
+        loop {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["discovered_mdns"].is_object() {
+                    discovered_mdns = true;
+                } else if json["connection_established"].is_object() {
+                    connection_established = true;
+                }
+            } else {
+                panic!(
+                    r#"Expected notifications from node two did not arrive in time:
+  - mDNS discovered: {}
+  - Connection established: {}
+  "#,
+                    discovered_mdns, connection_established
+                );
+            }
+
+            if connection_established && discovered_mdns {
+                break;
+            }
+        }
+
+        // Kill processes.
         let dead_proc1 = kill_homestar(proc_guard1.take(), None);
         let dead_proc2 = kill_homestar(proc_guard2.take(), None);
 
