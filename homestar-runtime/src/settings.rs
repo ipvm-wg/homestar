@@ -171,9 +171,9 @@ pub(crate) struct Webserver {
     /// Number of *bounded* clients to send messages to, used for a
     /// [tokio::sync::broadcast::channel]
     pub(crate) websocket_capacity: usize,
-    /// Websocket-server timeout for receiving messages from the runner.
+    /// Websocket-server send timeout.
     #[serde_as(as = "DurationMilliSeconds<u64>")]
-    pub(crate) websocket_receiver_timeout: Duration,
+    pub(crate) websocket_sender_timeout: Duration,
 }
 
 impl Default for Node {
@@ -305,7 +305,7 @@ impl Default for Webserver {
             port: 1337,
             timeout: Duration::new(120, 0),
             websocket_capacity: 2048,
-            websocket_receiver_timeout: Duration::from_millis(30_000),
+            websocket_sender_timeout: Duration::from_millis(30_000),
         }
     }
 }

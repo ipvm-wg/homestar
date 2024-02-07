@@ -6,8 +6,7 @@ edition = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
-homestar-workspace-hack = { workspace = true }
-wit-bindgen = "0.16"
+wit-bindgen = "0.17"
 
 [lib]
 doc = false
@@ -16,9 +15,3 @@ crate-type = ["cdylib"]
 
 [features]
 default = []
-
-[package.metadata.cargo-machete]
-ignored = ["homestar-workspace-hack"]
-
-[package.metadata.cargo-udeps.ignore]
-normal = ["homestar-workspace-hack"]

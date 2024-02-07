@@ -256,7 +256,7 @@ export const workflowOnePromised = WorkflowBuilder.workflow({
       WorkflowBuilder.crop({
         name: "crop",
         resource:
-          "ipfs://bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4",
+          "ipfs://bafybeidfzi27nkgybei6wjzs5ao7w3y5f57mqrkkk4776fbajm25tfzl54",
         args: {
           data: "{{ cid:bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm }}",
           x: 150,
@@ -268,7 +268,7 @@ export const workflowOnePromised = WorkflowBuilder.workflow({
       WorkflowBuilder.rotate90({
         name: "rotate90",
         resource:
-          "ipfs://bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4",
+          "ipfs://bafybeidfzi27nkgybei6wjzs5ao7w3y5f57mqrkkk4776fbajm25tfzl54",
         args: {
           data: "{{needs.crop.output}}",
         },
@@ -276,7 +276,7 @@ export const workflowOnePromised = WorkflowBuilder.workflow({
       WorkflowBuilder.blur({
         name: "blur",
         resource:
-          "ipfs://bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4",
+          "ipfs://bafybeidfzi27nkgybei6wjzs5ao7w3y5f57mqrkkk4776fbajm25tfzl54",
         args: {
           data: "{{needs.rotate90.output}}",
           sigma: 20.2,
@@ -293,7 +293,7 @@ export const workflowTwoPromised = WorkflowBuilder.workflow({
       WorkflowBuilder.crop({
         name: "crop",
         resource:
-          "ipfs://bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4",
+          "ipfs://bafybeidfzi27nkgybei6wjzs5ao7w3y5f57mqrkkk4776fbajm25tfzl54",
         args: {
           data: "{{ cid:bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm }}",
           x: 150,
@@ -305,7 +305,7 @@ export const workflowTwoPromised = WorkflowBuilder.workflow({
       WorkflowBuilder.rotate90({
         name: "rotate90",
         resource:
-          "ipfs://bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4",
+          "ipfs://bafybeidfzi27nkgybei6wjzs5ao7w3y5f57mqrkkk4776fbajm25tfzl54",
         args: {
           data: "{{needs.crop.output}}",
         },
@@ -313,7 +313,7 @@ export const workflowTwoPromised = WorkflowBuilder.workflow({
       WorkflowBuilder.grayscale({
         name: "grayscale",
         resource:
-          "ipfs://bafybeidbyqpmztqkeot33lz4ev2ftjhqrnbh67go56tlgbf7qmy5xyzvg4",
+          "ipfs://bafybeidfzi27nkgybei6wjzs5ao7w3y5f57mqrkkk4776fbajm25tfzl54",
         args: {
           data: "{{needs.rotate90.output}}",
         },

@@ -732,6 +732,8 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         // DHT, so we give node one time to put add workflow info to the DHT.
         tokio::time::sleep(Duration::from_secs(9)).await;
 
+        let expected_workflow_cid = "bafyrmiadfzjwwv7fycjuaatkqlymqzgcjc3kxagdz2l2pdmv2vdxueowoa";
+
         // Run the same workflow run on node two.
         // Node two should be request workflow info from
         // node one instead of waiting to get the record
@@ -760,15 +762,12 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             }
         }
 
-        assert_eq!(
-            sent_workflow_info_cid.to_string(),
-            "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4"
-        );
+        assert_eq!(sent_workflow_info_cid.to_string(), expected_workflow_cid);
 
         // Poll for retrieved workflow info message
         let received_workflow_info_cid: Cid;
         loop {
-            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(60)).await {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
@@ -785,7 +784,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
 
         assert_eq!(
             received_workflow_info_cid.to_string(),
-            "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4"
+            expected_workflow_cid
         );
 
         // Check database for workflow info
@@ -812,10 +811,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         // Check node one providing workflow info
         let providing_workflow_info_logged = check_for_line_with(
             stdout1.clone(),
-            vec![
-                "successfully providing",
-                "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4",
-            ],
+            vec!["successfully providing", expected_workflow_cid],
         );
 
         // Check node two got workflow info providers
@@ -830,7 +826,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             vec![
                 "sent workflow info to peer",
                 ED25519MULTIHASH5,
-                "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4",
+                expected_workflow_cid,
             ],
         );
 
@@ -840,7 +836,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             vec![
                 "received workflow info from peer",
                 ED25519MULTIHASH2,
-                "bafyrmibetj4cwo5lfz63zc4qtjvs4xmzvsxucggruo6rnvw7x62fggrii4",
+                expected_workflow_cid,
             ],
         );
 

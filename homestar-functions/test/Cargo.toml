@@ -7,9 +7,8 @@ rust-version = { workspace = true }
 
 [dependencies]
 base64 = "0.21"
-homestar-workspace-hack = { workspace = true }
 image = { version = "0.24", default-features = false, features = ["png"] }
-wit-bindgen = "0.16"
+wit-bindgen = "0.17"
 
 [dev-dependencies]
 image = { version = "0.24", default-features = false, features = [
@@ -26,9 +25,3 @@ crate-type = ["cdylib"]
 [features]
 default = []
 run-image-tests = []
-
-[package.metadata.cargo-machete]
-ignored = ["homestar-workspace-hack"]
-
-[package.metadata.cargo-udeps.ignore]
-normal = ["homestar-workspace-hack"]

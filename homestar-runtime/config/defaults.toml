@@ -57,7 +57,7 @@ mesh_outbound_min = 1
 [node.network.libp2p.dht]
 p2p_receipt_timeout = 500
 p2p_workflow_info_timeout = 500
-p2p_provider_timeout = 10000
+p2p_provider_timeout = 10_000
 receipt_quorum = 2
 workflow_quorum = 3
 
@@ -78,4 +78,4 @@ host = "127.0.0.1"
 port = 1337
 timeout = 120
 websocket_capacity = 2048
-websocket_receiver_timeout = 30000
+websocket_sender_timeout = 30_000
