@@ -2,27 +2,19 @@ use crate::{
     make_config,
     utils::{
         check_for_line_with, kill_homestar, listen_addr, multiaddr, retrieve_output,
-        wait_for_socket_connection, ChildGuard, ProcInfo, TimeoutFutureExt, BIN_NAME,
-        ED25519MULTIHASH, SECP256K1MULTIHASH,
+        subscribe_network_events, wait_for_socket_connection, ChildGuard, ProcInfo,
+        TimeoutFutureExt, BIN_NAME, ED25519MULTIHASH, SECP256K1MULTIHASH,
     },
 };
 use anyhow::Result;
-use jsonrpsee::{
-    core::client::{Subscription, SubscriptionClientT},
-    rpc_params,
-    ws_client::WsClientBuilder,
-};
 use once_cell::sync::Lazy;
 use std::{
-    net::Ipv4Addr,
     path::PathBuf,
     process::{Command, Stdio},
     time::Duration,
 };
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
-const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
-const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
 #[serial_test::parallel]
@@ -82,24 +74,9 @@ fn test_connection_notifications_integration() -> Result<()> {
         panic!("Homestar server/runtime failed to start in time");
     }
 
-    let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
     tokio_test::block_on(async {
-        tokio_tungstenite::connect_async(ws_url.clone())
-            .await
-            .unwrap();
-
-        let client = WsClientBuilder::default()
-            .build(ws_url.clone())
-            .await
-            .unwrap();
-        let mut sub: Subscription<Vec<u8>> = client
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         let toml2 = format!(
             r#"
@@ -140,7 +117,7 @@ fn test_connection_notifications_integration() -> Result<()> {
 
         // Poll for connection established message
         loop {
-            if let Ok(msg) = sub.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
@@ -156,7 +133,7 @@ fn test_connection_notifications_integration() -> Result<()> {
 
         // Poll for connection closed message
         loop {
-            if let Ok(msg) = sub.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
@@ -328,20 +305,8 @@ fn test_libp2p_redial_on_connection_closed_integration() -> Result<()> {
     }
 
     tokio_test::block_on(async {
-        let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
-        let client = WsClientBuilder::default()
-            .build(ws_url.clone())
-            .await
-            .unwrap();
-
-        let mut sub1: Subscription<Vec<u8>> = client
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
             .env(
@@ -503,20 +468,8 @@ fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
     }
 
     tokio_test::block_on(async {
-        let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
-        let client = WsClientBuilder::default()
-            .build(ws_url.clone())
-            .await
-            .unwrap();
-
-        let mut sub1: Subscription<Vec<u8>> = client
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
             .env(

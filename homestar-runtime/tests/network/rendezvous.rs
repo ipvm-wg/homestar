@@ -2,28 +2,21 @@ use crate::{
     make_config,
     utils::{
         check_for_line_with, count_lines_where, kill_homestar, listen_addr, multiaddr,
-        retrieve_output, wait_for_socket_connection, wait_for_socket_connection_v6, ChildGuard,
-        ProcInfo, TimeoutFutureExt, BIN_NAME, ED25519MULTIHASH, ED25519MULTIHASH2,
-        ED25519MULTIHASH3, ED25519MULTIHASH4, ED25519MULTIHASH5, SECP256K1MULTIHASH,
+        retrieve_output, subscribe_network_events, wait_for_socket_connection,
+        wait_for_socket_connection_v6, ChildGuard, ProcInfo, TimeoutFutureExt, BIN_NAME,
+        ED25519MULTIHASH, ED25519MULTIHASH2, ED25519MULTIHASH3, ED25519MULTIHASH4,
+        ED25519MULTIHASH5, SECP256K1MULTIHASH,
     },
 };
 use anyhow::Result;
-use jsonrpsee::{
-    core::client::{Subscription, SubscriptionClientT},
-    rpc_params,
-    ws_client::WsClientBuilder,
-};
 use once_cell::sync::Lazy;
 use std::{
-    net::Ipv4Addr,
     path::PathBuf,
     process::{Command, Stdio},
     time::Duration,
 };
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
-const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
-const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
 #[serial_test::parallel]
@@ -131,28 +124,12 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
 
     tokio_test::task::spawn(async {
         // Subscribe to rendezvous server
-        let ws_url1 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
-        let client1 = WsClientBuilder::default().build(ws_url1).await.unwrap();
-        let mut sub1: Subscription<Vec<u8>> = client1
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         // Subscribe to rendezvous client one
-        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
-        let client2 = WsClientBuilder::default().build(ws_url2).await.unwrap();
-        let mut sub2: Subscription<Vec<u8>> = client2
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events2 = subscribe_network_events(ws_port2).await;
+        let sub2 = net_events2.sub();
 
         // Poll for client one registered with server
         loop {
@@ -222,19 +199,9 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
             panic!("Homestar server/runtime failed to start in time");
         }
 
-        let ws_url3 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port3);
-        let client3 = WsClientBuilder::default()
-            .build(ws_url3.clone())
-            .await
-            .unwrap();
-        let mut sub3: Subscription<Vec<u8>> = client3
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        // Subscribe to rendezvous client two
+        let mut net_events3 = subscribe_network_events(ws_port3).await;
+        let sub3 = net_events3.sub();
 
         // Poll for discovered rendezvous message
         let mut discovered_rendezvous = false;
@@ -439,28 +406,12 @@ fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
 
     tokio_test::task::spawn(async {
         // Subscribe to rendezvous server
-        let ws_url1 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
-        let client1 = WsClientBuilder::default().build(ws_url1).await.unwrap();
-        let mut sub1: Subscription<Vec<u8>> = client1
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         // Subscribe to rendezvous client one
-        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
-        let client2 = WsClientBuilder::default().build(ws_url2).await.unwrap();
-        let mut sub2: Subscription<Vec<u8>> = client2
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events2 = subscribe_network_events(ws_port2).await;
+        let sub2 = net_events2.sub();
 
         // Poll for client one registered with server
         loop {
@@ -530,19 +481,9 @@ fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
             panic!("Homestar server/runtime failed to start in time");
         }
 
-        let ws_url3 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port3);
-        let client3 = WsClientBuilder::default()
-            .build(ws_url3.clone())
-            .await
-            .unwrap();
-        let mut sub3: Subscription<Vec<u8>> = client3
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        // Subscribe to rendezvous client two
+        let mut net_events3 = subscribe_network_events(ws_port3).await;
+        let sub3 = net_events3.sub();
 
         // Poll for discovered rendezvous message
         let mut discovered_rendezvous = false;
@@ -728,28 +669,12 @@ fn test_libp2p_rendezvous_renew_registration_integration() -> Result<()> {
 
     tokio_test::task::spawn(async {
         // Subscribe to rendezvous server
-        let ws_url1 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
-        let client1 = WsClientBuilder::default().build(ws_url1).await.unwrap();
-        let mut sub1: Subscription<Vec<u8>> = client1
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         // Subscribe to rendezvous client
-        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
-        let client2 = WsClientBuilder::default().build(ws_url2).await.unwrap();
-        let mut sub2: Subscription<Vec<u8>> = client2
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events2 = subscribe_network_events(ws_port2).await;
+        let sub2 = net_events2.sub();
 
         // Poll for server registered client twice.
         let mut peer_registered_count = 0;
@@ -929,28 +854,12 @@ fn test_libp2p_rendezvous_rediscovery_integration() -> Result<()> {
 
     tokio_test::task::spawn(async {
         // Subscribe to rendezvous server
-        let ws_url1 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
-        let client1 = WsClientBuilder::default().build(ws_url1).await.unwrap();
-        let mut sub1: Subscription<Vec<u8>> = client1
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         // Subscribe to rendezvous client
-        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
-        let client2 = WsClientBuilder::default().build(ws_url2).await.unwrap();
-        let mut sub2: Subscription<Vec<u8>> = client2
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events2 = subscribe_network_events(ws_port2).await;
+        let sub2 = net_events2.sub();
 
         // Poll for server provided discovery twice twice
         let mut discover_served_count = 0;
@@ -1136,16 +1045,8 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
 
     tokio_test::task::spawn(async {
         // Subscribe to rendezvous client one
-        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
-        let client2 = WsClientBuilder::default().build(ws_url2).await.unwrap();
-        let mut sub2: Subscription<Vec<u8>> = client2
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events2 = subscribe_network_events(ws_port2).await;
+        let sub2 = net_events2.sub();
 
         // Poll for client one registered with server the first time
         loop {
@@ -1207,16 +1108,8 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
         }
 
         // Subscribe to rendezvous client two
-        let ws_url3 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port3);
-        let client3 = WsClientBuilder::default().build(ws_url3).await.unwrap();
-        let mut sub3: Subscription<Vec<u8>> = client3
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events3 = subscribe_network_events(ws_port3).await;
+        let sub3 = net_events3.sub();
 
         // Poll for client two discovered twice
         let mut discovered_count = 0;

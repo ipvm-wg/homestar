@@ -2,6 +2,11 @@ use anyhow::{bail, Context, Result};
 #[cfg(not(windows))]
 use assert_cmd::prelude::*;
 use chrono::{DateTime, FixedOffset};
+use jsonrpsee::{
+    core::client::{Client, Subscription, SubscriptionClientT},
+    rpc_params,
+    ws_client::WsClientBuilder,
+};
 #[cfg(not(windows))]
 use nix::{
     sys::signal::{self, Signal},
@@ -370,6 +375,47 @@ pub(crate) fn wait_for_socket_connection_v6(port: u16, exp_retry_base: u64) -> R
     });
 
     result.map_or_else(|_| Err(()), |_| Ok(()))
+}
+
+/// Client and subscription.
+pub(crate) struct WsClientSub {
+    #[allow(dead_code)]
+    client: Client,
+    sub: Subscription<Vec<u8>>,
+}
+
+impl WsClientSub {
+    pub(crate) fn sub(&mut self) -> &mut Subscription<Vec<u8>> {
+        &mut self.sub
+    }
+}
+
+/// Helper function to subscribe to network events
+/// Note that the client must not be dropped of the sub will return only None.
+pub(crate) async fn subscribe_network_events(ws_port: u16) -> WsClientSub {
+    const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
+    const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
+
+    let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port);
+    tokio_tungstenite::connect_async(ws_url.clone())
+        .await
+        .unwrap();
+
+    let client = WsClientBuilder::default()
+        .build(ws_url.clone())
+        .await
+        .unwrap();
+
+    let sub: Subscription<Vec<u8>> = client
+        .subscribe(
+            SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+            rpc_params![],
+            UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
+        )
+        .await
+        .unwrap();
+
+    WsClientSub { client, sub }
 }
 
 /// Helper extension trait which allows to limit execution time for the futures.

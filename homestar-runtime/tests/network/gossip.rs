@@ -2,22 +2,16 @@ use crate::{
     make_config,
     utils::{
         check_for_line_with, kill_homestar, listen_addr, multiaddr, retrieve_output,
-        wait_for_socket_connection, ChildGuard, ProcInfo, TimeoutFutureExt, BIN_NAME,
-        ED25519MULTIHASH, SECP256K1MULTIHASH,
+        subscribe_network_events, wait_for_socket_connection, ChildGuard, ProcInfo,
+        TimeoutFutureExt, BIN_NAME, ED25519MULTIHASH, SECP256K1MULTIHASH,
     },
 };
 use anyhow::Result;
 use homestar_runtime::{db::Database, Db, Settings};
 use itertools::Itertools;
-use jsonrpsee::{
-    core::client::{Subscription, SubscriptionClientT},
-    rpc_params,
-    ws_client::WsClientBuilder,
-};
 use libipld::Cid;
 use once_cell::sync::Lazy;
 use std::{
-    net::Ipv4Addr,
     path::PathBuf,
     process::{Command, Stdio},
     str::FromStr,
@@ -25,8 +19,6 @@ use std::{
 };
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
-const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
-const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
 #[serial_test::parallel]
@@ -86,20 +78,8 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
     }
 
     tokio_test::block_on(async {
-        let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
-        let client = WsClientBuilder::default()
-            .build(ws_url.clone())
-            .await
-            .unwrap();
-
-        let mut sub1: Subscription<Vec<u8>> = client
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         let toml2 = format!(
             r#"
@@ -156,20 +136,8 @@ fn test_libp2p_receipt_gossip_integration() -> Result<()> {
             }
         }
 
-        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
-        let client2 = WsClientBuilder::default()
-            .build(ws_url2.clone())
-            .await
-            .unwrap();
-
-        let mut sub2: Subscription<Vec<u8>> = client2
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events2 = subscribe_network_events(ws_port2).await;
+        let sub2 = net_events2.sub();
 
         // Run test workflow on node one
         let _ = Command::new(BIN.as_os_str())

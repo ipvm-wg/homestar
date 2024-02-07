@@ -1,28 +1,20 @@
 use crate::{
     make_config,
     utils::{
-        check_for_line_with, kill_homestar, retrieve_output, wait_for_socket_connection,
-        wait_for_socket_connection_v6, ChildGuard, ProcInfo, TimeoutFutureExt, BIN_NAME,
-        ED25519MULTIHASH2, ED25519MULTIHASH4, ED25519MULTIHASH5,
+        check_for_line_with, kill_homestar, retrieve_output, subscribe_network_events,
+        wait_for_socket_connection, wait_for_socket_connection_v6, ChildGuard, ProcInfo,
+        TimeoutFutureExt, BIN_NAME, ED25519MULTIHASH2, ED25519MULTIHASH4, ED25519MULTIHASH5,
     },
 };
 use anyhow::Result;
-use jsonrpsee::{
-    core::client::{Subscription, SubscriptionClientT},
-    rpc_params,
-    ws_client::WsClientBuilder,
-};
 use once_cell::sync::Lazy;
 use std::{
-    net::Ipv4Addr,
     path::PathBuf,
     process::{Command, Stdio},
     time::Duration,
 };
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
-const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
-const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
 #[serial_test::file_serial]
@@ -78,20 +70,8 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
             panic!("Homestar server/runtime failed to start in time");
         }
 
-        let ws_url1 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
-        let client = WsClientBuilder::default()
-            .build(ws_url1.clone())
-            .await
-            .unwrap();
-
-        let mut sub1: Subscription<Vec<u8>> = client
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         let toml2 = format!(
             r#"
@@ -131,20 +111,8 @@ fn test_libp2p_connect_after_mdns_discovery_serial() -> Result<()> {
             panic!("Homestar server/runtime failed to start in time");
         }
 
-        let ws_url2 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port2);
-        let client2 = WsClientBuilder::default()
-            .build(ws_url2.clone())
-            .await
-            .unwrap();
-
-        let mut sub2: Subscription<Vec<u8>> = client2
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events2 = subscribe_network_events(ws_port2).await;
+        let sub2 = net_events2.sub();
 
         // Poll for mDNS discovered message and conenection established messages on node one
         let mut discovered_mdns = false;
@@ -325,20 +293,8 @@ fn test_libp2p_disconnect_mdns_discovery_serial() -> Result<()> {
             panic!("Homestar server/runtime failed to start in time");
         }
 
-        let ws_url1 = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
-        let client = WsClientBuilder::default()
-            .build(ws_url1.clone())
-            .await
-            .unwrap();
-
-        let mut sub1: Subscription<Vec<u8>> = client
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         let toml2 = format!(
             r#"
