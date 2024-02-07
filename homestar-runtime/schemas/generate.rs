@@ -268,7 +268,7 @@ fn generate_api_doc(
         param_structure: Some(MethodObjectParamStructure::ByName),
         params: vec![ContentDescriptorOrReference::ContentDescriptorObject(
             ContentDescriptorObject {
-                name: "workflow".to_string(),
+                name: "tasks".to_string(),
                 summary: None,
                 description: None,
                 required: Some(true),
