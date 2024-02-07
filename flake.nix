@@ -83,6 +83,7 @@
           cargo-hakari
           cargo-machete
           cargo-nextest
+          cargo-outdated
           cargo-sort
           cargo-unused-features
           cargo-udeps

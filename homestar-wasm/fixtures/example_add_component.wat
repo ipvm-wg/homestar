@@ -3789,8 +3789,8 @@
     (export "__data_end" (global 1))
     (export "__heap_base" (global 2))
     (@producers
-      (processed-by "wit-component" "0.18.2")
-      (processed-by "wit-bindgen-rust" "0.16.0")
+      (processed-by "wit-component" "0.20.1")
+      (processed-by "wit-bindgen-rust" "0.17.0")
     )
   )
   (core instance (;0;) (instantiate 0))
@@ -3804,6 +3804,6 @@
   (func (;2;) (type 0) (canon lift (core func 2)))
   (export (;3;) "add-two" (func 2))
   (@producers
-    (processed-by "wit-component" "0.19.0")
+    (processed-by "wit-component" "0.20.1")
   )
 )
