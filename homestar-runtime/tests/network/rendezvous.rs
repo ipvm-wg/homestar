@@ -20,7 +20,7 @@ static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME))
 
 #[test]
 #[serial_test::parallel]
-fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
+fn test_libp2p_connection_rendezvous_discovery_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
     let proc_info3 = ProcInfo::new().unwrap();
@@ -63,6 +63,7 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
 
     // Start a rendezvous server
     let rendezvous_server = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -102,47 +103,30 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
     );
     let config2 = make_config!(toml2);
 
-    // Start a peer that will register with the rendezvous server
-    let rendezvous_client1 = Command::new(BIN.as_os_str())
-        .env(
-            "RUST_LOG",
-            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
-        )
-        .arg("start")
-        .arg("-c")
-        .arg(config2.filename())
-        .arg("--db")
-        .arg(&proc_info2.db_path)
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let proc_guard_client1 = ChildGuard::new(rendezvous_client1);
-
-    if wait_for_socket_connection(ws_port2, 1000).is_err() {
-        panic!("Homestar server/runtime failed to start in time");
-    }
-
-    tokio_test::task::spawn(async {
+    tokio_test::block_on(async {
         // Subscribe to rendezvous server
         let mut net_events1 = subscribe_network_events(ws_port1).await;
         let sub1 = net_events1.sub();
 
-        // Subscribe to rendezvous client one
-        let mut net_events2 = subscribe_network_events(ws_port2).await;
-        let sub2 = net_events2.sub();
+        // Start a peer that will register with the rendezvous server
+        let rendezvous_client1 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
+            .env(
+                "RUST_LOG",
+                "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+            )
+            .arg("start")
+            .arg("-c")
+            .arg(config2.filename())
+            .arg("--db")
+            .arg(&proc_info2.db_path)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let proc_guard_client1 = ChildGuard::new(rendezvous_client1);
 
-        // Poll for client one registered with server
-        loop {
-            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-                if json["registered_rendezvous"].is_object() {
-                    break;
-                }
-            } else {
-                panic!("Rendezvous client one did not register with server in time");
-            }
+        if wait_for_socket_connection(ws_port2, 1000).is_err() {
+            panic!("Homestar server/runtime failed to start in time");
         }
 
         // Poll for server registered client one
@@ -151,7 +135,9 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["peer_registered_rendezvous"].is_object() {
+                if json["peer_registered_rendezvous"].is_object()
+                    && json["peer_registered_rendezvous"]["peer_id"] == SECP256K1MULTIHASH
+                {
                     break;
                 }
             } else {
@@ -162,37 +148,38 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
         // Start a peer that will discover the registrant through the rendezvous server
         let toml3 = format!(
             r#"
-        [node]
-        [node.network.keypair_config]
-        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
-        [node.network.libp2p]
-        listen_address = "{listen_addr3}"
-        node_addresses = ["{node_addra}"]
-        [node.network.libp2p.mdns]
-        enable = false
-        [node.network.metrics]
-        port = {metrics_port3}
-        [node.network.rpc]
-        port = {rpc_port3}
-        [node.network.webserver]
-        port = {ws_port3}
-        "#
+            [node]
+            [node.network.keypair_config]
+            existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
+            [node.network.libp2p]
+            listen_address = "{listen_addr3}"
+            node_addresses = ["{node_addra}"]
+            [node.network.libp2p.mdns]
+            enable = false
+            [node.network.metrics]
+            port = {metrics_port3}
+            [node.network.rpc]
+            port = {rpc_port3}
+            [node.network.webserver]
+            port = {ws_port3}
+            "#
         );
         let config3 = make_config!(toml3);
 
         let rendezvous_client2 = Command::new(BIN.as_os_str())
-        .env(
-            "RUST_LOG",
-            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
-        )
-        .arg("start")
-        .arg("-c")
-        .arg(config3.filename())
-        .arg("--db")
-        .arg(&proc_info3.db_path)
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
+            .env("RUST_BACKTRACE", "0")
+            .env(
+                "RUST_LOG",
+                "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+            )
+            .arg("start")
+            .arg("-c")
+            .arg(config3.filename())
+            .arg("--db")
+            .arg(&proc_info3.db_path)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
         let proc_guard_client2 = ChildGuard::new(rendezvous_client2);
 
         if wait_for_socket_connection(ws_port3, 1000).is_err() {
@@ -203,23 +190,35 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
         let mut net_events3 = subscribe_network_events(ws_port3).await;
         let sub3 = net_events3.sub();
 
-        // Poll for discovered rendezvous message
-        let mut discovered_rendezvous = false;
-        let mut connection_established = false;
+        // Poll for discovery served by rendezvous server
+        loop {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+
+                if json["discover_served_rendezvous"].is_object()
+                    && json["discover_served_rendezvous"]["enquirer"] == ED25519MULTIHASH2
+                {
+                    break;
+                }
+            } else {
+                panic!("Rendezvous server did not serve discovery to client two in time");
+            }
+        }
+
+        // Kill server and registrant.
+        let dead_server = kill_homestar(proc_guard_server.take(), None);
+        let _ = kill_homestar(proc_guard_client1.take(), None);
+
+        // Poll for client two disconnected from client one.
         loop {
             if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["discovered_rendezvous"].is_object() {
-                    discovered_rendezvous = true
-                } else if json["connection_established"].is_object()
-                    && json["connection_established"]["peer_id"] == SECP256K1MULTIHASH
+                if json["connection_closed"].is_object()
+                    && json["connection_closed"]["peer_id"] == SECP256K1MULTIHASH
                 {
-                    connection_established = true
-                }
-
-                if discovered_rendezvous && connection_established {
                     break;
                 }
             } else {
@@ -227,23 +226,7 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
             }
         }
 
-        // Poll for discovery served by rendezvous server
-        loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-                if json["discover_served_rendezvous"].is_object() {
-                    break;
-                }
-            } else {
-                panic!("Rendezvous server did not serve discovery in time");
-            }
-        }
-
-        // Kill processes.
-        let dead_server = kill_homestar(proc_guard_server.take(), None);
-        let _ = kill_homestar(proc_guard_client1.take(), None);
+        // Kill discoverer.
         let dead_client2 = kill_homestar(proc_guard_client2.take(), None);
 
         // Retrieve logs.
@@ -295,269 +278,16 @@ fn test_libp2p_connect_rendezvous_discovery_integration() -> Result<()> {
         assert!(one_addded_to_dht);
         assert!(one_in_dht_routing_table);
         assert!(two_connected_to_one);
-    });
-
-    Ok(())
-}
-
-#[test]
-#[serial_test::parallel]
-fn test_libp2p_disconnect_rendezvous_discovery_integration() -> Result<()> {
-    let proc_info1 = ProcInfo::new().unwrap();
-    let proc_info2 = ProcInfo::new().unwrap();
-    let proc_info3 = ProcInfo::new().unwrap();
-
-    let rpc_port1 = proc_info1.rpc_port;
-    let rpc_port2 = proc_info2.rpc_port;
-    let rpc_port3 = proc_info3.rpc_port;
-    let metrics_port1 = proc_info1.metrics_port;
-    let metrics_port2 = proc_info2.metrics_port;
-    let metrics_port3 = proc_info3.metrics_port;
-    let ws_port1 = proc_info1.ws_port;
-    let ws_port2 = proc_info2.ws_port;
-    let ws_port3 = proc_info3.ws_port;
-    let listen_addr1 = listen_addr(proc_info1.listen_port);
-    let listen_addr2 = listen_addr(proc_info2.listen_port);
-    let listen_addr3 = listen_addr(proc_info3.listen_port);
-    let announce_addrb = multiaddr(proc_info2.listen_port, SECP256K1MULTIHASH);
-    let node_addra = multiaddr(proc_info1.listen_port, ED25519MULTIHASH);
-
-    let toml1 = format!(
-        r#"
-        [node]
-        [node.network.keypair_config]
-        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519.pem" }}
-        [node.network.libp2p]
-        listen_address = "{listen_addr1}"
-        [node.network.libp2p.rendezvous]
-        enable_server = true
-        [node.network.libp2p.mdns]
-        enable = false
-        [node.network.metrics]
-        port = {metrics_port1}
-        [node.network.rpc]
-        port = {rpc_port1}
-        [node.network.webserver]
-        port = {ws_port1}
-        "#
-    );
-    let config1 = make_config!(toml1);
-
-    // Start a rendezvous server
-    let rendezvous_server = Command::new(BIN.as_os_str())
-        .env(
-            "RUST_LOG",
-            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
-        )
-        .arg("start")
-        .arg("-c")
-        .arg(config1.filename())
-        .arg("--db")
-        .arg(&proc_info1.db_path)
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let proc_guard_server = ChildGuard::new(rendezvous_server);
-
-    if wait_for_socket_connection(ws_port1, 1000).is_err() {
-        panic!("Homestar server/runtime failed to start in time");
-    }
-
-    let toml2 = format!(
-        r#"
-        [node]
-        [node.network.keypair_config]
-        existing = {{ key_type = "secp256k1", path = "./fixtures/__testkey_secp256k1.der" }}
-        [node.network.libp2p]
-        listen_address = "{listen_addr2}"
-        announce_addresses = ["{announce_addrb}"]
-        node_addresses = ["{node_addra}"]
-        [node.network.libp2p.mdns]
-        enable = false
-        [node.network.metrics]
-        port = {metrics_port2}
-        [node.network.rpc]
-        port = {rpc_port2}
-        [node.network.webserver]
-        port = {ws_port2}
-        "#
-    );
-    let config2 = make_config!(toml2);
-
-    // Start a peer that will register with the rendezvous server
-    let rendezvous_client1 = Command::new(BIN.as_os_str())
-        .env(
-            "RUST_LOG",
-            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
-        )
-        .arg("start")
-        .arg("-c")
-        .arg(config2.filename())
-        .arg("--db")
-        .arg(&proc_info2.db_path)
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let proc_guard_client1 = ChildGuard::new(rendezvous_client1);
-
-    if wait_for_socket_connection(ws_port2, 1000).is_err() {
-        panic!("Homestar server/runtime failed to start in time");
-    }
-
-    tokio_test::task::spawn(async {
-        // Subscribe to rendezvous server
-        let mut net_events1 = subscribe_network_events(ws_port1).await;
-        let sub1 = net_events1.sub();
-
-        // Subscribe to rendezvous client one
-        let mut net_events2 = subscribe_network_events(ws_port2).await;
-        let sub2 = net_events2.sub();
-
-        // Poll for client one registered with server
-        loop {
-            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-                if json["registered_rendezvous"].is_object() {
-                    break;
-                }
-            } else {
-                panic!("Rendezvous client one did not register with server in time");
-            }
-        }
-
-        // Poll for server registered client one
-        loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-                if json["peer_registered_rendezvous"].is_object() {
-                    break;
-                }
-            } else {
-                panic!("Rendezvous server did not confirm client one registration in time");
-            }
-        }
-
-        let toml3 = format!(
-            r#"
-        [node]
-        [node.network.keypair_config]
-        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
-        [node.network.libp2p]
-        listen_address = "{listen_addr3}"
-        node_addresses = ["{node_addra}"]
-        [node.network.libp2p.mdns]
-        enable = false
-        [node.network.metrics]
-        port = {metrics_port3}
-        [node.network.rpc]
-        port = {rpc_port3}
-        [node.network.webserver]
-        port = {ws_port3}
-        "#
-        );
-        let config3 = make_config!(toml3);
-
-        // Start a peer that will discover the registrant through the rendezvous server
-        let rendezvous_client2 = Command::new(BIN.as_os_str())
-        .env(
-            "RUST_LOG",
-            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
-        )
-        .arg("start")
-        .arg("-c")
-        .arg(config3.filename())
-        .arg("--db")
-        .arg(&proc_info3.db_path)
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-        let proc_guard_client2 = ChildGuard::new(rendezvous_client2);
-
-        if wait_for_socket_connection(ws_port3, 1000).is_err() {
-            panic!("Homestar server/runtime failed to start in time");
-        }
-
-        // Subscribe to rendezvous client two
-        let mut net_events3 = subscribe_network_events(ws_port3).await;
-        let sub3 = net_events3.sub();
-
-        // Poll for discovered rendezvous message
-        let mut discovered_rendezvous = false;
-        let mut connection_established = false;
-        loop {
-            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(30)).await {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-                if json["discovered_rendezvous"].is_object() {
-                    discovered_rendezvous = true
-                } else if json["connection_established"].is_object()
-                    && json["connection_established"]["peer_id"] == SECP256K1MULTIHASH
-                {
-                    connection_established = true
-                }
-
-                if discovered_rendezvous && connection_established {
-                    break;
-                }
-            } else {
-                panic!("Client two did not receive rendezvous discovery from server in time");
-            }
-        }
-
-        // Poll for discovery served by rendezvous server
-        loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-                if json["discover_served_rendezvous"].is_object() {
-                    break;
-                }
-            } else {
-                panic!("Rendezvous server did not serve discovery in time");
-            }
-        }
-
-        // Kill server and client one.
-        let _ = kill_homestar(proc_guard_server.take(), None);
-        let _ = kill_homestar(proc_guard_client1.take(), None);
-
-        // Poll for client two disconnected from client one.
-        loop {
-            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(30)).await {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-                if json["connection_closed"].is_object()
-                    && json["connection_closed"]["peer_id"] == SECP256K1MULTIHASH
-                {
-                    break;
-                }
-            } else {
-                panic!("Client two did not receive rendezvous discovery from server in time");
-            }
-        }
-
-        // Kill client two.
-        let dead_client2 = kill_homestar(proc_guard_client2.take(), None);
-
-        // Retrieve logs.
-        let stdout = retrieve_output(dead_client2);
 
         // Check that client two disconnected from client one.
         let two_disconnected_from_one = check_for_line_with(
-            stdout.clone(),
+            stdout_client2.clone(),
             vec!["peer connection closed", SECP256K1MULTIHASH],
         );
 
         // Check that client two was removed from the Kademlia table
         let two_removed_from_dht_table = check_for_line_with(
-            stdout.clone(),
+            stdout_client2.clone(),
             vec!["removed peer from kademlia table", SECP256K1MULTIHASH],
         );
 
@@ -608,6 +338,7 @@ fn test_libp2p_rendezvous_renew_registration_integration() -> Result<()> {
 
     // Start a rendezvous server
     let rendezvous_server = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -648,33 +379,30 @@ fn test_libp2p_rendezvous_renew_registration_integration() -> Result<()> {
     );
     let config2 = make_config!(toml2);
 
-    // Start a peer that will renew registrations with the rendezvous server once per second
-    let rendezvous_client1 = Command::new(BIN.as_os_str())
-        .env(
-            "RUST_LOG",
-            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
-        )
-        .arg("start")
-        .arg("-c")
-        .arg(config2.filename())
-        .arg("--db")
-        .arg(&proc_info2.db_path)
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-
-    if wait_for_socket_connection(ws_port2, 1000).is_err() {
-        panic!("Homestar server/runtime failed to start in time");
-    }
-
-    tokio_test::task::spawn(async {
+    tokio_test::block_on(async {
         // Subscribe to rendezvous server
         let mut net_events1 = subscribe_network_events(ws_port1).await;
         let sub1 = net_events1.sub();
 
-        // Subscribe to rendezvous client
-        let mut net_events2 = subscribe_network_events(ws_port2).await;
-        let sub2 = net_events2.sub();
+        // Start a peer that will renew registrations with the rendezvous server once per second
+        let rendezvous_client1 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
+            .env(
+                "RUST_LOG",
+                "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+            )
+            .arg("start")
+            .arg("-c")
+            .arg(config2.filename())
+            .arg("--db")
+            .arg(&proc_info2.db_path)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        if wait_for_socket_connection(ws_port2, 1000).is_err() {
+            panic!("Homestar server/runtime failed to start in time");
+        }
 
         // Poll for server registered client twice.
         let mut peer_registered_count = 0;
@@ -693,27 +421,6 @@ fn test_libp2p_rendezvous_renew_registration_integration() -> Result<()> {
             }
 
             if peer_registered_count == 2 {
-                break;
-            }
-        }
-
-        // Poll for client registered with server twice.
-        let mut registered_count = 0;
-        loop {
-            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-                if json["registered_rendezvous"].is_object()
-                    && json["registered_rendezvous"]["server"] == ED25519MULTIHASH
-                {
-                    registered_count += 1;
-                }
-            } else {
-                panic!("Client did not register with server twice in time");
-            }
-
-            if registered_count == 2 {
                 break;
             }
         }
@@ -790,6 +497,7 @@ fn test_libp2p_rendezvous_rediscovery_integration() -> Result<()> {
 
     // Start a rendezvous server
     let rendezvous_server = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -832,34 +540,31 @@ fn test_libp2p_rendezvous_rediscovery_integration() -> Result<()> {
     );
     let config2 = make_config!(toml2);
 
-    // Start a peer that will discover with the rendezvous server once per second
-    let rendezvous_client1 = Command::new(BIN.as_os_str())
-        .env(
-            "RUST_LOG",
-            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
-        )
-        .arg("start")
-        .arg("-c")
-        .arg(config2.filename())
-        .arg("--db")
-        .arg(&proc_info2.db_path)
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let proc_guard_client1 = ChildGuard::new(rendezvous_client1);
-
-    if wait_for_socket_connection_v6(rpc_port2, 1000).is_err() {
-        panic!("Homestar server/runtime failed to start in time");
-    }
-
-    tokio_test::task::spawn(async {
+    tokio_test::block_on(async {
         // Subscribe to rendezvous server
         let mut net_events1 = subscribe_network_events(ws_port1).await;
         let sub1 = net_events1.sub();
 
-        // Subscribe to rendezvous client
-        let mut net_events2 = subscribe_network_events(ws_port2).await;
-        let sub2 = net_events2.sub();
+        // Start a peer that will discover with the rendezvous server once per second
+        let rendezvous_client1 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
+            .env(
+                "RUST_LOG",
+                "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+            )
+            .arg("start")
+            .arg("-c")
+            .arg(config2.filename())
+            .arg("--db")
+            .arg(&proc_info2.db_path)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let proc_guard_client1 = ChildGuard::new(rendezvous_client1);
+
+        if wait_for_socket_connection_v6(rpc_port2, 1000).is_err() {
+            panic!("Homestar server/runtime failed to start in time");
+        }
 
         // Poll for server provided discovery twice twice
         let mut discover_served_count = 0;
@@ -878,27 +583,6 @@ fn test_libp2p_rendezvous_rediscovery_integration() -> Result<()> {
             }
 
             if discover_served_count == 2 {
-                break;
-            }
-        }
-
-        // Poll for client discovered twice
-        let mut discovered_count = 0;
-        loop {
-            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-                if json["discovered_rendezvous"].is_object()
-                    && json["discovered_rendezvous"]["server"] == ED25519MULTIHASH
-                {
-                    discovered_count += 1;
-                }
-            } else {
-                panic!("Client did not discover twice in time");
-            }
-
-            if discovered_count == 2 {
                 break;
             }
         }
@@ -981,6 +665,7 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
 
     // Start a rendezvous server
     let rendezvous_server = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -1022,45 +707,45 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
     );
     let config2 = make_config!(toml2);
 
-    // Start a peer that will renew registrations with the rendezvous server every five seconds
-    let rendezvous_client1 = Command::new(BIN.as_os_str())
-        .env("RUST_BACKTRACE", "0")
-        .env(
-            "RUST_LOG",
-            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
-        )
-        .arg("start")
-        .arg("-c")
-        .arg(config2.filename())
-        .arg("--db")
-        .arg(&proc_info2.db_path)
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let proc_guard_client1 = ChildGuard::new(rendezvous_client1);
+    tokio_test::block_on(async {
+        // Subscribe to rendezvous server
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
-    if wait_for_socket_connection_v6(rpc_port2, 1000).is_err() {
-        panic!("Homestar server/runtime failed to start in time");
-    }
+        // Start a peer that will renew registrations with the rendezvous server every five seconds
+        let rendezvous_client1 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
+            .env(
+                "RUST_LOG",
+                "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+            )
+            .arg("start")
+            .arg("-c")
+            .arg(config2.filename())
+            .arg("--db")
+            .arg(&proc_info2.db_path)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let proc_guard_client1 = ChildGuard::new(rendezvous_client1);
 
-    tokio_test::task::spawn(async {
-        // Subscribe to rendezvous client one
-        let mut net_events2 = subscribe_network_events(ws_port2).await;
-        let sub2 = net_events2.sub();
+        if wait_for_socket_connection_v6(rpc_port2, 1000).is_err() {
+            panic!("Homestar server/runtime failed to start in time");
+        }
 
-        // Poll for client one registered with server the first time
+        // Poll for server registered client one the first time
         loop {
-            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["registered_rendezvous"].is_object()
-                    && json["registered_rendezvous"]["server"] == ED25519MULTIHASH
+                if json["peer_registered_rendezvous"].is_object()
+                    && json["peer_registered_rendezvous"]["peer_id"] == ED25519MULTIHASH5
                 {
                     break;
                 }
             } else {
-                panic!("Client did not register with server twice in time");
+                panic!("Server did not receive registration from client one in time");
             }
         }
 
@@ -1070,61 +755,58 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
         // by client one expirations.
         let toml3 = format!(
             r#"
-        [node]
-        [node.network.keypair_config]
-        existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
-        [node.network.libp2p]
-        listen_address = "{listen_addr3}"
-        node_addresses = ["{node_addra}"]
-        [node.network.libp2p.mdns]
-        enable = false
-        [node.network.metrics]
-        port = {metrics_port3}
-        [node.network.rpc]
-        port = {rpc_port3}
-        [node.network.webserver]
-        port = {ws_port3}
-        "#
+            [node]
+            [node.network.keypair_config]
+            existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
+            [node.network.libp2p]
+            listen_address = "{listen_addr3}"
+            node_addresses = ["{node_addra}"]
+            [node.network.libp2p.mdns]
+            enable = false
+            [node.network.metrics]
+            port = {metrics_port3}
+            [node.network.rpc]
+            port = {rpc_port3}
+            [node.network.webserver]
+            port = {ws_port3}
+            "#
         );
         let config3 = make_config!(toml3);
 
         let rendezvous_client2 = Command::new(BIN.as_os_str())
-        .env(
-            "RUST_LOG",
-            "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
-        )
-        .arg("start")
-        .arg("-c")
-        .arg(config3.filename())
-        .arg("--db")
-        .arg(&proc_info3.db_path)
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
+            .env("RUST_BACKTRACE", "0")
+            .env(
+                "RUST_LOG",
+                "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
+            )
+            .arg("start")
+            .arg("-c")
+            .arg(config3.filename())
+            .arg("--db")
+            .arg(&proc_info3.db_path)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
         let proc_guard_client2 = ChildGuard::new(rendezvous_client2);
 
         if wait_for_socket_connection(ws_port3, 1000).is_err() {
             panic!("Homestar server/runtime failed to start in time");
         }
 
-        // Subscribe to rendezvous client two
-        let mut net_events3 = subscribe_network_events(ws_port3).await;
-        let sub3 = net_events3.sub();
-
-        // Poll for client two discovered twice
+        // Poll for discovery served to client two twice
         let mut discovered_count = 0;
         loop {
-            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["discovered_rendezvous"].is_object()
-                    && json["discovered_rendezvous"]["server"] == ED25519MULTIHASH
+                if json["discover_served_rendezvous"].is_object()
+                    && json["discover_served_rendezvous"]["enquirer"] == ED25519MULTIHASH2
                 {
                     discovered_count += 1;
                 }
             } else {
-                panic!("Client did not discover twice in time");
+                panic!("Server did not serve discovery to client two twice in time");
             }
 
             if discovered_count == 2 {
@@ -1149,8 +831,6 @@ fn test_libp2p_rendezvous_rediscover_on_expiration_integration() -> Result<()> {
                 "12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5",
             ],
         );
-
-        println!("server_discovery_count: {}", server_discovery_count);
 
         // Count discovery responses the client
         let client_discovery_count = count_lines_where(
