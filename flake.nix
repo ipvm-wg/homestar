@@ -315,6 +315,8 @@
                 ipfs --repo-dir ./.ipfs --offline init
               fi
 
+              unset SOURCE_DATE_EPOCH
+
               # Run Kubo / IPFS
               echo -e "To run Kubo as a local IPFS node, use the following command:"
               echo -e "ipfs --repo-dir ./.ipfs --offline daemon"
