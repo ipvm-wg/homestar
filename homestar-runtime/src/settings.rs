@@ -168,8 +168,7 @@ pub(crate) struct Webserver {
     /// Webserver timeout.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) timeout: Duration,
-    /// Number of *bounded* clients to send messages to, used for a
-    /// [tokio::sync::broadcast::channel]
+    /// Message capacity for the websocket-server.
     pub(crate) websocket_capacity: usize,
     /// Websocket-server send timeout.
     #[serde_as(as = "DurationMilliSeconds<u64>")]
