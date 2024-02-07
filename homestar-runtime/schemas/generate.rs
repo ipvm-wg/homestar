@@ -20,40 +20,62 @@ use openrpc::document::{
 };
 
 fn main() {
+    println!("{}", env!("CARGO_MANIFEST_DIR"));
     let health_schema = schema_for!(Health);
-    let _ = fs::File::create("schemas/docs/health.json")
-        .unwrap()
-        .write_all(&serde_json::to_vec_pretty(&health_schema).unwrap());
+    let _ = fs::File::create(format!(
+        "{}/schemas/docs/health.json",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
+    .write_all(&serde_json::to_vec_pretty(&health_schema).unwrap());
 
     let metrics_schema = schema_for!(PrometheusData);
-    let _ = fs::File::create("schemas/docs/metrics.json")
-        .unwrap()
-        .write_all(&serde_json::to_vec_pretty(&metrics_schema).unwrap());
+    let _ = fs::File::create(format!(
+        "{}/schemas/docs/metrics.json",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
+    .write_all(&serde_json::to_vec_pretty(&metrics_schema).unwrap());
 
     let node_info_schema = schema_for!(NodeInfo);
-    let _ = fs::File::create("schemas/docs/node_info.json")
-        .unwrap()
-        .write_all(&serde_json::to_vec_pretty(&node_info_schema).unwrap());
+    let _ = fs::File::create(format!(
+        "{}/schemas/docs/node_info.json",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
+    .write_all(&serde_json::to_vec_pretty(&node_info_schema).unwrap());
 
     let network_schema = schema_for!(NetworkNotification);
-    let _ = fs::File::create("schemas/docs/network.json")
-        .unwrap()
-        .write_all(&serde_json::to_vec_pretty(&network_schema).unwrap());
+    let _ = fs::File::create(format!(
+        "{}/schemas/docs/network.json",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
+    .write_all(&serde_json::to_vec_pretty(&network_schema).unwrap());
 
     let workflow_schema = schema_for!(Workflow<'static, ()>);
-    let _ = fs::File::create("schemas/docs/workflow.json")
-        .unwrap()
-        .write_all(&serde_json::to_vec_pretty(&workflow_schema).unwrap());
+    let _ = fs::File::create(format!(
+        "{}/schemas/docs/workflow.json",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
+    .write_all(&serde_json::to_vec_pretty(&workflow_schema).unwrap());
 
     let receipt_schema = schema_for!(Receipt<()>);
-    let _ = fs::File::create("schemas/docs/receipt.json")
-        .unwrap()
-        .write_all(&serde_json::to_vec_pretty(&receipt_schema).unwrap());
+    let _ = fs::File::create(format!(
+        "{}/schemas/docs/receipt.json",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
+    .write_all(&serde_json::to_vec_pretty(&receipt_schema).unwrap());
 
     let receipt_notification_schema = schema_for!(ReceiptNotification);
-    let _ = fs::File::create("schemas/docs/receipt_notification.json")
-        .unwrap()
-        .write_all(&serde_json::to_vec_pretty(&receipt_notification_schema).unwrap());
+    let _ = fs::File::create(format!(
+        "{}/schemas/docs/receipt_notification.json",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
+    .write_all(&serde_json::to_vec_pretty(&receipt_notification_schema).unwrap());
 
     let api_doc = generate_api_doc(
         health_schema,
@@ -63,9 +85,12 @@ fn main() {
         workflow_schema,
         receipt_notification_schema,
     );
-    let _ = fs::File::create("schemas/docs/api.json")
-        .unwrap()
-        .write_all(&serde_json::to_vec_pretty(&api_doc).unwrap());
+    let _ = fs::File::create(format!(
+        "{}/schemas/docs/api.json",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
+    .write_all(&serde_json::to_vec_pretty(&api_doc).unwrap());
 }
 
 // Spec: https://github.com/open-rpc/spec/blob/1.2.6/spec.md
