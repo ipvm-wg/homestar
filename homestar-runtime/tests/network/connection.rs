@@ -56,6 +56,7 @@ fn test_connection_notifications_integration() -> Result<()> {
     let config1 = make_config!(toml);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -101,6 +102,7 @@ fn test_connection_notifications_integration() -> Result<()> {
         let config2 = make_config!(toml2);
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -286,6 +288,7 @@ fn test_libp2p_redial_on_connection_closed_integration() -> Result<()> {
     let config2 = make_config!(toml2);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -309,6 +312,7 @@ fn test_libp2p_redial_on_connection_closed_integration() -> Result<()> {
         let sub1 = net_events1.sub();
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -354,6 +358,7 @@ fn test_libp2p_redial_on_connection_closed_integration() -> Result<()> {
         }
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -449,6 +454,7 @@ fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
     let config2 = make_config!(toml2);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -472,6 +478,7 @@ fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
         let sub1 = net_events1.sub();
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -545,6 +552,7 @@ fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
         }
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",

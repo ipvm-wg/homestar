@@ -46,6 +46,7 @@ fn test_workflow_run_integration() -> Result<()> {
     let config = make_config!(toml);
 
     let homestar_proc = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .arg("start")
         .arg("-c")
         .arg(config.filename())

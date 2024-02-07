@@ -16,7 +16,6 @@ use homestar_runtime::{
 use libipld::Cid;
 use once_cell::sync::Lazy;
 use std::{
-    net::Ipv4Addr,
     path::PathBuf,
     process::{Command, Stdio},
     str::FromStr,
@@ -71,6 +70,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
     let config1 = make_config!(toml1);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -123,6 +123,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         let config2 = make_config!(toml2);
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -376,6 +377,7 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
     let config1 = make_config!(toml1);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -426,6 +428,7 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
         let config2 = make_config!(toml2);
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -569,6 +572,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
     let config1 = make_config!(toml1);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -621,6 +625,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         let config2 = make_config!(toml2);
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -861,6 +866,8 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
 
     tokio_test::block_on(async move {
         let homestar_proc1 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
+
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -912,6 +919,7 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
         let config2 = make_config!(toml2);
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -963,6 +971,7 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
         let config3 = make_config!(toml3);
 
         let homestar_proc3 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",

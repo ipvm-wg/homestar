@@ -55,6 +55,7 @@ fn test_libp2p_generates_peer_id_integration() -> Result<()> {
     let config = make_config!(toml);
 
     let homestar_proc = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .arg("start")
         .arg("-c")
         .arg(config.filename())
@@ -110,6 +111,7 @@ fn test_libp2p_listens_on_address_integration() -> Result<()> {
     let config = make_config!(toml);
 
     let homestar_proc = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .arg("start")
         .arg("-c")
         .arg(config.filename())
@@ -171,6 +173,7 @@ fn test_rpc_listens_on_address_integration() -> Result<()> {
     let config = make_config!(toml);
 
     let homestar_proc = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .arg("start")
         .arg("-c")
         .arg(config.filename())
@@ -228,6 +231,7 @@ fn test_websocket_listens_on_address_integration() -> Result<()> {
     let config = make_config!(toml);
 
     let homestar_proc = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .arg("start")
         .arg("-c")
         .arg(config.filename())
@@ -286,6 +290,7 @@ fn test_node_info_endpoint_integration() -> Result<()> {
     let config1 = make_config!(toml);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -354,6 +359,7 @@ fn test_discovery_endpoint_integration() -> Result<()> {
     let config1 = make_config!(toml);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -425,6 +431,7 @@ fn test_libp2p_configured_with_known_dns_multiaddr() -> Result<()> {
     let config = make_config!(toml);
 
     let homestar_proc = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .arg("start")
         .arg("-c")
         .arg(config.filename())
