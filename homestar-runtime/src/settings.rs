@@ -465,6 +465,7 @@ mod test {
     }
 
     #[test]
+    #[serial_test::file_serial]
     fn test_config_dir_xdg() {
         env::remove_var("HOME");
         env::set_var("XDG_CONFIG_HOME", "/home/user/custom_config");
@@ -477,6 +478,7 @@ mod test {
 
     #[cfg(not(target_os = "windows"))]
     #[test]
+    #[serial_test::file_serial]
     fn test_config_dir() {
         env::set_var("HOME", "/home/user");
         env::remove_var("XDG_CONFIG_HOME");
@@ -486,6 +488,7 @@ mod test {
 
     #[cfg(target_os = "windows")]
     #[test]
+    #[serial_test::file_serial]
     fn test_config_dir() {
         env::remove_var("XDG_CONFIG_HOME");
         assert_eq!(
