@@ -15,8 +15,6 @@ use dashmap::DashMap;
 #[cfg(feature = "websocket-notify")]
 use faststr::FastStr;
 #[cfg(feature = "websocket-notify")]
-use futures::StreamExt;
-#[cfg(feature = "websocket-notify")]
 use homestar_invocation::ipld::DagCbor;
 use jsonrpsee::{
     server::RpcModule,
@@ -30,12 +28,8 @@ use metrics_exporter_prometheus::PrometheusHandle;
 #[cfg(feature = "websocket-notify")]
 use std::sync::Arc;
 use std::time::Duration;
-#[allow(unused_imports)]
-use tokio::sync::oneshot;
 #[cfg(feature = "websocket-notify")]
 use tokio::{runtime::Handle, select};
-#[cfg(feature = "websocket-notify")]
-use tokio_stream::wrappers::BroadcastStream;
 #[cfg(feature = "websocket-notify")]
 use tracing::debug;
 #[allow(unused_imports)]
@@ -210,8 +204,7 @@ where
             UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
             |_, pending, ctx| async move {
                 let sink = pending.accept().await?;
-                let rx = ctx.evt_notifier.inner().subscribe();
-                let stream = BroadcastStream::new(rx);
+                let stream = ctx.evt_notifier.subscriber();
                 Self::handle_event_subscription(
                     sink,
                     stream,
@@ -243,8 +236,7 @@ where
                             let sink = pending.accept().await?;
                             ctx.workflow_listeners
                                 .insert(sink.subscription_id(), (cid, name));
-                            let rx = ctx.workflow_msg_notifier.inner().subscribe();
-                            let stream = BroadcastStream::new(rx);
+                            let stream = ctx.workflow_msg_notifier.subscriber();
                             Self::handle_workflow_subscription(sink, stream, ctx).await?;
                         } else {
                             error!(
@@ -280,7 +272,7 @@ where
     #[cfg(feature = "websocket-notify")]
     async fn handle_event_subscription(
         sink: SubscriptionSink,
-        mut stream: BroadcastStream<notifier::Message>,
+        mut stream: Arc<async_broadcast::Receiver<notifier::Message>>,
         ctx: Arc<Context<DB>>,
         subscription_type: String,
     ) -> Result<()> {
@@ -291,24 +283,23 @@ where
                     _ = sink.closed() => {
                         break Ok(());
                     }
-                    next_msg = stream.next() => {
+                    next_msg = Arc::make_mut(&mut stream).recv() => {
                         let msg = match next_msg {
-                            Some(Ok(notifier::Message {
+                            Ok(notifier::Message {
                                 header: Header {
                                     subscription: SubscriptionTyp::EventSub(evt),
                                     ..
                                 },
                                 payload,
-                            })) if evt == subscription_type => payload,
-                            Some(Ok(_)) => continue,
-                            Some(Err(err)) => {
+                            }) if evt == subscription_type => payload,
+                            Ok(_) => continue,
+                            Err(err) => {
                                 error!(subject = "subscription.event.err",
                                        category = "jsonrpc.subscription",
                                        err=?err,
                                        "subscription stream error");
                                 break Err(err.into());
                             }
-                            None => break Ok(()),
                         };
                         let sub_msg = SubscriptionMessage::from_json(&msg)?;
                         match sink.send_timeout(sub_msg, ctx.sender_timeout).await {
@@ -333,7 +324,7 @@ where
     #[cfg(feature = "websocket-notify")]
     async fn handle_workflow_subscription(
         sink: SubscriptionSink,
-        mut stream: BroadcastStream<notifier::Message>,
+        mut stream: Arc<async_broadcast::Receiver<notifier::Message>>,
         ctx: Arc<Context<DB>>,
     ) -> Result<()> {
         let rt_hdl = Handle::current();
@@ -344,12 +335,12 @@ where
                     ctx.workflow_listeners.remove(&sink.subscription_id());
                     break Ok(());
                 }
-                next_msg = stream.next() => {
+                next_msg = Arc::make_mut(&mut stream).recv() => {
                     let msg = match next_msg {
-                        Some(Ok(notifier::Message {
+                        Ok(notifier::Message {
                             header: Header { subscription: SubscriptionTyp::Cid(cid), ident },
                             payload,
-                        })) => {
+                        }) => {
                             let msg = ctx.workflow_listeners
                                 .get(&sink.subscription_id())
                                 .and_then(|v| {
@@ -367,18 +358,17 @@ where
                                 });
                             msg
                         }
-                        Some(Ok(notifier::Message {
+                        Ok(notifier::Message {
                             header: notifier::Header { subscription: _sub, ..},
                             ..
-                        })) => {
+                        }) => {
                             continue;
                         }
-                        Some(Err(err)) => {
+                        Err(err) => {
                             error!("subscription stream error: {}", err);
                             ctx.workflow_listeners.remove(&sink.subscription_id());
                             break Err(err.into());
                         }
-                        None => break Ok(()),
                     };
 
                     if let Some(msg) = msg {

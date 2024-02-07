@@ -32,6 +32,7 @@ path = "tests/main.rs"
 # return to version.workspace = true after the following issue is fixed:
 # https://github.com/DevinR528/cargo-sort/issues/47
 anyhow = { workspace = true }
+async-broadcast = "0.6"
 async-trait = "0.1"
 atomic_refcell = { workspace = true }
 byte-unit = { workspace = true }

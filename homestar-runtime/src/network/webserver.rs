@@ -27,8 +27,6 @@ use std::{
     time::Duration,
 };
 use tokio::runtime::Handle;
-#[cfg(feature = "websocket-notify")]
-use tokio::sync::broadcast;
 use tower_http::{
     cors::{self, CorsLayer},
     sensitive_headers::SetSensitiveRequestHeadersLayer,
@@ -115,18 +113,18 @@ impl Server {
     fn setup_channel(
         capacity: usize,
     ) -> (
-        broadcast::Sender<notifier::Message>,
-        broadcast::Receiver<notifier::Message>,
+        async_broadcast::Sender<notifier::Message>,
+        async_broadcast::Receiver<notifier::Message>,
     ) {
-        broadcast::channel(capacity)
+        async_broadcast::broadcast(capacity)
     }
 
     /// Set up a new [Server] instance, which acts as both a
     /// WebSocket and HTTP server.
     #[cfg(feature = "websocket-notify")]
     pub(crate) fn new(settings: &settings::Webserver) -> Result<Self> {
-        let (evt_sender, _receiver) = Self::setup_channel(settings.websocket_capacity);
-        let (msg_sender, _receiver) = Self::setup_channel(settings.websocket_capacity);
+        let (evt_sender, evt_receiver) = Self::setup_channel(settings.websocket_capacity);
+        let (msg_sender, msg_receiver) = Self::setup_channel(settings.websocket_capacity);
         let host = IpAddr::from_str(&settings.host.to_string())?;
         let port_setting = settings.port;
         let addr = if port_available(host, port_setting) {
@@ -141,8 +139,8 @@ impl Server {
         Ok(Self {
             addr,
             capacity: settings.websocket_capacity,
-            evt_notifier: Notifier::new(evt_sender),
-            workflow_msg_notifier: Notifier::new(msg_sender),
+            evt_notifier: Notifier::new(evt_sender, evt_receiver),
+            workflow_msg_notifier: Notifier::new(msg_sender, msg_receiver),
             sender_timeout: settings.websocket_sender_timeout,
             webserver_timeout: settings.timeout,
         })

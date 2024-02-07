@@ -90,10 +90,10 @@ pub(crate) struct EventHandler<DB: Database> {
     rendezvous: Rendezvous,
     /// Whether or not to enable pubsub.
     pubsub_enabled: bool,
-    /// [tokio::sync::broadcast::Sender] for websocket event
+    /// [async_broadcast::Send] for websocket event
     /// notification messages.
     ws_evt_sender: webserver::Notifier<notifier::Message>,
-    /// [tokio::sync::broadcast::Sender] for websocket workflow-related
+    /// [async_broadcast::Send] for websocket workflow-related
     /// notification messages.
     ws_workflow_sender: webserver::Notifier<notifier::Message>,
     /// [libp2p::Multiaddr] addresses to dial.

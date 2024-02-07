@@ -4,42 +4,42 @@ use anyhow::Result;
 use faststr::FastStr;
 use libipld::Cid;
 use std::{fmt, sync::Arc};
-use tokio::sync::broadcast;
 
 /// Type-wrapper for WebSocket sender.
 #[derive(Debug)]
-pub(crate) struct Notifier<T>(Arc<broadcast::Sender<T>>);
+pub(crate) struct Notifier<T: Clone>(
+    Arc<async_broadcast::Sender<T>>,
+    Arc<async_broadcast::Receiver<T>>,
+);
 
-impl<T> Clone for Notifier<T> {
+impl<T> Clone for Notifier<T>
+where
+    T: Clone,
+{
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self(self.0.clone(), self.1.clone())
     }
 }
 
 impl<T> Notifier<T>
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + Clone + fmt::Debug + 'static,
 {
     /// Create a new [Notifier].
-    pub(crate) fn new(sender: broadcast::Sender<T>) -> Self {
-        Self(sender.into())
+    pub(crate) fn new(
+        sender: async_broadcast::Sender<T>,
+        receiver: async_broadcast::Receiver<T>,
+    ) -> Self {
+        Self(sender.into(), receiver.into())
     }
 
-    /// Get a reference to the inner [broadcast::Sender].
-    #[allow(dead_code)]
-    pub(crate) fn inner(&self) -> &Arc<broadcast::Sender<T>> {
-        &self.0
-    }
-
-    /// Get and take ownership of the inner [broadcast::Sender].
-    #[allow(dead_code)]
-    pub(crate) fn into_inner(self) -> Arc<broadcast::Sender<T>> {
-        self.0
+    pub(crate) fn subscriber(&self) -> Arc<async_broadcast::Receiver<T>> {
+        self.1.clone()
     }
 
     /// Send a message to all connected WebSocket clients.
     pub(crate) fn notify(&self, msg: T) -> Result<()> {
-        let _ = self.0.send(msg)?;
+        let _ = self.0.try_broadcast(msg)?;
         Ok(())
     }
 }
