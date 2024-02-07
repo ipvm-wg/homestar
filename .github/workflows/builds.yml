@@ -328,6 +328,11 @@ jobs:
         id: crate-version
         run: echo version=$(cargo get workspace.package.version)-rc.$(date +%s) >> $GITHUB_OUTPUT
 
+      - name: Set Env
+        run: |
+          echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "GIT_TIMESTAMP=$(git log -1 --pretty=format:'%cI')" >> $GITHUB_ENV
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -373,6 +378,9 @@ jobs:
           file: docker/Dockerfile
           context: .
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            git_sha=${{ env.GIT_SHA }}
+            git_timestamp=${{ env.GIT_TIMESTAMP }}
           push: true
           tags: ${{ steps.meta-release.outputs.tags }}
           labels: ${{ steps.meta-release.outputs.labels }}
@@ -386,6 +394,9 @@ jobs:
           file: docker/Dockerfile
           context: .
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            git_sha=${{ env.GIT_SHA }}
+            git_timestamp=${{ env.GIT_TIMESTAMP }}
           push: true
           tags: ${{ steps.meta-dispatch.outputs.tags }}
           labels: ${{ steps.meta-dispatch.outputs.labels }}

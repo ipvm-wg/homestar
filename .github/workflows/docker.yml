@@ -2,7 +2,7 @@ name: 🐳 Docker
 
 on:
   schedule:
-    - cron: '0 */4 * * *'
+    - cron: "0 */4 * * *"
 
 jobs:
   build-docker:
@@ -14,6 +14,11 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Set Env
+        run: |
+          echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "GIT_TIMESTAMP=$(git log -1 --pretty=format:'%cI')" >> $GITHUB_ENV
 
       # https://github.com/docker/setup-qemu-action
       - name: Setup QEMU
@@ -33,6 +38,9 @@ jobs:
           file: docker/Dockerfile
           context: .
           platforms: linux/amd64
+          build-args: |
+            git_sha=${{ env.GIT_SHA }}
+            git_timestamp=${{ env.GIT_TIMESTAMP }}
           push: false
           tags: |
             ${{ github.repository_owner }}/homestar:latest

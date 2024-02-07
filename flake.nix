@@ -144,7 +144,9 @@
         dockerBuild = arch:
           pkgs.writeScriptBin "docker-${arch}" ''
             #!${pkgs.stdenv.shell}
-            docker buildx build --file docker/Dockerfile --platform=linux/${arch} -t homestar-runtime --progress=plain .
+            docker buildx build --build-arg git_sha=$(git rev-parse HEAD) \
+            --build-arg git_timestamp=$(git log -1 --pretty=format:'%cI') \
+            --file docker/Dockerfile --platform=linux/${arch} -t homestar --progress=plain .
           '';
 
         xFunc = cmd:
@@ -240,7 +242,7 @@
 
         testCleanup = pkgs.writeScriptBin "test-clean" ''
           #!${pkgs.stdenv.shell}
-          rm -rf homestar-runtime/tests/fixtures/*.db
+          rm -rf homestar-runtime/tests/fixtures/*.db*
           rm -rf homestar-runtime/tests/fixtures/*.toml
         '';
 
@@ -289,6 +291,7 @@
               direnv
               unstable.nodejs_20
               unstable.nodePackages.pnpm
+              action-validator
               kubo
               self.packages.${system}.irust
             ]
@@ -311,6 +314,8 @@
               if [ ! -e ./.ipfs ]; then
                 ipfs --repo-dir ./.ipfs --offline init
               fi
+
+              unset SOURCE_DATE_EPOCH
 
               # Run Kubo / IPFS
               echo -e "To run Kubo as a local IPFS node, use the following command:"
