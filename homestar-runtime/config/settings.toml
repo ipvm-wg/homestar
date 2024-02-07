@@ -1,4 +1,13 @@
 [node]
 
+[node.network.libp2p]
+listen_address = "/ip4/0.0.0.0/tcp/0"
+
 [node.network.metrics]
 port = 4000
+
+[node.network.rpc]
+port = 3030
+
+[node.network.webserver]
+port = 1337

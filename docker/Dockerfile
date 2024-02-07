@@ -10,9 +10,16 @@ ARG TARGETARCH
 FROM builder-$TARGETARCH as builder
 
 ARG database_url="homestar.db"
+ARG git_sha
+ARG git_timestamp
+
 ENV DATABASE_URL=${database_url}
+ENV VERGEN_GIT_SHA=${git_sha}
+ENV VERGEN_GIT_COMMIT_TIMESTAMP=${git_timestamp}
 
 RUN adduser --disabled-password --disabled-login --gecos "" --no-create-home homestar
+
+RUN apt install -y git
 
 RUN cargo init
 RUN rm -Rf src
@@ -27,7 +34,7 @@ RUN echo "fn main() {}" > ./homestar-runtime/src/main.rs
 RUN mkdir -p ./homestar-runtime/src/test_utils/proc_macro ./homestar-runtime/migrations ./examples ./homestar-functions
 RUN bash -c 'pushd ./examples && cargo init dummy-app-examples && popd'
 RUN bash -c 'pushd ./homestar-functions && cargo init dummy-app-fns && popd'
-RUN cargo init homestar-workspace-hack
+RUN cargo init --lib homestar-workspace-hack
 
 # copy cargo.*
 COPY Cargo.lock Cargo.toml diesel.toml ./
@@ -90,7 +97,7 @@ COPY --chown=homestar:homestar --from=builder  /etc/*.db ./
 COPY --chown=homestar:homestar --from=builder /etc/config ./config
 
 ARG database_url="homestar.db"
-ARG rpc_host="127.0.0.1"
+ARG rpc_host="0.0.0.0"
 ARG rpc_port=3030
 ARG ws_port=1337
 
@@ -101,4 +108,4 @@ ENV DATABASE_URL=${database_url} \
 
 EXPOSE ${rpc_port} ${ws_port}
 
-ENTRYPOINT ["./homestar",  "start", "--db", "homestar.db"]
+ENTRYPOINT ["./homestar",  "start", "--db", "homestar.db", "-c", "./config/settings.toml"]

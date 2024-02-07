@@ -39,8 +39,12 @@ use homestar_wasm::{
 use homestar_workflow::{LinkMap, Workflow};
 use indexmap::IndexMap;
 use libipld::{Cid, Ipld};
-use std::{collections::BTreeMap, sync::Arc, time::Instant};
-use tokio::{sync::RwLock, task::JoinSet};
+use std::{collections::BTreeMap, sync::Arc};
+use tokio::{
+    sync::RwLock,
+    task::JoinSet,
+    time::{timeout_at, Instant},
+};
 use tracing::{debug, error, info};
 
 /// [JoinSet] of tasks run by a [Worker].
@@ -247,21 +251,27 @@ where
                             )))
                             .await;
 
-                        let found = match rx
-                            .recv_deadline(Instant::now() + network_settings.p2p_receipt_timeout)
+                        let found = match timeout_at(
+                            Instant::now() + network_settings.p2p_receipt_timeout,
+                            rx.recv_async(),
+                        )
+                        .await
                         {
-                            Ok(ResponseEvent::Found(Ok(FoundEvent::Receipt(found)))) => found,
-                            Ok(ResponseEvent::Found(Err(err))) => {
+                            Ok(Ok(ResponseEvent::Found(Ok(FoundEvent::Receipt(found))))) => found,
+                            Ok(Ok(ResponseEvent::Found(Err(err)))) => {
                                 bail!(ResolveError::UnresolvedCid(format!(
                                     "failure in attempting to find event: {err}"
                                 )))
                             }
-                            Ok(_) => bail!(ResolveError::UnresolvedCid(
+                            Ok(Ok(_)) => bail!(ResolveError::UnresolvedCid(
                                 "wrong or unexpected event message received".to_string(),
                             )),
-                            Err(err) => bail!(ResolveError::UnresolvedCid(format!(
-                                "timeout deadline reached for invocation receipt @ {cid}: {err}",
+                            Ok(Err(err)) => bail!(ResolveError::UnresolvedCid(format!(
+                                "unexpected error while trying to resolve cid: {err}",
                             ))),
+                            Err(_) => bail!(ResolveError::UnresolvedCid(
+                                "timed out while trying to resolve cid".to_string(),
+                            )),
                         };
 
                         let receipt = Db::commit_receipt(workflow_cid, found.clone().receipt, conn)

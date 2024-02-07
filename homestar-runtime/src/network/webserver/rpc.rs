@@ -26,7 +26,7 @@ use jsonrpsee::{
     types::error::{ErrorCode, ErrorObject},
 };
 #[cfg(feature = "websocket-notify")]
-use jsonrpsee::{types::SubscriptionId, SubscriptionMessage, SubscriptionSink, TrySendError};
+use jsonrpsee::{types::SubscriptionId, SendTimeoutError, SubscriptionMessage, SubscriptionSink};
 #[cfg(feature = "websocket-notify")]
 use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
@@ -76,7 +76,7 @@ pub(crate) struct Context<DB: Database> {
     evt_notifier: Notifier<notifier::Message>,
     workflow_msg_notifier: Notifier<notifier::Message>,
     runner_sender: WsSender,
-    receiver_timeout: Duration,
+    sender_timeout: Duration,
     workflow_listeners: Arc<DashMap<SubscriptionId<'static>, (Cid, FastStr)>>,
 }
 
@@ -87,7 +87,7 @@ pub(crate) struct Context<DB: Database> {
     db: DB,
     metrics_hdl: PrometheusHandle,
     runner_sender: WsSender,
-    receiver_timeout: Duration,
+    sender_timeout: Duration,
 }
 
 impl<DB> Context<DB>
@@ -103,7 +103,7 @@ where
         workflow_msg_notifier: Notifier<notifier::Message>,
         runner_sender: WsSender,
         db: DB,
-        receiver_timeout: Duration,
+        sender_timeout: Duration,
     ) -> Self {
         Self {
             db,
@@ -111,7 +111,7 @@ where
             evt_notifier,
             workflow_msg_notifier,
             runner_sender,
-            receiver_timeout,
+            sender_timeout,
             workflow_listeners: DashMap::new().into(),
         }
     }
@@ -122,13 +122,13 @@ where
         metrics_hdl: PrometheusHandle,
         runner_sender: WsSender,
         db: DB,
-        receiver_timeout: Duration,
+        sender_timeout: Duration,
     ) -> Self {
         Self {
             db,
             metrics_hdl,
             runner_sender,
-            receiver_timeout,
+            sender_timeout,
         }
     }
 }
@@ -199,9 +199,7 @@ where
                 .await
                 .map_err(|err| internal_err(err.to_string()))?;
 
-            if let Ok(Message::AckNodeInfo((static_info, dyn_info))) =
-                rx.recv_deadline(std::time::Instant::now() + ctx.receiver_timeout)
-            {
+            if let Ok(Message::AckNodeInfo((static_info, dyn_info))) = rx.recv_async().await {
                 Ok(serde_json::json!(NodeInfo::new(static_info, dyn_info)))
             } else {
                 error!(
@@ -226,6 +224,7 @@ where
                 Self::handle_event_subscription(
                     sink,
                     stream,
+                    ctx,
                     SUBSCRIBE_NETWORK_EVENTS_ENDPOINT.to_string(),
                 )
                 .await?;
@@ -249,9 +248,7 @@ where
                             ))
                             .await?;
 
-                        if let Ok(Message::AckWorkflow((cid, name))) =
-                            rx.recv_deadline(std::time::Instant::now() + ctx.receiver_timeout)
-                        {
+                        if let Ok(Message::AckWorkflow((cid, name))) = rx.recv_async().await {
                             let sink = pending.accept().await?;
                             ctx.workflow_listeners
                                 .insert(sink.subscription_id(), (cid, name));
@@ -291,8 +288,9 @@ where
 
     #[cfg(feature = "websocket-notify")]
     async fn handle_event_subscription(
-        mut sink: SubscriptionSink,
+        sink: SubscriptionSink,
         mut stream: BroadcastStream<notifier::Message>,
+        ctx: Arc<Context<DB>>,
         subscription_type: String,
     ) -> Result<()> {
         let rt_hdl = Handle::current();
@@ -322,15 +320,15 @@ where
                             None => break Ok(()),
                         };
                         let sub_msg = SubscriptionMessage::from_json(&msg)?;
-                        match sink.try_send(sub_msg) {
+                        match sink.send_timeout(sub_msg, ctx.sender_timeout).await {
                             Ok(()) => (),
-                            Err(TrySendError::Closed(_)) => {
+                            Err(SendTimeoutError::Closed(_)) => {
                                 break Err(anyhow!("subscription sink closed"));
                             }
-                            Err(TrySendError::Full(_)) => {
+                            Err(SendTimeoutError::Timeout(_)) => {
                                 error!(subject = "subscription.event.err",
                                       category = "jsonrpc.subscription",
-                                      "subscription sink full");
+                                      "subscription sink timed out");
                             }
                         }
                     }
@@ -343,7 +341,7 @@ where
 
     #[cfg(feature = "websocket-notify")]
     async fn handle_workflow_subscription(
-        mut sink: SubscriptionSink,
+        sink: SubscriptionSink,
         mut stream: BroadcastStream<notifier::Message>,
         ctx: Arc<Context<DB>>,
     ) -> Result<()> {
@@ -394,16 +392,16 @@ where
 
                     if let Some(msg) = msg {
                         let sub_msg = SubscriptionMessage::from_json(&msg)?;
-                        match sink.try_send(sub_msg) {
+                        match sink.send_timeout(sub_msg, ctx.sender_timeout).await {
                             Ok(()) => (),
-                            Err(TrySendError::Closed(_)) => {
+                            Err(SendTimeoutError::Closed(_)) => {
                                 ctx.workflow_listeners.remove(&sink.subscription_id());
                                 break Err(anyhow!("subscription sink closed"));
                             }
-                            Err(TrySendError::Full(_)) => {
+                            Err(SendTimeoutError::Timeout(_)) => {
                                 error!(subject = "subscription.workflow.err",
                                       category = "jsonrpc.subscription",
-                                      "subscription sink full");
+                                      "subscription sink timed out");
                             }
                         }
                     }

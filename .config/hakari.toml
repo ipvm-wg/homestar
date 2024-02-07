@@ -17,8 +17,6 @@ resolver = "2"
 # Add triples corresponding to platforms commonly used by developers here.
 # https://doc.rust-lang.org/rustc/platform-support.html
 platforms = [
-  "wasm32-unknown-unknown",
-  "wasm32-wasi",
   "x86_64-apple-darwin",
   "aarch64-apple-darwin",
   "x86_64-unknown-linux-gnu",
@@ -27,4 +25,9 @@ platforms = [
 ]
 
 # Write out exact versions rather than a semver range. (Defaults to false.)
-# exact-versions = true
+exact-versions = true
+
+[traversal-excludes]
+workspace-members = ["homestar-functions-add", "homestar-functions-test"]
+
+third-party = [{ name = "libsqlite3-sys" }]

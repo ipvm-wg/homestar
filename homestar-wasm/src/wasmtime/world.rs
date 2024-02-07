@@ -49,12 +49,12 @@ pub struct State {
     /// Context for WASI modules.
     wasi_ctx: wasmtime_wasi::preview2::WasiCtx,
     /// WASI table.
-    table: wasmtime_wasi::preview2::Table,
+    table: wasmtime::component::ResourceTable,
 }
 
 impl Default for State {
     fn default() -> Self {
-        let table = wasmtime_wasi::preview2::Table::new();
+        let table = wasmtime::component::ResourceTable::new();
         let wasi_ctx = wasmtime_wasi::preview2::WasiCtxBuilder::new()
             .inherit_stdout()
             .inherit_stderr()
@@ -74,11 +74,11 @@ impl Default for State {
 ///
 /// [WasiView]: wasmtime_wasi::preview2::WasiView
 impl wasmtime_wasi::preview2::WasiView for State {
-    fn table(&self) -> &wasmtime_wasi::preview2::Table {
+    fn table(&self) -> &wasmtime::component::ResourceTable {
         &self.table
     }
 
-    fn table_mut(&mut self) -> &mut wasmtime_wasi::preview2::Table {
+    fn table_mut(&mut self) -> &mut wasmtime::component::ResourceTable {
         &mut self.table
     }
 
@@ -94,7 +94,7 @@ impl wasmtime_wasi::preview2::WasiView for State {
 impl State {
     /// Create a new [State] object.
     pub fn new(fuel: u64, limits: StoreLimitsAsync) -> Self {
-        let table = wasmtime_wasi::preview2::Table::new();
+        let table = wasmtime::component::ResourceTable::new();
         let wasi_ctx = wasmtime_wasi::preview2::WasiCtxBuilder::new()
             .inherit_stdio()
             .build();

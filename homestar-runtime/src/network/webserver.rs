@@ -85,10 +85,10 @@ pub(crate) struct Server {
     /// Message sender for broadcasting workflow-related events to clients
     /// connected to to the server.
     workflow_msg_notifier: Notifier<notifier::Message>,
-    /// Receiver timeout for the server when communicating with the [Runner].
+    /// Sender timeout for the [Sink] messages.
     ///
-    /// [Runner]: crate::Runner
-    receiver_timeout: Duration,
+    /// [Sink]: jsonrpsee::SubscriptionSink
+    sender_timeout: Duration,
     /// General timeout for the server.
     webserver_timeout: Duration,
 }
@@ -101,10 +101,10 @@ pub(crate) struct Server {
     addr: SocketAddr,
     /// Message buffer capacity for the server.
     capacity: usize,
-    /// Receiver timeout for the server when communicating with the [Runner].
+    /// Sender timeout for the [Sink] messages.
     ///
-    /// [Runner]: crate::Runner
-    receiver_timeout: Duration,
+    /// [Sink]: jsonrpsee::SubscriptionSink
+    sender_timeout: Duration,
     /// General timeout for the server.
     webserver_timeout: Duration,
 }
@@ -144,7 +144,7 @@ impl Server {
             capacity: settings.websocket_capacity,
             evt_notifier: Notifier::new(evt_sender),
             workflow_msg_notifier: Notifier::new(msg_sender),
-            receiver_timeout: settings.websocket_receiver_timeout,
+            sender_timeout: settings.websocket_sender_timeout,
             webserver_timeout: settings.timeout,
         })
     }
@@ -166,7 +166,7 @@ impl Server {
         Ok(Self {
             addr,
             capacity: settings.websocket_capacity,
-            receiver_timeout: settings.websocket_receiver_timeout,
+            sender_timeout: settings.websocket_sender_timeout,
             webserver_timeout: settings.timeout,
         })
     }
@@ -185,7 +185,7 @@ impl Server {
             self.workflow_msg_notifier.clone(),
             runner_sender,
             db,
-            self.receiver_timeout,
+            self.sender_timeout,
         ))
         .await?;
 
@@ -204,7 +204,7 @@ impl Server {
             metrics_hdl,
             runner_sender,
             db,
-            self.receiver_timeout,
+            self.sender_timeout,
         ))
         .await?;
         self.start_inner(module).await
@@ -288,12 +288,7 @@ mod test {
     #[cfg(feature = "websocket-notify")]
     use crate::{event_handler::notification::ReceiptNotification, test_utils};
     #[cfg(feature = "websocket-notify")]
-    use homestar_invocation::{
-        authority::UcanPrf,
-        ipld::DagJson,
-        task::{instruction::RunInstruction, Resources},
-        Task,
-    };
+    use homestar_invocation::ipld::DagJson;
     #[cfg(feature = "websocket-notify")]
     use jsonrpsee::core::client::{error::Error as ClientError, Subscription, SubscriptionClientT};
     #[cfg(feature = "websocket-notify")]
@@ -446,65 +441,6 @@ mod test {
 
             if let Err(ClientError::Call(err)) = sub {
                 let check = ErrorCode::InvalidParams;
-                assert_eq!(err.code(), check.code());
-            } else {
-                panic!("expected same error code");
-            }
-        });
-    }
-
-    #[cfg(feature = "websocket-notify")]
-    #[homestar_runtime_proc_macro::runner_test]
-    async fn ws_subscribe_workflow_runner_timeout() {
-        let TestRunner { runner, settings } = TestRunner::start();
-        runner.runtime.block_on(async {
-            let server = Server::new(settings.node().network().webserver()).unwrap();
-            let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
-            let metrics_hdl = metrics_handle().await;
-            let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
-
-            server.start(runner_tx, metrics_hdl, db).await.unwrap();
-
-            let ws_url = format!("ws://{}", server.addr);
-
-            let config = Resources::default();
-            let instruction1 = homestar_invocation::test_utils::instruction::<Arg>();
-            let (instruction2, _) =
-                homestar_invocation::test_utils::wasm_instruction_with_nonce::<Arg>();
-
-            let task1 = Task::new(
-                RunInstruction::Expanded(instruction1),
-                config.clone().into(),
-                UcanPrf::default(),
-            );
-            let task2 = Task::new(
-                RunInstruction::Expanded(instruction2),
-                config.into(),
-                UcanPrf::default(),
-            );
-
-            let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
-            let run_str = format!(
-                r#"{{"name": "test","workflow": {}}}"#,
-                workflow.to_json_string().unwrap()
-            );
-
-            let run: serde_json::Value = serde_json::from_str(&run_str).unwrap();
-            let client = WsClientBuilder::default().build(ws_url).await.unwrap();
-            let sub: Result<Subscription<Vec<u8>>, ClientError> = client
-                .subscribe(
-                    rpc::SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
-                    rpc_params![run],
-                    rpc::UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
-                )
-                .await;
-
-            assert!(sub.is_err());
-
-            // Assure error is not on parse of params, but due to runner
-            // timeout (as runner is not available).
-            if let Err(ClientError::Call(err)) = sub {
-                let check = ErrorCode::ServerIsBusy;
                 assert_eq!(err.code(), check.code());
             } else {
                 panic!("expected same error code");

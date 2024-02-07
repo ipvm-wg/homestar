@@ -171,9 +171,9 @@ pub(crate) struct Webserver {
     /// Number of *bounded* clients to send messages to, used for a
     /// [tokio::sync::broadcast::channel]
     pub(crate) websocket_capacity: usize,
-    /// Websocket-server timeout for receiving messages from the runner.
+    /// Websocket-server send timeout.
     #[serde_as(as = "DurationMilliSeconds<u64>")]
-    pub(crate) websocket_receiver_timeout: Duration,
+    pub(crate) websocket_sender_timeout: Duration,
 }
 
 impl Default for Node {
@@ -305,7 +305,7 @@ impl Default for Webserver {
             port: 1337,
             timeout: Duration::new(120, 0),
             websocket_capacity: 2048,
-            websocket_receiver_timeout: Duration::from_millis(30_000),
+            websocket_sender_timeout: Duration::from_millis(30_000),
         }
     }
 }
@@ -465,6 +465,7 @@ mod test {
     }
 
     #[test]
+    #[serial_test::file_serial]
     fn test_config_dir_xdg() {
         env::remove_var("HOME");
         env::set_var("XDG_CONFIG_HOME", "/home/user/custom_config");
@@ -477,6 +478,7 @@ mod test {
 
     #[cfg(not(target_os = "windows"))]
     #[test]
+    #[serial_test::file_serial]
     fn test_config_dir() {
         env::set_var("HOME", "/home/user");
         env::remove_var("XDG_CONFIG_HOME");
@@ -486,6 +488,7 @@ mod test {
 
     #[cfg(target_os = "windows")]
     #[test]
+    #[serial_test::file_serial]
     fn test_config_dir() {
         env::remove_var("XDG_CONFIG_HOME");
         assert_eq!(

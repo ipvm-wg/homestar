@@ -29,7 +29,7 @@ use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
 #[cfg(not(test))]
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{collections::HashMap, ops::ControlFlow, rc::Rc, sync::Arc, task::Poll, time::Instant};
+use std::{collections::HashMap, ops::ControlFlow, rc::Rc, sync::Arc, task::Poll};
 #[cfg(not(windows))]
 use tokio::signal::unix::{signal, SignalKind};
 #[cfg(windows)]
@@ -329,7 +329,7 @@ impl Runner {
                                        "getting node info");
                                 let (tx, rx) = AsyncChannel::oneshot();
                                 let _ = self.event_sender.send_async(Event::GetNodeInfo(tx)).await;
-                                let dyn_node_info = if let Ok(info) = rx.recv_deadline(Instant::now() + self.settings.node.network.webserver.timeout) {
+                                let dyn_node_info = if let Ok(info) = rx.recv_async().await {
                                     info
                                 } else {
                                     DynamicNodeInfo::default()
