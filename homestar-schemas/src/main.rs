@@ -143,7 +143,7 @@ fn generate_api_doc(
         summary: None,
         servers: None,
         tags: None,
-        param_structure: Some(MethodObjectParamStructure::ByName),
+        param_structure: Some(MethodObjectParamStructure::Either),
         params: vec![],
         result: ContentDescriptorOrReference::ContentDescriptorObject(ContentDescriptorObject {
             name: "metrics".to_string(),

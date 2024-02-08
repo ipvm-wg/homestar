@@ -2,6 +2,7 @@ name: 📄 Schemas
 
 on:
   push:
+    # branches: [main, "**"]
     branches: [main]
 
   pull_request:
@@ -37,9 +38,9 @@ jobs:
   schemas:
     needs: changes
     if: ${{ needs.changes.outputs.rust == 'true' }}
-    env:
-      SCCACHE_GHA_ENABLED: "true"
-      RUSTC_WRAPPER: "sccache"
+    # env:
+    #   SCCACHE_GHA_ENABLED: "true"
+    #   RUSTC_WRAPPER: "sccache"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -90,4 +91,4 @@ jobs:
           git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
           git commit -am "chore(schemas): update OpenRPC API doc and JSON schemas"
-          git push --force-with-lease origin HEAD:refs/heads/${{ github.head_ref }}
+          git push --force-with-lease origin HEAD:refs/heads/${{ github.ref }}
