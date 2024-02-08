@@ -28,16 +28,30 @@ jobs:
       - name: Run generate schemas
         run: cargo run --bin schemas
 
-      - name: Check for changed files
-        id: changed-files
-        uses: tj-actions/changed-files@v42
-        with:
-          files_yaml: |
-            docs:
-              - 'homestar-runtime/schemas/docs/*.json'
+      # - name: Check for changed files
+      #   id: changed-files
+      #   uses: tj-actions/changed-files@v42
+      #   with:
+      #     # files: homestar-runtime/schemas/docs/**
+      #     files: |
+      #       **.json
+      #     since_last_remote_commit: true
+
+      # - name: List all changed files
+      #   env:
+      #     ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+      #   run: |
+      #     for file in ${ALL_CHANGED_FILES}; do
+      #       echo "$file was changed"
+      #     done
+
+      - name: Check for modified files
+        id: git-check
+        run: echo modified=$(if git diff-index --quiet HEAD --; then echo "false"; else echo "true"; fi) >> $GITHUB_OUTPUT
 
       - name: Push changes
-        if: steps.changed-files-yaml.outputs.docs_any_changed == 'true'
+        # if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.git-check.outputs.modified == 'true'
         run: |
           git config user.name "${GITHUB_ACTOR}"
           git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
