@@ -2,11 +2,10 @@ name: 📄 Schemas
 
 on:
   push:
-    # branches: [main, "**"]
-    branches: [main]
+    branches: [main, "**"]
 
-  pull_request:
-    branches: ["**"]
+  # pull_request:
+  # branches: ["**"]
 
 permissions:
   contents: write
@@ -15,8 +14,6 @@ permissions:
 jobs:
   changes:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: read
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
     steps:
@@ -27,20 +24,17 @@ jobs:
         with:
           filters: |
             rust:
-              - '**/Cargo.*'
-              - '**/src/**'
-              - '**/tests/**'
-              - '**/build.rs'
-              - '**/migrations/**'
-              - '**/fixtures/**'
-              - '**/wit/**'
+              - 'homestar-invocation/src/**'
+              - 'homestar-runtime/src/**'
+              - 'homestar-schemas/src/**'
+              - 'homestar-workflow/src/**'
 
   schemas:
     needs: changes
     if: ${{ needs.changes.outputs.rust == 'true' }}
-    # env:
-    #   SCCACHE_GHA_ENABLED: "true"
-    #   RUSTC_WRAPPER: "sccache"
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -52,6 +46,16 @@ jobs:
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: test-all-stable-ubuntu-latest
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
 
       - name: Run generate schemas
         run: cargo run -p homestar-schemas
@@ -75,13 +79,17 @@ jobs:
 
       - name: Check for modified files
         id: git-check
-        run: echo modified=$(if git diff-index --quiet HEAD --; then echo "false"; else echo "true"; fi) >> $GITHUB_OUTPUT
+        run: |
+          echo modified=$(if git diff-index --quiet HEAD --; then echo "false"; else echo "true"; fi) >> $GITHUB_OUTPUT
+          echo diff=$(git diff) >> $GITHUB_OUTPUT
 
       - name: Show check modified value
         env:
           CHANGED: ${{ steps.git-check.outputs.modified }}
+          DIFF: ${{ steps.git-check.outputs.diff }}
         run: |
           echo "$CHANGED"
+          echo "$DIFF"
 
       - name: Push changes
         # if: steps.changed-files.outputs.any_changed == 'true'
@@ -91,4 +99,4 @@ jobs:
           git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
           git commit -am "chore(schemas): update OpenRPC API doc and JSON schemas"
-          git push --force-with-lease origin HEAD:refs/heads/${{ github.ref }}
+          git push
