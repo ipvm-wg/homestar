@@ -19,7 +19,9 @@ mod connection;
 mod dht;
 #[cfg(feature = "websocket-notify")]
 mod gossip;
+#[cfg(feature = "websocket-notify")]
 mod mdns;
+#[cfg(feature = "websocket-notify")]
 mod rendezvous;
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));

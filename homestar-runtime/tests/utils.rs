@@ -2,6 +2,7 @@ use anyhow::{bail, Context, Result};
 #[cfg(not(windows))]
 use assert_cmd::prelude::*;
 use chrono::{DateTime, FixedOffset};
+#[cfg(feature = "websocket-notify")]
 use jsonrpsee::{
     core::client::{Client, Subscription, SubscriptionClientT},
     rpc_params,
@@ -40,12 +41,16 @@ pub(crate) const BIN_NAME: &str = "homestar";
 /// Test-default ed25519 multihash.
 pub(crate) const ED25519MULTIHASH: &str = "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN";
 /// Test-default ed25519 multihash 2.
+#[cfg(feature = "websocket-notify")]
 pub(crate) const ED25519MULTIHASH2: &str = "12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5";
 /// Test-default ed25519 multihash 3.
+#[cfg(feature = "websocket-notify")]
 pub(crate) const ED25519MULTIHASH3: &str = "12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq";
 /// Test-default ed25519 multihash 4.
+#[cfg(feature = "websocket-notify")]
 pub(crate) const ED25519MULTIHASH4: &str = "12D3KooWRndVhVZPCiQwHBBBdg769GyrPUW13zxwqQyf9r3ANaba";
 /// Test-default ed25519 multihash 5.
+#[cfg(feature = "websocket-notify")]
 pub(crate) const ED25519MULTIHASH5: &str = "12D3KooWPT98FXMfDQYavZm66EeVjTqP9Nnehn1gyaydqV8L8BQw";
 /// Test-default secp256k1 multihash.
 pub(crate) const SECP256K1MULTIHASH: &str = "16Uiu2HAm3g9AomQNeEctL2hPwLapap7AtPSNt8ZrBny4rLx1W5Dc";
@@ -56,6 +61,7 @@ pub(crate) fn listen_addr(port: u16) -> String {
 }
 
 /// Return multiaddr address.
+#[cfg(feature = "websocket-notify")]
 pub(crate) fn multiaddr(port: u16, hash: &str) -> String {
     format!("/ip4/127.0.0.1/tcp/{port}/p2p/{hash}")
 }
@@ -221,6 +227,7 @@ pub(crate) fn check_for_line_with(output: String, predicates: Vec<&str>) -> bool
         .any(|curr| curr)
 }
 
+#[cfg(feature = "websocket-notify")]
 pub(crate) fn count_lines_where(output: String, predicates: Vec<&str>) -> i32 {
     output.split('\n').fold(0, |count, line| {
         if line_contains(line, &predicates) {
@@ -378,12 +385,14 @@ pub(crate) fn wait_for_socket_connection_v6(port: u16, exp_retry_base: u64) -> R
 }
 
 /// Client and subscription.
+#[cfg(feature = "websocket-notify")]
 pub(crate) struct WsClientSub {
     #[allow(dead_code)]
     client: Client,
     sub: Subscription<Vec<u8>>,
 }
 
+#[cfg(feature = "websocket-notify")]
 impl WsClientSub {
     pub(crate) fn sub(&mut self) -> &mut Subscription<Vec<u8>> {
         &mut self.sub
@@ -392,6 +401,7 @@ impl WsClientSub {
 
 /// Helper function to subscribe to network events
 /// Note that the client must not be dropped of the sub will return only None.
+#[cfg(feature = "websocket-notify")]
 pub(crate) async fn subscribe_network_events(ws_port: u16) -> WsClientSub {
     const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
     const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";

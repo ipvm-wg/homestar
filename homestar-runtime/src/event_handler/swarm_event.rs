@@ -25,6 +25,8 @@ use crate::{
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use libipld::Cid;
+#[cfg(feature = "websocket-notify")]
+use libp2p::Multiaddr;
 use libp2p::{
     gossipsub, identify, kad,
     kad::{AddProviderOk, BootstrapOk, GetProvidersOk, GetRecordOk, PutRecordOk, QueryResult},
@@ -33,9 +35,11 @@ use libp2p::{
     rendezvous::{self, Namespace, Registration},
     request_response,
     swarm::{dial_opts::DialOpts, SwarmEvent},
-    Multiaddr, PeerId, StreamProtocol,
+    PeerId, StreamProtocol,
 };
-use std::collections::{BTreeMap, HashMap, HashSet};
+#[cfg(feature = "websocket-notify")]
+use std::collections::BTreeMap;
+use std::collections::{HashMap, HashSet};
 use tracing::{debug, error, info, warn};
 
 pub(crate) mod record;
@@ -463,6 +467,7 @@ async fn handle_swarm_event<DB: Database>(
                         subject = "libp2p.rendezvous.server.peer_registered",
                         category = "handle_swarm_event",
                         peer_id = peer.to_string(),
+                        addresses = ?registration.record.addresses(),
                         "registered peer through rendezvous"
                     );
 
