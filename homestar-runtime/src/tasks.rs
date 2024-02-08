@@ -23,6 +23,7 @@ pub(crate) enum RegisteredTasks {
 }
 
 /// Trait for loading files for different task-types directly.
+#[allow(dead_code)]
 #[async_trait]
 pub(crate) trait FileLoad {
     /// Load file asynchronously.
