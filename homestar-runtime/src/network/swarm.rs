@@ -408,14 +408,38 @@ fn build_transport(
     keypair: Keypair,
 ) -> Result<transport::Boxed<(PeerId, StreamMuxerBox)>> {
     let build_tcp = || libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::new().nodelay(true));
-    let build_ws_or_tcp = libp2p::websocket::WsConfig::new(build_tcp()).or_transport(build_tcp());
     let build_quic = if settings.libp2p.quic.enable {
         OptionalTransport::some(quic::tokio::Transport::new(quic::Config::new(&keypair)))
     } else {
         OptionalTransport::none()
     };
 
-    let transport = build_ws_or_tcp
+    let dns_transport = || {
+        if let Ok((conf, opts)) = hickory_resolver::system_conf::read_system_conf() {
+            info!(
+                subject = "swarm.init",
+                category = "libp2p.swarm",
+                "using system DNS configuration from /etc/resolv.conf"
+            );
+            dns::tokio::Transport::custom(build_tcp(), conf, opts)
+        } else {
+            info!(
+                subject = "swarm.init",
+                category = "libp2p.swarm",
+                "using cloudflare DNS configuration as a fallback"
+            );
+            dns::tokio::Transport::custom(
+                build_tcp(),
+                dns::ResolverConfig::cloudflare(),
+                dns::ResolverOpts::default(),
+            )
+        }
+    };
+
+    // ws + wss transport or dns + tcp transport or ws + tcp
+    let transport = libp2p::websocket::WsConfig::new(dns_transport())
+        .or_transport(dns_transport())
+        .or_transport(libp2p::websocket::WsConfig::new(build_tcp()))
         .upgrade(upgrade::Version::V1Lazy)
         .authenticate(noise::Config::new(&keypair)?)
         .multiplex(yamux::Config::default())
@@ -424,27 +448,8 @@ fn build_transport(
         .map(|either_output, _| match either_output {
             Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
             Either::Right((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
-        });
+        })
+        .boxed();
 
-    let transport = if let Ok((conf, opts)) = hickory_resolver::system_conf::read_system_conf() {
-        info!(
-            subject = "swarm.init",
-            category = "libp2p.swarm",
-            "using system DNS configuration from /etc/resolv.conf"
-        );
-        dns::tokio::Transport::custom(transport, conf, opts)
-    } else {
-        info!(
-            subject = "swarm.init",
-            category = "libp2p.swarm",
-            "using cloudflare DNS configuration as a fallback"
-        );
-        dns::tokio::Transport::custom(
-            transport,
-            dns::ResolverConfig::cloudflare(),
-            dns::ResolverOpts::default(),
-        )
-    };
-
-    Ok(transport.boxed())
+    Ok(transport)
 }

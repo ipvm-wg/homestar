@@ -55,6 +55,7 @@ pub trait ConsoleTable {
 }
 
 /// Style trait for console table output responses.
+#[allow(dead_code)]
 pub(crate) trait ApplyStyle {
     fn default(&mut self) -> Output;
     fn default_with_title(&mut self, ext_title: &str) -> Output;
