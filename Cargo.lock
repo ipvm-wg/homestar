@@ -2638,6 +2638,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "homestar-schemas"
+version = "0.1.1"
+dependencies = [
+ "homestar-invocation",
+ "homestar-runtime",
+ "homestar-workflow",
+ "homestar-workspace-hack",
+ "schemars",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "homestar-wasm"
 version = "0.1.1"
 dependencies = [

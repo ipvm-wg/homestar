@@ -1,5 +1,4 @@
-//! Standalone binary to generate OpenRPC API docs and
-//! JSON Schemas for method params and notifications.
+//! Binary to generate OpenRPC API docs and JSON Schemas.
 
 use homestar_invocation::Receipt;
 use homestar_runtime::{
@@ -11,7 +10,6 @@ use schemars::{
     schema_for,
 };
 use std::{fs, io::Write};
-
 mod openrpc;
 use openrpc::document::{
     ContactObject, ContentDescriptorObject, ContentDescriptorOrReference,
@@ -20,62 +18,48 @@ use openrpc::document::{
 };
 
 fn main() {
-    println!("{}", env!("CARGO_MANIFEST_DIR"));
+    fn schema_path(name: &str) -> String {
+        format!(
+            "{}/../homestar-runtime/schemas/{}",
+            env!("CARGO_MANIFEST_DIR"),
+            name
+        )
+    }
+
     let health_schema = schema_for!(Health);
-    let _ = fs::File::create(format!(
-        "{}/schemas/docs/health.json",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-    .write_all(&serde_json::to_vec_pretty(&health_schema).unwrap());
+    let _ = fs::File::create(schema_path("health.json"))
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&health_schema).unwrap());
 
     let metrics_schema = schema_for!(PrometheusData);
-    let _ = fs::File::create(format!(
-        "{}/schemas/docs/metrics.json",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-    .write_all(&serde_json::to_vec_pretty(&metrics_schema).unwrap());
+    let _ = fs::File::create(schema_path("metrics.json"))
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&metrics_schema).unwrap());
 
     let node_info_schema = schema_for!(NodeInfo);
-    let _ = fs::File::create(format!(
-        "{}/schemas/docs/node_info.json",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-    .write_all(&serde_json::to_vec_pretty(&node_info_schema).unwrap());
+    let _ = fs::File::create(schema_path("node_info.json"))
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&node_info_schema).unwrap());
 
     let network_schema = schema_for!(NetworkNotification);
-    let _ = fs::File::create(format!(
-        "{}/schemas/docs/network.json",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-    .write_all(&serde_json::to_vec_pretty(&network_schema).unwrap());
+    let _ = fs::File::create(schema_path("network.json"))
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&network_schema).unwrap());
 
     let workflow_schema = schema_for!(Workflow<'static, ()>);
-    let _ = fs::File::create(format!(
-        "{}/schemas/docs/workflow.json",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-    .write_all(&serde_json::to_vec_pretty(&workflow_schema).unwrap());
+    let _ = fs::File::create(schema_path("workflow.json"))
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&workflow_schema).unwrap());
 
     let receipt_schema = schema_for!(Receipt<()>);
-    let _ = fs::File::create(format!(
-        "{}/schemas/docs/receipt.json",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-    .write_all(&serde_json::to_vec_pretty(&receipt_schema).unwrap());
+    let _ = fs::File::create(schema_path("receipt.json"))
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&receipt_schema).unwrap());
 
     let receipt_notification_schema = schema_for!(ReceiptNotification);
-    let _ = fs::File::create(format!(
-        "{}/schemas/docs/receipt_notification.json",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-    .write_all(&serde_json::to_vec_pretty(&receipt_notification_schema).unwrap());
+    let _ = fs::File::create(schema_path("receipt_notification.json"))
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&receipt_notification_schema).unwrap());
 
     let api_doc = generate_api_doc(
         health_schema,
@@ -85,12 +69,9 @@ fn main() {
         workflow_schema,
         receipt_notification_schema,
     );
-    let _ = fs::File::create(format!(
-        "{}/schemas/docs/api.json",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-    .write_all(&serde_json::to_vec_pretty(&api_doc).unwrap());
+    let _ = fs::File::create(schema_path("api.json"))
+        .unwrap()
+        .write_all(&serde_json::to_vec_pretty(&api_doc).unwrap());
 }
 
 // Spec: https://github.com/open-rpc/spec/blob/1.2.6/spec.md
@@ -329,7 +310,7 @@ fn generate_api_doc(
             title: "homestar".to_string(),
             description: Some(env!("CARGO_PKG_DESCRIPTION").into()),
             terms_of_service: None,
-            version: "0.10.0".to_string(),
+            version: "0.1.0".to_string(),
             contact: Some(ContactObject {
                 name: None,
                 url: Some(env!("CARGO_PKG_REPOSITORY").into()),

@@ -25,13 +25,6 @@ path = "src/main.rs"
 doc = false
 bench = false
 
-[[bin]]
-name = "schemas"
-path = "schemas/generate.rs"
-bench = false
-doc = false
-test = false
-
 [[test]]
 name = "integration"
 path = "tests/main.rs"

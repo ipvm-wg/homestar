@@ -1,0 +1,27 @@
+[package]
+name = "homestar-schemas"
+publish = false
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+homestar-invocation = { version = "0.1", path = "../homestar-invocation", default-features = false }
+homestar-runtime = { version = "0.1", path = "../homestar-runtime", default-features = false, features = [
+  "websocket-notify",
+] }
+homestar-workflow = { version = "0.1", path = "../homestar-workflow", default-features = false }
+homestar-workspace-hack = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[[bin]]
+name = "schemas"
+path = "src/main.rs"
+bench = false
+doc = false
+test = false
+
+[features]
+default = []

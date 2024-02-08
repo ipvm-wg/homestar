@@ -26,7 +26,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Run generate schemas
-        run: cargo run --bin schemas
+        run: cargo run -p homestar-schemas
 
       # - name: Check for changed files
       #   id: changed-files

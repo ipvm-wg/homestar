@@ -2,15 +2,15 @@
   "openrpc": "1.2.6",
   "info": {
     "title": "homestar",
-    "description": "Homestar runtime implementation",
-    "version": "0.10.0",
+    "description": "",
+    "version": "0.1.0",
     "contact": {
       "name": null,
       "email": null,
-      "url": "https://github.com/ipvm-wg/homestar/tree/main/homestar-runtime"
+      "url": ""
     },
     "license": {
-      "name": "Apache-2.0",
+      "name": "",
       "url": null
     }
   },

@@ -45,7 +45,7 @@ use tracing::debug;
 use tracing::{error, warn};
 
 /// OpenRPC API document
-const API_SCHEMA_DOC: &str = include_str!("../../../schemas/docs/api.json");
+const API_SCHEMA_DOC: &str = include_str!("../../../schemas/api.json");
 
 /// OpenRPC API discovery endpoint.
 pub(crate) const DISCOVER_ENDPOINT: &str = "rpc_discover";

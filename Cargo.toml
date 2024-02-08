@@ -4,6 +4,7 @@ members = [
   "homestar-functions/*",
   "homestar-invocation",
   "homestar-runtime",
+  "homestar-schemas",
   "homestar-wasm",
   "homestar-workflow",
   "homestar-workspace-hack",

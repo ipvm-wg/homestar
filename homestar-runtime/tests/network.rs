@@ -387,7 +387,7 @@ fn test_discovery_endpoint_integration() -> Result<()> {
         assert_eq!(http_resp.status(), 200);
         let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
 
-        const API_SCHEMA_DOC: &str = include_str!("../schemas/docs/api.json");
+        const API_SCHEMA_DOC: &str = include_str!("../schemas/api.json");
         assert_eq!(http_resp, serde_json::json!(API_SCHEMA_DOC));
     });
 
