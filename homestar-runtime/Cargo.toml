@@ -145,7 +145,7 @@ serde_with = { version = "3.5", default-features = false, features = [
   "std",
 ] }
 stream-cancel = "0.8"
-sysinfo = { version = "0.29", default-features = false, optional = true }
+sysinfo = { version = "0.30", default-features = false, optional = true }
 tabled = { version = "0.14", default-features = false, features = [
   "derive",
   "macros",
@@ -219,7 +219,7 @@ retry = { version = "2.0", default-features = false }
 rm_rf = "0.6"
 serial_test = { version = "3.0", features = ["file_locks"] }
 strip-ansi-escapes = "0.2.0"
-sysinfo = { version = "0.29", default-features = false }
+sysinfo = { version = "0.30", default-features = false }
 tokio-test = "0.4"
 tokio-tungstenite = { version = "0.21", default-features = false, features = [
   "connect",
