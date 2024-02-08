@@ -60,8 +60,7 @@ jobs:
       - name: Check for modified schemas
         id: git-check
         shell: bash
-        run: |
-          echo modified=$(if [[ $(git diff homestar-runtime/schemas/) ]]; then echo "true"; else echo "false"; fi) >> $GITHUB_OUTPUT
+        run: echo modified=$(if [[ $(git diff homestar-runtime/schemas/) ]]; then echo "true"; else echo "false"; fi) >> $GITHUB_OUTPUT
 
       - name: Push changes
         if: steps.git-check.outputs.modified == 'true'
