@@ -12,7 +12,34 @@ permissions:
   pull-requests: write
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - '**/Cargo.*'
+              - '**/src/**'
+              - '**/tests/**'
+              - '**/build.rs'
+              - '**/migrations/**'
+              - '**/fixtures/**'
+              - '**/wit/**'
+
   schemas:
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
