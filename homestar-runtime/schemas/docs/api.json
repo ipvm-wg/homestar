@@ -1190,7 +1190,7 @@
       "paramStructure": "by-name",
       "params": [
         {
-          "name": "workflow",
+          "name": "tasks",
           "schema": {
             "$schema": "http://json-schema.org/draft-07/schema#",
             "title": "Workflow",
