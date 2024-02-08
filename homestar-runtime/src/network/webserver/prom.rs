@@ -8,7 +8,9 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[allow(dead_code)]
 const HISTOGRAM_TYPE: &str = "HISTOGRAM";
+#[allow(dead_code)]
 const SUMMARY_TYPE: &str = "SUMMARY";
 
 static METRIC_REGEX_NO_LABEL: Lazy<&Regex> = Lazy::new(|| {

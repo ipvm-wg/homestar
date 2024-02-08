@@ -3,6 +3,7 @@
 use chrono::NaiveDateTime;
 
 /// Trait for converting nanoseconds to a timestamp.
+#[allow(dead_code)]
 pub(crate) trait Timestamp {
     fn timestamp_from_nanos(&self) -> Option<NaiveDateTime>;
 }
