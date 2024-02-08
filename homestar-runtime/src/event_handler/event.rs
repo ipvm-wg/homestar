@@ -31,7 +31,6 @@ use libp2p::{
     rendezvous::Namespace,
     PeerId,
 };
-#[cfg(feature = "websocket-notify")]
 use std::{
     collections::{HashMap, HashSet},
     num::NonZeroUsize,
