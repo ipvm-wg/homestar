@@ -4,9 +4,6 @@ on:
   push:
     branches: [main, "**"]
 
-  # pull_request:
-  # branches: ["**"]
-
 permissions:
   contents: write
   pull-requests: write
@@ -60,41 +57,13 @@ jobs:
       - name: Run generate schemas
         run: cargo run -p homestar-schemas
 
-      # - name: Check for changed files
-      #   id: changed-files
-      #   uses: tj-actions/changed-files@v42
-      #   with:
-      #     # files: homestar-runtime/schemas/docs/**
-      #     files: |
-      #       **.json
-      #     since_last_remote_commit: true
-
-      # - name: List all changed files
-      #   env:
-      #     ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
-      #   run: |
-      #     for file in ${ALL_CHANGED_FILES}; do
-      #       echo "$file was changed"
-      #     done
-
-      - name: Check for modified files
+      - name: Check for modified schemas
         id: git-check
         shell: bash
         run: |
-          # echo modified=$(if git diff-index --quiet HEAD --; then echo "false"; else echo "true"; fi) >> $GITHUB_OUTPUT
-          echo modified=$(if [[ $(git diff) ]]; then echo "true"; else echo "false"; fi) >> $GITHUB_OUTPUT
-          echo diff=$(git diff) >> $GITHUB_OUTPUT
-
-      - name: Show check modified value
-        env:
-          CHANGED: ${{ steps.git-check.outputs.modified }}
-          DIFF: ${{ steps.git-check.outputs.diff }}
-        run: |
-          echo "$CHANGED"
-          echo "$DIFF"
+          echo modified=$(if [[ $(git diff homestar-runtime/schemas/) ]]; then echo "true"; else echo "false"; fi) >> $GITHUB_OUTPUT
 
       - name: Push changes
-        # if: steps.changed-files.outputs.any_changed == 'true'
         if: steps.git-check.outputs.modified == 'true'
         run: |
           git config user.name "${GITHUB_ACTOR}"
