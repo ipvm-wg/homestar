@@ -40,7 +40,6 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.HOMESTAR_UPDATE_TOKEN }}
-          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
