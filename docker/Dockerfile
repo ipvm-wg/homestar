@@ -31,9 +31,11 @@ RUN cargo init --lib homestar-invocation && \
 
 RUN echo "fn main() {}" > ./homestar-runtime/src/main.rs
 
-RUN mkdir -p ./homestar-runtime/src/test_utils/proc_macro ./homestar-runtime/migrations ./examples ./homestar-functions
+RUN mkdir -p ./homestar-runtime/src/test_utils/proc_macro ./homestar-runtime/migrations \
+    ./examples ./homestar-functions ./homestar-schemas
 RUN bash -c 'pushd ./examples && cargo init dummy-app-examples && popd'
 RUN bash -c 'pushd ./homestar-functions && cargo init dummy-app-fns && popd'
+RUN cargo init homestar-schemas
 RUN cargo init --lib homestar-workspace-hack
 
 # copy cargo.*
@@ -43,6 +45,7 @@ COPY ../homestar-workflow/Cargo.toml ./homestar-workflow/
 COPY ../homestar-wasm/Cargo.toml ./homestar-wasm/
 COPY ../homestar-runtime/Cargo.toml ./homestar-runtime/
 COPY ../homestar-runtime/migrations ./homestar-runtime/migrations
+COPY ../homestar-runtime/schemas/api.json ./homestar-runtime/schemas/api.json
 COPY ../homestar-runtime/src/test_utils/proc_macro ./homestar-runtime/src/test_utils/proc_macro
 
 ENTRYPOINT ["/bin/bash"]
@@ -91,6 +94,7 @@ WORKDIR /home/runner
 
 COPY --chown=homestar:homestar diesel.toml ./
 COPY --chown=homestar:homestar ../homestar-runtime/migrations ./migrations
+COPY --chown=homestar:homestar ../homestar-runtime/schemas ./schemas
 COPY --chown=homestar:homestar --from=builder /usr/local/bin/homestar-runtime ./homestar
 COPY --chown=homestar:homestar --from=builder /usr/local/bin/diesel /usr/local/bin/diesel
 COPY --chown=homestar:homestar --from=builder  /etc/*.db ./

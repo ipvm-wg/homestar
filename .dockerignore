@@ -10,7 +10,9 @@
 !**/migrations
 !diesel.toml
 !**/wit
+!**/schemas/api.json
 
 examples
 homestar-functions
 homestar-workspace-hack
+homestar-schemas

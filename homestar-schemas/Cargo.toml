@@ -7,7 +7,9 @@ rust-version = { workspace = true }
 
 [dependencies]
 homestar-invocation = { version = "0.1", path = "../homestar-invocation", default-features = false }
-homestar-runtime = { version = "0.1", path = "../homestar-runtime" }
+homestar-runtime = { version = "0.1", path = "../homestar-runtime", default-features = false, features = [
+  "websocket-notify",
+] }
 homestar-workflow = { version = "0.1", path = "../homestar-workflow", default-features = false }
 homestar-workspace-hack = { workspace = true }
 schemars = { workspace = true }
@@ -23,3 +25,9 @@ test = false
 
 [features]
 default = []
+
+[package.metadata.cargo-machete]
+ignored = ["homestar-workspace-hack"]
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["homestar-workspace-hack"]

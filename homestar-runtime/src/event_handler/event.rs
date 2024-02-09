@@ -708,16 +708,28 @@ where
 {
     #[cfg(not(feature = "ipfs"))]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>) {
-        if let Err(err) = self.handle_info(event_handler).await {
-            error!(subject = "handle.err",
-                   category = "handle_event",
-                   error=?err,
-                   "error storing event")
+        match self {
+            #[cfg(feature = "websocket-notify")]
+            Event::ReplayReceipts(replay) => {
+                if let Err(err) = replay.notify(event_handler) {
+                    error!(subject = "replay.err",
+                           category = "handle_event",
+                           error=?err,
+                           "error replaying and notifying receipts")
+                }
+            }
+            event => {
+                if let Err(err) = event.handle_info(event_handler).await {
+                    error!(subject = "event.err",
+                           category = "handle_event",
+                           error=?err,
+                           "error storing event")
+                }
+            }
         }
     }
 
     #[cfg(feature = "ipfs")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     #[allow(unused_variables)]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>, ipfs: IpfsCli) {
         match self {
