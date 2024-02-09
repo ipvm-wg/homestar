@@ -310,7 +310,9 @@ fn generate_api_doc(
             title: "homestar".to_string(),
             description: Some(env!("CARGO_PKG_DESCRIPTION").into()),
             terms_of_service: None,
-            version: "0.1.0".to_string(),
+            // Version is tied to workspace, but use homestar-runtime version
+            // in the future.
+            version: env!("CARGO_PKG_VERSION").into(),
             contact: Some(ContactObject {
                 name: None,
                 url: Some(env!("CARGO_PKG_REPOSITORY").into()),
