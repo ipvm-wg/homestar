@@ -14,7 +14,15 @@ use tracing::{debug, warn};
 
 pub(crate) mod network;
 pub(crate) mod receipt;
-pub(crate) use network::*;
+pub(crate) use network::{
+    ConnectionClosed, ConnectionEstablished, DiscoverServedRendezvous, DiscoveredMdns,
+    DiscoveredRendezvous, GotReceiptDht, GotWorkflowInfoDht, IncomingConnectionError,
+    NetworkNotification, NewListenAddr, OutgoingConnectionError, PeerRegisteredRendezvous,
+    PublishedReceiptPubsub, PutReceiptDht, PutWorkflowInfoDht, ReceiptQuorumFailureDht,
+    ReceiptQuorumSuccessDht, ReceivedReceiptPubsub, ReceivedWorkflowInfo, RegisteredRendezvous,
+    SentWorkflowInfo, WorkflowInfoQuorumFailureDht, WorkflowInfoQuorumSuccessDht,
+    WorkflowInfoSource,
+};
 pub(crate) use receipt::ReceiptNotification;
 
 /// Send receipt notification as bytes.
