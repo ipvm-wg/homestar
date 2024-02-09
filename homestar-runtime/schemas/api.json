@@ -160,7 +160,7 @@
     },
     {
       "name": "node",
-      "paramStructure": "by-name",
+      "paramStructure": "either",
       "params": [],
       "result": {
         "name": "node_info",
@@ -238,7 +238,7 @@
     },
     {
       "name": "subscribe_network_events",
-      "paramStructure": "by-name",
+      "paramStructure": "either",
       "params": [],
       "result": {
         "name": "subscription_id",
@@ -1171,7 +1171,7 @@
     },
     {
       "name": "unsubscribe_network_events",
-      "paramStructure": "by-name",
+      "paramStructure": "either",
       "params": [],
       "result": {
         "name": "unsubscribe result",
@@ -1665,7 +1665,7 @@
     },
     {
       "name": "unsubscribe_run_workflow",
-      "paramStructure": "by-name",
+      "paramStructure": "either",
       "params": [],
       "result": {
         "name": "unsubscribe result",
