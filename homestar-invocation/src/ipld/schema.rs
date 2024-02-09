@@ -1,6 +1,5 @@
 //! JSON Schema generation for DAG-JSON encoded Ipld.
 
-use libipld::Ipld;
 use schemars::{
     gen::SchemaGenerator,
     schema::{InstanceType, Metadata, ObjectValidation, Schema, SchemaObject, SingleOrVec},
@@ -11,7 +10,7 @@ use std::{borrow::Cow, collections::BTreeMap};
 /// Ipld stub for JSON Schema generation
 #[derive(Debug)]
 #[doc(hidden)]
-pub struct IpldStub(Ipld);
+pub struct IpldStub();
 
 // The Ipld stub exists solely to implement a JSON Schema
 // represenation of Ipld. Should libipld provide an implementation
@@ -67,7 +66,7 @@ impl JsonSchema for IpldStub {
 /// Ipld link stub for JSON Schema generation
 #[derive(Debug)]
 #[doc(hidden)]
-pub struct IpldLinkStub(Ipld);
+pub struct IpldLinkStub();
 
 impl JsonSchema for IpldLinkStub {
     fn schema_name() -> String {
@@ -100,7 +99,7 @@ impl JsonSchema for IpldLinkStub {
 /// Ipld bytes stub for JSON Schema generation
 #[derive(Debug)]
 #[doc(hidden)]
-pub struct IpldBytesStub(Ipld);
+pub struct IpldBytesStub();
 
 impl JsonSchema for IpldBytesStub {
     fn schema_name() -> String {
