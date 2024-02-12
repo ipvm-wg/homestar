@@ -35,6 +35,7 @@ chrono = { version = "0.4", default-features = false, features = [
   "clock",
   "std",
 ] }
+const_format = "0.2"
 enum-assoc = "1.1"
 enum-as-inner = "0.6"
 faststr = { version = "0.2", default-features = false, features = ["serde"] }

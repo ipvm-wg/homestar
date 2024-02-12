@@ -1,11 +1,12 @@
 //! JSON Schema generation for DAG-JSON encoded Ipld.
 
+use const_format::formatcp;
 use schemars::{
     gen::SchemaGenerator,
     schema::{InstanceType, Metadata, ObjectValidation, Schema, SchemaObject, SingleOrVec},
     JsonSchema,
 };
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{borrow::Cow, collections::BTreeMap, module_path};
 
 /// Ipld stub for JSON Schema generation
 #[derive(Debug)]
@@ -21,7 +22,7 @@ impl JsonSchema for IpldStub {
     }
 
     fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed("homestar-invocation::ipld::schema::IpldStub")
+        Cow::Borrowed(formatcp!("{}::IpldStub", module_path!()))
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {
@@ -74,7 +75,7 @@ impl JsonSchema for IpldLinkStub {
     }
 
     fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed("homestar-invocation::ipld::schema::IpldLinkStub")
+        Cow::Borrowed(formatcp!("{}::IpldLinkStub", module_path!()))
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {
@@ -107,7 +108,7 @@ impl JsonSchema for IpldBytesStub {
     }
 
     fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed("homestar-invocation::ipld::schema::IpldBytesStub")
+        Cow::Borrowed(formatcp!("{}::IpldBytesStub", module_path!()))
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {

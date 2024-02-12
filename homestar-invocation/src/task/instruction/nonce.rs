@@ -3,6 +3,7 @@
 //! [Instruction]: super::Instruction
 
 use crate::{Error, Unit};
+use const_format::formatcp;
 use enum_as_inner::EnumAsInner;
 use generic_array::{
     typenum::consts::{U12, U16},
@@ -15,7 +16,7 @@ use schemars::{
     JsonSchema,
 };
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, fmt, module_path};
 use uuid::Uuid;
 
 type Nonce96 = GenericArray<u8, U12>;
@@ -99,7 +100,7 @@ impl JsonSchema for Nonce {
     }
 
     fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed("homestar-invocation::task::instruction::Nonce")
+        Cow::Borrowed(formatcp!("{}::Nonce", module_path!()))
     }
 
     fn json_schema(_gen: &mut SchemaGenerator) -> Schema {

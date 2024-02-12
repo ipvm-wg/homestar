@@ -1,6 +1,7 @@
 //! Issuer refers to the issuer of the invocation.
 
 use crate::{Error, Unit};
+use const_format::formatcp;
 #[cfg(feature = "diesel")]
 use diesel::{
     backend::Backend,
@@ -17,7 +18,7 @@ use schemars::{
     JsonSchema,
 };
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, fmt, str::FromStr};
+use std::{borrow::Cow, fmt, module_path, str::FromStr};
 use ucan::ipld::Principle as Principal;
 
 /// [Principal] issuer of the [Invocation]. If omitted issuer is
@@ -102,7 +103,7 @@ impl JsonSchema for Issuer {
     }
 
     fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed("homestar-invocation::authority::issuer::Issuer")
+        Cow::Borrowed(formatcp!("{}::Issuer", module_path!()))
     }
 
     fn json_schema(_gen: &mut SchemaGenerator) -> Schema {

@@ -2,6 +2,7 @@
 ///
 /// Influenced by https://crates.io/crates/prom2jsonrs/0.1.0.
 use anyhow::{anyhow, bail, Result};
+use const_format::formatcp;
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -15,6 +16,7 @@ use serde_json::json;
 use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet, HashMap},
+    module_path,
 };
 
 #[allow(dead_code)]
@@ -93,7 +95,7 @@ impl JsonSchema for Metric {
     }
 
     fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed("homestar-runtime::network::webserver::prom::Metric")
+        Cow::Borrowed(formatcp!("{}::Metric", module_path!()))
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {
@@ -165,7 +167,7 @@ impl JsonSchema for MetricFamily {
     }
 
     fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed("homestar-runtime::network::webserver::prom::MetricFamily")
+        Cow::Borrowed(formatcp!("{}::MetricFamily", module_path!()))
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {

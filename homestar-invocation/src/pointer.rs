@@ -9,6 +9,7 @@
 //! [Receipts]: super::Receipt
 
 use crate::{ensure, Error, Unit};
+use const_format::formatcp;
 #[cfg(feature = "diesel")]
 use diesel::{
     backend::Backend,
@@ -28,7 +29,7 @@ use schemars::{
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "diesel")]
 use std::str::FromStr;
-use std::{borrow::Cow, collections::btree_map::BTreeMap, fmt};
+use std::{borrow::Cow, collections::btree_map::BTreeMap, fmt, module_path};
 
 /// `await/ok` branch for instruction result.
 pub const OK_BRANCH: &str = "await/ok";
@@ -85,7 +86,7 @@ impl JsonSchema for AwaitResult {
     }
 
     fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed("homestar-invocation::pointer::AwaitResult")
+        Cow::Borrowed(formatcp!("{}::AwaitResult", module_path!()))
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {
@@ -352,7 +353,7 @@ impl JsonSchema for Pointer {
     }
 
     fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed("homestar-invocation::pointer::Pointer")
+        Cow::Borrowed(formatcp!("{}::Pointer", module_path!()))
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {

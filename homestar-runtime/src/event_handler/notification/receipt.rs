@@ -1,5 +1,6 @@
 //! Notification receipts.
 
+use const_format::formatcp;
 use homestar_invocation::{
     ipld::{schema, DagJson},
     Receipt,
@@ -13,6 +14,7 @@ use schemars::{
 use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet},
+    module_path,
 };
 
 /// A [Receipt] that is sent out for websocket notifications.
@@ -64,7 +66,7 @@ impl JsonSchema for ReceiptNotification {
     }
 
     fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed("homestar-runtime::event_handler::notification::ReceiptNotification")
+        Cow::Borrowed(formatcp!("{}::ReceiptNotification", module_path!()))
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {

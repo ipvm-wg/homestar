@@ -4,6 +4,7 @@
 //! [Task]: crate::Task
 
 use crate::{ipld::Link, Error, Unit};
+use const_format::formatcp;
 #[cfg(feature = "diesel")]
 use diesel::{
     backend::Backend,
@@ -22,7 +23,7 @@ use schemars::{
     JsonSchema,
 };
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
+use std::{borrow::Cow, module_path};
 use ucan::ipld::UcanIpld;
 
 /// Proof container, with links to UCANs for a particular [Task] or
@@ -101,7 +102,7 @@ impl JsonSchema for UcanPrf {
     }
 
     fn schema_id() -> Cow<'static, str> {
-        Cow::Borrowed("homestar-invocation::authority::prf::UcanPrf")
+        Cow::Borrowed(formatcp!("{}::UcanPrf", module_path!()))
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {

@@ -49,7 +49,7 @@ config = { version = "0.13", default-features = false, features = ["toml"] }
 console-subscriber = { version = "0.2", default-features = false, features = [
   "parking_lot",
 ], optional = true }
-const_format = "0.2"
+const_format = { workspace = true }
 crossbeam = "0.8"
 dagga = "0.2"
 dashmap = "5.5"
