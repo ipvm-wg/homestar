@@ -2752,7 +2752,7 @@ dependencies = [
  "tracing-logfmt",
  "tracing-subscriber",
  "typenum",
- "unsigned-varint 0.7.2",
+ "unsigned-varint 0.8.0",
  "url",
  "uuid",
  "wasmtime",
@@ -7346,6 +7346,10 @@ name = "unsigned-varint"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb066959b24b5196ae73cb057f45598450d2c5f71460e98c49b738086eff9c06"
+dependencies = [
+ "asynchronous-codec 0.7.0",
+ "bytes",
+]
 
 [[package]]
 name = "untrusted"
