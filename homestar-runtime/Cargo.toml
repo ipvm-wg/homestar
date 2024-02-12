@@ -146,7 +146,7 @@ serde_with = { version = "3.5", default-features = false, features = [
 ] }
 stream-cancel = "0.8"
 sysinfo = { version = "0.29", default-features = false, optional = true }
-tabled = { version = "0.14", default-features = false, features = [
+tabled = { version = "0.15", default-features = false, features = [
   "derive",
   "macros",
 ] }
