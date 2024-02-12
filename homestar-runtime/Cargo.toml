@@ -53,6 +53,7 @@ const_format = "0.2"
 crossbeam = "0.8"
 dagga = "0.2"
 dashmap = "5.5"
+derive-getters = "0.3.0"
 diesel = { version = "2.1", default-features = false, features = [
   "sqlite",
   "r2d2",
