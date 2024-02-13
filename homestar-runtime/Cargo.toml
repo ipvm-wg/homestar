@@ -12,6 +12,7 @@ documentation = "https://docs.rs/homestar-runtime"
 repository = "https://github.com/ipvm-wg/homestar/tree/main/homestar-runtime"
 authors = { workspace = true }
 autotests = false
+default-run = "homestar"
 
 [lib]
 path = "src/lib.rs"
@@ -48,10 +49,11 @@ config = { version = "0.13", default-features = false, features = ["toml"] }
 console-subscriber = { version = "0.2", default-features = false, features = [
   "parking_lot",
 ], optional = true }
-const_format = "0.2"
+const_format = { workspace = true }
 crossbeam = "0.8"
 dagga = "0.2"
 dashmap = "5.5"
+derive-getters = "0.3"
 diesel = { version = "2.1", default-features = false, features = [
   "sqlite",
   "r2d2",
@@ -132,13 +134,12 @@ reqwest = { version = "0.11", default-features = false, features = [
   "blocking",
   "json",
 ] }
+schemars = { workspace = true }
 sec1 = { version = "0.7", default-features = false, features = ["pem"] }
 semver = { version = "1.0", default-features = false }
 serde = { workspace = true }
 serde_ipld_dagcbor = { workspace = true }
-serde_json = { version = "1.0", default-features = false, features = [
-  "raw_value",
-] }
+serde_json = { workspace = true }
 serde_with = { version = "3.5", default-features = false, features = [
   "base64",
   "macros",

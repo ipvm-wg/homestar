@@ -5,7 +5,7 @@ use super::swarm_event::FoundEvent;
 use super::EventHandler;
 #[cfg(feature = "websocket-notify")]
 use crate::event_handler::{
-    notification::{self, emit_receipt, EventNotificationTyp, SwarmNotification},
+    notification::{self, emit_receipt, NetworkNotification},
     swarm_event::{ReceiptEvent, WorkflowInfoEvent},
 };
 #[cfg(feature = "ipfs")]
@@ -31,8 +31,6 @@ use libp2p::{
     rendezvous::Namespace,
     PeerId,
 };
-#[cfg(feature = "websocket-notify")]
-use maplit::btreemap;
 use std::{
     collections::{HashMap, HashSet},
     num::NonZeroUsize,
@@ -176,39 +174,49 @@ impl Event {
             #[cfg(feature = "websocket-notify")]
             #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
             Event::StoredRecord(event) => match event {
-                FoundEvent::Receipt(ReceiptEvent {
-                    peer_id,
-                    receipt,
-                    notification_type,
-                }) => notification::emit_event(
-                    event_handler.ws_evt_sender(),
-                    notification_type,
-                    btreemap! {
-                        "publisher" => peer_id.map_or(Ipld::Null, |peer_id| Ipld::String(peer_id.to_string())),
-                        "cid" => Ipld::String(receipt.cid().to_string()),
-                        "ran" => Ipld::String(receipt.ran().to_string())
-                    },
-                ),
+                FoundEvent::Receipt(ReceiptEvent { peer_id, receipt }) => {
+                    notification::emit_network_event(
+                        event_handler.ws_evt_sender(),
+                        NetworkNotification::GotReceiptDht(notification::GotReceiptDht::new(
+                            peer_id,
+                            receipt.cid(),
+                            receipt.ran(),
+                        )),
+                    )
+                }
                 FoundEvent::Workflow(WorkflowInfoEvent {
                     peer_id,
                     workflow_info,
-                    notification_type,
-                }) => {
-                    if let Some(peer_label) = notification_type.workflow_info_source_label() {
-                        notification::emit_event(
-                            event_handler.ws_evt_sender(),
-                            notification_type,
-                            btreemap! {
-                                peer_label => peer_id.map_or(Ipld::Null, |peer_id| Ipld::String(peer_id.to_string())),
-                                "cid" => Ipld::String(workflow_info.cid().to_string()),
-                                "name" => workflow_info.name.map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
-                                "numTasks" => Ipld::Integer(workflow_info.num_tasks as i128),
-                                "progress" => Ipld::List(workflow_info.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
-                                "progressCount" => Ipld::Integer(workflow_info.progress_count as i128),
-                            },
-                        )
-                    }
-                }
+                    workflow_source,
+                }) => notification::emit_network_event(
+                    event_handler.ws_evt_sender(),
+                    match workflow_source {
+                        notification::WorkflowInfoSource::Dht => {
+                            NetworkNotification::GotWorkflowInfoDht(
+                                notification::GotWorkflowInfoDht::new(
+                                    peer_id,
+                                    workflow_info.cid(),
+                                    workflow_info.name,
+                                    workflow_info.num_tasks,
+                                    workflow_info.progress,
+                                    workflow_info.progress_count,
+                                ),
+                            )
+                        }
+                        notification::WorkflowInfoSource::RequestResponse => {
+                            NetworkNotification::ReceivedWorkflowInfo(
+                                notification::ReceivedWorkflowInfo::new(
+                                    peer_id,
+                                    workflow_info.cid(),
+                                    workflow_info.name,
+                                    workflow_info.num_tasks,
+                                    workflow_info.progress,
+                                    workflow_info.progress_count,
+                                ),
+                            )
+                        }
+                    },
+                ),
             },
             Event::OutboundRequest(PeerRequest {
                 peer,
@@ -401,16 +409,12 @@ impl Captured {
                     );
 
                     #[cfg(feature = "websocket-notify")]
-                    notification::emit_event(
+                    notification::emit_network_event(
                         event_handler.ws_evt_sender(),
-                        EventNotificationTyp::SwarmNotification(
-                            SwarmNotification::PublishedReceiptPubsub,
+                        NetworkNotification::PublishedReceiptPubsub(
+                            notification::PublishedReceiptPubsub::new(receipt.cid(), receipt.ran()),
                         ),
-                        btreemap! {
-                            "cid" => Ipld::String(receipt.cid().to_string()),
-                            "ran" => Ipld::String(receipt.ran().to_string())
-                        },
-                    );
+                    )
                 }
                 Err(err) => {
                     warn!(
@@ -467,16 +471,13 @@ impl Captured {
                         );
 
                         #[cfg(feature = "websocket-notify")]
-                        notification::emit_event(
+                        notification::emit_network_event(
                             event_handler.ws_evt_sender(),
-                            EventNotificationTyp::SwarmNotification(
-                                SwarmNotification::PutReceiptDht,
-                            ),
-                            btreemap! {
-                                "cid" => Ipld::String(receipt.cid().to_string()),
-                                "ran" => Ipld::String(receipt.ran().to_string())
-                            },
-                        );
+                            NetworkNotification::PutReceiptDht(notification::PutReceiptDht::new(
+                                receipt.cid(),
+                                receipt.ran(),
+                            )),
+                        )
                     },
                 );
 
@@ -512,18 +513,17 @@ impl Captured {
                             );
 
                             #[cfg(feature = "websocket-notify")]
-                            notification::emit_event(
+                            notification::emit_network_event(
                                 event_handler.ws_evt_sender(),
-                                EventNotificationTyp::SwarmNotification(
-                                    SwarmNotification::PutWorkflowInfoDht,
+                                NetworkNotification::PutWorkflowInfoDht(
+                                    notification::PutWorkflowInfoDht::new(
+                                        self.workflow.cid(),
+                                        self.workflow.name.to_owned(),
+                                        self.workflow.num_tasks,
+                                        self.workflow.progress.to_owned(),
+                                        self.workflow.progress_count,
+                                    ),
                                 ),
-                                btreemap! {
-                                    "cid" => Ipld::String(self.workflow.cid().to_string()),
-                                    "name" => self.workflow.name.as_ref().map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
-                                    "numTasks" => Ipld::Integer(self.workflow.num_tasks as i128),
-                                    "progress" => Ipld::List(self.workflow.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
-                                    "progressCount" => Ipld::Integer(self.workflow.progress_count as i128),
-                                },
                             )
                         },
                     );
@@ -610,16 +610,15 @@ impl Replay {
                         );
 
                         #[cfg(feature = "websocket-notify")]
-                        notification::emit_event(
+                        notification::emit_network_event(
                             event_handler.ws_evt_sender(),
-                            EventNotificationTyp::SwarmNotification(
-                                SwarmNotification::PublishedReceiptPubsub,
+                            NetworkNotification::PublishedReceiptPubsub(
+                                notification::PublishedReceiptPubsub::new(
+                                    receipt.cid(),
+                                    receipt.ran(),
+                                ),
                             ),
-                            btreemap! {
-                                "cid" => Ipld::String(receipt.cid().to_string()),
-                                "ran" => Ipld::String(receipt.ran().to_string())
-                            },
-                        );
+                        )
                     })
                     .map_err(|err| {
                         warn!(
@@ -709,16 +708,28 @@ where
 {
     #[cfg(not(feature = "ipfs"))]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>) {
-        if let Err(err) = self.handle_info(event_handler).await {
-            error!(subject = "handle.err",
-                   category = "handle_event",
-                   error=?err,
-                   "error storing event")
+        match self {
+            #[cfg(feature = "websocket-notify")]
+            Event::ReplayReceipts(replay) => {
+                if let Err(err) = replay.notify(event_handler) {
+                    error!(subject = "replay.err",
+                           category = "handle_event",
+                           error=?err,
+                           "error replaying and notifying receipts")
+                }
+            }
+            event => {
+                if let Err(err) = event.handle_info(event_handler).await {
+                    error!(subject = "event.err",
+                           category = "handle_event",
+                           error=?err,
+                           "error storing event")
+                }
+            }
         }
     }
 
     #[cfg(feature = "ipfs")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
     #[allow(unused_variables)]
     async fn handle_event(self, event_handler: &mut EventHandler<DB>, ipfs: IpfsCli) {
         match self {

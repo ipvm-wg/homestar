@@ -2,7 +2,7 @@
 
 use super::EventHandler;
 #[cfg(feature = "websocket-notify")]
-use crate::event_handler::notification::{self, EventNotificationTyp, SwarmNotification};
+use crate::event_handler::notification::{self, NetworkNotification};
 #[cfg(feature = "ipfs")]
 use crate::network::IpfsCli;
 use crate::{
@@ -26,7 +26,7 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use libipld::Cid;
 #[cfg(feature = "websocket-notify")]
-use libipld::Ipld;
+use libp2p::Multiaddr;
 use libp2p::{
     gossipsub, identify, kad,
     kad::{AddProviderOk, BootstrapOk, GetProvidersOk, GetRecordOk, PutRecordOk, QueryResult},
@@ -38,7 +38,7 @@ use libp2p::{
     PeerId, StreamProtocol,
 };
 #[cfg(feature = "websocket-notify")]
-use maplit::btreemap;
+use std::collections::BTreeMap;
 use std::collections::{HashMap, HashSet};
 use tracing::{debug, error, info, warn};
 
@@ -74,9 +74,6 @@ pub(crate) enum FoundEvent {
 pub(crate) struct ReceiptEvent {
     pub(crate) peer_id: Option<PeerId>,
     pub(crate) receipt: Receipt,
-    #[cfg(feature = "websocket-notify")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
-    pub(crate) notification_type: EventNotificationTyp,
 }
 
 /// [FoundEvent] variant for workflow info found on the DHT.
@@ -86,7 +83,7 @@ pub(crate) struct WorkflowInfoEvent {
     pub(crate) workflow_info: workflow::Info,
     #[cfg(feature = "websocket-notify")]
     #[cfg_attr(docsrs, doc(cfg(feature = "websocket-notify")))]
-    pub(crate) notification_type: EventNotificationTyp,
+    pub(crate) workflow_source: notification::WorkflowInfoSource,
 }
 
 #[async_trait]
@@ -304,6 +301,25 @@ async fn handle_swarm_event<DB: Database>(
                             }
                         }
 
+                        #[cfg(feature = "websocket-notify")]
+                        notification::emit_network_event(
+                            event_handler.ws_evt_sender(),
+                            NetworkNotification::DiscoveredRendezvous(
+                                notification::DiscoveredRendezvous::new(
+                                    rendezvous_node,
+                                    registrations
+                                        .iter()
+                                        .map(|registration| {
+                                            (
+                                                registration.record.peer_id(),
+                                                registration.record.addresses().to_owned(),
+                                            )
+                                        })
+                                        .collect::<BTreeMap<PeerId, Vec<Multiaddr>>>(),
+                                ),
+                            ),
+                        );
+
                         // Discover peers again at discovery interval
                         event_handler
                             .cache
@@ -356,6 +372,14 @@ async fn handle_swarm_event<DB: Database>(
                         peer_id = rendezvous_node.to_string(),
                         ttl = ttl,
                         "registered self with rendezvous node"
+                    );
+
+                    #[cfg(feature = "websocket-notify")]
+                    notification::emit_network_event(
+                        event_handler.ws_evt_sender(),
+                        NetworkNotification::RegisteredRendezvous(
+                            notification::RegisteredRendezvous::new(rendezvous_node),
+                        ),
                     );
 
                     event_handler
@@ -415,12 +439,22 @@ async fn handle_swarm_event<DB: Database>(
         }
         SwarmEvent::Behaviour(ComposedEvent::RendezvousServer(rendezvous_server_event)) => {
             match rendezvous_server_event {
-                rendezvous::server::Event::DiscoverServed { enquirer, .. } => debug!(
-                    subject = "libp2p.rendezvous.server.discover",
-                    category = "handle_swarm_event",
-                    peer_id = enquirer.to_string(),
-                    "served rendezvous discover request to peer"
-                ),
+                rendezvous::server::Event::DiscoverServed { enquirer, .. } => {
+                    debug!(
+                        subject = "libp2p.rendezvous.server.discover",
+                        category = "handle_swarm_event",
+                        peer_id = enquirer.to_string(),
+                        "served rendezvous discover request to peer"
+                    );
+
+                    #[cfg(feature = "websocket-notify")]
+                    notification::emit_network_event(
+                        event_handler.ws_evt_sender(),
+                        NetworkNotification::DiscoverServedRendezvous(
+                            notification::DiscoverServedRendezvous::new(enquirer),
+                        ),
+                    );
+                }
                 rendezvous::server::Event::DiscoverNotServed { enquirer, error } => {
                     warn!(subject = "libp2p.rendezvous.server.discover.err",
                           category = "handle_swarm_event",
@@ -428,13 +462,25 @@ async fn handle_swarm_event<DB: Database>(
                           err=?error,
                           "did not serve rendezvous discover request")
                 }
-                rendezvous::server::Event::PeerRegistered { peer, .. } => {
+                rendezvous::server::Event::PeerRegistered { peer, registration } => {
                     debug!(
                         subject = "libp2p.rendezvous.server.peer_registered",
                         category = "handle_swarm_event",
                         peer_id = peer.to_string(),
+                        addresses = ?registration.record.addresses(),
                         "registered peer through rendezvous"
-                    )
+                    );
+
+                    #[cfg(feature = "websocket-notify")]
+                    notification::emit_network_event(
+                        event_handler.ws_evt_sender(),
+                        NetworkNotification::PeerRegisteredRendezvous(
+                            notification::PeerRegisteredRendezvous::new(
+                                peer,
+                                registration.record.addresses().to_owned(),
+                            ),
+                        ),
+                    );
                 }
                 rendezvous::server::Event::PeerNotRegistered {
                     peer,
@@ -486,17 +532,16 @@ async fn handle_swarm_event<DB: Database>(
                             .map(|conn| Db::store_receipt(receipt.clone(), conn));
 
                         #[cfg(feature = "websocket-notify")]
-                        notification::emit_event(
+                        notification::emit_network_event(
                             event_handler.ws_evt_sender(),
-                            EventNotificationTyp::SwarmNotification(
-                                SwarmNotification::ReceivedReceiptPubsub,
+                            NetworkNotification::ReceivedReceiptPubsub(
+                                notification::ReceivedReceiptPubsub::new(
+                                    propagation_source,
+                                    receipt.cid(),
+                                    receipt.ran(),
+                                ),
                             ),
-                            btreemap! {
-                                "publisher" => Ipld::String(propagation_source.to_string()),
-                                "cid" => Ipld::String(receipt.cid().to_string()),
-                                "ran" => Ipld::String(receipt.ran().to_string())
-                            },
-                        );
+                        )
                     }
                     Err(err) => debug!(subject = "libp2p.gossipsub.err",
                                        category = "handle_swarm_event",
@@ -592,11 +637,6 @@ async fn handle_swarm_event<DB: Database>(
                                         FoundEvent::Receipt(ReceiptEvent {
                                             peer_id,
                                             receipt: receipt.clone(),
-                                            #[cfg(feature = "websocket-notify")]
-                                            notification_type:
-                                                EventNotificationTyp::SwarmNotification(
-                                                    SwarmNotification::GotReceiptDht,
-                                                ),
                                         }),
                                     ));
 
@@ -624,10 +664,7 @@ async fn handle_swarm_event<DB: Database>(
                                             peer_id,
                                             workflow_info: workflow_info.clone(),
                                             #[cfg(feature = "websocket-notify")]
-                                            notification_type:
-                                                EventNotificationTyp::SwarmNotification(
-                                                    SwarmNotification::GotWorkflowInfoDht,
-                                                ),
+                                            workflow_source: notification::WorkflowInfoSource::Dht,
                                         }),
                                     ));
 
@@ -726,25 +763,23 @@ async fn handle_swarm_event<DB: Database>(
 
                     #[cfg(feature = "websocket-notify")]
                     match key.capsule_tag {
-                        CapsuleTag::Receipt => notification::emit_event(
+                        CapsuleTag::Receipt => notification::emit_network_event(
                             event_handler.ws_evt_sender(),
-                            EventNotificationTyp::SwarmNotification(
-                                SwarmNotification::ReceiptQuorumSuccess,
+                            NetworkNotification::ReceiptQuorumSuccessDht(
+                                notification::ReceiptQuorumSuccessDht::new(
+                                    key.cid,
+                                    event_handler.quorum.receipt,
+                                ),
                             ),
-                            btreemap! {
-                                "cid" => Ipld::String(key.cid.to_string()),
-                                "quorum" => Ipld::Integer(event_handler.quorum.receipt as i128),
-                            },
                         ),
-                        CapsuleTag::Workflow => notification::emit_event(
+                        CapsuleTag::Workflow => notification::emit_network_event(
                             event_handler.ws_evt_sender(),
-                            EventNotificationTyp::SwarmNotification(
-                                SwarmNotification::WorkflowInfoQuorumSuccess,
+                            NetworkNotification::WorkflowInfoQuorumSuccessDht(
+                                notification::WorkflowInfoQuorumSuccessDht::new(
+                                    key.cid,
+                                    event_handler.quorum.workflow,
+                                ),
                             ),
-                            btreemap! {
-                                "cid" => Ipld::String(key.cid.to_string()),
-                                "quorum" => Ipld::Integer(event_handler.quorum.workflow as i128),
-                            },
                         ),
                     }
                 }
@@ -768,29 +803,27 @@ async fn handle_swarm_event<DB: Database>(
                     #[cfg(feature = "websocket-notify")]
                     if let kad::PutRecordError::QuorumFailed { success, .. } = err {
                         match key.capsule_tag {
-                            CapsuleTag::Receipt => notification::emit_event(
+                            CapsuleTag::Receipt => notification::emit_network_event(
                                 event_handler.ws_evt_sender(),
-                                EventNotificationTyp::SwarmNotification(
-                                    SwarmNotification::ReceiptQuorumFailure,
+                                NetworkNotification::ReceiptQuorumFailureDht(
+                                    notification::ReceiptQuorumFailureDht::new(
+                                        key.cid,
+                                        event_handler.quorum.receipt,
+                                        event_handler.connections.peers.len(),
+                                        success,
+                                    ),
                                 ),
-                                btreemap! {
-                                    "cid" => Ipld::String(key.cid.to_string()),
-                                    "quorum" => Ipld::Integer(event_handler.quorum.receipt as i128),
-                                    "connectedPeers" => Ipld::Integer(event_handler.connections.peers.len() as i128),
-                                    "storedToPeers" => Ipld::List(success.iter().map(|cid| Ipld::String(cid.to_string())).collect())
-                                },
                             ),
-                            CapsuleTag::Workflow => notification::emit_event(
+                            CapsuleTag::Workflow => notification::emit_network_event(
                                 event_handler.ws_evt_sender(),
-                                EventNotificationTyp::SwarmNotification(
-                                    SwarmNotification::WorkflowInfoQuorumFailure,
+                                NetworkNotification::WorkflowInfoQuorumFailureDht(
+                                    notification::WorkflowInfoQuorumFailureDht::new(
+                                        key.cid,
+                                        event_handler.quorum.workflow,
+                                        event_handler.connections.peers.len(),
+                                        success,
+                                    ),
                                 ),
-                                btreemap! {
-                                    "cid" => Ipld::String(key.cid.to_string()),
-                                    "quorum" => Ipld::Integer(event_handler.quorum.workflow as i128),
-                                    "connectedPeers" => Ipld::Integer(event_handler.connections.peers.len() as i128),
-                                    "storedToPeers" => Ipld::List(success.iter().map(|cid| Ipld::String(cid.to_string())).collect())
-                                },
                             ),
                         }
                     }
@@ -889,19 +922,18 @@ async fn handle_swarm_event<DB: Database>(
                                 );
 
                                 #[cfg(feature = "websocket-notify")]
-                                notification::emit_event(
+                                notification::emit_network_event(
                                     event_handler.ws_evt_sender(),
-                                    EventNotificationTyp::SwarmNotification(
-                                        SwarmNotification::SentWorkflowInfo,
+                                    NetworkNotification::SentWorkflowInfo(
+                                        notification::SentWorkflowInfo::new(
+                                            peer,
+                                            workflow_info.cid(),
+                                            workflow_info.name,
+                                            workflow_info.num_tasks,
+                                            workflow_info.progress,
+                                            workflow_info.progress_count,
+                                        ),
                                     ),
-                                    btreemap! {
-                                        "requestor" => Ipld::String(peer.to_string()),
-                                        "cid" => Ipld::String(workflow_info.cid().to_string()),
-                                        "name" => workflow_info.name.as_ref().map_or(Ipld::Null, |name| Ipld::String(name.to_string())),
-                                        "numTasks" => Ipld::Integer(workflow_info.num_tasks as i128),
-                                        "progress" => Ipld::List(workflow_info.progress.iter().map(|cid| Ipld::String(cid.to_string())).collect()),
-                                        "progressCount" => Ipld::Integer(workflow_info.progress_count as i128),
-                                    },
                                 )
                             } else {
                                 let _ = event_handler
@@ -967,9 +999,8 @@ async fn handle_swarm_event<DB: Database>(
                                         peer_id,
                                         workflow_info: workflow_info.clone(),
                                         #[cfg(feature = "websocket-notify")]
-                                        notification_type: EventNotificationTyp::SwarmNotification(
-                                            SwarmNotification::ReceivedWorkflowInfo,
-                                        ),
+                                        workflow_source:
+                                            notification::WorkflowInfoSource::RequestResponse,
                                     }),
                                 ));
 
@@ -1020,7 +1051,7 @@ async fn handle_swarm_event<DB: Database>(
         }
 
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Discovered(list))) => {
-            for (peer_id, multiaddr) in list {
+            for (peer_id, multiaddr) in list.clone() {
                 debug!(
                     subject = "libp2p.mdns.discovered",
                     category = "handle_swarm_event",
@@ -1045,6 +1076,16 @@ async fn handle_swarm_event<DB: Database>(
                     )
                 }
             }
+
+            #[cfg(feature = "websocket-notify")]
+            notification::emit_network_event(
+                event_handler.ws_evt_sender(),
+                NetworkNotification::DiscoveredMdns(notification::DiscoveredMdns::new(
+                    list.iter()
+                        .map(|peer| (peer.0, peer.1.to_owned()))
+                        .collect::<BTreeMap<PeerId, Multiaddr>>(),
+                )),
+            )
         }
         SwarmEvent::Behaviour(ComposedEvent::Mdns(mdns::Event::Expired(list))) => {
             let behaviour = event_handler.swarm.behaviour_mut();
@@ -1081,13 +1122,11 @@ async fn handle_swarm_event<DB: Database>(
             );
 
             #[cfg(feature = "websocket-notify")]
-            notification::emit_event(
+            notification::emit_network_event(
                 event_handler.ws_evt_sender(),
-                EventNotificationTyp::SwarmNotification(SwarmNotification::ListeningOn),
-                btreemap! {
-                    "peerId" => Ipld::String(local_peer.to_string()),
-                    "address" => Ipld::String(address.to_string())
-                },
+                NetworkNotification::NewListenAddr(notification::NewListenAddr::new(
+                    local_peer, address,
+                )),
             );
 
             // Init bootstrapping of the DHT
@@ -1154,14 +1193,15 @@ async fn handle_swarm_event<DB: Database>(
                 .insert(peer_id, endpoint.clone());
 
             #[cfg(feature = "websocket-notify")]
-            notification::emit_event(
+            notification::emit_network_event(
                 event_handler.ws_evt_sender(),
-                EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionEstablished),
-                btreemap! {
-                    "peerId" => Ipld::String(peer_id.to_string()),
-                    "address" => Ipld::String(endpoint.get_remote_address().to_string())
-                },
-            );
+                NetworkNotification::ConnnectionEstablished(
+                    notification::ConnectionEstablished::new(
+                        peer_id,
+                        endpoint.get_remote_address().to_owned(),
+                    ),
+                ),
+            )
         }
         SwarmEvent::ConnectionClosed {
             peer_id,
@@ -1233,14 +1273,13 @@ async fn handle_swarm_event<DB: Database>(
             }
 
             #[cfg(feature = "websocket-notify")]
-            notification::emit_event(
+            notification::emit_network_event(
                 event_handler.ws_evt_sender(),
-                EventNotificationTyp::SwarmNotification(SwarmNotification::ConnnectionClosed),
-                btreemap! {
-                    "peerId" => Ipld::String(peer_id.to_string()),
-                    "address" => Ipld::String(endpoint.get_remote_address().to_string())
-                },
-            );
+                NetworkNotification::ConnnectionClosed(notification::ConnectionClosed::new(
+                    peer_id,
+                    endpoint.get_remote_address().to_owned(),
+                )),
+            )
         }
         SwarmEvent::OutgoingConnectionError {
             connection_id,
@@ -1300,14 +1339,12 @@ async fn handle_swarm_event<DB: Database>(
             }
 
             #[cfg(feature = "websocket-notify")]
-            notification::emit_event(
+            notification::emit_network_event(
                 event_handler.ws_evt_sender(),
-                EventNotificationTyp::SwarmNotification(SwarmNotification::OutgoingConnectionError),
-                btreemap! {
-                    "peerId" => peer_id.map_or(Ipld::Null, |p| Ipld::String(p.to_string())),
-                    "error" => Ipld::String(error.to_string())
-                },
-            );
+                NetworkNotification::OutgoingConnectionError(
+                    notification::OutgoingConnectionError::new(peer_id, error),
+                ),
+            )
         }
         SwarmEvent::IncomingConnectionError {
             connection_id,
@@ -1324,13 +1361,12 @@ async fn handle_swarm_event<DB: Database>(
                   "incoming connection error");
 
             #[cfg(feature = "websocket-notify")]
-            notification::emit_event(
+            notification::emit_network_event(
                 event_handler.ws_evt_sender(),
-                EventNotificationTyp::SwarmNotification(SwarmNotification::IncomingConnectionError),
-                btreemap! {
-                    "error" => Ipld::String(error.to_string())
-                },
-            );
+                NetworkNotification::IncomingConnectionError(
+                    notification::IncomingConnectionError::new(error),
+                ),
+            )
         }
         SwarmEvent::ListenerError { listener_id, error } => {
             error!(subject = "libp2p.listener.err",

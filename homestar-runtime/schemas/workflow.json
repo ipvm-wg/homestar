@@ -1,0 +1,266 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Workflow",
+  "description": "Workflow composed of tasks",
+  "type": "object",
+  "required": [
+    "tasks"
+  ],
+  "properties": {
+    "tasks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/task"
+      }
+    }
+  },
+  "definitions": {
+    "await_result": {
+      "title": "Await result",
+      "description": "Branches of a promise that is awaited",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "await/ok": {
+              "$ref": "#/definitions/pointer"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "await/error": {
+              "$ref": "#/definitions/pointer"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "await/*": {
+              "$ref": "#/definitions/pointer"
+            }
+          }
+        }
+      ]
+    },
+    "ipld": {
+      "title": "Ipld",
+      "description": "DAG-JSON encoded IPLD: https://github.com/ipld/ipld/blob/master/specs/codecs/dag-json/spec.md",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/definitions/ipld_bytes"
+        },
+        {
+          "type": "array"
+        },
+        {
+          "type": "object"
+        },
+        {
+          "$ref": "#/definitions/ipld_link"
+        }
+      ]
+    },
+    "ipld_bytes": {
+      "title": "IPLD bytes",
+      "description": "Base64 encoded binary",
+      "type": "object",
+      "properties": {
+        "/": {
+          "type": "object",
+          "properties": {
+            "bytes": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "ipld_link": {
+      "title": "IPLD link",
+      "description": "CID link that points to some IPLD data",
+      "type": "object",
+      "properties": {
+        "/": {
+          "type": "string"
+        }
+      }
+    },
+    "pointer": {
+      "description": "CID reference to an invocation, task, instruction, or receipt",
+      "type": "object",
+      "properties": {
+        "/": {
+          "type": "string"
+        }
+      }
+    },
+    "prf": {
+      "description": "CIDs referencing UCAN proofs",
+      "type": [
+        "array"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "resources": {
+      "description": "Resource configuration for fuel quota, memory allowance, and timeout",
+      "type": "object",
+      "properties": {
+        "fuel": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "memory": {
+          "description": "Memory in bytes",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "time": {
+          "description": "Timeout in milliseconds",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "run": {
+      "title": "Run instruction",
+      "description": "An instruction that runs a function from a resource, executor that will run the function, inputs to the executor, and optional nonce",
+      "type": "object",
+      "if": {
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "wasm/run"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "input": {
+            "type": "object",
+            "required": [
+              "args",
+              "func"
+            ],
+            "properties": {
+              "args": {
+                "description": "Arguments to the function. May await a result from another task.",
+                "type": "array",
+                "items": [
+                  {
+                    "$ref": "#/definitions/ipld"
+                  },
+                  {
+                    "$ref": "#/definitions/await_result"
+                  }
+                ]
+              },
+              "func": {
+                "description": "The function to call on the Wasm resource",
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "else": false,
+      "required": [
+        "input",
+        "nnc",
+        "op",
+        "rsc"
+      ],
+      "properties": {
+        "nnc": {
+          "description": "A 12-byte or 16-byte nonce. Use empty string for no nonce.",
+          "type": "string"
+        },
+        "op": {
+          "description": "Function executor",
+          "type": "string",
+          "enum": [
+            "wasm/run"
+          ]
+        },
+        "rsc": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "task": {
+      "description": "Contains a run instruction, configuration, optional reference to receipt that caused task to run, and authorization",
+      "type": "object",
+      "required": [
+        "meta",
+        "prf",
+        "run"
+      ],
+      "properties": {
+        "cause": {
+          "title": "Receipt reference",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/pointer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "meta": {
+          "title": "Task Configuration",
+          "allOf": [
+            {
+              "$ref": "#/definitions/resources"
+            }
+          ]
+        },
+        "prf": {
+          "title": "UCAN Authorization",
+          "allOf": [
+            {
+              "$ref": "#/definitions/prf"
+            }
+          ]
+        },
+        "run": {
+          "title": "Run instruction",
+          "allOf": [
+            {
+              "$ref": "#/definitions/run"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -68,14 +68,17 @@ pub mod test_utils;
 mod worker;
 pub mod workflow;
 
-pub use db::Db;
+pub use db::{utils::Health, Db};
 pub(crate) mod libp2p;
 pub use logger::*;
 pub(crate) mod metrics;
+#[cfg(feature = "websocket-notify")]
+pub use event_handler::notification::{network::NetworkNotification, receipt::ReceiptNotification};
 #[allow(unused_imports)]
 pub(crate) use event_handler::EventHandler;
+pub use network::webserver::PrometheusData;
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};
-pub use runner::Runner;
+pub use runner::{NodeInfo, Runner};
 pub(crate) use scheduler::TaskScheduler;
 pub use settings::Settings;
 pub(crate) use worker::Worker;

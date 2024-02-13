@@ -43,6 +43,7 @@ mod rpc;
 
 #[cfg(feature = "websocket-notify")]
 pub(crate) use notifier::Notifier;
+pub use prom::PrometheusData;
 #[cfg(feature = "websocket-notify")]
 pub(crate) use rpc::SUBSCRIBE_NETWORK_EVENTS_ENDPOINT;
 use rpc::{Context, JsonRpc};
@@ -250,6 +251,10 @@ impl Server {
                 rpc::METRICS_ENDPOINT,
             )?)
             .layer(ProxyGetRequestLayer::new("/node", rpc::NODE_INFO_ENDPOINT)?)
+            .layer(ProxyGetRequestLayer::new(
+                "/rpc_discover",
+                rpc::DISCOVER_ENDPOINT,
+            )?)
             .layer(cors)
             .layer(SetSensitiveRequestHeadersLayer::new(once(AUTHORIZATION)))
             .timeout(self.webserver_timeout);

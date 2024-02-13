@@ -154,6 +154,10 @@ represents the `Homestar` runtime. We recommend diving into each package's own
   writing and compiling [Wasm component][wasm-component] modules using
   [wit-bindgen][wit-bindgen].
 
+- [homestar-schemas](./homestar-schemas)
+
+`homestar-schemas` is a crate for generating OpenRPC docs and JSON Schemas that document the [homestar-runtime](./homestar-runtime) JSON-RPC API, workflows, and receipts.
+
 - [examples/*](./examples)
 
   `examples` contains examples and demos showcasing `Homestar` packages

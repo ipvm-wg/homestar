@@ -32,3 +32,17 @@ and failure modes, etc.
 For more information, please go to our [Homestar Readme][homestar-readme].
 
 [homestar-readme]: https://github.com/ipvm-wg/homestar/blob/main/README.md
+
+## API
+
+The runtime provides a JSON-RPC API to run workflows, request node information, health, and metrics, and to subscribe to network notifications. The OpenRPC API is documented in [api.json][api] and is available on the `rpc_discover` endpoint.
+
+JSON Schemas for [workflow][workflow-schema], [receipt][receipt-schema], [network notifications][network-schema], [health checks][health-schema], [node info][node-info-schema], and [metrics][metrics-schema] are also available inidividually.
+
+[api]: ./schemas/api.json
+[health-schema]: ./schemas/health.json
+[metrics-schema]: ./schemas/metrics.json
+[network-schema]: ./schemas/network.json
+[node-info-schema]: ./schemas/node_info.json
+[receipt-schema]: ./schemas/receipt.json
+[workflow-schema]: ./schemas/workflow.json

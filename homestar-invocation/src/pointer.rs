@@ -9,6 +9,7 @@
 //! [Receipts]: super::Receipt
 
 use crate::{ensure, Error, Unit};
+use const_format::formatcp;
 #[cfg(feature = "diesel")]
 use diesel::{
     backend::Backend,
@@ -20,10 +21,15 @@ use diesel::{
 };
 use enum_assoc::Assoc;
 use libipld::{cid::Cid, serde::from_ipld, Ipld, Link};
+use schemars::{
+    gen::SchemaGenerator,
+    schema::{InstanceType, Metadata, ObjectValidation, Schema, SchemaObject, SingleOrVec},
+    JsonSchema,
+};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "diesel")]
 use std::str::FromStr;
-use std::{borrow::Cow, collections::btree_map::BTreeMap, fmt};
+use std::{borrow::Cow, collections::btree_map::BTreeMap, fmt, module_path};
 
 /// `await/ok` branch for instruction result.
 pub const OK_BRANCH: &str = "await/ok";
@@ -71,6 +77,69 @@ impl fmt::Display for AwaitResult {
             AwaitResult::Ok => write!(f, "await/ok"),
             AwaitResult::Ptr => write!(f, "await/*"),
         }
+    }
+}
+
+impl JsonSchema for AwaitResult {
+    fn schema_name() -> String {
+        "await_result".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed(formatcp!("{}::AwaitResult", module_path!()))
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        let mut schema = SchemaObject {
+            instance_type: None,
+            metadata: Some(Box::new(Metadata {
+                title: Some("Await result".to_string()),
+                description: Some("Branches of a promise that is awaited".to_string()),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+
+        let await_ok = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([(
+                    OK_BRANCH.to_string(),
+                    gen.subschema_for::<Pointer>(),
+                )]),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+        let await_err = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([(
+                    ERR_BRANCH.to_string(),
+                    gen.subschema_for::<Pointer>(),
+                )]),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+        let await_ptr = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([(
+                    PTR_BRANCH.to_string(),
+                    gen.subschema_for::<Pointer>(),
+                )]),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+
+        schema.subschemas().one_of = Some(vec![
+            Schema::Object(await_ok),
+            Schema::Object(await_err),
+            Schema::Object(await_ptr),
+        ]);
+        schema.into()
     }
 }
 
@@ -131,7 +200,7 @@ impl TryFrom<Ipld> for Await {
         ensure!(
             map.len() == 1,
             Error::ConditionNotMet(
-                "await promise must jave only a single key ain a map".to_string()
+                "await promise must have only a single key in a map".to_string()
             )
         );
 
@@ -275,6 +344,34 @@ where
     fn from_sql(bytes: DB::RawValue<'_>) -> deserialize::Result<Self> {
         let s = String::from_sql(bytes)?;
         Ok(Pointer::new(Cid::from_str(&s)?))
+    }
+}
+
+impl JsonSchema for Pointer {
+    fn schema_name() -> String {
+        "pointer".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed(formatcp!("{}::Pointer", module_path!()))
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        let schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([('/'.to_string(), <String>::json_schema(gen))]),
+                ..Default::default()
+            })),
+            metadata: Some(Box::new(Metadata {
+                description: Some(
+                    "CID reference to an invocation, task, instruction, or receipt".to_string(),
+                ),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+        schema.into()
     }
 }
 

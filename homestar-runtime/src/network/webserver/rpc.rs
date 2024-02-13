@@ -6,7 +6,10 @@ use super::notifier::{self, Header, Notifier, SubscriptionTyp};
 use super::{listener, prom::PrometheusData, Message};
 #[cfg(feature = "websocket-notify")]
 use crate::channel::AsyncChannel;
-use crate::{db::Database, runner::WsSender};
+use crate::{
+    db::Database,
+    runner::{NodeInfo, WsSender},
+};
 #[cfg(feature = "websocket-notify")]
 use anyhow::anyhow;
 use anyhow::Result;
@@ -41,6 +44,11 @@ use tracing::debug;
 #[allow(unused_imports)]
 use tracing::{error, warn};
 
+/// OpenRPC API document
+const API_SCHEMA_DOC: &str = include_str!("../../../schemas/api.json");
+
+/// OpenRPC API discovery endpoint.
+pub(crate) const DISCOVER_ENDPOINT: &str = "rpc_discover";
 /// Health endpoint.
 pub(crate) const HEALTH_ENDPOINT: &str = "health";
 /// Metrics endpoint for prometheus / openmetrics polling.
@@ -152,11 +160,13 @@ where
     async fn register(ctx: Context<DB>) -> Result<RpcModule<Context<DB>>> {
         let mut module = RpcModule::new(ctx);
 
+        module.register_method(DISCOVER_ENDPOINT, |_, _| serde_json::json!(API_SCHEMA_DOC))?;
+
         module.register_async_method(HEALTH_ENDPOINT, |_, ctx| async move {
             match ctx.db.conn() {
                 Ok(mut conn) => {
-                    if DB::health_check(&mut conn).is_ok() {
-                        Ok(serde_json::json!({"healthy": true}))
+                    if let Ok(health) = DB::health_check(&mut conn) {
+                        Ok(serde_json::json!(health))
                     } else {
                         Err(internal_err("database query is unreachable".to_string()))
                     }
@@ -190,8 +200,7 @@ where
                 .map_err(|err| internal_err(err.to_string()))?;
 
             if let Ok(Message::AckNodeInfo((static_info, dyn_info))) = rx.recv_async().await {
-                Ok(serde_json::json!({
-                    "nodeInfo": {"static": static_info, "dynamic": dyn_info}}))
+                Ok(serde_json::json!(NodeInfo::new(static_info, dyn_info)))
             } else {
                 error!(
                     subject = "call.node",

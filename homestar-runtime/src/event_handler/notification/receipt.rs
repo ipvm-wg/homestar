@@ -1,11 +1,25 @@
 //! Notification receipts.
 
-use homestar_invocation::{ipld::DagJson, Receipt};
+use const_format::formatcp;
+use homestar_invocation::{
+    ipld::{schema, DagJson},
+    Receipt,
+};
 use libipld::{ipld, Cid, Ipld};
+use schemars::{
+    gen::SchemaGenerator,
+    schema::{InstanceType, Metadata, ObjectValidation, Schema, SchemaObject, SingleOrVec},
+    JsonSchema,
+};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+    module_path,
+};
 
 /// A [Receipt] that is sent out for websocket notifications.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ReceiptNotification(Ipld);
+pub struct ReceiptNotification(Ipld);
 
 impl ReceiptNotification {
     /// Obtain a reference to the inner Ipld value.
@@ -43,5 +57,69 @@ impl From<ReceiptNotification> for Ipld {
 impl From<Ipld> for ReceiptNotification {
     fn from(ipld: Ipld) -> Self {
         ReceiptNotification(ipld)
+    }
+}
+
+impl JsonSchema for ReceiptNotification {
+    fn schema_name() -> String {
+        "receipt_notification".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed(formatcp!("{}::ReceiptNotification", module_path!()))
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        let metadata_schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            metadata: Some(Box::new(Metadata {
+                title: Some("Metadata".to_string()),
+                description: Some("Workflow metadata to contextualize the receipt".to_string()),
+                ..Default::default()
+            })),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([
+                    ("name".to_owned(), <String>::json_schema(gen)),
+                    ("replayed".to_owned(), <bool>::json_schema(gen)),
+                    (
+                        "workflow".to_owned(),
+                        gen.subschema_for::<schema::IpldLinkStub>(),
+                    ),
+                ]),
+                required: BTreeSet::from([
+                    "name".to_string(),
+                    "receipt".to_string(),
+                    "receipt_cid".to_string(),
+                ]),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+
+        let schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            metadata: Some(Box::new(Metadata {
+                title: Some("Receipt notification".to_string()),
+                description: Some(
+                    "A receipt notification associated with a running workflow".to_string(),
+                ),
+                ..Default::default()
+            })),
+            object: Some(Box::new(ObjectValidation {
+                properties: BTreeMap::from([
+                    ("metadata".to_owned(), Schema::Object(metadata_schema)),
+                    ("receipt".to_owned(), gen.subschema_for::<Receipt<()>>()),
+                    (
+                        "receipt_cid".to_owned(),
+                        gen.subschema_for::<schema::IpldLinkStub>(),
+                    ),
+                ]),
+                required: BTreeSet::from(["receipt".to_string(), "receipt_cid".to_string()]),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+
+        schema.into()
     }
 }

@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "node_info",
+  "description": "Node information.",
+  "type": "object",
+  "required": [
+    "dynamic",
+    "static"
+  ],
+  "properties": {
+    "dynamic": {
+      "description": "Dynamic node information available through events at runtime.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/dynamic"
+        }
+      ]
+    },
+    "static": {
+      "description": "Static node information available at startup.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/static"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "dynamic": {
+      "description": "Dynamic node information available through events at runtime.",
+      "type": "object",
+      "required": [
+        "connections",
+        "listeners"
+      ],
+      "properties": {
+        "connections": {
+          "description": "Peers and their addresses that are connected to the node",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "listeners": {
+          "description": "Listen addresses for the node",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "static": {
+      "description": "Static node information available at startup.",
+      "type": "object",
+      "required": [
+        "peer_id"
+      ],
+      "properties": {
+        "peer_id": {
+          "description": "The peer ID of the node",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

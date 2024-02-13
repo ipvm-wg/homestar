@@ -1,0 +1,72 @@
+name: 📄 Schemas
+
+on:
+  push:
+    branches: [main]
+    # branches: [main, "**"]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'homestar-invocation/src/**'
+              - 'homestar-runtime/src/**'
+              - 'homestar-schemas/src/**'
+              - 'homestar-workflow/src/**'
+
+  schemas:
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.HOMESTAR_UPDATE_TOKEN }}
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          shared-key: test-all-stable-ubuntu-latest
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
+
+      - name: Run generate schemas
+        run: cargo run -p homestar-schemas
+
+      - name: Check for modified schemas
+        id: git-check
+        shell: bash
+        run: echo modified=$(if [[ $(git diff homestar-runtime/schemas/) ]]; then echo "true"; else echo "false"; fi) >> $GITHUB_OUTPUT
+
+      - name: Push changes
+        if: steps.git-check.outputs.modified == 'true'
+        run: |
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+          git commit -am "chore(schemas): update OpenRPC API doc and JSON schemas"
+          git push

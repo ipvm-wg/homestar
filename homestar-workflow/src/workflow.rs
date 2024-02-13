@@ -9,6 +9,7 @@ use homestar_invocation::{
     Task, Unit,
 };
 use libipld::{serde::from_ipld, Ipld};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -17,7 +18,8 @@ const TASKS_KEY: &str = "tasks";
 /// Workflow composed of [tasks].
 ///
 /// [tasks]: Task
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, JsonSchema, PartialEq, Serialize, Deserialize)]
+#[schemars(title = "Workflow", description = "Workflow composed of tasks")]
 pub struct Workflow<'a, T> {
     tasks: Vec<Task<'a, T>>,
 }

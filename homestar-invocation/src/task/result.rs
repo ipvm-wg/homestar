@@ -16,7 +16,14 @@ use diesel::{
 use libipld::Ipld;
 #[cfg(feature = "diesel")]
 use libipld::{cbor::DagCborCodec, prelude::Codec};
+use schemars::{
+    gen::SchemaGenerator,
+    schema::{ArrayValidation, InstanceType, Metadata, Schema, SchemaObject, SingleOrVec},
+    JsonSchema,
+};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::borrow::Cow;
 
 const OK: &str = "ok";
 const ERR: &str = "error";
@@ -157,6 +164,47 @@ where
         let raw_bytes: &[u8] = unsafe { &*raw_bytes };
         let decoded: Ipld = DagCborCodec.decode(raw_bytes)?;
         Ok(Result::try_from(decoded)?)
+    }
+}
+
+impl<T> JsonSchema for Result<T> {
+    fn schema_name() -> String {
+        "out".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed("homestar-invocation::task::Result")
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        let out_result = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            enum_values: Some(vec![json!(OK), json!(ERR), json!(JUST)]),
+            ..Default::default()
+        };
+
+        let schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::Object.into())),
+            metadata: Some(Box::new(Metadata {
+                title: Some("Computation result".to_string()),
+                description: Some(
+                    "Result tuple with ok/err/just result and associated output".to_string(),
+                ),
+                ..Default::default()
+            })),
+            array: Some(Box::new(ArrayValidation {
+                items: Some(SingleOrVec::Vec(vec![
+                    Schema::Object(out_result),
+                    gen.subschema_for::<crate::ipld::schema::IpldStub>(),
+                ])),
+                min_items: Some(2),
+                max_items: Some(2),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+
+        schema.into()
     }
 }
 

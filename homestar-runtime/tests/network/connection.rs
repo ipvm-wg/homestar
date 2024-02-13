@@ -1,27 +1,20 @@
 use crate::{
     make_config,
     utils::{
-        kill_homestar, listen_addr, multiaddr, wait_for_socket_connection, ChildGuard, ProcInfo,
+        check_for_line_with, kill_homestar, listen_addr, multiaddr, retrieve_output,
+        subscribe_network_events, wait_for_socket_connection, ChildGuard, ProcInfo,
         TimeoutFutureExt, BIN_NAME, ED25519MULTIHASH, SECP256K1MULTIHASH,
     },
 };
 use anyhow::Result;
-use jsonrpsee::{
-    core::client::{Subscription, SubscriptionClientT},
-    rpc_params,
-    ws_client::WsClientBuilder,
-};
 use once_cell::sync::Lazy;
 use std::{
-    net::Ipv4Addr,
     path::PathBuf,
     process::{Command, Stdio},
     time::Duration,
 };
 
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
-const SUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "subscribe_network_events";
-const UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT: &str = "unsubscribe_network_events";
 
 #[test]
 #[serial_test::parallel]
@@ -63,6 +56,7 @@ fn test_connection_notifications_integration() -> Result<()> {
     let config1 = make_config!(toml);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -75,30 +69,15 @@ fn test_connection_notifications_integration() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let _proc_guard1 = ChildGuard::new(homestar_proc1);
+    let proc_guard1 = ChildGuard::new(homestar_proc1);
 
     if wait_for_socket_connection(ws_port1, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
     }
 
-    let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
     tokio_test::block_on(async {
-        tokio_tungstenite::connect_async(ws_url.clone())
-            .await
-            .unwrap();
-
-        let client = WsClientBuilder::default()
-            .build(ws_url.clone())
-            .await
-            .unwrap();
-        let mut sub: Subscription<Vec<u8>> = client
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         let toml2 = format!(
             r#"
@@ -123,6 +102,7 @@ fn test_connection_notifications_integration() -> Result<()> {
         let config2 = make_config!(toml2);
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -139,11 +119,11 @@ fn test_connection_notifications_integration() -> Result<()> {
 
         // Poll for connection established message
         loop {
-            if let Ok(msg) = sub.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                if json["connection_established"].is_object() {
                     break;
                 }
             } else {
@@ -151,15 +131,15 @@ fn test_connection_notifications_integration() -> Result<()> {
             }
         }
 
-        let _ = kill_homestar(proc_guard2.take(), None);
+        let dead_proc2 = kill_homestar(proc_guard2.take(), None);
 
         // Poll for connection closed message
         loop {
-            if let Ok(msg) = sub.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionClosed" {
+                if json["connection_closed"].is_object() {
                     break;
                 }
             } else {
@@ -167,20 +147,79 @@ fn test_connection_notifications_integration() -> Result<()> {
             }
         }
 
-        // Check node endpoint to match
-        let http_url = format!("http://localhost:{}", ws_port1);
-        let http_resp = reqwest::get(format!("{}/node", http_url)).await.unwrap();
-        assert_eq!(http_resp.status(), 200);
-        let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
-        assert_eq!(
-            http_resp,
-            serde_json::json!({
-                "nodeInfo": {
-                    "static": {"peer_id": ED25519MULTIHASH},
-                    "dynamic": {"listeners": [format!("{listen_addr1}")], "connections": {}}
-                }
-            })
+        // Kill proceses.
+        let dead_proc1 = kill_homestar(proc_guard1.take(), None);
+
+        // Retrieve logs.
+        let stdout1 = retrieve_output(dead_proc1);
+        let stdout2 = retrieve_output(dead_proc2);
+
+        // Check node one added node two to Kademlia table
+        let two_added_to_dht = check_for_line_with(
+            stdout1.clone(),
+            vec![
+                "added configured node to kademlia routing table",
+                SECP256K1MULTIHASH,
+            ],
         );
+
+        // Check node one DHT routing table was updated with node two
+        let two_in_dht_routing_table = check_for_line_with(
+            stdout1.clone(),
+            vec![
+                "kademlia routing table updated with peer",
+                SECP256K1MULTIHASH,
+            ],
+        );
+
+        // Check that node one connected to node two.
+        let one_connected_to_two = check_for_line_with(
+            stdout1.clone(),
+            vec!["peer connection established", SECP256K1MULTIHASH],
+        );
+
+        // Check that node two disconnected from node one.
+        let two_disconnected_from_one = check_for_line_with(
+            stdout1.clone(),
+            vec!["peer connection closed", SECP256K1MULTIHASH],
+        );
+
+        // Check that node two was not removed from the Kademlia table.
+        let two_removed_from_dht_table = check_for_line_with(
+            stdout1.clone(),
+            vec!["removed peer from kademlia table", SECP256K1MULTIHASH],
+        );
+
+        assert!(one_connected_to_two);
+        assert!(two_in_dht_routing_table);
+        assert!(two_added_to_dht);
+        assert!(two_disconnected_from_one);
+        assert!(!two_removed_from_dht_table);
+
+        // Check node two added node one to Kademlia table
+        let one_addded_to_dht = check_for_line_with(
+            stdout2.clone(),
+            vec![
+                "added configured node to kademlia routing table",
+                ED25519MULTIHASH,
+            ],
+        );
+
+        // Check node two DHT routing table was updated with node one
+        let one_in_dht_routing_table = check_for_line_with(
+            stdout2.clone(),
+            vec!["kademlia routing table updated with peer", ED25519MULTIHASH],
+        );
+
+        // Check that node two connected to node one.
+        let two_connected_to_one = check_for_line_with(
+            stdout2,
+            vec!["peer connection established", ED25519MULTIHASH],
+        );
+
+        assert!(one_addded_to_dht);
+        assert!(one_in_dht_routing_table);
+        assert!(two_connected_to_one);
     });
 
     Ok(())
@@ -249,6 +288,7 @@ fn test_libp2p_redial_on_connection_closed_integration() -> Result<()> {
     let config2 = make_config!(toml2);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -268,22 +308,11 @@ fn test_libp2p_redial_on_connection_closed_integration() -> Result<()> {
     }
 
     tokio_test::block_on(async {
-        let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
-        let client = WsClientBuilder::default()
-            .build(ws_url.clone())
-            .await
-            .unwrap();
-
-        let mut sub1: Subscription<Vec<u8>> = client
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -304,7 +333,7 @@ fn test_libp2p_redial_on_connection_closed_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                if json["connection_established"].is_object() {
                     break;
                 }
             } else {
@@ -320,7 +349,7 @@ fn test_libp2p_redial_on_connection_closed_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionClosed" {
+                if json["connection_closed"].is_object() {
                     break;
                 }
             } else {
@@ -329,6 +358,7 @@ fn test_libp2p_redial_on_connection_closed_integration() -> Result<()> {
         }
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -349,7 +379,7 @@ fn test_libp2p_redial_on_connection_closed_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                if json["connection_established"].is_object() {
                     break;
                 }
             } else {
@@ -424,6 +454,7 @@ fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
     let config2 = make_config!(toml2);
 
     let homestar_proc1 = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .env(
             "RUST_LOG",
             "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -443,22 +474,11 @@ fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
     }
 
     tokio_test::block_on(async {
-        let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port1);
-        let client = WsClientBuilder::default()
-            .build(ws_url.clone())
-            .await
-            .unwrap();
-
-        let mut sub1: Subscription<Vec<u8>> = client
-            .subscribe(
-                SUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-                rpc_params![],
-                UNSUBSCRIBE_NETWORK_EVENTS_ENDPOINT,
-            )
-            .await
-            .unwrap();
+        let mut net_events1 = subscribe_network_events(ws_port1).await;
+        let sub1 = net_events1.sub();
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -479,7 +499,7 @@ fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                if json["connection_established"].is_object() {
                     break;
                 }
             } else {
@@ -495,7 +515,7 @@ fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionClosed" {
+                if json["connection_closed"].is_object() {
                     break;
                 }
             } else {
@@ -509,7 +529,7 @@ fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:outgoingConnectionError" {
+                if json["outgoing_connection_error"].is_object() {
                     break;
                 }
             } else {
@@ -523,7 +543,7 @@ fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:outgoingConnectionError" {
+                if json["outgoing_connection_error"].is_object() {
                     break;
                 }
             } else {
@@ -532,6 +552,7 @@ fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
         }
 
         let homestar_proc2 = Command::new(BIN.as_os_str())
+            .env("RUST_BACKTRACE", "0")
             .env(
                 "RUST_LOG",
                 "homestar=debug,homestar_runtime=debug,libp2p=debug,libp2p_gossipsub::behaviour=debug",
@@ -552,7 +573,7 @@ fn test_libp2p_redial_on_connection_error_integration() -> Result<()> {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
-                if json["type"].as_str().unwrap() == "network:connectionEstablished" {
+                if json["connection_established"].is_object() {
                     break;
                 }
             } else {

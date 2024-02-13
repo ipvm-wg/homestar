@@ -1,6 +1,7 @@
 //! Issuer refers to the issuer of the invocation.
 
 use crate::{Error, Unit};
+use const_format::formatcp;
 #[cfg(feature = "diesel")]
 use diesel::{
     backend::Backend,
@@ -11,8 +12,13 @@ use diesel::{
     sqlite::Sqlite,
 };
 use libipld::{serde::from_ipld, Ipld};
+use schemars::{
+    gen::SchemaGenerator,
+    schema::{InstanceType, Metadata, Schema, SchemaObject, SingleOrVec},
+    JsonSchema,
+};
 use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
+use std::{borrow::Cow, fmt, module_path, str::FromStr};
 use ucan::ipld::Principle as Principal;
 
 /// [Principal] issuer of the [Invocation]. If omitted issuer is
@@ -88,6 +94,29 @@ where
     fn from_sql(bytes: DB::RawValue<'_>) -> deserialize::Result<Self> {
         let s = String::from_sql(bytes)?;
         Ok(Issuer(Principal::from_str(&s)?))
+    }
+}
+
+impl JsonSchema for Issuer {
+    fn schema_name() -> String {
+        "iss".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed(formatcp!("{}::Issuer", module_path!()))
+    }
+
+    fn json_schema(_gen: &mut SchemaGenerator) -> Schema {
+        let schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::String.into())),
+            metadata: Some(Box::new(Metadata {
+                title: Some("Issuer".to_string()),
+                description: Some("Principal that issued the receipt".to_string()),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+        schema.into()
     }
 }
 

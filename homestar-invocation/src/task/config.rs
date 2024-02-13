@@ -4,6 +4,7 @@
 
 use crate::{consts, Error, Unit};
 use libipld::{serde::from_ipld, Ipld};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, default::Default, time::Duration};
 
@@ -12,10 +13,16 @@ const MEMORY_KEY: &str = "memory";
 const TIMEOUT_KEY: &str = "time";
 
 /// Resource configuration for defining fuel quota, timeout, etc.
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[schemars(
+    rename = "resources",
+    description = "Resource configuration for fuel quota, memory allowance, and timeout"
+)]
 pub struct Resources {
     fuel: Option<u64>,
+    #[schemars(description = "Memory in bytes")]
     memory: Option<u64>,
+    #[schemars(with = "Option<u64>", description = "Timeout in milliseconds")]
     time: Option<Duration>,
 }
 

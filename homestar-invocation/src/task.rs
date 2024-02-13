@@ -6,6 +6,7 @@ use crate::{
     Error, Pointer, Unit,
 };
 use libipld::{cid::Cid, serde::from_ipld, Ipld};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -28,11 +29,19 @@ const PROOF_KEY: &str = "prf";
 ///
 /// [Instruction]: Instruction
 /// [Receipt]: super::Receipt
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[schemars(
+    rename = "task",
+    description = "Contains a run instruction, configuration, optional reference to receipt that caused task to run, and authorization"
+)]
 pub struct Task<'a, T> {
+    #[schemars(with = "Instruction<'a, T>", rename = "run", title = "Run instruction")]
     run: RunInstruction<'a, T>,
+    #[schemars(title = "Receipt reference")]
     cause: Option<Pointer>,
+    #[schemars(with = "Resources", title = "Task Configuration")]
     meta: Ipld,
+    #[schemars(title = "UCAN Authorization")]
     prf: UcanPrf,
 }
 

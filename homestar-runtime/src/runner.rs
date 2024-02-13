@@ -47,6 +47,7 @@ pub(crate) mod file;
 mod nodeinfo;
 pub mod response;
 pub(crate) use error::Error;
+pub use nodeinfo::NodeInfo;
 pub(crate) use nodeinfo::{DynamicNodeInfo, StaticNodeInfo};
 
 /// Name of the thread used for the [Runner] / runtime.

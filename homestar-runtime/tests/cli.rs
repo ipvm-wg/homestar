@@ -125,6 +125,7 @@ fn test_server_integration() -> Result<()> {
     let config = make_config!(toml);
 
     Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .arg("start")
         .arg("-db")
         .arg(&proc_info.db_path)
@@ -132,6 +133,7 @@ fn test_server_integration() -> Result<()> {
         .failure();
 
     let homestar_proc = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
         .arg("start")
         .arg("-c")
         .arg(config.filename())

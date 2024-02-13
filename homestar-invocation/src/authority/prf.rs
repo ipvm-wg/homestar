@@ -4,6 +4,7 @@
 //! [Task]: crate::Task
 
 use crate::{ipld::Link, Error, Unit};
+use const_format::formatcp;
 #[cfg(feature = "diesel")]
 use diesel::{
     backend::Backend,
@@ -16,7 +17,13 @@ use diesel::{
 #[cfg(feature = "diesel")]
 use libipld::{cbor::DagCborCodec, prelude::Codec};
 use libipld::{serde::from_ipld, Ipld};
+use schemars::{
+    gen::SchemaGenerator,
+    schema::{ArrayValidation, InstanceType, Metadata, Schema, SchemaObject, SingleOrVec},
+    JsonSchema,
+};
 use serde::{Deserialize, Serialize};
+use std::{borrow::Cow, module_path};
 use ucan::ipld::UcanIpld;
 
 /// Proof container, with links to UCANs for a particular [Task] or
@@ -86,6 +93,32 @@ impl TryFrom<&Ipld> for UcanPrf {
 
     fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
         TryFrom::try_from(ipld.to_owned())
+    }
+}
+
+impl JsonSchema for UcanPrf {
+    fn schema_name() -> String {
+        "prf".to_owned()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        Cow::Borrowed(formatcp!("{}::UcanPrf", module_path!()))
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        let schema = SchemaObject {
+            instance_type: Some(SingleOrVec::Vec(vec![InstanceType::Array])),
+            array: Some(Box::new(ArrayValidation {
+                items: Some(gen.subschema_for::<String>().into()),
+                ..Default::default()
+            })),
+            metadata: Some(Box::new(Metadata {
+                description: Some("CIDs referencing UCAN proofs".to_string()),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+        schema.into()
     }
 }
 

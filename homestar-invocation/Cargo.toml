@@ -23,6 +23,7 @@ doctest = true
 anyhow = { workspace = true }
 async-recursion = { version = "1.0", default-features = false }
 byte-unit = { workspace = true }
+const_format = { workspace = true }
 diesel = { version = "2.1", default-features = false, features = [
   "sqlite",
 ], optional = true }
@@ -36,7 +37,9 @@ homestar-workspace-hack = { workspace = true }
 libipld = { workspace = true }
 libsqlite3-sys = { workspace = true, optional = true }
 rand = { workspace = true }
+schemars = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 signature = "2.2"
 thiserror = { workspace = true }
 tracing = { workspace = true }
