@@ -288,7 +288,7 @@ jobs:
           save-if: ${{ github.event_name == 'push' }}
 
       - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.3
+        uses: mozilla-actions/sccache-action@v0.0.4
 
       - name: Run Tests (all-features)
         run: cargo test --workspace --all-features
@@ -355,7 +355,7 @@ jobs:
           save-if: ${{ github.event_name == 'push' }}
 
       - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.3
+        uses: mozilla-actions/sccache-action@v0.0.4
 
       - name: Build example-websocket-relay
         run: cargo build -p websocket-relay
