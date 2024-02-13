@@ -54,6 +54,7 @@ pub mod cli;
 pub mod daemon;
 pub mod db;
 mod event_handler;
+mod ip;
 mod logger;
 pub mod network;
 mod receipt;

@@ -107,7 +107,7 @@ impl<'a> WorkerBuilder<'a> {
             name: Some(workflow_cid.to_string()),
             workflow,
             workflow_settings: workflow::Settings::default(),
-            network_settings: settings::Dht::default(),
+            network_settings: settings.network.libp2p.dht,
         }
     }
 
@@ -175,6 +175,12 @@ impl<'a> WorkerBuilder<'a> {
     #[allow(dead_code)]
     pub(crate) fn workflow_len(&self) -> u32 {
         self.workflow.len()
+    }
+
+    /// Get the [Workflow] from the builder state.
+    #[allow(dead_code)]
+    pub(crate) fn workflow(&self) -> Workflow<'a, Arg> {
+        self.workflow.clone()
     }
 
     /// Get the in-memory [db] from the builder state.

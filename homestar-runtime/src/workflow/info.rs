@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 use super::IndexedResources;
 use crate::{
     channel::{AsyncChannel, AsyncChannelSender},
@@ -36,6 +37,21 @@ const PROGRESS_KEY: &str = "progress";
 const PROGRESS_COUNT_KEY: &str = "progress_count";
 const RESOURCES_KEY: &str = "resources";
 
+/// Status of a [Workflow].
+///
+/// [Workflow]: homestar_workflow::Workflow
+#[derive(Debug, Clone, PartialEq, diesel_derive_enum::DbEnum)]
+pub enum Status {
+    /// Workflow is pending - default case.
+    Pending,
+    /// Workflow is currently running.
+    Running,
+    /// Workflow has been completed.
+    Completed,
+    /// Workflow is stuck, awaiting CIDs we can't find on the network.
+    Stuck,
+}
+
 /// [Workflow] information stored in the database.
 ///
 /// [Workflow]: homestar_workflow::Workflow
@@ -66,6 +82,14 @@ pub struct Stored {
     ///
     /// [Workflow]: homestar_workflow::Workflow
     pub(crate) completed_at: Option<NaiveDateTime>,
+    /// Status of [Workflow].
+    ///
+    /// [Workflow]: homestar_workflow::Workflow
+    pub(crate) status: Status,
+    /// Retries of [Workflow] when checking for provider.
+    ///
+    /// [Workflow]: homestar_workflow::Workflow
+    pub(crate) retries: i32,
 }
 
 impl Stored {
@@ -86,6 +110,8 @@ impl Stored {
             resources,
             created_at,
             completed_at: None,
+            status: Status::Pending,
+            retries: 0,
         }
     }
 
@@ -105,6 +131,8 @@ impl Stored {
             resources,
             created_at: Utc::now().naive_utc(),
             completed_at: None,
+            status: Status::Pending,
+            retries: 0,
         }
     }
 
@@ -120,6 +148,8 @@ impl Stored {
             resources: IndexedResources::default(),
             created_at: Utc::now().naive_utc(),
             completed_at: None,
+            status: Status::Pending,
+            retries: 0,
         }
     }
 }

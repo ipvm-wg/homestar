@@ -43,6 +43,7 @@ pub fn db_async_test(_attr: TokenStream, item: TokenStream) -> TokenStream {
             impl TestSettings {
                 fn load() -> crate::Settings {
                     let mut settings = crate::Settings::load().unwrap();
+                    settings.node.network.libp2p.dht.enable_resolve_receipts_in_background = false;
                     settings.node.db.url = Some(format!("{}.db", #func_name_as_string));
                     settings
                 }
@@ -98,6 +99,7 @@ pub fn runner_test(_attr: TokenStream, item: TokenStream) -> TokenStream {
             impl TestRunner {
                 fn start() -> TestRunner {
                     let mut settings = crate::Settings::load().unwrap();
+                    settings.node.network.libp2p.dht.enable_resolve_receipts_in_background = false;
                     settings.node.network.webserver.port = port_selector::random_free_port().unwrap();
                     settings.node.network.webserver.timeout = std::time::Duration::from_secs(5);
                     settings.node.network.webserver.websocket_sender_timeout = std::time::Duration::from_millis(500);

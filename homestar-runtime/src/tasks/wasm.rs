@@ -3,7 +3,6 @@
 //! [tasks]: homestar_invocation::Task
 
 use super::FileLoad;
-use async_trait::async_trait;
 use homestar_invocation::task::instruction::Args;
 use homestar_wasm::{
     io::{Arg, Output},
@@ -37,7 +36,6 @@ impl WasmContext {
     }
 }
 
-#[async_trait]
 impl FileLoad for WasmContext {}
 
 #[cfg(test)]

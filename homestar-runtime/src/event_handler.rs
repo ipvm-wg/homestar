@@ -11,7 +11,6 @@ use crate::{
     settings,
 };
 use anyhow::Result;
-use async_trait::async_trait;
 use fnv::FnvHashMap;
 use libp2p::{
     core::ConnectedPoint, futures::StreamExt, kad::QueryId, rendezvous::Cookie,
@@ -48,7 +47,6 @@ struct Bootstrap {
 }
 
 /// Handler trait for [EventHandler] events.
-#[async_trait]
 pub(crate) trait Handler<DB>
 where
     DB: Database,

@@ -7,14 +7,9 @@
 #[cfg(feature = "websocket-notify")]
 use crate::event_handler::event::Replay;
 use crate::{
-    channel::{AsyncChannel, AsyncChannelSender},
+    channel::AsyncChannelSender,
     db::Database,
-    event_handler::{
-        event::{Captured, QueryRecord},
-        swarm_event::{FoundEvent, ResponseEvent},
-        Event,
-    },
-    network::swarm::CapsuleTag,
+    event_handler::{event::Captured, Event},
     receipt::metadata::{REPLAYED_KEY, WORKFLOW_KEY, WORKFLOW_NAME_KEY},
     runner::{ModifiedSet, RunningTaskSet},
     scheduler::ExecutionGraph,
@@ -29,23 +24,26 @@ use faststr::FastStr;
 use fnv::FnvHashSet;
 use futures::{future::BoxFuture, FutureExt};
 use homestar_invocation::{
-    authority::UcanPrf, bail, error::ResolveError, ipld::DagCbor, receipt::metadata::OP_KEY, task,
-    Pointer, Receipt as InvocationReceipt,
+    authority::UcanPrf, ipld::DagCbor, receipt::metadata::OP_KEY, task, Pointer,
+    Receipt as InvocationReceipt,
 };
 use homestar_wasm::{
     io::{Arg, Output},
     wasmtime::State,
 };
-use homestar_workflow::{LinkMap, Workflow};
+use homestar_workflow::Workflow;
 use indexmap::IndexMap;
 use libipld::{Cid, Ipld};
 use std::{collections::BTreeMap, sync::Arc};
-use tokio::{
-    sync::RwLock,
-    task::JoinSet,
-    time::{timeout_at, Instant},
-};
+use tokio::task::JoinSet;
 use tracing::{debug, error, info};
+
+mod poller;
+mod resolver;
+use poller::Poll;
+use resolver::Resolver;
+
+use self::resolver::DHTResolver;
 
 /// [JoinSet] of tasks run by a [Worker].
 #[allow(dead_code)]
@@ -158,6 +156,7 @@ where
     ///
     /// [Instruction]: homestar_invocation::task::Instruction
     /// [Swarm]: crate::network::swarm
+    /// [LinkMap]: homestar_workflow::LinkMap
     pub(crate) async fn run<F>(self, running_tasks: Arc<RunningTaskSet>, fetch_fn: F) -> Result<()>
     where
         F: FnOnce(FnvHashSet<Resource>) -> BoxFuture<'a, Result<IndexMap<Resource, Vec<u8>>>>,
@@ -169,7 +168,50 @@ where
         )
         .await
         {
-            Ok(ctx) => self.run_queue(ctx.scheduler, running_tasks).await,
+            Ok(ctx) => {
+                let promises_to_resolve = ctx.scheduler.promises_to_resolve.clone();
+                let resolver = DHTResolver::new(
+                    promises_to_resolve,
+                    self.network_settings.p2p_receipt_timeout,
+                    self.workflow_info.cid,
+                );
+                if self.network_settings.enable_resolve_receipts_in_background
+                    && self.network_settings.p2p_receipt_timeout.as_millis() > 0
+                {
+                    info!(
+                        subject = "worker.resolve_receipts",
+                        category = "worker.run",
+                        workflow_cid = self.workflow_info.cid.to_string(),
+                        "resolving receipts in the background"
+                    );
+                    poller::poll(
+                        resolver,
+                        self.db.clone(),
+                        self.event_sender.clone(),
+                        Some(ctx.scheduler.linkmap.clone()),
+                    )
+                    .await;
+                }
+
+                // Set the workflow status to running.
+                let conn = &mut self.db.conn()?;
+                if ctx.scheduler.run_length() > 0 {
+                    Db::set_workflow_status(
+                        self.workflow_info.cid,
+                        workflow::Status::Running,
+                        conn,
+                    )?;
+                } else {
+                    Db::set_workflow_status(
+                        self.workflow_info.cid,
+                        workflow::Status::Completed,
+                        conn,
+                    )?;
+                }
+
+                // Run the queue of tasks.
+                self.run_queue(ctx.scheduler, running_tasks).await
+            }
             Err(err) => {
                 error!(subject = "worker.init.err",
                        category = "worker.run",
@@ -186,114 +228,6 @@ where
         mut scheduler: TaskScheduler<'a>,
         running_tasks: Arc<RunningTaskSet>,
     ) -> Result<()> {
-        async fn insert_into_map<T>(map: Arc<RwLock<LinkMap<T>>>, key: Cid, value: T)
-        where
-            T: Clone,
-        {
-            map.write()
-                .await
-                .entry(key)
-                .or_insert_with(|| value.clone());
-        }
-
-        async fn resolve_cid(
-            cid: Cid,
-            workflow_cid: Cid,
-            network_settings: Arc<settings::Dht>,
-            linkmap: Arc<RwLock<LinkMap<task::Result<Arg>>>>,
-            resources: Arc<RwLock<IndexMap<Resource, Vec<u8>>>>,
-            db: impl Database,
-            event_sender: Arc<AsyncChannelSender<Event>>,
-        ) -> Result<task::Result<Arg>, ResolveError> {
-            info!(
-                subject = "worker.resolve_cid",
-                category = "worker.run",
-                workflow_cid = workflow_cid.to_string(),
-                cid = cid.to_string(),
-                "attempting to resolve cid in workflow"
-            );
-
-            if let Some(result) = linkmap.read().await.get(&cid) {
-                debug!(
-                    subject = "worker.resolve_cid",
-                    category = "worker.run",
-                    cid = cid.to_string(),
-                    "found CID in in-memory linkmap"
-                );
-
-                Ok(result.to_owned())
-            } else if let Some(bytes) = resources.read().await.get(&Resource::Cid(cid)) {
-                debug!(
-                    subject = "worker.resolve_cid",
-                    category = "worker.run",
-                    cid = cid.to_string(),
-                    "found CID in map of resources"
-                );
-
-                Ok(task::Result::Ok(Arg::Ipld(Ipld::Bytes(bytes.to_vec()))))
-            } else {
-                let conn = &mut db.conn()?;
-                match Db::find_instruction_by_cid(cid, conn) {
-                    Ok(found) => Ok(found.output_as_arg()),
-                    Err(_) => {
-                        debug!(
-                            subject = "worker.resolve_cid",
-                            category = "worker.run",
-                            "no related instruction receipt found in the DB"
-                        );
-
-                        let (tx, rx) = AsyncChannel::oneshot();
-                        let _ = event_sender
-                            .send_async(Event::FindRecord(QueryRecord::with(
-                                cid,
-                                CapsuleTag::Receipt,
-                                Some(tx),
-                            )))
-                            .await;
-
-                        let found = match timeout_at(
-                            Instant::now() + network_settings.p2p_receipt_timeout,
-                            rx.recv_async(),
-                        )
-                        .await
-                        {
-                            Ok(Ok(ResponseEvent::Found(Ok(FoundEvent::Receipt(found))))) => found,
-                            Ok(Ok(ResponseEvent::Found(Err(err)))) => {
-                                bail!(ResolveError::UnresolvedCid(format!(
-                                    "failure in attempting to find event: {err}"
-                                )))
-                            }
-                            Ok(Ok(_)) => bail!(ResolveError::UnresolvedCid(
-                                "wrong or unexpected event message received".to_string(),
-                            )),
-                            Ok(Err(err)) => bail!(ResolveError::UnresolvedCid(format!(
-                                "unexpected error while trying to resolve cid: {err}",
-                            ))),
-                            Err(_) => bail!(ResolveError::UnresolvedCid(
-                                "timed out while trying to resolve cid".to_string(),
-                            )),
-                        };
-
-                        let receipt = Db::commit_receipt(workflow_cid, found.clone().receipt, conn)
-                            .unwrap_or(found.clone().receipt);
-                        let found_result = receipt.output_as_arg();
-
-                        // Store the result in the linkmap for use in next iterations.
-                        insert_into_map(linkmap.clone(), cid, found_result.clone()).await;
-
-                        // TODO Check this event is sent when we've updated the receipt
-                        // retrieval mechanism.
-                        #[cfg(feature = "websocket-notify")]
-                        let _ = event_sender
-                            .send_async(Event::StoredRecord(FoundEvent::Receipt(found)))
-                            .await;
-
-                        Ok(found_result)
-                    }
-                }
-            }
-        }
-
         // Replay previous receipts if subscriptions are on.
         #[cfg(feature = "websocket-notify")]
         {
@@ -377,51 +311,46 @@ where
                         let mut wasm_ctx = WasmContext::new(state)?;
 
                         let db = self.db.clone();
-                        let network_settings = self.network_settings.clone();
                         let linkmap = scheduler.linkmap.clone();
                         let resources = scheduler.resources.clone();
-                        let event_sender = self.event_sender.clone();
                         let workflow_cid = self.workflow_info.cid();
 
                         let resolved = args.resolve(move |cid| {
-                            resolve_cid(
-                                cid,
-                                workflow_cid,
-                                network_settings.clone(),
-                                linkmap.clone(),
-                                resources.clone(),
-                                db.clone(),
-                                event_sender.clone(),
-                            )
-                            .boxed()
+                            info!(
+                                subject = "worker.resolve_cid",
+                                category = "worker.run",
+                                workflow_cid = workflow_cid.to_string(),
+                                cid = cid.to_string(),
+                                "attempting to resolve cid in workflow"
+                            );
+
+                            cid.resolve(linkmap.clone(), resources.clone(), db.clone())
+                                .boxed()
                         });
 
                         let handle = task_set.spawn(async move {
-                            let resolved = match resolved.await {
-                                Ok(inst_result) => inst_result,
+                            match resolved.await {
+                                Ok(inst_result) => {
+                                    match wasm_ctx.run(wasm, &fun, inst_result).await {
+                                        Ok(output) => Ok((
+                                            output,
+                                            instruction_ptr,
+                                            invocation_ptr,
+                                            receipt_meta,
+                                            additional_meta)),
+                                        Err(err) => Err(
+                                            anyhow!("cannot execute wasm module: {:#?}", err))
+                                            .with_context(|| {
+                                                format!("not able to run fn {fun} for cid: {instruction_ptr}, in workflow {workflow_cid}")
+                                            }),
+                                    }
+                                },
                                 Err(err) => {
-                                    error!(subject = "worker.resolve_cid.err",
-                                           category = "worker.run",
-                                           err=?err,
-                                           "error resolving cid");
-                                    return Err(anyhow!("error resolving cid: {err}"))
+                                    Err(anyhow!("error resolving cid: {:#?}", err))
                                         .with_context(|| {
-                                            format!("could not spawn task for cid: {workflow_cid}")
-                                        });
+                                            format!("not able to resolve instruction: {instruction_ptr}, in workflow {workflow_cid}")
+                                        })
                                 }
-                            };
-                            match wasm_ctx.run(wasm, &fun, resolved).await {
-                                Ok(output) => Ok((
-                                    output,
-                                    instruction_ptr,
-                                    invocation_ptr,
-                                    receipt_meta,
-                                    additional_meta)),
-                                Err(err) => Err(
-                                    anyhow!("cannot execute wasm module: {err}"))
-                                    .with_context(|| {
-                                        format!("not able to run fn {fun} for cid: {instruction_ptr}, in workflow {workflow_cid}")
-                                }),
                             }
                         });
                         handles.push(handle);
@@ -442,17 +371,21 @@ where
                 {
                     Ok(Ok(data)) => data,
                     Ok(Err(err)) => {
-                        error!(subject = "worker.run.task.err",
-                               category = "worker.run",
-                               err=?err,
-                               "error in running task");
+                        error!(
+                            subject = "worker.run.task.err",
+                            category = "worker.run",
+                            err = format!("{:#?}", err),
+                            "error in running task"
+                        );
                         break;
                     }
                     Err(err) => {
-                        error!(subject = "worker.run.task.err",
-                               category = "worker.run",
-                               err=?err,
-                               "error in running task");
+                        error!(
+                            subject = "worker.run.task.err",
+                            category = "worker.run",
+                            err = format!("{:#?}", err),
+                            "error in running task"
+                        );
                         break;
                     }
                 };
@@ -483,14 +416,16 @@ where
                         .set_progress_count(std::cmp::max(current_progress_count, step as u32))
                 };
 
+                let instruction_cid = receipt.instruction().cid();
                 let stored_receipt =
                     Db::commit_receipt(self.workflow_info.cid, receipt, &mut self.db.conn()?)?;
 
                 debug!(
                     subject = "db.commit_receipt",
                     category = "worker.run",
-                    cid = self.workflow_info.cid.to_string(),
-                    "commited to database"
+                    workflow_cid = self.workflow_info.cid.to_string(),
+                    instruction_cid = instruction_cid.to_string(),
+                    "committed to database"
                 );
 
                 let _ = self
@@ -503,6 +438,10 @@ where
                     .await;
             }
         }
+
+        // Set the workflow status to `completed`
+        let conn = &mut self.db.conn()?;
+        Db::set_workflow_status(self.workflow_info.cid, workflow::Status::Completed, conn)?;
         Ok(())
     }
 }
@@ -522,8 +461,9 @@ where
 mod test {
     use super::*;
     use crate::{
+        event_handler::event::QueryRecord,
         test_utils::{self, db::MemoryDb, WorkerBuilder},
-        workflow::IndexedResources,
+        workflow::{IndexedResources, Status},
     };
     use homestar_invocation::{
         task::{instruction::RunInstruction, Resources},
@@ -532,12 +472,22 @@ mod test {
 
     #[homestar_runtime_proc_macro::db_async_test]
     fn initialize_worker() {
-        let settings = TestSettings::load();
+        let mut settings = TestSettings::load();
+
+        // mod test settings to turn on background resolve
+        settings
+            .node
+            .network
+            .libp2p
+            .dht
+            .enable_resolve_receipts_in_background = true;
+        settings.node.network.libp2p.dht.p2p_receipt_timeout = std::time::Duration::from_millis(1);
 
         let (tx, rx) = test_utils::event::setup_event_channel(settings.clone().node);
 
         let builder = WorkerBuilder::new(settings.node).with_event_sender(tx);
         let fetch_fn = builder.fetch_fn();
+        let workflow = builder.workflow();
         let db = builder.db();
         let worker = builder.build().await;
         let workflow_cid = worker.workflow_info.cid;
@@ -567,12 +517,23 @@ mod test {
         let mut get_providers = false;
         let mut captured_receipt = false;
         let mut receipts_cnt = 0;
+        let mut find_record_cnt = 0;
 
         while let Ok(event) = rx.recv_async().await {
             match event {
+                // Find workflow-info and receipt-lookup records
                 Event::FindRecord(QueryRecord { cid, .. }) => {
                     find_record = true;
-                    assert_eq!(cid, worker_workflow_cid)
+                    assert!(
+                        (cid == worker_workflow_cid)
+                            || (workflow
+                                .clone()
+                                .tasks()
+                                .into_iter()
+                                .any(|t| cid == t.instruction_cid().unwrap()))
+                    );
+
+                    find_record_cnt += 1;
                 }
                 Event::GetProviders(QueryRecord { cid, .. }) => {
                     get_providers = true;
@@ -593,16 +554,19 @@ mod test {
         }
 
         assert!(find_record);
+        assert_eq!(find_record_cnt, 2);
         assert!(get_providers);
         assert!(captured_receipt);
         assert_eq!(receipts_cnt, 2);
 
         let (_, workflow_info) = MemoryDb::get_workflow_info(workflow_cid, &mut conn).unwrap();
-
         assert_eq!(workflow_info.num_tasks, 2);
         assert_eq!(workflow_info.cid, workflow_cid);
         assert_eq!(workflow_info.progress.len(), 2);
         assert_eq!(workflow_info.resources.len(), 2);
+
+        let workflow_stored = MemoryDb::select_workflow(workflow_cid, &mut conn).unwrap();
+        assert_eq!(workflow_stored.status, Status::Completed);
     }
 
     #[homestar_runtime_proc_macro::db_async_test]
@@ -730,11 +694,23 @@ mod test {
         assert_eq!(workflow_info.progress.len(), 2);
         assert_eq!(wf_info.progress_count, 2);
         assert_eq!(wf_info.progress_count, workflow_info.progress_count);
+
+        let workflow_stored = MemoryDb::select_workflow(workflow_cid, &mut conn).unwrap();
+        assert_eq!(workflow_stored.status, Status::Completed);
     }
 
     #[homestar_runtime_proc_macro::db_async_test]
     fn initialize_worker_with_all_receipted_instruction() {
-        let settings = TestSettings::load();
+        let mut settings = TestSettings::load();
+
+        // mod test settings to turn on background resolve
+        settings
+            .node
+            .network
+            .libp2p
+            .dht
+            .enable_resolve_receipts_in_background = true;
+        settings.node.network.libp2p.dht.p2p_receipt_timeout = std::time::Duration::from_millis(1);
 
         let config = Resources::default();
         let (instruction1, instruction2, _) =
@@ -835,7 +811,6 @@ mod test {
         assert_eq!(workflow_info.num_tasks, 2);
         assert_eq!(workflow_info.cid, workflow_cid);
         assert_eq!(workflow_info.progress.len(), 2);
-
-        assert!(rx.try_recv().is_err())
+        assert!(rx.try_recv().is_err());
     }
 }

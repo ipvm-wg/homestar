@@ -61,6 +61,7 @@ diesel = { version = "2.1", default-features = false, features = [
   "with-deprecated",
   "chrono",
 ] }
+diesel-derive-enum = { version = "2.1", features = ["sqlite"] }
 diesel_migrations = "2.1"
 dotenvy = "0.15"
 dyn-clone = "1.0"
@@ -79,6 +80,7 @@ homestar-workspace-hack = { workspace = true }
 http = "0.2"
 http-serde = "1.1"
 humantime = { workspace = true }
+hyper = { version = "0.14", default-features = false }
 indexmap = { workspace = true }
 ipfs-api = { version = "0.17", optional = true }
 ipfs-api-backend-hyper = { version = "0.6", default-features = false, features = [
@@ -147,7 +149,7 @@ serde_with = { version = "3.5", default-features = false, features = [
 ] }
 stream-cancel = "0.8"
 sysinfo = { version = "0.29", default-features = false, optional = true }
-tabled = { version = "0.14", default-features = false, features = [
+tabled = { version = "0.15", default-features = false, features = [
   "derive",
   "macros",
 ] }

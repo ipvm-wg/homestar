@@ -81,8 +81,15 @@ where
         F: Fn(Cid) -> BoxFuture<'a, Result<task::Result<T>, ResolveError>> + Clone + Send + Sync,
         Ipld: From<T>,
     {
-        let inputs = resolve_args(self.0, lookup_fn);
-        Ok(Args(inputs.await))
+        let inputs = resolve_args(self.0, lookup_fn).await;
+        for input in inputs.iter() {
+            if let Input::Deferred(awaiting) = input {
+                return Err(ResolveError::UnresolvedCid(
+                    awaiting.instruction_cid().to_string(),
+                ));
+            }
+        }
+        Ok(Args(inputs))
     }
 }
 

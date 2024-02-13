@@ -61,6 +61,8 @@ pub(crate) struct Quic {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub(crate) struct Dht {
+    /// Enable resolve receipts in background.
+    pub(crate) enable_resolve_receipts_in_background: bool,
     /// Timeout for p2p receipt record lookups in milliseconds.
     #[serde_as(as = "DurationMilliSeconds<u64>")]
     pub(crate) p2p_receipt_timeout: Duration,
@@ -175,6 +177,7 @@ impl Libp2p {
 impl Default for Dht {
     fn default() -> Self {
         Self {
+            enable_resolve_receipts_in_background: true,
             p2p_receipt_timeout: Duration::from_millis(500),
             p2p_workflow_info_timeout: Duration::from_millis(500),
             p2p_provider_timeout: Duration::from_millis(10000),
