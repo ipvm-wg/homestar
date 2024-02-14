@@ -169,7 +169,7 @@ a type of `fix`, `feat`, `docs`, `ci`, `refactor`, etc..., structured like so:
 
 We are using [wit-deps][wit-deps] to track [WIT][wit] dependencies/interfaces,
 which is installed by default in our [Nix flake](#nix) or can be
-installed separately with `cargo install`.
+installed separately with `cargo install wit-deps-cli`.
 
 To see an example of `wit-deps` in action, view our
 [host helpers](./homestar-wasm/wit/helpers.wit), where we import
@@ -199,6 +199,7 @@ directory.
 [nix-flake]: https://nixos.wiki/wiki/Flakes
 [pre-commit]: https://pre-commit.com/
 [tokio-console]: https://github.com/tokio-rs/console
+[wasi-logging]: https://github.com/WebAssembly/wasi-logging
 [wit]: https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md
 [wit-bindgen]: https://github.com/bytecodealliance/wit-bindgen
 [wit-deps]: https://github.com/bytecodealliance/wit-deps
