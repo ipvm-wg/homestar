@@ -169,7 +169,7 @@ a type of `fix`, `feat`, `docs`, `ci`, `refactor`, etc..., structured like so:
 
 We are using [wit-deps][wit-deps] to track [WIT][wit] dependencies/interfaces,
 which is installed by default in our [Nix flake](#nix) or can be
-installed separately with `cargo install`.
+installed separately with `cargo install wit-deps-cli`.
 
 To see an example of `wit-deps` in action, view our
 [host helpers](./homestar-wasm/wit/helpers.wit), where we import
