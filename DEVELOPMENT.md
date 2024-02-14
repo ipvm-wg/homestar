@@ -199,6 +199,7 @@ directory.
 [nix-flake]: https://nixos.wiki/wiki/Flakes
 [pre-commit]: https://pre-commit.com/
 [tokio-console]: https://github.com/tokio-rs/console
+[wasi-logging]: https://github.com/WebAssembly/wasi-logging
 [wit]: https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md
 [wit-bindgen]: https://github.com/bytecodealliance/wit-bindgen
 [wit-deps]: https://github.com/bytecodealliance/wit-deps
