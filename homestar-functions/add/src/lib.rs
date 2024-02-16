@@ -1,11 +1,10 @@
-wit_bindgen::generate!({
-    world: "add",
-    exports: {
-        world: Component,
-    }
-});
+#[allow(clippy::all)]
+#[rustfmt::skip]
+mod bindings;
 
-pub struct Component;
+use bindings::Guest;
+
+struct Component;
 
 impl Guest for Component {
     fn add_one(input: i32) -> i32 {

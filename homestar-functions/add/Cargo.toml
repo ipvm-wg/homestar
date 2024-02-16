@@ -6,12 +6,12 @@ edition = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
-wit-bindgen = "0.17"
+wit-bindgen = { version = "0.18.0", default-features = false, features = [
+  "realloc",
+] }
 
 [lib]
-doc = false
-bench = false
 crate-type = ["cdylib"]
 
-[features]
-default = []
+[package.metadata.component]
+package = "component:add"

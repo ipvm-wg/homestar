@@ -3,26 +3,26 @@
     {
       "cause": null,
       "meta": {
-      "memory": 4294967296,
-      "time": 100000
-    },
-    "prf": [],
-    "run": {
-      "input": {
-         "args": [
-               {
-                 "/": "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm"
-               },
-               150,
-               150,
-               100,
-               100
+        "memory": 4294967296,
+        "time": 100000
+      },
+      "prf": [],
+      "run": {
+        "input": {
+          "args": [
+            {
+              "/": "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm"
+            },
+            150,
+            150,
+            100,
+            100
           ],
           "func": "crop"
         },
         "nnc": "",
         "op": "wasm/run",
-        "rsc": "ipfs://bafybeidfzi27nkgybei6wjzs5ao7w3y5f57mqrkkk4776fbajm25tfzl54"
+        "rsc": "ipfs://bafybeidpmgamv4i6jqrlwbnkrm3kzvvu7hj3jnoolcswub27mkda6p75la"
       }
     }
   ]

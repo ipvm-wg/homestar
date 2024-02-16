@@ -8,7 +8,9 @@ rust-version = { workspace = true }
 [dependencies]
 base64 = "0.21"
 image = { version = "0.24", default-features = false, features = ["png"] }
-wit-bindgen = "0.17"
+wit-bindgen = { version = "0.18.0", default-features = false, features = [
+  "realloc",
+] }
 
 [dev-dependencies]
 image = { version = "0.24", default-features = false, features = [
@@ -25,3 +27,10 @@ crate-type = ["cdylib"]
 [features]
 default = []
 run-image-tests = []
+
+[package.metadata.component]
+package = "component:homestar-functions-test"
+
+[package.metadata.component.target.dependencies]
+"wasi:logging" = { path = "wit/deps/logging" }
+"homestar:host" = { path = "wit/deps/helpers" }

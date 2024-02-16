@@ -20,7 +20,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const SUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "subscribe_run_workflow";
 const UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "unsubscribe_run_workflow";
-const AWAIT_CID: &str = "bafyrmiep5ovtfznpbchwznmk62365zbek35dtgjhvtsfekcusszterko5m";
+const AWAIT_CID: &str = "bafyrmicmrkz6m3vmqasx2ko4roovcacgt324dhpiqx52bvxyomcygxmg6u";
 
 #[test]
 #[serial_test::parallel]
