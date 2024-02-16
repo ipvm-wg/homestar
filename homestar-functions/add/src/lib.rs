@@ -1,4 +1,5 @@
 #[allow(clippy::all)]
+#[rustfmt::skip]
 mod bindings;
 
 use bindings::Guest;

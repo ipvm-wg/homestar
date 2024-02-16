@@ -1,4 +1,5 @@
 #[allow(clippy::all, dead_code)]
+#[rustfmt::skip]
 mod bindings;
 
 use base64::{engine::general_purpose, Engine};
