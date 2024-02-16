@@ -218,6 +218,10 @@
 
         wasmTest = pkgs.writeScriptBin "wasm-ex-test" ''
           #!${pkgs.stdenv.shell}
+          cargo component build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn
+          cp target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_test.wasm homestar-wasm/fixtures/example_test_cargo_component.wasm
+          cargo component build -p homestar-functions-test --profile release-wasm-fn
+          cp target/wasm32-wasi/release-wasm-fn/homestar_functions_test.wasm homestar-wasm/fixtures/example_test_cargo_component_wasi.wasm
           cargo build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn
           cp target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_test.wasm homestar-wasm/fixtures/example_test.wasm
           wasm-tools component new homestar-wasm/fixtures/example_test.wasm -o homestar-wasm/fixtures/example_test_component.wasm
@@ -229,6 +233,9 @@
 
         wasmAdd = pkgs.writeScriptBin "wasm-ex-add" ''
           #!${pkgs.stdenv.shell}
+          cargo component build -p homestar-functions-add --profile release-wasm-fn
+          cp target/wasm32-wasi/release-wasm-fn/homestar_functions_add.wasm homestar-wasm/fixtures/example_add_cargo_component_wasi.wasm
+          wasm-tools print homestar-wasm/fixtures/example_add_cargo_component_wasi.wasm -o homestar-wasm/fixtures/example_add_cargo_component_wasi.wat
           cargo build -p homestar-functions-add --target wasm32-unknown-unknown --profile release-wasm-fn
           cp target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_add.wasm homestar-wasm/fixtures/example_add.wasm
           wasm-tools component new homestar-wasm/fixtures/example_add.wasm -o homestar-wasm/fixtures/example_add_component.wasm

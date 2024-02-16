@@ -156,7 +156,7 @@ where
 /// use libipld::Ipld;
 /// use url::Url;
 ///
-/// let wasm = "bafybeidfzi27nkgybei6wjzs5ao7w3y5f57mqrkkk4776fbajm25tfzl54".to_string();
+/// let wasm = "bafybeidpmgamv4i6jqrlwbnkrm3kzvvu7hj3jnoolcswub27mkda6p75la".to_string();
 /// let resource = Url::parse(format!("ipfs://{wasm}").as_str()).unwrap();
 ///
 /// let instr = Instruction::unique(
@@ -179,7 +179,7 @@ where
 /// use libipld::{cid::{multihash::{Code, MultihashDigest}, Cid}, Ipld, Link};
 /// use url::Url;
 
-/// let wasm = "bafybeidfzi27nkgybei6wjzs5ao7w3y5f57mqrkkk4776fbajm25tfzl54".to_string();
+/// let wasm = "bafybeidpmgamv4i6jqrlwbnkrm3kzvvu7hj3jnoolcswub27mkda6p75la".to_string();
 /// let resource = Url::parse(format!("ipfs://{wasm}").as_str()).expect("IPFS URL");
 /// let h = Code::Blake3_256.digest(b"beep boop");
 /// let cid = Cid::new_v1(0x55, h);
@@ -490,7 +490,7 @@ mod test {
                 (
                     RESOURCE_KEY.into(),
                     Ipld::String(
-                        "ipfs://bafybeidfzi27nkgybei6wjzs5ao7w3y5f57mqrkkk4776fbajm25tfzl54".into()
+                        "ipfs://bafybeidpmgamv4i6jqrlwbnkrm3kzvvu7hj3jnoolcswub27mkda6p75la".into()
                     )
                 ),
                 (OP_KEY.into(), Ipld::String("ipld/fun".to_string())),
@@ -511,7 +511,7 @@ mod test {
                             "func": "join-strings"
                         },
                         "nnc": "", "op": "wasm/run",
-                        "rsc": "ipfs://bafybeidfzi27nkgybei6wjzs5ao7w3y5f57mqrkkk4776fbajm25tfzl54"});
+                        "rsc": "ipfs://bafybeidpmgamv4i6jqrlwbnkrm3kzvvu7hj3jnoolcswub27mkda6p75la"});
 
         let instruction = Instruction::<Unit>::try_from(ipld.clone()).unwrap();
         let instr_cid = instruction.to_cid().unwrap();
