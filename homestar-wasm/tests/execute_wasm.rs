@@ -56,10 +56,54 @@ async fn test_execute_wat() {
 }
 
 #[tokio::test]
+async fn test_execute_wat_cargo_component() {
+    let ipld = Input::Ipld(Ipld::Map(BTreeMap::from([
+        ("func".into(), Ipld::String("add_two".to_string())),
+        ("args".into(), Ipld::List(vec![Ipld::Integer(1)])),
+    ])));
+    let wat = fs::read(fixtures("example_add_cargo_component_wasi.wat")).unwrap();
+    let mut env = World::instantiate(wat, "add_two", State::default())
+        .await
+        .unwrap();
+    let res = env.execute(ipld.parse().unwrap().into()).await.unwrap();
+    assert_eq!(res, Output::Value(wasmtime::component::Val::S32(3)));
+}
+
+#[tokio::test]
 async fn test_execute_wat_from_non_component() {
     let wat = fs::read(fixtures("example_add.wat")).unwrap();
     let env = World::instantiate(wat, "add_two", State::default()).await;
     assert!(env.is_err());
+}
+
+#[tokio::test]
+async fn test_execute_wasm_cargo_component() {
+    let ipld = Input::Ipld(Ipld::Map(BTreeMap::from([
+        ("func".into(), Ipld::String("add_one".to_string())),
+        ("args".into(), Ipld::List(vec![Ipld::Integer(1)])),
+    ])));
+
+    let wasm = fs::read(fixtures("example_test_cargo_component.wasm")).unwrap();
+    let mut env = World::instantiate(wasm, "add_one", State::default())
+        .await
+        .unwrap();
+    let res = env.execute(ipld.parse().unwrap().into()).await.unwrap();
+    assert_eq!(res, Output::Value(wasmtime::component::Val::S32(2)));
+}
+
+#[tokio::test]
+async fn test_execute_wasm_cargo_component_wasi() {
+    let ipld = Input::Ipld(Ipld::Map(BTreeMap::from([
+        ("func".into(), Ipld::String("add_one".to_string())),
+        ("args".into(), Ipld::List(vec![Ipld::Integer(1)])),
+    ])));
+
+    let wasm = fs::read(fixtures("example_test_cargo_component_wasi.wasm")).unwrap();
+    let mut env = World::instantiate(wasm, "add_one", State::default())
+        .await
+        .unwrap();
+    let res = env.execute(ipld.parse().unwrap().into()).await.unwrap();
+    assert_eq!(res, Output::Value(wasmtime::component::Val::S32(2)));
 }
 
 #[tokio::test]
