@@ -31,10 +31,6 @@ run-image-tests = []
 [package.metadata.component]
 package = "component:homestar-functions-test"
 
-[package.metadata.component.dependencies]
-
-[package.metadata.component.target]
-
 [package.metadata.component.target.dependencies]
 "wasi:logging" = { path = "wit/deps/logging" }
 "homestar:host" = { path = "wit/deps/helpers" }

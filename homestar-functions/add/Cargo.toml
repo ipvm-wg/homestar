@@ -15,5 +15,3 @@ crate-type = ["cdylib"]
 
 [package.metadata.component]
 package = "component:add"
-
-[package.metadata.component.dependencies]
