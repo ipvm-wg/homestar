@@ -417,6 +417,8 @@ fn component_from_bytes(bytes: &[u8], engine: Engine) -> Result<Component, Error
             if is_component(chunk) {
                 Component::from_binary(&engine, bytes).map_err(Error::IntoWasmComponent)
             } else {
+                tracing::info!("Converting Wasm binary into a Wasm component");
+
                 let component = ComponentEncoder::default()
                     .module(bytes)?
                     .validate(true)
