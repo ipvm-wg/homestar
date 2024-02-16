@@ -433,6 +433,7 @@ pub(crate) async fn subscribe_network_events(ws_port: u16) -> WsClientSub {
 pub(crate) trait TimeoutFutureExt<T>: Future<Output = T> + Sized {
     /// Returns a reasonable value that can be used as a future timeout with a certain
     /// degree of confidence that timeout won't be triggered by the test specifics.
+    #[allow(dead_code)]
     fn default_timeout() -> Duration {
         // If some future wasn't done in 60 seconds, it's either a poorly written test
         // or (most likely) a bug related to some future never actually being completed.
@@ -440,6 +441,7 @@ pub(crate) trait TimeoutFutureExt<T>: Future<Output = T> + Sized {
         Duration::from_secs(TIMEOUT_SECONDS)
     }
 
+    #[allow(dead_code)]
     /// Adds a fixed timeout to the future.
     fn with_default_timeout(self) -> Timeout<Self> {
         self.with_timeout(Self::default_timeout())
