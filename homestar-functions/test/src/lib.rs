@@ -1,22 +1,21 @@
+#[allow(clippy::all, dead_code)]
+mod bindings;
+
 use base64::{engine::general_purpose, Engine};
 #[cfg(target_arch = "wasm32")]
-use homestar::host::helpers::get_current_time;
+use bindings::{
+    homestar::host::helpers::get_current_time,
+    wasi::logging::logging::{log, Level},
+};
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
     io::Cursor,
 };
-#[cfg(target_arch = "wasm32")]
-use wasi::logging::logging::{log, Level};
 
-wit_bindgen::generate!({
-    world: "test",
-    exports: {
-        world: Component,
-    }
-});
+use bindings::Guest;
 
-pub struct Component;
+struct Component;
 
 type Matrix = Vec<Vec<u16>>;
 

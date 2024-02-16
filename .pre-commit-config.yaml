@@ -78,6 +78,7 @@ repos:
         args: ["-b", "main"]
       - id: check-merge-conflict
       - id: trailing-whitespace
+        exclude: bindings\.rs$
       - id: end-of-file-fixer
         exclude: \.(txt|json)$
       - id: check-yaml
