@@ -166,7 +166,7 @@ gimli = { version = "0.28.1", default-features = false, features = ["read", "std
 iana-time-zone = { version = "0.1.60", default-features = false, features = ["fallback"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
-ring = { version = "0.17.7", features = ["std"] }
+ring = { version = "0.17.8", features = ["std"] }
 rustix = { version = "0.38.31", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "time"] }
 rustls = { version = "0.21.10", features = ["dangerous_configuration", "quic"] }
 spin = { version = "0.9.8" }
@@ -177,7 +177,7 @@ gimli = { version = "0.28.1", default-features = false, features = ["read", "std
 iana-time-zone = { version = "0.1.60", default-features = false, features = ["fallback"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
-ring = { version = "0.17.7", features = ["std"] }
+ring = { version = "0.17.8", features = ["std"] }
 rustix = { version = "0.38.31", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "time"] }
 rustls = { version = "0.21.10", features = ["dangerous_configuration", "quic"] }
 spin = { version = "0.9.8" }
@@ -188,7 +188,7 @@ gimli = { version = "0.28.1", default-features = false, features = ["read", "std
 iana-time-zone = { version = "0.1.60", default-features = false, features = ["fallback"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
-ring = { version = "0.17.7", features = ["std"] }
+ring = { version = "0.17.8", features = ["std"] }
 rustix = { version = "0.38.31", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "time"] }
 rustls = { version = "0.21.10", features = ["dangerous_configuration", "quic"] }
 spin = { version = "0.9.8" }
@@ -199,7 +199,7 @@ gimli = { version = "0.28.1", default-features = false, features = ["read", "std
 iana-time-zone = { version = "0.1.60", default-features = false, features = ["fallback"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
-ring = { version = "0.17.7", features = ["std"] }
+ring = { version = "0.17.8", features = ["std"] }
 rustix = { version = "0.38.31", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "time"] }
 rustls = { version = "0.21.10", features = ["dangerous_configuration", "quic"] }
 spin = { version = "0.9.8" }
@@ -211,7 +211,7 @@ iana-time-zone = { version = "0.1.60", default-features = false, features = ["fa
 linux-raw-sys = { version = "0.4.13", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
-ring = { version = "0.17.7", features = ["std"] }
+ring = { version = "0.17.8", features = ["std"] }
 rustix = { version = "0.38.31", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
 rustls = { version = "0.21.10", features = ["dangerous_configuration", "quic"] }
 spin = { version = "0.9.8" }
@@ -223,7 +223,7 @@ iana-time-zone = { version = "0.1.60", default-features = false, features = ["fa
 linux-raw-sys = { version = "0.4.13", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
-ring = { version = "0.17.7", features = ["std"] }
+ring = { version = "0.17.8", features = ["std"] }
 rustix = { version = "0.38.31", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
 rustls = { version = "0.21.10", features = ["dangerous_configuration", "quic"] }
 spin = { version = "0.9.8" }
@@ -235,7 +235,7 @@ iana-time-zone = { version = "0.1.60", default-features = false, features = ["fa
 linux-raw-sys = { version = "0.4.13", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
-ring = { version = "0.17.7", features = ["std"] }
+ring = { version = "0.17.8", features = ["std"] }
 rustix = { version = "0.38.31", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
 rustls = { version = "0.21.10", features = ["dangerous_configuration", "quic"] }
 spin = { version = "0.9.8" }
@@ -247,7 +247,7 @@ iana-time-zone = { version = "0.1.60", default-features = false, features = ["fa
 linux-raw-sys = { version = "0.4.13", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
-ring = { version = "0.17.7", features = ["std"] }
+ring = { version = "0.17.8", features = ["std"] }
 rustix = { version = "0.38.31", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
 rustls = { version = "0.21.10", features = ["dangerous_configuration", "quic"] }
 spin = { version = "0.9.8" }
@@ -259,7 +259,7 @@ iana-time-zone = { version = "0.1.60", default-features = false, features = ["fa
 linux-raw-sys = { version = "0.4.13", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
-ring = { version = "0.17.7", features = ["std"] }
+ring = { version = "0.17.8", features = ["std"] }
 rustix = { version = "0.38.31", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
 rustls = { version = "0.21.10", features = ["dangerous_configuration", "quic"] }
 spin = { version = "0.9.8" }
@@ -271,7 +271,7 @@ iana-time-zone = { version = "0.1.60", default-features = false, features = ["fa
 linux-raw-sys = { version = "0.4.13", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
-ring = { version = "0.17.7", features = ["std"] }
+ring = { version = "0.17.8", features = ["std"] }
 rustix = { version = "0.38.31", features = ["event", "mm", "net", "param", "process", "procfs", "termios", "thread", "time"] }
 rustls = { version = "0.21.10", features = ["dangerous_configuration", "quic"] }
 spin = { version = "0.9.8" }
