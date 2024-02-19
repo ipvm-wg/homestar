@@ -47,7 +47,7 @@ generic-array = { version = "0.14.7", default-features = false, features = ["mor
 hashbrown = { version = "0.14.3", features = ["raw"] }
 hyper = { version = "0.14.28", features = ["full"] }
 indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1.9.3", default-features = false, features = ["serde"] }
-indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2.2.2", features = ["serde"] }
+indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2.2.3", features = ["serde"] }
 jsonrpsee = { version = "0.21.0", default-features = false, features = ["client", "server"] }
 jsonrpsee-core = { version = "0.21.0", features = ["async-client", "async-wasm-client", "http-helpers", "server"] }
 libc = { version = "0.2.153", features = ["extra_traits"] }
@@ -119,7 +119,7 @@ generic-array = { version = "0.14.7", default-features = false, features = ["mor
 hashbrown = { version = "0.14.3", features = ["raw"] }
 hyper = { version = "0.14.28", features = ["full"] }
 indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1.9.3", default-features = false, features = ["serde"] }
-indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2.2.2", features = ["serde"] }
+indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2.2.3", features = ["serde"] }
 jsonrpsee = { version = "0.21.0", default-features = false, features = ["client", "server"] }
 jsonrpsee-core = { version = "0.21.0", features = ["async-client", "async-wasm-client", "http-helpers", "server"] }
 libc = { version = "0.2.153", features = ["extra_traits"] }
