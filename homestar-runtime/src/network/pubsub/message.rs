@@ -4,7 +4,7 @@
 
 use anyhow::{anyhow, Result};
 use homestar_invocation::task::instruction::Nonce;
-use libipld::{self, cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld};
+use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld};
 use std::collections::BTreeMap;
 
 const HEADER_KEY: &str = "header";
