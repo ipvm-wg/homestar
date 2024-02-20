@@ -14,7 +14,7 @@ use async_recursion::async_recursion;
 use futures::{future, future::BoxFuture};
 use libipld::{serde::from_ipld, Cid, Ipld};
 use serde::{Deserialize, Serialize};
-use std::{collections::btree_map::BTreeMap, result::Result, sync::Arc};
+use std::{collections::btree_map::BTreeMap, sync::Arc};
 
 mod parse;
 pub use parse::{Parse, Parsed};

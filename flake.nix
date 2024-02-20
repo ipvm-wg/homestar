@@ -1,5 +1,5 @@
 {
-  description = "homestar";
+  description = "homestar"; # Thanks to @walkah
 
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-23.11";
@@ -16,11 +16,6 @@
     flake-compat = {
       url = "github:edolstra/flake-compat";
       flake = false;
-    };
-
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     wit-deps = {
@@ -42,33 +37,35 @@
     nixpkgs,
     nixos-unstable,
     fenix,
-    flake-compat,
     flake-utils,
-    rust-overlay,
     wit-deps,
     ...
-  } @ inputs:
+  }:
     flake-utils.lib.eachDefaultSystem (
       system: let
-        overlays = [(import rust-overlay) fenix.overlays.default wit-deps.overlays.default];
+        overlays = [fenix.overlays.default wit-deps.overlays.default];
         pkgs = import nixpkgs {inherit system overlays;};
         unstable = import nixos-unstable {inherit system overlays;};
 
-        rust-toolchain = (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml).override {
-          extensions = ["cargo" "clippy" "llvm-tools-preview" "rustfmt" "rust-src" "rust-std"];
-          targets = [
-            "wasm32-unknown-unknown"
-            "wasm32-wasi"
-            "x86_64-apple-darwin"
-            "aarch64-apple-darwin"
-            "x86_64-unknown-linux-gnu"
-            "x86_64-unknown-linux-musl"
-            "aarch64-unknown-linux-musl"
-          ];
+        rust-toolchain = fenix.packages.${system}.fromToolchainFile {
+          file = ./rust-toolchain.toml;
+          # sha256 = pkgs.lib.fakeSha256;
+          sha256 = "sha256-e4mlaJehWBymYxJGgnbuCObVlqMlQSilZ8FljG9zPHY=";
         };
 
-        nightly-rustfmt = pkgs.rust-bin.nightly.latest.rustfmt;
+        rustPlatform = pkgs.makeRustPlatform {
+          cargo = rust-toolchain;
+          rustc = rust-toolchain;
+        };
 
+        nightly-rustfmt =
+          (fenix.packages.${system}.toolchainOf {
+            channel = "nightly";
+            date = "2024-02-13";
+            sha256 = "sha256-QeiJ8YNVpYhoxxOrrQKOwnfoYo4c8PTlcjEOn/NCmSI=";
+            # sha256 = pkgs.lib.fakeSha256;
+          })
+          .rustfmt;
         format-pkgs = with pkgs; [
           nixpkgs-fmt
           alejandra
@@ -307,6 +304,7 @@
             ++ cargo-installs
             ++ scripts
             ++ lib.optionals stdenv.isDarwin [
+              libiconv
               darwin.apple_sdk.frameworks.Security
               darwin.apple_sdk.frameworks.CoreFoundation
               darwin.apple_sdk.frameworks.Foundation
@@ -336,22 +334,22 @@
             '');
         };
 
-        packages.irust = pkgs.rustPlatform.buildRustPackage rec {
+        packages.irust = rustPlatform.buildRustPackage rec {
           pname = "irust";
-          version = "1.70.0";
+          version = "1.71.19";
           src = pkgs.fetchFromGitHub {
             owner = "sigmaSd";
             repo = "IRust";
             rev = "v${version}";
-            sha256 = "sha256-chZKesbmvGHXwhnJRZbXyX7B8OwJL9dJh0O1Axz/n2E=";
+            sha256 = "sha256-MdMXq1SJa3Ka/hYAHzyJ2hUKg6NWYbLc5YyyCeogrc8=";
           };
 
           doCheck = false;
-          cargoSha256 = "sha256-FmsD3ajMqpPrTkXCX2anC+cmm0a2xuP+3FHqzj56Ma4=";
+          cargoSha256 = "sha256-PyztcmV2TQipoNIPQSrfTjf/w3AB+CStjK4o9x4q2WU=";
         };
 
         packages.default =
-          pkgs.rustPlatform.buildRustPackage
+          rustPlatform.buildRustPackage
           {
             name = "homestar";
             src = ./.;
@@ -359,8 +357,9 @@
               lockFile = ./Cargo.lock;
             };
             buildInputs = with pkgs;
-              [rust-toolchain]
+              []
               ++ lib.optionals stdenv.isDarwin [
+                libiconv
                 darwin.apple_sdk.frameworks.Security
                 darwin.apple_sdk.frameworks.CoreFoundation
                 darwin.apple_sdk.frameworks.Foundation

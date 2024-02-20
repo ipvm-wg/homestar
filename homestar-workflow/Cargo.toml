@@ -21,7 +21,7 @@ doctest = true
 fxhash = { version = "0.2", default-features = false }
 homestar-invocation = { version = "0.1", path = "../homestar-invocation" }
 homestar-workspace-hack = { workspace = true }
-indexmap = { version = "2.1", default-features = false }
+indexmap = { workspace = true }
 libipld = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }
