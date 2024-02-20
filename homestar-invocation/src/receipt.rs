@@ -5,7 +5,7 @@ use crate::{
     ipld::{DagCbor, DagCborRef, DagJson},
     task, Error, Pointer, Unit,
 };
-use libipld::{self, cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld};
+use libipld::{cbor::DagCborCodec, prelude::Codec, serde::from_ipld, Ipld};
 use schemars::{
     gen::SchemaGenerator,
     schema::{InstanceType, Metadata, ObjectValidation, Schema, SchemaObject, SingleOrVec},

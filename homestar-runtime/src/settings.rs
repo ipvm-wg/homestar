@@ -367,7 +367,6 @@ fn home_dir() -> PathBuf {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::Settings;
 
     #[test]
     fn defaults() {

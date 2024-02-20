@@ -101,7 +101,7 @@ pub(crate) fn decode_capsule(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{test_utils, workflow};
+    use crate::test_utils;
     use homestar_invocation::{
         authority::UcanPrf,
         ipld::DagCbor,
@@ -110,7 +110,7 @@ mod test {
     };
     use homestar_wasm::io::Arg;
     use homestar_workflow::Workflow;
-    use libp2p::{kad::Record, PeerId};
+    use libp2p::kad::Record;
 
     #[test]
     fn found_receipt_record() {

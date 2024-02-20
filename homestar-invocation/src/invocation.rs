@@ -3,7 +3,7 @@
 //! [Task]: super::Task
 
 use crate::{ipld::DagCbor, Error, Pointer, Task, Unit};
-use libipld::{self, serde::from_ipld, Ipld};
+use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -81,7 +81,7 @@ mod test {
     use crate::{
         authority::UcanPrf,
         task::{instruction::RunInstruction, Resources},
-        test_utils, Unit,
+        test_utils,
     };
 
     #[test]

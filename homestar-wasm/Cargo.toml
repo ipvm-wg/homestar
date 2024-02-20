@@ -48,7 +48,7 @@ wasmtime-wasi = { version = "17.0", default-features = false, features = [
   "tokio",
   "preview1-on-preview2",
 ] }
-wat = "1.0"
+wat = "1.200"
 wit-component = "0.19"
 
 [dev-dependencies]

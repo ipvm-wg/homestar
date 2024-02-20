@@ -63,7 +63,6 @@ mod test {
     use super::*;
     use homestar_invocation::{
         authority::UcanPrf,
-        ipld::DagJson,
         task::{instruction::RunInstruction, Resources},
         test_utils, Task,
     };

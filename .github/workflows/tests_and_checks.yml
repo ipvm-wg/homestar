@@ -54,7 +54,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-14, windows-latest]
-        rust-toolchain: [stable, nightly, 1.73.0]
+        rust-toolchain: [stable, nightly, 1.75.0]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository

@@ -10,9 +10,9 @@ use anyhow::Result;
 use byte_unit::{AdjustedByte, Byte, ByteUnit};
 use diesel::{
     dsl::now,
-    prelude::*,
     r2d2::{self, CustomizeConnection, ManageConnection},
-    BelongingToDsl, Connection as SingleConnection, RunQueryDsl, SqliteConnection,
+    BelongingToDsl, Connection as SingleConnection, ExpressionMethods, OptionalExtension, QueryDsl,
+    RunQueryDsl, SelectableHelper, SqliteConnection,
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use dotenvy::dotenv;

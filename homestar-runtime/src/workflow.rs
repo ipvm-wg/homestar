@@ -6,7 +6,7 @@
 use crate::scheduler::ExecutionGraph;
 use anyhow::{anyhow, bail};
 use core::fmt;
-use dagga::{self, dot::DagLegend, Node};
+use dagga::{dot::DagLegend, Node};
 use diesel::{
     backend::Backend,
     deserialize::{self, FromSql},
@@ -398,12 +398,11 @@ mod test {
         ipld::DagCbor,
         pointer::{Await, AwaitResult},
         task::{
-            instruction::{Ability, Input, RunInstruction},
+            instruction::{Ability, Input},
             Resources,
         },
         test_utils, Task, Unit,
     };
-    use std::path::Path;
 
     #[test]
     fn ipld_roundtrip_indexed_resources() {

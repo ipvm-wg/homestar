@@ -14,9 +14,8 @@ use http::{
     header::{AUTHORIZATION, CONTENT_TYPE},
     method::Method,
 };
-use jsonrpsee::{
-    self,
-    server::{middleware::http::ProxyGetRequestLayer, RandomStringIdProvider, ServerHandle},
+use jsonrpsee::server::{
+    middleware::http::ProxyGetRequestLayer, RandomStringIdProvider, ServerHandle,
 };
 use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
@@ -296,7 +295,7 @@ mod test {
     use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
     use metrics_exporter_prometheus::PrometheusBuilder;
     #[cfg(feature = "websocket-notify")]
-    use notifier::{self, Header};
+    use notifier::Header;
     use std::net::Ipv4Addr;
 
     async fn metrics_handle() -> PrometheusHandle {

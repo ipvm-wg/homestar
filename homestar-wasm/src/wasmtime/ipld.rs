@@ -446,7 +446,6 @@ mod test {
         multihash::{Code, MultihashDigest},
         DagCbor,
     };
-    use std::collections::BTreeMap;
 
     const RAW: u64 = 0x55;
 

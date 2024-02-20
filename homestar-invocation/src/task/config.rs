@@ -6,7 +6,7 @@ use crate::{consts, Error, Unit};
 use libipld::{serde::from_ipld, Ipld};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, default::Default, time::Duration};
+use std::{collections::BTreeMap, time::Duration};
 
 const FUEL_KEY: &str = "fuel";
 const MEMORY_KEY: &str = "memory";
@@ -138,7 +138,6 @@ impl TryFrom<Ipld> for Resources {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::collections::BTreeMap;
 
     #[test]
     fn ipld_roundtrip() {

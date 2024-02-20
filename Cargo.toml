@@ -23,7 +23,7 @@ categories = ["development-tools", "wasm", "web-programming"]
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/ipvm-wg/homestar"
-rust-version = "1.73.0"
+rust-version = "1.75.0"
 version = "0.1.1"
 
 [workspace.dependencies]
@@ -42,6 +42,7 @@ faststr = { version = "0.2", default-features = false, features = ["serde"] }
 futures = { version = "0.3", default-features = false }
 homestar-workspace-hack = "0.1"
 humantime = { version = "2.1", default-features = false }
+indexmap = { version = "2.2", default-features = false, features = ["serde"] }
 itertools = "0.12"
 libipld = { version = "0.16", default-features = false, features = [
   "serde-codec",

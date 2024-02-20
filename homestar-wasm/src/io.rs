@@ -10,7 +10,6 @@ use homestar_invocation::{
 use libipld::{serde::from_ipld, Ipld};
 use serde::{Deserialize, Serialize};
 use std::{collections::btree_map::BTreeMap, fmt};
-use wasmtime;
 
 /// Argument for Wasm execution, which can either be
 /// an Ipld structure or a [wasmtime::component::Val].
