@@ -25,7 +25,7 @@ async-trait = { workspace = true }
 atomic_refcell = { workspace = true }
 enum-as-inner = { workspace = true }
 heck = "0.4"
-homestar-invocation = { version = "0.1", path = "../homestar-invocation" }
+homestar-invocation = { version = "0.2", path = "../homestar-invocation" }
 homestar-workspace-hack = { workspace = true }
 itertools = { workspace = true }
 libipld = { workspace = true }
