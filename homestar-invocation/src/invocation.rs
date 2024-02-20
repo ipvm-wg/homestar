@@ -81,7 +81,7 @@ mod test {
     use crate::{
         authority::UcanPrf,
         task::{instruction::RunInstruction, Resources},
-        test_utils, Unit,
+        test_utils,
     };
 
     #[test]

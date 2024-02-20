@@ -190,7 +190,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{consts::WASM_MAX_MEMORY, test_utils, Unit};
+    use crate::{consts::WASM_MAX_MEMORY, test_utils};
 
     #[test]
     fn ipld_roundtrip() {

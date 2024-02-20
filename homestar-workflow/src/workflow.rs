@@ -122,7 +122,7 @@ mod test {
     use homestar_invocation::{
         authority::UcanPrf,
         task::{instruction::RunInstruction, Resources},
-        test_utils, Unit,
+        test_utils,
     };
     use std::assert_eq;
 

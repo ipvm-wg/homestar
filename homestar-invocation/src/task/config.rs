@@ -138,7 +138,6 @@ impl TryFrom<Ipld> for Resources {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::collections::BTreeMap;
 
     #[test]
     fn ipld_roundtrip() {

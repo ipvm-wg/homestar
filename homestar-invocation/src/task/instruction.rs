@@ -471,7 +471,7 @@ impl<'a, T> JsonSchema for Instruction<'a, T> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{test_utils, Unit, DAG_CBOR};
+    use crate::{test_utils, DAG_CBOR};
     use libipld::{
         cbor::DagCborCodec,
         multihash::{Code, MultihashDigest},
