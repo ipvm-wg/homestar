@@ -340,7 +340,7 @@
           src = pkgs.fetchFromGitHub {
             owner = "sigmaSd";
             repo = "IRust";
-            rev = "v${version}";
+            rev = "${version}";
             sha256 = "sha256-MdMXq1SJa3Ka/hYAHzyJ2hUKg6NWYbLc5YyyCeogrc8=";
           };
 

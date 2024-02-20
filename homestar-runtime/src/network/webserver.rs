@@ -14,9 +14,8 @@ use http::{
     header::{AUTHORIZATION, CONTENT_TYPE},
     method::Method,
 };
-use jsonrpsee::{
-    self,
-    server::{middleware::http::ProxyGetRequestLayer, RandomStringIdProvider, ServerHandle},
+use jsonrpsee::server::{
+    middleware::http::ProxyGetRequestLayer, RandomStringIdProvider, ServerHandle,
 };
 use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
