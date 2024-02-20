@@ -522,12 +522,10 @@ where
 mod test {
     use super::*;
     use crate::{
-        db::Database,
         test_utils::{self, db::MemoryDb, WorkerBuilder},
-        workflow::{self, IndexedResources},
+        workflow::IndexedResources,
     };
     use homestar_invocation::{
-        authority::UcanPrf,
         task::{instruction::RunInstruction, Resources},
         Invocation, Task,
     };

@@ -333,8 +333,6 @@ impl TryFrom<Ipld> for NetworkNotification {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    use connection::NewListenAddr;
     use faststr::FastStr;
     use homestar_invocation::test_utils::cid::generate_cid;
     use libipld::Cid;
@@ -342,7 +340,6 @@ mod test {
         swarm::{DialError, ListenError},
         Multiaddr, PeerId,
     };
-
     use rand::thread_rng;
     use std::str::FromStr;
 

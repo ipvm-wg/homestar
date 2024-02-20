@@ -227,7 +227,7 @@ impl<'a> TaskScheduler<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{db::Database, test_utils::db::MemoryDb, workflow, Receipt};
+    use crate::{test_utils::db::MemoryDb, workflow, Receipt};
     use futures::FutureExt;
     use homestar_invocation::{
         authority::UcanPrf,

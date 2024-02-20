@@ -528,7 +528,7 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
 #[test]
 #[allow(unused_must_use)]
 #[flaky_test::flaky_test]
-#[serial_test::file_serial]
+#[serial_test::serial]
 fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();

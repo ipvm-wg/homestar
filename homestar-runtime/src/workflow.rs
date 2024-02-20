@@ -398,12 +398,11 @@ mod test {
         ipld::DagCbor,
         pointer::{Await, AwaitResult},
         task::{
-            instruction::{Ability, Input, RunInstruction},
+            instruction::{Ability, Input},
             Resources,
         },
         test_utils, Task, Unit,
     };
-    use std::path::Path;
 
     #[test]
     fn ipld_roundtrip_indexed_resources() {
