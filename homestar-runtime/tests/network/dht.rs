@@ -528,7 +528,7 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
 #[test]
 #[allow(unused_must_use)]
 #[flaky_test::flaky_test]
-#[serial_test::parallel]
+#[serial_test::serial]
 fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -549,6 +549,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         [node.network.keypair_config]
         existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_2.pem" }}
         [node.network.libp2p]
+        idle_connection_timeout = 360
         listen_address = "{listen_addr1}"
         node_addresses = ["{node_addrb}"]
         [node.network.libp2p.dht]
@@ -600,6 +601,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         [node.network.keypair_config]
         existing = {{ key_type = "ed25519", path = "./fixtures/__testkey_ed25519_5.pem" }}
         [node.network.libp2p]
+        idle_connection_timeout = 360
         listen_address = "{listen_addr2}"
         node_addresses = ["{node_addra}"]
         [node.network.libp2p.dht]

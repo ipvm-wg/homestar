@@ -17,7 +17,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 
 #[test]
-#[serial_test::serial]
+#[serial_test::file_serial]
 fn test_libp2p_connection_after_mdns_discovery_serial() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
