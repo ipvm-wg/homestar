@@ -335,17 +335,17 @@
         };
 
         packages.irust = rustPlatform.buildRustPackage rec {
-          pname = "irust";
-          version = "1.71.19";
+          pname = "IRust";
+          version = "1.71.2";
           src = pkgs.fetchFromGitHub {
             owner = "sigmaSd";
-            repo = "IRust";
-            rev = "${version}";
-            sha256 = "sha256-MdMXq1SJa3Ka/hYAHzyJ2hUKg6NWYbLc5YyyCeogrc8=";
+            repo = pname;
+            rev = "v${version}";
+            sha256 = "sha256-6qxkz7Pf8XGORo6O4eIwTcqBt+8WBp2INY81YUCxJts=";
           };
 
           doCheck = false;
-          cargoSha256 = "sha256-PyztcmV2TQipoNIPQSrfTjf/w3AB+CStjK4o9x4q2WU=";
+          cargoSha256 = "sha256-VZXxz3E8I/8T2H7KHa2IADjqsG2XHBNhwq/OBsq3vHs=";
         };
 
         packages.default =
