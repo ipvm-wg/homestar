@@ -189,7 +189,7 @@ fn handle_output_mode(
                     ))
                     .with_default(false)
                     .prompt()
-                    .expect("to prompt for overwrite");
+                    .map_err(|e| miette!(e))?;
 
                     if !should_overwrite {
                         bail!("Aborting... not overwriting existing settings file");
@@ -229,7 +229,7 @@ fn handle_key_type(
 
             let key_type = Select::new("Select key type", options)
                 .prompt()
-                .expect("to prompt for key type");
+                .map_err(|e| miette!(e))?;
 
             Ok(key_type)
         }
@@ -256,7 +256,7 @@ fn handle_key(
             let pubkey_config_choice =
                 Select::new("How would you like to configure the key?", options)
                     .prompt()
-                    .expect("to prompt for pubkey config");
+                    .map_err(|e| miette!(e))?;
 
             match pubkey_config_choice {
                 PubkeyConfigOption::GenerateFromSeed => {
@@ -266,7 +266,7 @@ fn handle_key(
                         .with_error_message("Please type a base64 encoding of 32 bytes")
                         .with_help_message("Base64 encoded 32 bytes")
                         .prompt()
-                        .expect("to prompt for pubkey seed");
+                        .map_err(|e| miette!(e))?;
 
                     PubkeyConfig::GenerateFromSeed(RNGSeed::new(key_type, seed.0))
                 }
@@ -287,7 +287,7 @@ fn handle_key(
                         render_config: RenderConfig::default(),
                     }
                     .prompt()
-                    .expect("to prompt for pubkey path");
+                    .map_err(|e| miette!(e))?;
 
                     PubkeyConfig::Existing(ExistingKeyPath::new(key_type, path))
                 }
