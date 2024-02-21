@@ -81,8 +81,10 @@ pub use network::webserver::PrometheusData;
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};
 pub use runner::{NodeInfo, Runner};
 pub(crate) use scheduler::TaskScheduler;
+#[cfg(feature = "ipfs")]
+pub use settings::IpfsBuilder;
 pub use settings::{
-    DatabaseBuilder, Dht, ExistingKeyPath, IpfsBuilder, KeyType, Libp2p, Mdns, MetricsBuilder,
+    DatabaseBuilder, Dht, ExistingKeyPath, KeyType, Libp2p, Mdns, MetricsBuilder,
     MonitoringBuilder, NetworkBuilder, NodeBuilder, PubkeyConfig, Pubsub, RNGSeed, Rendezvous,
     RpcBuilder, Settings, SettingsBuilder, WebserverBuilder,
 };
