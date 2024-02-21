@@ -81,6 +81,10 @@ pub use network::webserver::PrometheusData;
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};
 pub use runner::{NodeInfo, Runner};
 pub(crate) use scheduler::TaskScheduler;
-pub use settings::Settings;
+pub use settings::{
+    DatabaseBuilder, Dht, ExistingKeyPath, IpfsBuilder, KeyType, Libp2p, Mdns, MetricsBuilder,
+    MonitoringBuilder, NetworkBuilder, NodeBuilder, PubkeyConfig, Pubsub, RNGSeed, Rendezvous,
+    RpcBuilder, Settings, SettingsBuilder, WebserverBuilder,
+};
 pub(crate) use worker::Worker;
 pub use workflow::WORKFLOW_TAG;

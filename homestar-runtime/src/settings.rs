@@ -1,6 +1,7 @@
 //! General runtime settings / configuration.
 
 use config::{Config, ConfigError, Environment, File};
+use derive_builder::Builder;
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr, DurationMilliSeconds, DurationSeconds};
@@ -15,8 +16,8 @@ use std::{
 
 mod libp2p_config;
 mod pubkey_config;
-pub(crate) use libp2p_config::{Dht, Libp2p, Pubsub};
-pub(crate) use pubkey_config::PubkeyConfig;
+pub use libp2p_config::{Dht, Libp2p, Mdns, Pubsub, Rendezvous};
+pub use pubkey_config::{ExistingKeyPath, KeyType, PubkeyConfig, RNGSeed};
 
 #[cfg(target_os = "windows")]
 const HOME_VAR: &str = "USERPROFILE";
@@ -24,8 +25,10 @@ const HOME_VAR: &str = "USERPROFILE";
 const HOME_VAR: &str = "HOME";
 
 /// Application settings.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct Settings {
+    /// Node settings
+    #[builder(default)]
     #[serde(default)]
     pub(crate) node: Node,
 }
@@ -39,7 +42,8 @@ impl Settings {
 
 /// Server settings.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
 pub struct Node {
     /// Monitoring settings.
@@ -61,9 +65,10 @@ pub struct Node {
 
 /// Database-related settings for a homestar node.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
-pub(crate) struct Database {
+pub struct Database {
     /// Database Url provided within the configuration file.
     ///
     /// Note: This is not used if the `DATABASE_URL` environment variable
@@ -78,7 +83,8 @@ pub(crate) struct Database {
 
 /// Monitoring settings.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
 pub struct Monitoring {
     /// Tokio console port.
@@ -92,7 +98,8 @@ pub struct Monitoring {
 
 /// Network settings for a homestar node.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
 pub struct Network {
     /// libp2p Settings.
@@ -120,9 +127,10 @@ pub struct Network {
 #[cfg(feature = "ipfs")]
 #[cfg_attr(docsrs, doc(cfg(feature = "ipfs")))]
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
-pub(crate) struct Ipfs {
+pub struct Ipfs {
     /// The host where Homestar expects IPFS.
     pub(crate) host: String,
     /// The port where Homestar expects IPFS.
@@ -131,18 +139,20 @@ pub(crate) struct Ipfs {
 
 /// Metrics settings.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
-pub(crate) struct Metrics {
+pub struct Metrics {
     /// Metrics port for prometheus scraping.
     pub(crate) port: u16,
 }
 
 /// RPC server settings.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
-pub(crate) struct Rpc {
+pub struct Rpc {
     /// RPC-server port.
     #[serde_as(as = "DisplayFromStr")]
     pub(crate) host: IpAddr,
@@ -157,9 +167,10 @@ pub(crate) struct Rpc {
 
 /// Webserver settings
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
-pub(crate) struct Webserver {
+pub struct Webserver {
     /// V4 Webserver host address.
     #[serde(with = "http_serde::uri")]
     pub(crate) v4_host: Uri,

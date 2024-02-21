@@ -54,6 +54,7 @@ crossbeam = "0.8"
 dagga = "0.2"
 dashmap = "5.5"
 derive-getters = "0.3"
+derive_builder = "0.13.0"
 diesel = { version = "2.1", default-features = false, features = [
   "sqlite",
   "r2d2",
