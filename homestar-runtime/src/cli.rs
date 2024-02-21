@@ -17,9 +17,11 @@ use tarpc::context;
 mod error;
 pub use error::Error;
 mod init;
-pub use init::{handle_init_command, OutputMode};
+pub use init::{handle_init_command, KeyArg, OutputMode};
 pub(crate) mod show;
 pub use show::ConsoleTable;
+
+use self::init::KeyTypeArg;
 
 const DEFAULT_DB_PATH: &str = "homestar.db";
 const TMP_DIR: &str = "/tmp";
@@ -37,6 +39,7 @@ Usage: {usage}
 #[command(bin_name = "homestar", name = "homestar", author, version, about,
           long_about = None, help_template = HELP_TEMPLATE)]
 #[clap(group(ArgGroup::new("init_sink").args(&["config", "dry-run"])))]
+#[clap(group(ArgGroup::new("init_key_arg").args(&["key-file", "key-seed"])))]
 pub struct Cli {
     /// Homestar [Command].
     #[clap(subcommand)]
@@ -120,6 +123,29 @@ pub enum Command {
             help = "Run in non-interactive mode [optional]"
         )]
         no_input: bool,
+        /// The type of key to use for libp2p
+        #[arg(
+            long = "key-type",
+            value_name = "KEY_TYPE",
+            help = "The type of key to use for libp2p [optional]"
+        )]
+        key_type: Option<KeyTypeArg>,
+        /// The file to load the key from
+        #[arg(
+            long = "key-file",
+            value_name = "KEY_FILE",
+            help = "The path to the key file [optional]",
+            group = "init_key_arg"
+        )]
+        key_file: Option<PathBuf>,
+        /// The seed to use for generating the key
+        #[arg(
+            long = "key-seed",
+            value_name = "KEY_SEED",
+            help = "The seed to use for generating the key [optional]",
+            group = "init_key_arg"
+        )]
+        key_seed: Option<Option<String>>,
     },
     /// Start the Homestar runtime.
     Start {

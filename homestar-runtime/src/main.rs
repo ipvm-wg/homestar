@@ -2,13 +2,12 @@ use std::io::{stdout, IsTerminal};
 
 use clap::Parser;
 use homestar_runtime::{
-    cli::{handle_init_command, Cli, Command, ConsoleTable, OutputMode},
+    cli::{handle_init_command, Cli, Command, ConsoleTable, KeyArg, OutputMode},
     daemon,
     db::Database,
     runner::response,
     Db, FileLogger, Logger, Runner, Settings,
 };
-use inquire::Confirm;
 use miette::{miette, Result};
 use tracing::info;
 
@@ -22,6 +21,9 @@ fn main() -> Result<()> {
             quiet,
             force,
             no_input,
+            key_type,
+            key_file,
+            key_seed,
             ..
         } => {
             let output_mode = if dry_run {
@@ -33,11 +35,15 @@ fn main() -> Result<()> {
                 }
             };
 
+            let key_arg = key_file
+                .map(|key_file| KeyArg::File { path: key_file })
+                .or_else(|| key_seed.map(|key_seed| KeyArg::Seed { seed: key_seed }));
+
             // Run non-interactively if the input device is not a TTY
             // or if the `--no-input` flag is passed.
             let no_input = no_input || !stdout().is_terminal();
 
-            handle_init_command(output_mode, quiet, no_input)?
+            handle_init_command(output_mode, key_arg, key_type, quiet, no_input)?
         }
         Command::Start {
             runtime_config,

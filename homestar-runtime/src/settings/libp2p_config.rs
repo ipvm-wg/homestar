@@ -1,5 +1,6 @@
 //! libp2p configuration.
 
+use derive_builder::Builder;
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DurationMilliSeconds, DurationSeconds};
@@ -7,9 +8,10 @@ use std::time::Duration;
 
 /// libp2p settings.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
-pub(crate) struct Libp2p {
+pub struct Libp2p {
     /// Multiaddrs of the external addresses this node will announce to the
     /// network.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
@@ -58,9 +60,10 @@ pub(crate) struct Quic {
 
 /// DHT settings.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
-pub(crate) struct Dht {
+pub struct Dht {
     /// Enable resolve receipts in background.
     pub(crate) enable_resolve_receipts_in_background: bool,
     /// Timeout for p2p receipt record lookups in milliseconds.
@@ -82,9 +85,10 @@ pub(crate) struct Dht {
 
 /// mDNS settings.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
-pub(crate) struct Mdns {
+pub struct Mdns {
     /// Enable mDNS.
     pub(crate) enable: bool,
     /// mDNS IPv6 enable flag
@@ -99,9 +103,10 @@ pub(crate) struct Mdns {
 
 /// Pubsub settings.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
-pub(crate) struct Pubsub {
+pub struct Pubsub {
     /// Enable pub/sub.
     pub(crate) enable: bool,
     /// Pub/sub duplicate cache time.
@@ -124,9 +129,10 @@ pub(crate) struct Pubsub {
 
 /// Rendezvous settings.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
 #[serde(default)]
-pub(crate) struct Rendezvous {
+pub struct Rendezvous {
     /// Enable Rendezvous protocol client.
     pub(crate) enable_client: bool,
     /// Enable Rendezvous protocol server.

@@ -6,12 +6,17 @@ use rand::{Rng, SeedableRng};
 use sec1::der::Decode;
 use serde::{Deserialize, Serialize};
 use serde_with::{base64::Base64, serde_as};
-use std::{io::Read, path::Path};
+use std::{
+    fmt::Display,
+    io::Read,
+    path::{Path, PathBuf},
+};
 use tracing::info;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 /// Configure how the Network keypair is generated or using an existing one
-pub(crate) enum PubkeyConfig {
+pub enum PubkeyConfig {
+    /// A randomly generated key, intended primarily for testing
     #[serde(rename = "random")]
     Random,
     /// Seed string should be a base64 encoded 32 bytes. This is used as the RNG seed to generate a key.
@@ -24,30 +29,55 @@ pub(crate) enum PubkeyConfig {
 
 /// Supported key types of homestar
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
-pub(crate) enum KeyType {
+pub enum KeyType {
+    /// Ed25519 key
     #[default]
     #[serde(rename = "ed25519")]
     Ed25519,
+    /// Secp256k1 key
     #[serde(rename = "secp256k1")]
     Secp256k1,
+}
+
+impl Display for KeyType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            KeyType::Ed25519 => f.write_str("Ed25519"),
+            KeyType::Secp256k1 => f.write_str("Secp256k1"),
+        }
+    }
 }
 
 /// Seed material for RNG generated keys
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub(crate) struct RNGSeed {
+pub struct RNGSeed {
     #[serde(default)]
     key_type: KeyType,
     #[serde_as(as = "Base64")]
     seed: [u8; 32],
 }
 
+impl RNGSeed {
+    /// Create a new [RNGSeed]
+    pub fn new(key_type: KeyType, seed: [u8; 32]) -> Self {
+        Self { key_type, seed }
+    }
+}
+
 /// Info on where and what the Key file is
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub(crate) struct ExistingKeyPath {
+pub struct ExistingKeyPath {
     #[serde(default)]
     key_type: KeyType,
-    path: String,
+    path: PathBuf,
+}
+
+impl ExistingKeyPath {
+    /// Create a new [ExistingKeyPath]
+    pub fn new(key_type: KeyType, path: PathBuf) -> Self {
+        Self { key_type, path }
+    }
 }
 
 impl PubkeyConfig {
