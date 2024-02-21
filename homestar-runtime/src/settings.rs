@@ -75,7 +75,7 @@ pub struct Database {
     /// is set.
     #[serde_as(as = "Option<DisplayFromStr>")]
     pub(crate) url: Option<String>,
-    /// Maximum number of connections managed by the [pool].
+    /// Maximum number of connections managed by the pool.
     ///
     /// [pool]: crate::db::Pool
     pub(crate) max_pool_size: u32,
