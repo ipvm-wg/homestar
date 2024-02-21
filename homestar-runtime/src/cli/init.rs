@@ -144,6 +144,10 @@ fn handle_output_mode(
     match output_mode {
         OutputMode::StdOut => Ok(Box::new(stdout())),
         OutputMode::File { path, force: true } => {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("to create parent directory");
+            }
+
             let settings_file = File::options()
                 .read(true)
                 .write(true)
@@ -156,6 +160,10 @@ fn handle_output_mode(
             Ok(Box::new(settings_file))
         }
         OutputMode::File { path, force: false } => {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("to create parent directory");
+            }
+
             let settings_file = File::options()
                 .read(true)
                 .write(true)
