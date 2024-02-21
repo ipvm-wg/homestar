@@ -24,7 +24,6 @@ fn main() -> Result<()> {
             key_type,
             key_file,
             key_seed,
-            ..
         } => {
             let output_mode = if dry_run {
                 OutputMode::StdOut
