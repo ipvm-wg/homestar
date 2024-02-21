@@ -2849,6 +2849,7 @@ dependencies = [
  "memchr",
  "miette",
  "miniz_oxide",
+ "mio",
  "multibase",
  "num-traits",
  "object",
