@@ -152,6 +152,7 @@ fn handle_output_mode(
                 .read(true)
                 .write(true)
                 .create(true)
+                .truncate(true)
                 .open(&path)
                 .expect("to open settings file");
 
