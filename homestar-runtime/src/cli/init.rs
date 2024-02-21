@@ -245,7 +245,7 @@ fn handle_key(
     let config = match key_arg {
         None => {
             if no_input {
-                bail!("Aborting... cannot prompt for key in non-interactive mode. Pass the key using a flag.");
+                bail!("Aborting... cannot prompt for key in non-interactive mode. Pass `--key-file <KEY_FILE>` or `--key-seed [<KEY_SEED>]` to configure the key.");
             }
 
             let options = vec![
