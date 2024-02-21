@@ -292,7 +292,9 @@ fn handle_key(
             PubkeyConfig::GenerateFromSeed(RNGSeed::new(key_type, seed))
         }
         Some(KeyArg::Seed { seed: Some(seed) }) => {
-            let seed = PubkeySeed::from_str(&seed).expect("valid pubkey seed");
+            let Ok(seed) = PubkeySeed::from_str(&seed) else {
+                bail!("Invalid seed: expected a base64 encoding of 32 bytes")
+            };
 
             PubkeyConfig::GenerateFromSeed(RNGSeed::new(key_type, seed.0))
         }
