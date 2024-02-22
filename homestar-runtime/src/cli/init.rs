@@ -1,3 +1,9 @@
+use clap::ValueEnum;
+use inquire::{ui::RenderConfig, Confirm, CustomType, Select};
+use miette::{bail, miette, Result};
+use rand::Rng;
+use serde::de::IntoDeserializer;
+use serde_with::{base64::Standard, formats::Padded, DeserializeAs, SerializeAs};
 use std::{
     fmt::Display,
     fs::File,
@@ -5,13 +11,6 @@ use std::{
     path::PathBuf,
     str::FromStr,
 };
-
-use clap::ValueEnum;
-use inquire::{ui::RenderConfig, Confirm, CustomType, Select};
-use miette::{bail, miette, Result};
-use rand::Rng;
-use serde::de::IntoDeserializer;
-use serde_with::{base64::Standard, formats::Padded, DeserializeAs, SerializeAs};
 
 use crate::{
     settings::{KeyType, PubkeyConfig},
