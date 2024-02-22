@@ -54,7 +54,7 @@ crossbeam = "0.8"
 dagga = "0.2"
 dashmap = "5.5"
 derive-getters = "0.3"
-derive_builder = "0.13.0"
+derive_builder = "0.13"
 diesel = { version = "2.1", default-features = false, features = [
   "sqlite",
   "r2d2",
@@ -83,7 +83,7 @@ http-serde = "1.1"
 humantime = { workspace = true }
 hyper = { version = "0.14", default-features = false }
 indexmap = { workspace = true }
-inquire = "0.6.2"
+inquire = "0.6"
 ipfs-api = { version = "0.17", optional = true }
 ipfs-api-backend-hyper = { version = "0.6", default-features = false, features = [
   "with-builder",
