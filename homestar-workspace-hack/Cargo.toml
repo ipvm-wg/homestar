@@ -41,7 +41,7 @@ futures-executor = { version = "0.3.30", features = ["thread-pool"] }
 futures-io = { version = "0.3.30", features = ["unstable"] }
 futures-sink = { version = "0.3.30" }
 futures-task = { version = "0.3.30", default-features = false, features = ["std", "unstable"] }
-futures-timer = { version = "3.0.2", default-features = false, features = ["wasm-bindgen"] }
+futures-timer = { version = "3.0.3", default-features = false, features = ["wasm-bindgen"] }
 futures-util = { version = "0.3.30", features = ["bilock", "channel", "io", "sink", "unstable"] }
 generic-array = { version = "0.14.7", default-features = false, features = ["more_lengths"] }
 hashbrown = { version = "0.14.3", features = ["raw"] }
@@ -81,9 +81,9 @@ typenum = { version = "1.17.0", default-features = false, features = ["const-gen
 unsigned-varint = { version = "0.7.2", default-features = false, features = ["asynchronous_codec"] }
 url = { version = "2.5.0", features = ["serde"] }
 uuid = { version = "1.7.0", features = ["fast-rng", "v4"] }
-wasmtime = { version = "17.0.1", features = ["component-model"] }
-wasmtime-jit = { version = "17.0.1", default-features = false, features = ["addr2line", "debug-builtins", "demangle", "profiling"] }
-wasmtime-runtime = { version = "17.0.1", default-features = false, features = ["async", "component-model", "debug-builtins", "pooling-allocator"] }
+wasmtime = { version = "18.0.1" }
+wasmtime-environ = { version = "18.0.1", default-features = false, features = ["component-model", "demangle"] }
+wasmtime-runtime = { version = "18.0.1", default-features = false, features = ["async", "component-model", "debug-builtins", "pooling-allocator"] }
 zeroize = { version = "1.7.0", features = ["zeroize_derive"] }
 
 [build-dependencies]
@@ -93,7 +93,7 @@ arrayvec = { version = "0.7.4" }
 base64 = { version = "0.13.1", features = ["alloc"] }
 bitflags = { version = "2.4.2", default-features = false, features = ["std"] }
 bytes = { version = "1.5.0", features = ["serde"] }
-cc = { version = "1.0.83", default-features = false, features = ["parallel"] }
+cc = { version = "1.0.86", default-features = false, features = ["parallel"] }
 clap = { version = "4.5.1", default-features = false, features = ["color", "derive", "env", "help", "std", "usage"] }
 clap_builder = { version = "4.5.1", default-features = false, features = ["color", "env", "help", "std", "usage"] }
 crc32fast = { version = "1.4.0" }
@@ -113,7 +113,7 @@ futures-executor = { version = "0.3.30", features = ["thread-pool"] }
 futures-io = { version = "0.3.30", features = ["unstable"] }
 futures-sink = { version = "0.3.30" }
 futures-task = { version = "0.3.30", default-features = false, features = ["std", "unstable"] }
-futures-timer = { version = "3.0.2", default-features = false, features = ["wasm-bindgen"] }
+futures-timer = { version = "3.0.3", default-features = false, features = ["wasm-bindgen"] }
 futures-util = { version = "0.3.30", features = ["bilock", "channel", "io", "sink", "unstable"] }
 generic-array = { version = "0.14.7", default-features = false, features = ["more_lengths"] }
 hashbrown = { version = "0.14.3", features = ["raw"] }
@@ -156,9 +156,9 @@ typenum = { version = "1.17.0", default-features = false, features = ["const-gen
 unsigned-varint = { version = "0.7.2", default-features = false, features = ["asynchronous_codec"] }
 url = { version = "2.5.0", features = ["serde"] }
 uuid = { version = "1.7.0", features = ["fast-rng", "v4"] }
-wasmtime = { version = "17.0.1", features = ["component-model"] }
-wasmtime-jit = { version = "17.0.1", default-features = false, features = ["addr2line", "debug-builtins", "demangle", "profiling"] }
-wasmtime-runtime = { version = "17.0.1", default-features = false, features = ["async", "component-model", "debug-builtins", "pooling-allocator"] }
+wasmtime = { version = "18.0.1" }
+wasmtime-environ = { version = "18.0.1", default-features = false, features = ["component-model", "demangle"] }
+wasmtime-runtime = { version = "18.0.1", default-features = false, features = ["async", "component-model", "debug-builtins", "pooling-allocator"] }
 zeroize = { version = "1.7.0", features = ["zeroize_derive"] }
 
 [target.x86_64-apple-darwin.dependencies]

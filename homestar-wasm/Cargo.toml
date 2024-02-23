@@ -34,8 +34,8 @@ serde = { workspace = true }
 stacker = "0.1"
 thiserror = { workspace = true }
 tracing = { workspace = true }
-wasmparser = "0.118"
-wasmtime = { version = "17.0", default-features = false, features = [
+wasmparser = "0.200"
+wasmtime = { version = "18.0", default-features = false, features = [
   "async",
   "component-model",
   "cranelift",
@@ -43,13 +43,13 @@ wasmtime = { version = "17.0", default-features = false, features = [
   "pooling-allocator",
   "wat",
 ] }
-wasmtime-component-util = "17.0"
-wasmtime-wasi = { version = "17.0", default-features = false, features = [
+wasmtime-component-util = "18.0"
+wasmtime-wasi = { version = "18.0", default-features = false, features = [
   "tokio",
   "preview1-on-preview2",
 ] }
 wat = "1.200"
-wit-component = "0.19"
+wit-component = "0.200"
 
 [dev-dependencies]
 criterion = "0.5"
