@@ -74,19 +74,11 @@ impl Default for State {
 ///
 /// [WasiView]: wasmtime_wasi::preview2::WasiView
 impl wasmtime_wasi::preview2::WasiView for State {
-    fn table(&self) -> &wasmtime::component::ResourceTable {
-        &self.table
-    }
-
-    fn table_mut(&mut self) -> &mut wasmtime::component::ResourceTable {
+    fn table(&mut self) -> &mut wasmtime::component::ResourceTable {
         &mut self.table
     }
 
-    fn ctx(&self) -> &wasmtime_wasi::preview2::WasiCtx {
-        &self.wasi_ctx
-    }
-
-    fn ctx_mut(&mut self) -> &mut wasmtime_wasi::preview2::WasiCtx {
+    fn ctx(&mut self) -> &mut wasmtime_wasi::preview2::WasiCtx {
         &mut self.wasi_ctx
     }
 }
