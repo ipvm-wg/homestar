@@ -376,12 +376,10 @@ impl Settings {
     }
 }
 
-#[allow(dead_code)]
 fn config_file() -> PathBuf {
     config_dir().join("settings")
 }
 
-#[allow(dead_code)]
 fn config_file_with_extension(ext: &str) -> PathBuf {
     config_file().with_extension(ext)
 }
