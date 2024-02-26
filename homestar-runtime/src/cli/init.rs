@@ -191,9 +191,6 @@ fn handle_output_mode(
             // This seemingly convoluted match is to avoid the risk of a
             // TOCTOU race condition, where another process creates the file
             // in between this one checking for its existence and opening it.
-            //
-            // TODO: there should probably be a flag for non-interactive use
-            // that automatically overwrites the file.
             let settings_file = match settings_file {
                 Ok(file) => file,
                 Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
