@@ -46,6 +46,76 @@ pub struct Cli {
     pub command: Command,
 }
 
+/// Arguments for `init` command.
+#[derive(Debug, Clone, PartialEq, Args)]
+pub struct InitArgs {
+    /// Runtime configuration file (.toml).
+    #[arg(
+            short = 'o',
+            long = "output",
+            value_hint = clap::ValueHint::FilePath,
+            value_name = "OUTPUT",
+            help = "Path to write initialized configuration file (.toml) [optional]",
+            group = "init_sink"
+        )]
+    pub output_path: Option<PathBuf>,
+    /// Skip writing to disk.
+    #[arg(
+        long = "dry-run",
+        help = "Skip writing to disk",
+        default_value = "false",
+        help = "Skip writing to disk, instead writing configuration to stdout [optional]",
+        group = "init_sink"
+    )]
+    pub dry_run: bool,
+    /// Suppress auxiliary output.
+    #[arg(
+        short = 'q',
+        long = "quiet",
+        default_value = "false",
+        help = "Suppress auxiliary output [optional]"
+    )]
+    pub quiet: bool,
+    /// Force destructive operations without prompting.
+    #[arg(
+        short = 'f',
+        long = "force",
+        default_value = "false",
+        help = "Force destructive operations without prompting [optional]"
+    )]
+    pub force: bool,
+    /// Run in non-interactive mode by disabling all prompts.
+    #[arg(
+        long = "no-input",
+        default_value = "false",
+        help = "Run in non-interactive mode [optional]"
+    )]
+    pub no_input: bool,
+    /// The type of key to use for libp2p
+    #[arg(
+        long = "key-type",
+        value_name = "KEY_TYPE",
+        help = "The type of key to use for libp2p [optional]"
+    )]
+    pub key_type: Option<KeyTypeArg>,
+    /// The file to load the key from
+    #[arg(
+        long = "key-file",
+        value_name = "KEY_FILE",
+        help = "The path to the key file [optional]",
+        group = "init_key_arg"
+    )]
+    pub key_file: Option<PathBuf>,
+    /// The seed to use for generating the key
+    #[arg(
+        long = "key-seed",
+        value_name = "KEY_SEED",
+        help = "The seed to use for generating the key [optional]",
+        group = "init_key_arg"
+    )]
+    pub key_seed: Option<Option<String>>,
+}
+
 /// General RPC arguments for [Client] commands.
 ///
 /// [Client]: crate::network::rpc::Client
@@ -80,73 +150,7 @@ impl Default for RpcArgs {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Initialize a Homestar configuration.
-    Init {
-        /// Runtime configuration file (.toml).
-        #[arg(
-            short = 'o',
-            long = "output",
-            value_hint = clap::ValueHint::FilePath,
-            value_name = "OUTPUT",
-            help = "Path to write initialized configuration file (.toml) [optional]",
-            group = "init_sink"
-        )]
-        output_path: Option<PathBuf>,
-        /// Skip writing to disk.
-        #[arg(
-            long = "dry-run",
-            help = "Skip writing to disk",
-            default_value = "false",
-            help = "Skip writing to disk, instead writing configuration to stdout [optional]",
-            group = "init_sink"
-        )]
-        dry_run: bool,
-        /// Suppress auxiliary output.
-        #[arg(
-            short = 'q',
-            long = "quiet",
-            default_value = "false",
-            help = "Suppress auxiliary output [optional]"
-        )]
-        quiet: bool,
-        /// Force destructive operations without prompting.
-        #[arg(
-            short = 'f',
-            long = "force",
-            default_value = "false",
-            help = "Force destructive operations without prompting [optional]"
-        )]
-        force: bool,
-        /// Run in non-interactive mode by disabling all prompts.
-        #[arg(
-            long = "no-input",
-            default_value = "false",
-            help = "Run in non-interactive mode [optional]"
-        )]
-        no_input: bool,
-        /// The type of key to use for libp2p
-        #[arg(
-            long = "key-type",
-            value_name = "KEY_TYPE",
-            help = "The type of key to use for libp2p [optional]"
-        )]
-        key_type: Option<KeyTypeArg>,
-        /// The file to load the key from
-        #[arg(
-            long = "key-file",
-            value_name = "KEY_FILE",
-            help = "The path to the key file [optional]",
-            group = "init_key_arg"
-        )]
-        key_file: Option<PathBuf>,
-        /// The seed to use for generating the key
-        #[arg(
-            long = "key-seed",
-            value_name = "KEY_SEED",
-            help = "The seed to use for generating the key [optional]",
-            group = "init_key_arg"
-        )]
-        key_seed: Option<Option<String>>,
-    },
+    Init(InitArgs),
     /// Start the Homestar runtime.
     Start {
         /// Database URL, defaults to homestar.db.

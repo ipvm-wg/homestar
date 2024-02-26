@@ -7,15 +7,17 @@ use serde_with::{base64::Standard, formats::Padded, DeserializeAs, SerializeAs};
 use std::{
     fmt::Display,
     fs::File,
-    io::{empty, stdout, Write},
+    io::{empty, stdout, IsTerminal, Write},
     path::PathBuf,
     str::FromStr,
 };
 
 use crate::{
     settings::{KeyType, PubkeyConfig},
-    ExistingKeyPath, NetworkBuilder, NodeBuilder, RNGSeed, SettingsBuilder,
+    ExistingKeyPath, NetworkBuilder, NodeBuilder, RNGSeed, Settings, SettingsBuilder,
 };
+
+use super::InitArgs;
 
 /// Where to write the resulting configuration.
 #[derive(Debug)]
@@ -88,19 +90,35 @@ impl Display for PubkeyConfigOption {
 }
 
 /// Handle the `init` command.
-pub fn handle_init_command(
-    output_mode: OutputMode,
-    key_arg: Option<KeyArg>,
-    key_type_arg: Option<KeyTypeArg>,
-    quiet: bool,
-    no_input: bool,
-) -> Result<()> {
+pub fn handle_init_command(init_args: InitArgs) -> Result<()> {
+    let output_mode = if init_args.dry_run {
+        OutputMode::StdOut
+    } else {
+        OutputMode::File {
+            path: init_args.output_path.unwrap_or_else(Settings::path),
+            force: init_args.force,
+        }
+    };
+
+    let key_arg = init_args
+        .key_file
+        .map(|key_file| KeyArg::File { path: key_file })
+        .or_else(|| {
+            init_args
+                .key_seed
+                .map(|key_seed| KeyArg::Seed { seed: key_seed })
+        });
+
+    // Run non-interactively if the input device is not a TTY
+    // or if the `--no-input` flag is passed.
+    let no_input = init_args.no_input || !stdout().is_terminal();
+
     let mut settings_builder = SettingsBuilder::default();
     let mut node_builder = NodeBuilder::default();
     let mut network_builder = NetworkBuilder::default();
 
-    let mut writer = handle_quiet(quiet)?;
-    let key_type = handle_key_type(key_type_arg, no_input, &mut writer)?;
+    let mut writer = handle_quiet(init_args.quiet)?;
+    let key_type = handle_key_type(init_args.key_type, no_input, &mut writer)?;
     let keypair_config = handle_key(key_arg, key_type, no_input, &mut writer)?;
 
     let network = network_builder
