@@ -30,7 +30,8 @@ fn test_help_integration() -> Result<()> {
         .stdout(predicate::str::contains("ping"))
         .stdout(predicate::str::contains("run"))
         .stdout(predicate::str::contains("help"))
-        .stdout(predicate::str::contains("version"));
+        .stdout(predicate::str::contains("version"))
+        .stdout(predicate::str::contains("init"));
 
     Command::new(BIN.as_os_str())
         .arg("-h")
@@ -41,7 +42,8 @@ fn test_help_integration() -> Result<()> {
         .stdout(predicate::str::contains("ping"))
         .stdout(predicate::str::contains("run"))
         .stdout(predicate::str::contains("help"))
-        .stdout(predicate::str::contains("version"));
+        .stdout(predicate::str::contains("version"))
+        .stdout(predicate::str::contains("init"));
 
     Ok(())
 }
@@ -346,6 +348,55 @@ fn test_server_v4_integration() -> Result<()> {
         .success()
         .stdout(predicate::str::contains("127.0.0.1"))
         .stdout(predicate::str::contains("pong"));
+
+    Ok(())
+}
+
+#[test]
+#[serial_test::parallel]
+fn test_init_dry_run() -> Result<()> {
+    Command::new(BIN.as_os_str())
+        .arg("init")
+        .arg("--dry-run")
+        .arg("--no-input")
+        .arg("--key-type")
+        .arg("ed25519")
+        .arg("--key-seed")
+        .arg("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("key_type = \"ed25519\""))
+        .stdout(predicate::str::contains(
+            "seed = \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"",
+        ));
+
+    Ok(())
+}
+
+#[test]
+#[serial_test::parallel]
+fn test_init_interactive_no_tty() -> Result<()> {
+    Command::new(BIN.as_os_str())
+        .arg("init")
+        .arg("--dry-run")
+        .arg("--key-type")
+        .arg("ed25519")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "cannot prompt for key in non-interactive mode.",
+        ));
+
+    Command::new(BIN.as_os_str())
+        .arg("init")
+        .arg("--dry-run")
+        .arg("--key-seed")
+        .arg("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "cannot prompt for key type in non-interactive mode.",
+        ));
 
     Ok(())
 }
