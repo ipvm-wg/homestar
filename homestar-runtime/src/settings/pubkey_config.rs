@@ -1,6 +1,7 @@
 //! Pubkey configuration.
 
 use anyhow::{anyhow, Context};
+use clap::ValueEnum;
 use libp2p::{identity, identity::secp256k1};
 use rand::{Rng, SeedableRng};
 use sec1::der::Decode;
@@ -28,7 +29,7 @@ pub enum PubkeyConfig {
 }
 
 /// Supported key types of homestar
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, ValueEnum)]
 pub enum KeyType {
     /// Ed25519 key
     #[default]
