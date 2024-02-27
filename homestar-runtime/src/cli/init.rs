@@ -1,4 +1,3 @@
-use clap::ValueEnum;
 use inquire::{ui::RenderConfig, Confirm, CustomType, Select};
 use miette::{bail, miette, Result};
 use rand::Rng;
@@ -52,13 +51,6 @@ pub enum KeyArg {
         /// The base64 encoded 32 byte seed to use for key generation
         seed: Option<String>,
     },
-}
-
-/// The type of key to generate
-#[derive(Debug, Clone, PartialEq, ValueEnum)]
-pub enum KeyTypeArg {
-    Ed25519,
-    Secp256k1,
 }
 
 #[derive(Debug, Clone)]
@@ -228,13 +220,12 @@ fn handle_output_mode(
 }
 
 fn handle_key_type(
-    key_type: Option<KeyTypeArg>,
+    key_type: Option<KeyType>,
     no_input: bool,
     _writer: &mut Box<dyn Write>,
 ) -> Result<KeyType> {
     match key_type {
-        Some(KeyTypeArg::Ed25519) => Ok(KeyType::Ed25519),
-        Some(KeyTypeArg::Secp256k1) => Ok(KeyType::Secp256k1),
+        Some(key_type) => Ok(key_type),
         None => {
             if no_input {
                 bail!("Aborting... cannot prompt for key type in non-interactive mode. Pass `--key-type <KEY_TYPE>` to set it.");

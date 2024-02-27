@@ -3,6 +3,7 @@
 use crate::{
     network::rpc::Client,
     runner::{file, response},
+    KeyType,
 };
 use anyhow::anyhow;
 use clap::{ArgGroup, Args, Parser, Subcommand};
@@ -20,8 +21,6 @@ mod init;
 pub use init::{handle_init_command, KeyArg, OutputMode};
 pub(crate) mod show;
 pub use show::ConsoleTable;
-
-use self::init::KeyTypeArg;
 
 const DEFAULT_DB_PATH: &str = "homestar.db";
 const TMP_DIR: &str = "/tmp";
@@ -97,7 +96,7 @@ pub struct InitArgs {
         value_name = "KEY_TYPE",
         help = "The type of key to use for libp2p [optional]"
     )]
-    pub key_type: Option<KeyTypeArg>,
+    pub key_type: Option<KeyType>,
     /// The file to load the key from
     #[arg(
         long = "key-file",
