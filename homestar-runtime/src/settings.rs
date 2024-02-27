@@ -431,8 +431,7 @@ mod test {
     #[serial_test::parallel]
     fn default_config() {
         let settings = Settings::load().unwrap();
-        let default_config = Settings::build(Some("config/defaults.toml".into()))
-            .expect("default settings file in test fixtures");
+        let default_config = Settings::default();
         assert_eq!(settings, default_config);
     }
 
