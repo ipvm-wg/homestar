@@ -23,6 +23,7 @@ use tokio::fs;
 use tracing::info;
 
 #[allow(missing_docs, unused_imports)]
+#[rustfmt::skip]
 pub mod schema;
 pub(crate) mod utils;
 

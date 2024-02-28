@@ -99,8 +99,10 @@ pub(crate) struct Server {
 #[cfg(not(feature = "websocket-notify"))]
 #[derive(Clone, Debug)]
 pub(crate) struct Server {
-    /// Address of the server.
-    addr: SocketAddr,
+    /// V4 Address of the server.
+    v4_addr: SocketAddr,
+    /// V6 Address of the server.
+    v6_addr: SocketAddr,
     /// Message buffer capacity for the server.
     capacity: usize,
     /// Sender timeout for the [Sink] messages.
@@ -165,8 +167,8 @@ impl Server {
     #[cfg(not(feature = "websocket-notify"))]
     pub(crate) fn new(settings: &settings::Webserver) -> Result<Self> {
         let v4_host = IpAddr::from_str(&settings.v4_host.to_string())?;
-        let v6_host = IpAddr::from_str(&settings.v6_host.to_string())?;
-        let port_setting = settings.port;
+        let v6_host = ip::parse_ip_from_uri_host(&settings.v6_host.to_string())
+            .ok_or_else(|| anyhow!("unable to parse URI"))?;
 
         let port_setting = settings.port;
         let (v4_addr, v6_addr) = if port_available(v4_host, port_setting) {
