@@ -41,7 +41,7 @@ pub struct Receipt<T> {
 }
 
 impl<T> Receipt<T> {
-    ///
+    /// Create a new [Receipt].
     pub fn new(
         ran: Pointer,
         result: task::Result<T>,
