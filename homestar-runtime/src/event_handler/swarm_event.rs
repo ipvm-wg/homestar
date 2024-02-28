@@ -645,7 +645,7 @@ async fn handle_swarm_event<DB: Database>(
                                     debug!(
                                         subject = "libp2p.kad.get_record",
                                         category = "handle_swarm_event",
-                                        receipt_cid = receipt.cid().to_string(),
+                                        cid = receipt.cid().to_string(),
                                         instruction_cid = receipt.instruction().cid().to_string(),
                                         "found receipt record published by {}",
                                         match peer_id {

@@ -79,7 +79,7 @@ impl Resolver for Cid {
 
 /// A resolver for CIDs that may be available on the DHT.
 pub(crate) struct DHTResolver {
-    cids: FnvHashSet<Cid>,
+    cids: Arc<FnvHashSet<Cid>>,
     p2p_receipt_timeout: Duration,
     workflow_cid: Cid,
 }
@@ -87,7 +87,7 @@ pub(crate) struct DHTResolver {
 impl DHTResolver {
     /// Create a new [DHTResolver].
     pub(crate) fn new(
-        cids: FnvHashSet<Cid>,
+        cids: Arc<FnvHashSet<Cid>>,
         p2p_receipt_timeout: Duration,
         workflow_cid: Cid,
     ) -> Self {
@@ -104,7 +104,6 @@ where
     DB: Database,
 {
     async fn poll(&self, ctx: &Poller<DB>) -> Result<()> {
-        println!("polling DHTResolver: {:?}", self.cids);
         for cid in self.cids.iter() {
             let (tx, rx) = AsyncChannel::oneshot();
 

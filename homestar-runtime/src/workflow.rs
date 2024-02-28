@@ -136,7 +136,6 @@ impl Promises {
     }
 
     /// Return an iterator over the [Promises] in-flow and out-flow [Cid]s.
-    #[allow(dead_code)]
     pub(crate) fn iter(&self) -> impl Iterator<Item = (Origin, &Cid)> {
         let in_iter = self.in_flow.iter().map(|cid| (Origin::InFlow, cid));
         let out_iter = self.out_flow.iter().map(|cid| (Origin::OutFlow, cid));

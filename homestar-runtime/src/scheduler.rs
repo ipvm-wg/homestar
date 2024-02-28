@@ -69,7 +69,7 @@ pub(crate) struct TaskScheduler<'a> {
     pub(crate) run: Schedule<'a>,
 
     /// Set of Cids to possibly fetch from the DHT.
-    pub(crate) promises_to_resolve: FnvHashSet<Cid>,
+    pub(crate) promises_to_resolve: Arc<FnvHashSet<Cid>>,
 
     /// Step/batch to resume from.
     pub(crate) resume_step: Option<usize>,
@@ -111,7 +111,10 @@ impl<'a> TaskScheduler<'a> {
         let mut_graph = Arc::make_mut(&mut graph);
         let schedule = &mut mut_graph.schedule;
         let schedule_length = schedule.len();
+
+        // Gather all CIDs to resolve
         let mut cids_to_resolve = Vec::new();
+        // Gather all resources to fetch
         let mut resources_to_fetch = Vec::new();
         let mut linkmap = LinkMap::<task::Result<Arg>>::default();
 
@@ -125,7 +128,6 @@ impl<'a> TaskScheduler<'a> {
                         for rsc in resource.iter() {
                             resources_to_fetch.push((cid, rsc.clone()));
                         }
-                        cids_to_resolve.push(cid);
                     } else {
                         return Err(anyhow!("Resource not found for instruction {cid}"));
                     }
@@ -137,7 +139,6 @@ impl<'a> TaskScheduler<'a> {
                 if let Ok(found) = Db::find_instruction_pointers(&pointers, conn) {
                     for receipt in found.iter() {
                         resources_to_fetch.retain(|(cid, _)| *cid != receipt.instruction().cid());
-                        cids_to_resolve.retain(|cid| *cid != receipt.instruction().cid());
                         linkmap.insert(receipt.instruction().cid(), receipt.output_as_arg());
                     }
 
@@ -151,12 +152,17 @@ impl<'a> TaskScheduler<'a> {
             }
         }
 
-        // Fetch resources from the DHT.
+        // Add all CIDs not resolved to the list of CIDs to resolve.
+        cids_to_resolve.extend(resources_to_fetch.iter().map(|(cid, _)| *cid));
+
+        // Fetch resources from the DHT as a unique set.
         let resources_to_fetch: FnvHashSet<Resource> =
             resources_to_fetch.into_iter().map(|(_, rsc)| rsc).collect();
         let fetched_resources = fetch_fn(resources_to_fetch).await?;
 
-        // Store awaits outside of the workflow in our In-memory cache for resolving.
+        // Filter out promises/awaits outside of the workflow that
+        // have been already resolved and store them in our in-memory
+        // cache (linkmap).
         let promises_as_pointers =
             mut_graph
                 .awaiting
@@ -177,6 +183,8 @@ impl<'a> TaskScheduler<'a> {
                 linkmap.insert(receipt.instruction().cid(), receipt.output_as_arg());
             }
         }
+
+        // Convert the list of CIDs to resolve into a unique set.
         let promises_to_resolve: FnvHashSet<Cid> = cids_to_resolve.into_iter().collect();
 
         let (ran, run, resume_step) = if last_idx > 0 {
@@ -193,7 +201,7 @@ impl<'a> TaskScheduler<'a> {
         Ok(SchedulerContext {
             scheduler: Self {
                 linkmap: Arc::new(RwLock::new(linkmap)),
-                promises_to_resolve,
+                promises_to_resolve: Arc::new(promises_to_resolve),
                 ran,
                 run,
                 resume_step,

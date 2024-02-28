@@ -327,6 +327,9 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         assert!(retrieved_workflow_info_logged);
         assert!(retrieved_receipt_info_logged);
         assert!(committed_receipt);
+
+        let stored_receipt = Db::find_receipt_by_cid(put_receipt_cid, &mut db.conn().unwrap());
+        assert!(stored_receipt.is_ok());
     });
 
     Ok(())
