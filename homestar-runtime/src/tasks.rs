@@ -22,6 +22,7 @@ pub(crate) enum RegisteredTasks {
 }
 
 /// Trait for loading files for different task-types directly.
+#[allow(dead_code)]
 pub(crate) trait FileLoad {
     /// Load file asynchronously.
     async fn load(file: PathBuf) -> Result<Vec<u8>> {
