@@ -83,7 +83,6 @@ mod tests {
     use crate::{
         channel::{AsyncChannel, AsyncChannelSender},
         test_utils::db::MemoryDb,
-        Settings,
     };
 
     #[derive(Debug, Clone)]
@@ -99,12 +98,14 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[homestar_runtime_proc_macro::db_async_test]
     async fn polls_once() {
+        let settings = TestSettings::load();
         let (tx, rx) = AsyncChannel::with(1);
+        let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
         poll(
             TestResolver(tx),
-            MemoryDb::setup_connection_pool(Settings::load().unwrap().node(), None).unwrap(),
+            db,
             Arc::new(AsyncChannel::with(1).0),
             None,
         )
@@ -115,12 +116,14 @@ mod tests {
         assert!(rx.try_recv().is_err())
     }
 
-    #[tokio::test]
+    #[homestar_runtime_proc_macro::db_async_test]
     async fn polls_at_interval() {
+        let settings = TestSettings::load();
         let (tx, rx) = AsyncChannel::with(1);
+        let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
         poll_at_interval(
             TestResolver(tx),
-            MemoryDb::setup_connection_pool(Settings::load().unwrap().node(), None).unwrap(),
+            db,
             Arc::new(AsyncChannel::with(1).0),
             Duration::from_millis(10),
             None,

@@ -78,7 +78,6 @@ impl fmt::Display for Resource {
 /// [Dag]: dagga::Dag
 /// [Task]: homestar_invocation::Task
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub(crate) struct AOTContext<'a> {
     dag: Dag<'a>,
     awaiting: Promises,
@@ -606,7 +605,7 @@ mod test {
                 ("func".into(), Ipld::String("add_two".to_string())),
                 (
                     "args".into(),
-                    Ipld::List(vec![Ipld::try_from(promise1.clone()).unwrap()]),
+                    Ipld::List(vec![Ipld::from(promise1.clone())]),
                 ),
             ]))),
         );
