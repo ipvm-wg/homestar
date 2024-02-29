@@ -2,7 +2,7 @@
 //!
 //! [Instruction]: super::Instruction
 
-use crate::{Error, Unit};
+use crate::{ipld::schema, Error, Unit};
 use const_format::formatcp;
 use enum_as_inner::EnumAsInner;
 use generic_array::{
@@ -16,6 +16,7 @@ use schemars::{
     JsonSchema,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::{borrow::Cow, fmt, module_path};
 use uuid::Uuid;
 
@@ -103,17 +104,29 @@ impl JsonSchema for Nonce {
         Cow::Borrowed(formatcp!("{}::Nonce", module_path!()))
     }
 
-    fn json_schema(_gen: &mut SchemaGenerator) -> Schema {
-        let schema = SchemaObject {
-            instance_type: Some(SingleOrVec::Single(InstanceType::String.into())),
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        let mut schema = SchemaObject {
+            instance_type: None,
             metadata: Some(Box::new(Metadata {
                 description: Some(
-                    "A 12-byte or 16-byte nonce. Use empty string for no nonce.".to_string(),
+                    "A 12-byte or 16-byte nonce encoded as IPLD bytes. Use empty string for no nonce.".to_string(),
                 ),
                 ..Default::default()
             })),
             ..Default::default()
         };
+
+        let empty_string = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::String.into())),
+            const_value: Some(json!("")),
+            ..Default::default()
+        };
+
+        schema.subschemas().one_of = Some(vec![
+            gen.subschema_for::<schema::IpldBytesStub>(),
+            Schema::Object(empty_string),
+        ]);
+
         schema.into()
     }
 }
