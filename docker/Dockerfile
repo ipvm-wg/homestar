@@ -32,7 +32,7 @@ RUN cargo init --lib homestar-invocation && \
 RUN echo "fn main() {}" > ./homestar-runtime/src/main.rs
 
 RUN mkdir -p ./homestar-runtime/src/test_utils/proc_macro ./homestar-runtime/migrations \
-    ./examples ./homestar-functions ./homestar-schemas
+    ./homestar-runtime/src/db ./examples ./homestar-functions ./homestar-schemas
 RUN bash -c 'pushd ./examples && cargo init dummy-app-examples && popd'
 RUN bash -c 'pushd ./homestar-functions && cargo init dummy-app-fns && popd'
 RUN cargo init homestar-schemas
@@ -45,7 +45,8 @@ COPY ../homestar-workflow/Cargo.toml ./homestar-workflow/
 COPY ../homestar-wasm/Cargo.toml ./homestar-wasm/
 COPY ../homestar-runtime/Cargo.toml ./homestar-runtime/
 COPY ../homestar-runtime/migrations ./homestar-runtime/migrations
-COPY ../homestar-runtime/schemas/api.json ./homestar-runtime/schemas/api.json
+COPY ../homestar-runtime/src/db/schema.patch ./homestar-runtime/src/db/
+COPY ../homestar-runtime/schemas/api.json ./homestar-runtime/schemas/
 COPY ../homestar-runtime/src/test_utils/proc_macro ./homestar-runtime/src/test_utils/proc_macro
 
 ENTRYPOINT ["/bin/bash"]
