@@ -2,7 +2,7 @@ name: 📄 Schemas
 
 on:
   push:
-    branches: [main]
+    branches: [main, "release-plz-*"]
     # branches: [main, "**"]
 
 permissions:
@@ -26,6 +26,7 @@ jobs:
               - 'homestar-runtime/src/**'
               - 'homestar-schemas/src/**'
               - 'homestar-workflow/src/**'
+              - 'Cargo.toml'
 
   schemas:
     needs: changes
@@ -58,12 +59,17 @@ jobs:
         run: cargo run -p homestar-schemas
 
       - name: Check for modified schemas
-        id: git-check
+        id: git-check-schemas
         shell: bash
         run: echo modified=$(if [[ $(git diff homestar-runtime/schemas/) ]]; then echo "true"; else echo "false"; fi) >> $GITHUB_OUTPUT
 
+      - name: Check for updated version
+        id: git-check-manifest
+        shell: bash
+        run: echo modified=$(if [[ $(git diff Cargo.toml) ]]; then echo "true"; else echo "false"; fi) >> $GITHUB_OUTPUT
+
       - name: Push changes
-        if: steps.git-check.outputs.modified == 'true'
+        if: ${{ steps.git-check-schemas.outputs.modified == 'true' || steps.git-check-manifest.outputs.modified == 'true' }}
         run: |
           git config user.name "${GITHUB_ACTOR}"
           git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
