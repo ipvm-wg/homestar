@@ -1393,8 +1393,16 @@
                 ],
                 "properties": {
                   "nnc": {
-                    "description": "A 12-byte or 16-byte nonce. Use empty string for no nonce.",
-                    "type": "string"
+                    "description": "A 12-byte or 16-byte nonce encoded as IPLD bytes. Use empty string for no nonce.",
+                    "oneOf": [
+                      {
+                        "$ref": "#/definitions/ipld_bytes"
+                      },
+                      {
+                        "type": "string",
+                        "const": ""
+                      }
+                    ]
                   },
                   "op": {
                     "description": "Function executor",
