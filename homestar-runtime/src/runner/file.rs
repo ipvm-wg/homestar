@@ -116,4 +116,26 @@ mod test {
             workflow_file.validate_and_parse().await.unwrap();
         assert_eq!(workflow, newly_validated_workflow);
     }
+
+    #[tokio::test]
+    async fn validate_and_parse_workflow_with_nonce() {
+        let path = PathBuf::from("./fixtures/test_nonce.json");
+        let config = Resources::default();
+        let (instruction, _) = test_utils::wasm_instruction_with_nonce::<Arg>();
+
+        let task = Task::new(
+            RunInstruction::Expanded(instruction.clone()),
+            config.clone().into(),
+            UcanPrf::default(),
+        );
+
+        let workflow = Workflow::new(vec![task]);
+
+        workflow.to_file(path.display().to_string()).unwrap();
+        let workflow_file = ReadWorkflow { file: path.clone() };
+
+        let (validated_workflow, _settings) = workflow_file.validate_and_parse().await.unwrap();
+
+        assert_eq!(workflow, validated_workflow);
+    }
 }
