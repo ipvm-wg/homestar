@@ -160,9 +160,12 @@ pub(crate) struct Rpc {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub(crate) struct Webserver {
-    /// Webserver host address.
+    /// V4 Webserver host address.
     #[serde(with = "http_serde::uri")]
-    pub(crate) host: Uri,
+    pub(crate) v4_host: Uri,
+    /// V6 (fallback) Webserver host address.
+    #[serde(with = "http_serde::uri")]
+    pub(crate) v6_host: Uri,
     /// Webserver-server port.
     pub(crate) port: u16,
     /// Webserver timeout.
@@ -300,7 +303,8 @@ impl Default for Rpc {
 impl Default for Webserver {
     fn default() -> Self {
         Self {
-            host: Uri::from_static("127.0.0.1"),
+            v4_host: Uri::from_static("127.0.0.1"),
+            v6_host: Uri::from_static("[::1]"),
             port: 1337,
             timeout: Duration::new(120, 0),
             websocket_capacity: 2048,

@@ -23,6 +23,7 @@ use tokio::fs;
 use tracing::info;
 
 #[allow(missing_docs, unused_imports)]
+#[rustfmt::skip]
 pub mod schema;
 pub(crate) mod utils;
 
@@ -246,6 +247,20 @@ pub trait Database: Send + Sync + Clone {
         } else {
             Ok(workflow)
         }
+    }
+
+    /// Update workflow status given a Cid to the workflow.
+    fn set_workflow_status(
+        workflow_cid: Cid,
+        status: workflow::Status,
+        conn: &mut Connection,
+    ) -> Result<(), diesel::result::Error> {
+        diesel::update(schema::workflows::dsl::workflows)
+            .filter(schema::workflows::cid.eq(Pointer::new(workflow_cid)))
+            .set(schema::workflows::status.eq(status))
+            .execute(conn)?;
+
+        Ok(())
     }
 
     /// Store workflow Cid and [Receipt] Cid in the database for inner join.

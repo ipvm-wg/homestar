@@ -2,12 +2,13 @@
 
 use crate::{
     db::Database,
-    runner,
+    ip, runner,
     runner::{DynamicNodeInfo, StaticNodeInfo, WsSender},
     settings,
 };
 use anyhow::{anyhow, Result};
 use faststr::FastStr;
+use futures::future::{self, Either};
 use homestar_wasm::io::Arg;
 use homestar_workflow::Workflow;
 use http::{
@@ -15,24 +16,25 @@ use http::{
     method::Method,
 };
 use jsonrpsee::server::{
-    middleware::http::ProxyGetRequestLayer, RandomStringIdProvider, ServerHandle,
+    middleware::http::ProxyGetRequestLayer, stop_channel, RandomStringIdProvider, ServerHandle,
 };
 use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
 use std::{
     iter::once,
-    net::{IpAddr, SocketAddr, TcpListener},
+    net::{IpAddr, SocketAddr},
+    pin::Pin,
     str::FromStr,
     time::Duration,
 };
-use tokio::runtime::Handle;
 #[cfg(feature = "websocket-notify")]
 use tokio::sync::broadcast;
+use tokio::{net::TcpListener, runtime::Handle, select};
 use tower_http::{
     cors::{self, CorsLayer},
     sensitive_headers::SetSensitiveRequestHeadersLayer,
 };
-use tracing::info;
+use tracing::{debug, error, info};
 
 pub(crate) mod listener;
 #[cfg(feature = "websocket-notify")]
@@ -54,7 +56,6 @@ use rpc::{Context, JsonRpc};
 #[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) enum Message {
-    /// Error attempting to run a [Workflow].
     RunErr(runner::Error),
     /// Run a workflow, given a tuple of name, and [Workflow].
     RunWorkflow((FastStr, Workflow<'static, Arg>)),
@@ -74,8 +75,10 @@ pub(crate) enum Message {
 #[cfg(feature = "websocket-notify")]
 #[derive(Clone, Debug)]
 pub(crate) struct Server {
-    /// Address of the server.
-    addr: SocketAddr,
+    /// V4 Address of the server.
+    v4_addr: SocketAddr,
+    /// V6 Address of the server.
+    v6_addr: SocketAddr,
     /// Message buffer capacity for the server.
     capacity: usize,
     /// Message sender for broadcasting internal events to clients connected to
@@ -96,8 +99,10 @@ pub(crate) struct Server {
 #[cfg(not(feature = "websocket-notify"))]
 #[derive(Clone, Debug)]
 pub(crate) struct Server {
-    /// Address of the server.
-    addr: SocketAddr,
+    /// V4 Address of the server.
+    v4_addr: SocketAddr,
+    /// V6 Address of the server.
+    v6_addr: SocketAddr,
     /// Message buffer capacity for the server.
     capacity: usize,
     /// Sender timeout for the [Sink] messages.
@@ -127,19 +132,29 @@ impl Server {
     pub(crate) fn new(settings: &settings::Webserver) -> Result<Self> {
         let (evt_sender, _receiver) = Self::setup_channel(settings.websocket_capacity);
         let (msg_sender, _receiver) = Self::setup_channel(settings.websocket_capacity);
-        let host = IpAddr::from_str(&settings.host.to_string())?;
+        let v4_host = IpAddr::from_str(&settings.v4_host.to_string())?;
+        let v6_host = ip::parse_ip_from_uri_host(&settings.v6_host.to_string())
+            .ok_or_else(|| anyhow!("unable to parse URI"))?;
+
         let port_setting = settings.port;
-        let addr = if port_available(host, port_setting) {
-            SocketAddr::from((host, port_setting))
+        let (v4_addr, v6_addr) = if port_available(v4_host, port_setting) {
+            (
+                SocketAddr::from((v4_host, port_setting)),
+                SocketAddr::from((v6_host, port_setting)),
+            )
         } else {
             let port = (port_setting..port_setting + 1000)
-                .find(|port| port_available(host, *port))
+                .find(|port| port_available(v4_host, *port))
                 .ok_or_else(|| anyhow!("no free TCP ports available"))?;
-            SocketAddr::from((host, port))
+            (
+                SocketAddr::from((v6_host, port)),
+                SocketAddr::from((v6_host, port)),
+            )
         };
 
         Ok(Self {
-            addr,
+            v4_addr,
+            v6_addr,
             capacity: settings.websocket_capacity,
             evt_notifier: Notifier::new(evt_sender),
             workflow_msg_notifier: Notifier::new(msg_sender),
@@ -151,19 +166,29 @@ impl Server {
     /// Set up a new [Server] instance, which only acts as an HTTP server.
     #[cfg(not(feature = "websocket-notify"))]
     pub(crate) fn new(settings: &settings::Webserver) -> Result<Self> {
-        let host = IpAddr::from_str(&settings.host.to_string())?;
+        let v4_host = IpAddr::from_str(&settings.v4_host.to_string())?;
+        let v6_host = ip::parse_ip_from_uri_host(&settings.v6_host.to_string())
+            .ok_or_else(|| anyhow!("unable to parse URI"))?;
+
         let port_setting = settings.port;
-        let addr = if port_available(host, port_setting) {
-            SocketAddr::from((host, port_setting))
+        let (v4_addr, v6_addr) = if port_available(v4_host, port_setting) {
+            (
+                SocketAddr::from((v4_host, port_setting)),
+                SocketAddr::from((v6_host, port_setting)),
+            )
         } else {
             let port = (port_setting..port_setting + 1000)
-                .find(|port| port_available(host, *port))
+                .find(|port| port_available(v4_host, *port))
                 .ok_or_else(|| anyhow!("no free TCP ports available"))?;
-            SocketAddr::from((host, port))
+            (
+                SocketAddr::from((v6_host, port)),
+                SocketAddr::from((v6_host, port)),
+            )
         };
 
         Ok(Self {
-            addr,
+            v4_addr,
+            v6_addr,
             capacity: settings.websocket_capacity,
             sender_timeout: settings.websocket_sender_timeout,
             webserver_timeout: settings.timeout,
@@ -228,12 +253,12 @@ impl Server {
         &self,
         module: JsonRpc<DB>,
     ) -> Result<ServerHandle> {
-        let addr = self.addr;
         info!(
             subject = "webserver.start",
             category = "webserver",
-            "webserver listening on {}",
-            addr
+            "webserver listening on {}/{}",
+            self.v4_addr,
+            self.v6_addr
         );
 
         let cors = CorsLayer::new()
@@ -259,25 +284,70 @@ impl Server {
             .timeout(self.webserver_timeout);
 
         let runtime_hdl = Handle::current();
+        let listener_v4 = TcpListener::bind(&self.v4_addr).await?;
+        let listener_v6 = TcpListener::bind(&self.v6_addr).await?;
+        let (stop_hdl, server_hdl) = stop_channel();
 
-        let server = jsonrpsee::server::Server::builder()
+        let svc = jsonrpsee::server::Server::builder()
             .custom_tokio_runtime(runtime_hdl.clone())
             .set_http_middleware(middleware)
             .set_id_provider(Box::new(RandomStringIdProvider::new(16)))
             .set_message_buffer_capacity(self.capacity as u32)
-            .build(addr)
-            .await
-            .expect("Webserver to startup");
+            .to_service_builder()
+            .build(module.into_inner(), stop_hdl.clone());
 
-        let hdl = server.start(module.into_inner());
-        runtime_hdl.spawn(hdl.clone().stopped());
+        runtime_hdl.clone().spawn(async move {
+            loop {
+                let stream = select! {
+                    result = listener_v4.accept() => {
+                        if let Ok((stream, _remote_addr)) = result {
+                            stream
+                        } else {
+                            continue
+                        }
+                    }
+                    result = listener_v6.accept() => {
+                        if let Ok((stream, _remote_addr)) = result {
+                            stream
+                        } else {
+                            continue
+                        }
+                    }
+                    _ = stop_hdl.clone().shutdown() => break,
+                };
 
-        Ok(hdl)
+                let svc = svc.clone();
+                let stop_hdl2 = stop_hdl.clone();
+                runtime_hdl.spawn(async move {
+                    let conn = hyper::server::conn::Http::new()
+                        .serve_connection(stream, svc)
+                        .with_upgrades();
+
+                    let stopped = stop_hdl2.shutdown();
+                    tokio::pin!(stopped);
+
+                    let res = match future::select(conn, stopped).await {
+                        Either::Left((conn, _)) => conn,
+                        Either::Right((_, mut conn)) => {
+                            debug!("graceful shutdown of HTTP connection");
+                            Pin::new(&mut conn).graceful_shutdown();
+                            conn.await
+                        }
+                    };
+
+                    if let Err(err) = res {
+                        error!(err=?err, "HTTP connection failed");
+                    }
+                });
+            }
+        });
+
+        Ok(server_hdl)
     }
 }
 
 fn port_available(host: IpAddr, port: u16) -> bool {
-    TcpListener::bind((host.to_string(), port)).is_ok()
+    std::net::TcpListener::bind((host.to_string(), port)).is_ok()
 }
 
 #[cfg(test)]
@@ -309,17 +379,47 @@ mod test {
     }
 
     #[homestar_runtime_proc_macro::runner_test]
-    fn ws_connect() {
+    fn ws_connect_v4() {
         let TestRunner { runner, settings } = TestRunner::start();
         runner.runtime.block_on(async {
             let server = Server::new(settings.node().network().webserver()).unwrap();
             let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
             let metrics_hdl = metrics_handle().await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
-            server.start(runner_tx, metrics_hdl, db).await.unwrap();
+            let _ws_hdl = server.start(runner_tx, metrics_hdl, db).await.unwrap();
 
-            let ws_url = format!("ws://{}", server.addr);
-            let http_url = format!("http://{}", server.addr);
+            let ws_url = format!("ws://{}", server.v4_addr);
+            let http_url = format!("http://{}", server.v4_addr);
+
+            tokio_tungstenite::connect_async(ws_url.clone())
+                .await
+                .unwrap();
+
+            let client = WsClientBuilder::default().build(ws_url).await.unwrap();
+            let ws_resp: serde_json::Value = client
+                .request(rpc::HEALTH_ENDPOINT, rpc_params![])
+                .await
+                .unwrap();
+            assert_eq!(ws_resp, serde_json::json!({"healthy": true }));
+            let http_resp = reqwest::get(format!("{}/health", http_url)).await.unwrap();
+            assert_eq!(http_resp.status(), 200);
+            let http_resp = http_resp.json::<serde_json::Value>().await.unwrap();
+            assert_eq!(http_resp, serde_json::json!({"healthy": true }));
+        });
+    }
+
+    #[homestar_runtime_proc_macro::runner_test]
+    fn ws_connect_v6() {
+        let TestRunner { runner, settings } = TestRunner::start();
+        runner.runtime.block_on(async {
+            let server = Server::new(settings.node().network().webserver()).unwrap();
+            let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
+            let metrics_hdl = metrics_handle().await;
+            let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
+            let _ws_hdl = server.start(runner_tx, metrics_hdl, db).await.unwrap();
+
+            let ws_url = format!("ws://{}", server.v6_addr);
+            let http_url = format!("http://{}", server.v6_addr);
 
             tokio_tungstenite::connect_async(ws_url.clone())
                 .await
@@ -347,9 +447,9 @@ mod test {
             let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
             let metrics_hdl = metrics_handle().await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
-            server.start(runner_tx, metrics_hdl, db).await.unwrap();
+            let _ws_hdl = server.start(runner_tx, metrics_hdl, db).await.unwrap();
 
-            let ws_url = format!("ws://{}", server.addr);
+            let ws_url = format!("ws://{}", server.v4_addr);
 
             let client1 = WsClientBuilder::default().build(ws_url).await.unwrap();
             let mut sub: Subscription<Vec<u8>> = client1
@@ -423,9 +523,9 @@ mod test {
             let db = MemoryDb::setup_connection_pool(settings.node(), None).unwrap();
             let metrics_hdl = metrics_handle().await;
             let (runner_tx, _runner_rx) = AsyncChannel::oneshot();
-            server.start(runner_tx, metrics_hdl, db).await.unwrap();
+            let _ws_hdl = server.start(runner_tx, metrics_hdl, db).await.unwrap();
 
-            let ws_url = format!("ws://{}", server.addr);
+            let ws_url = format!("ws://{}", server.v4_addr);
 
             let client = WsClientBuilder::default().build(ws_url).await.unwrap();
             let sub: Result<Subscription<Vec<u8>>, ClientError> = client

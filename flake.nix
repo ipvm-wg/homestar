@@ -47,11 +47,22 @@
         pkgs = import nixpkgs {inherit system overlays;};
         unstable = import nixos-unstable {inherit system overlays;};
 
-        rust-toolchain = fenix.packages.${system}.fromToolchainFile {
+        file-toolchain = fenix.packages.${system}.fromToolchainFile {
           file = ./rust-toolchain.toml;
           # sha256 = pkgs.lib.fakeSha256;
           sha256 = "sha256-e4mlaJehWBymYxJGgnbuCObVlqMlQSilZ8FljG9zPHY=";
         };
+
+        default-toolchain = fenix.packages.${system}.complete.withComponents [
+          "cargo"
+          "clippy"
+          "llvm-tools-preview"
+          "rustfmt"
+          "rust-src"
+          "rust-std"
+        ];
+
+        rust-toolchain = fenix.packages.${system}.combine [file-toolchain default-toolchain];
 
         rustPlatform = pkgs.makeRustPlatform {
           cargo = rust-toolchain;

@@ -168,6 +168,7 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
             .output();
 
         // Poll for put receipt and workflow info messages
+        let mut put_receipt_cid: Cid = Cid::default();
         let mut put_receipt = false;
         let mut put_workflow_info = false;
         let mut receipt_quorum_success = false;
@@ -178,6 +179,9 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
 
                 if json["put_receipt_dht"].is_object() {
+                    put_receipt_cid =
+                        Cid::from_str(json["put_receipt_dht"]["cid"].as_str().unwrap())
+                            .expect("Unable to parse put receipt CID.");
                     put_receipt = true;
                 } else if json["put_workflow_info_dht"].is_object() {
                     put_workflow_info = true;
@@ -210,35 +214,37 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
             }
         }
 
-        // TODO Bring back tests for receipts retrieved from DHT
-        // both here and below.
+        // TODO: Test full-flow for Receipt pull from DHT
+        //
+        // Polling on the workflow results will fail the first time around due
+        // to the purposeful race condition between grabbing a receipt from the
+        // DHT (outside the workflow) and running the workflow on the node
+        // itself.
+        //
+        // Step 2:
+        // a) We've started on the implementation of retries, which if a
+        //    Cid (outside the workflow) cannot be resolved, the workflow's
+        //    promises can be picked-up again by a background polling mechanism and
+        //    resolved separately or the worker itself can retry (possibly both
+        //    options) before having the runner cancel it.
+        // b) This will also involve work around checking if a task/promise even is
+        //    running anywhere (if outside the given workflow).
 
-        // Run test workflow on node two.
-        // The task in this workflow awaits the task run on node one,
-        // which forces it to retrieve the result from the DHT.
-        // let _ = Command::new(BIN.as_os_str())
-        //     .arg("run")
-        //     .arg("-p")
-        //     .arg(rpc_port2.to_string())
-        //     .arg("tests/fixtures/test-workflow-add-one-part-two.json")
-        //     .output();
+        let _ = Command::new(BIN.as_os_str())
+            .arg("run")
+            .arg("-p")
+            .arg(rpc_port2.to_string())
+            .arg("tests/fixtures/test-workflow-add-one-part-two.json")
+            .output();
 
-        // Poll for got receipt message
-        // let received_receipt_cid: Cid;
-        // loop {
-        //     if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(120)).await {
-        //         let json: serde_json::Value =
-        //             serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-        //         if json["got_receipt_dht"].is_object() {
-        //             received_receipt_cid = Cid::from_str(json["got_receipt_dht"]["cid"].as_str().unwrap())
-        //                 .expect("Unable to parse received receipt CID.");
-        //             break;
-        //         }
-        //     } else {
-        //         panic!("Node two did not get receipt in time.")
-        //     }
-        // }
+        // Check database for stored receipt and workflow info
+        let config_fixture = config2.filename();
+        let settings = Settings::load_from_file(PathBuf::from(config_fixture)).unwrap();
+        let db = Db::setup_connection_pool(
+            settings.node(),
+            Some(proc_info2.db_path.display().to_string()),
+        )
+        .expect("Failed to connect to node two database");
 
         // Run the same workflow run on node one to retrieve
         // workflow info that should be available on the DHT.
@@ -269,24 +275,6 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
             }
         }
 
-        // Check database for stored receipt and workflow info
-        let config_fixture = config2.filename();
-        let settings = Settings::load_from_file(PathBuf::from(config_fixture)).unwrap();
-        let db = Db::setup_connection_pool(
-            settings.node(),
-            Some(proc_info2.db_path.display().to_string()),
-        )
-        .expect("Failed to connect to node two database");
-
-        // let stored_receipt: Receipt =
-        //     Db::find_receipt_by_cid(received_receipt_cid, &mut db.conn().unwrap()).unwrap_or_else(
-        //         |_| {
-        //             panic!(
-        //                 "Failed to find receipt with CID {} in database",
-        //                 received_receipt_cid
-        //             )
-        //         },
-        //     );
         let stored_workflow_info =
             Db::get_workflow_info(received_workflow_info_cid, &mut db.conn().unwrap());
 
@@ -315,19 +303,33 @@ fn test_libp2p_dht_records_integration() -> Result<()> {
         assert!(receipt_quorum_success_logged);
         assert!(workflow_info_quorum_success_logged);
 
-        // // Check node two received a receipt and workflow info from node one
-        // let retrieved_receipt_logged = check_for_line_with(
-        //     stdout2.clone(),
-        //     vec![
-        //         "found receipt record",
-        //         ED25519MULTIHASH,
-        //     ],
-        // );
-        let retrieved_workflow_info_logged =
-            check_for_line_with(stdout2, vec!["found workflow info", ED25519MULTIHASH]);
+        let retrieved_workflow_info_logged = check_for_line_with(
+            stdout2.clone(),
+            vec!["found workflow info", ED25519MULTIHASH],
+        );
 
-        // assert!(retrieved_receipt_logged);
+        let retrieved_receipt_info_logged = check_for_line_with(
+            stdout2.clone(),
+            vec!["found receipt record", ED25519MULTIHASH],
+        );
+
+        // this may race with the executed one on the non-await version, but we
+        // have a separated log.
+        let committed_receipt = check_for_line_with(
+            stdout2,
+            vec![
+                "committed to database",
+                "dht.resolver",
+                &put_receipt_cid.to_string(),
+            ],
+        );
+
         assert!(retrieved_workflow_info_logged);
+        assert!(retrieved_receipt_info_logged);
+        assert!(committed_receipt);
+
+        let stored_receipt = Db::find_receipt_by_cid(put_receipt_cid, &mut db.conn().unwrap());
+        assert!(stored_receipt.is_ok());
     });
 
     Ok(())
@@ -1017,8 +1019,6 @@ fn test_libp2p_dht_workflow_info_provider_recursive_integration() -> Result<()> 
             if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-                println!("node1: {json}");
 
                 if json["connection_established"].is_object() {
                     assert_eq!(

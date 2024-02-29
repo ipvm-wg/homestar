@@ -23,7 +23,6 @@ use crate::{
     Db, Receipt,
 };
 use anyhow::{anyhow, Result};
-use async_trait::async_trait;
 use libipld::Cid;
 #[cfg(feature = "websocket-notify")]
 use libp2p::Multiaddr;
@@ -86,7 +85,6 @@ pub(crate) struct WorkflowInfoEvent {
     pub(crate) workflow_source: notification::WorkflowInfoSource,
 }
 
-#[async_trait]
 impl<DB> Handler<DB> for SwarmEvent<ComposedEvent>
 where
     DB: Database + Sync,
@@ -648,6 +646,7 @@ async fn handle_swarm_event<DB: Database>(
                                         subject = "libp2p.kad.get_record",
                                         category = "handle_swarm_event",
                                         cid = receipt.cid().to_string(),
+                                        instruction_cid = receipt.instruction().cid().to_string(),
                                         "found receipt record published by {}",
                                         match peer_id {
                                             Some(peer) => peer.to_string(),

@@ -3,6 +3,7 @@
 
 [print_schema]
 file = "homestar-runtime/src/db/schema.rs"
+patch_file = "homestar-runtime/src/db/schema.patch"
 
 [migrations_directory]
 dir = "homestar-runtime/migrations"

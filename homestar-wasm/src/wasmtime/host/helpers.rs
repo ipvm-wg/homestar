@@ -4,9 +4,10 @@ use crate::wasmtime::{
     world::{homestar::host::helpers, wasi},
     State,
 };
+use async_trait::async_trait;
 use std::time::Instant;
 
-#[async_trait::async_trait]
+#[async_trait]
 impl helpers::Host for State {
     /// Get the current time.
     async fn get_current_time(&mut self) -> wasmtime::Result<helpers::Time> {
@@ -26,7 +27,7 @@ impl helpers::Host for State {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl wasi::logging::logging::Host for State {
     /// Log a message, formatted by the runtime subscriber.
     async fn log(

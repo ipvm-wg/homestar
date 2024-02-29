@@ -101,7 +101,7 @@ impl show::ConsoleTable for AckWorkflow {
         }
 
         // If there are no replayed receipts, add a placeholder row.
-        if receipt_table_builder.count_rows() == 1 {
+        if receipt_table_builder.count_records() == 1 {
             receipt_table_builder.push_record([
                 "<none>".to_string(),
                 "".to_string(),
@@ -192,7 +192,7 @@ impl show::ConsoleTable for AckNodeInfo {
         let mut conns_table_builder = tabled::builder::Builder::from_iter(conns);
 
         // If there are no connections, add a placeholder row.
-        if conns_table_builder.count_rows() == 0 {
+        if conns_table_builder.count_records() == 0 {
             conns_table_builder.push_record([
                 "Connections".to_string(),
                 "".to_string(),

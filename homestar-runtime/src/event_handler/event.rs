@@ -21,7 +21,6 @@ use crate::{
     workflow, Db, Receipt,
 };
 use anyhow::Result;
-use async_trait::async_trait;
 #[cfg(feature = "websocket-notify")]
 use homestar_invocation::Pointer;
 use homestar_invocation::Receipt as InvocationReceipt;
@@ -701,7 +700,6 @@ impl PeerRequest {
     }
 }
 
-#[async_trait]
 impl<DB> Handler<DB> for Event
 where
     DB: Database,

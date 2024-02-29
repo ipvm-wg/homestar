@@ -40,6 +40,7 @@ pub(crate) fn emit_receipt(
             subject = "notification.receipt",
             category = "notification",
             cid = receipt_cid.to_string(),
+            instruction_cid = receipt.instruction().cid().to_string(),
             "emitting receipt to WebSocket"
         );
         if let Some(ipld) = metadata {

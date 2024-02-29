@@ -571,8 +571,9 @@ impl Runner {
     }
 
     /// Sequence for shutting down a [Runner], including:
-    /// a) RPC and runner-related channels.
-    /// b) Event-handler channels.
+    /// a) RPC (CLI)
+    /// b) Webserver
+    /// b) Event-handler channels
     /// c) Running workers
     async fn shutdown(
         &self,
@@ -590,8 +591,9 @@ impl Runner {
             category = "homestar.shutdown",
             "shutting down webserver"
         );
+
         let _ = ws_hdl.stop();
-        ws_hdl.clone().stopped().await;
+        ws_hdl.stopped().await;
 
         let (shutdown_sender, shutdown_receiver) = AsyncChannel::oneshot();
         let _ = self
@@ -741,6 +743,8 @@ impl Runner {
         );
 
         // Provide workflow to network.
+        //
+        // This essentially says, I'm running this workflow Cid.
         self.event_sender
             .send_async(Event::ProvideRecord(
                 worker.workflow_info.cid,

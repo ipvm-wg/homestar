@@ -37,8 +37,8 @@ mod info;
 pub mod settings;
 
 pub(crate) use error::Error;
-pub use info::WORKFLOW_TAG;
 pub(crate) use info::{Info, Stored, StoredReceipt};
+pub use info::{Status, StatusMapping, WORKFLOW_TAG};
 #[allow(unused_imports)]
 pub use settings::Settings;
 
@@ -80,6 +80,7 @@ impl fmt::Display for Resource {
 #[derive(Debug, Clone)]
 pub(crate) struct AOTContext<'a> {
     dag: Dag<'a>,
+    awaiting: Promises,
     indexed_resources: IndexedResources,
 }
 
@@ -108,6 +109,37 @@ pub(crate) struct Vertex<'a> {
     pub(crate) instruction: Instruction<'a, Arg>,
     pub(crate) parsed: Parsed<Arg>,
     pub(crate) invocation: Pointer,
+}
+
+/// [Origin] of a [Cid] being in/not-in a [Workflow] itself.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Origin {
+    /// [Cid] awaits an instruction/task in the [Workflow].
+    InFlow,
+    /// [Cid] awaits an instruction/task outside of the [Workflow].
+    OutFlow,
+}
+
+/// [Workflow] promises being awaited on.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub(crate) struct Promises {
+    pub(crate) in_flow: Vec<Cid>,
+    pub(crate) out_flow: Vec<Cid>,
+}
+
+impl Promises {
+    /// Create a new [Promises] object from a given pair of
+    /// in-flow and out-flow [Cid]s.
+    pub(crate) fn new(in_flow: Vec<Cid>, out_flow: Vec<Cid>) -> Promises {
+        Promises { in_flow, out_flow }
+    }
+
+    /// Return an iterator over the [Promises] in-flow and out-flow [Cid]s.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (Origin, &Cid)> {
+        let in_iter = self.in_flow.iter().map(|cid| (Origin::InFlow, cid));
+        let out_iter = self.out_flow.iter().map(|cid| (Origin::OutFlow, cid));
+        in_iter.chain(out_iter)
+    }
 }
 
 impl<'a> Vertex<'a> {
@@ -150,6 +182,7 @@ impl<'a> Builder<'a> {
         match aot.dag.build_schedule() {
             Ok(schedule) => Ok(ExecutionGraph {
                 schedule: schedule.batches,
+                awaiting: aot.awaiting,
                 indexed_resources: aot.indexed_resources,
             }),
             Err(e) => homestar_invocation::bail!(Error::InvalidSchedule(e.to_string())),
@@ -158,10 +191,23 @@ impl<'a> Builder<'a> {
 
     fn aot(self) -> anyhow::Result<AOTContext<'a>> {
         let lookup_table = self.lookup_table()?;
-        let (mut dag, unawaits, awaited, resources) =
+        let (mut dag, unawaits, awaited, promised_cids, resources) =
             self.into_inner().tasks().into_iter().enumerate().try_fold(
-                (Dag::default(), vec![], vec![], IndexMap::new()),
-                |(mut dag, mut unawaits, mut awaited, mut resources), (i, task)| {
+                (
+                    Dag::default(),
+                    vec![],
+                    vec![],
+                    (vec![], vec![]),
+                    IndexMap::new(),
+                ),
+                |(
+                    mut dag,
+                    mut unawaits,
+                    mut awaited,
+                    (mut in_flows, mut out_flows),
+                    mut resources,
+                ),
+                 (i, task)| {
                     let instr_cid = task.instruction_cid()?;
                     debug!(
                         subject = "task.instruction",
@@ -181,17 +227,18 @@ impl<'a> Builder<'a> {
                         .entry(instr_cid)
                         .or_insert_with(|| vec![Resource::Url(instr.resource().to_owned())]);
                     let parsed = instr.input().parse()?;
-                    let reads = parsed
-                        .args()
-                        .deferreds()
-                        .fold(vec![], |mut in_flow_reads, cid| {
-                            if let Some(v) = lookup_table.get(&cid) {
-                                in_flow_reads.push(*v)
-                            }
-                            // TODO: else, it's a Promise from another task outside
-                            // of the workflow.
-                            in_flow_reads
-                        });
+                    let deferred = parsed.args().deferreds();
+                    let reads = deferred.fold(vec![], |mut in_flow_reads, cid| {
+                        if let Some(v) = lookup_table.get(&cid) {
+                            in_flows.push(cid);
+                            in_flow_reads.push(*v)
+                        } else {
+                            out_flows.push(cid);
+                        }
+                        // TODO: else, it's a Promise from another task outside
+                        // of the workflow.
+                        in_flow_reads
+                    });
 
                     parsed.args().links().for_each(|cid| {
                         resources
@@ -213,7 +260,13 @@ impl<'a> Builder<'a> {
                         unawaits.push(node);
                     }
 
-                    Ok::<_, anyhow::Error>((dag, unawaits, awaited, resources))
+                    Ok::<_, anyhow::Error>((
+                        dag,
+                        unawaits,
+                        awaited,
+                        (in_flows, out_flows),
+                        resources,
+                    ))
                 },
             )?;
 
@@ -229,6 +282,7 @@ impl<'a> Builder<'a> {
 
         Ok(AOTContext {
             dag,
+            awaiting: Promises::new(promised_cids.0, promised_cids.1),
             indexed_resources: IndexedResources(resources),
         })
     }
@@ -551,7 +605,7 @@ mod test {
                 ("func".into(), Ipld::String("add_two".to_string())),
                 (
                     "args".into(),
-                    Ipld::List(vec![Ipld::try_from(promise1.clone()).unwrap()]),
+                    Ipld::List(vec![Ipld::from(promise1.clone())]),
                 ),
             ]))),
         );

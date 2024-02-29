@@ -1,7 +1,6 @@
 //! Module for working with task-types and task-specific functionality.
 
 use anyhow::{anyhow, Result};
-use async_trait::async_trait;
 use enum_assoc::Assoc;
 use std::path::PathBuf;
 
@@ -24,7 +23,6 @@ pub(crate) enum RegisteredTasks {
 
 /// Trait for loading files for different task-types directly.
 #[allow(dead_code)]
-#[async_trait]
 pub(crate) trait FileLoad {
     /// Load file asynchronously.
     async fn load(file: PathBuf) -> Result<Vec<u8>> {

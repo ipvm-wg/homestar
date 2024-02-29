@@ -1,0 +1,9 @@
+@@ -25,7 +25,7 @@ diesel::table! {
+         cid -> Text,
+         name -> Nullable<Text>,
+         num_tasks -> Integer,
+         resources -> Binary,
+         created_at -> Timestamp,
+         completed_at -> Nullable<Timestamp>,
++        status -> crate::workflow::StatusMapping,
+-        status -> Text,

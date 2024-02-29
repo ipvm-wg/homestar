@@ -74,7 +74,7 @@ impl Database for MemoryDb {
             .and_then(|mut conn| ConnectionCustomizer.on_acquire(&mut conn))?;
 
         let pool = r2d2::Pool::builder()
-            .max_size(3)
+            .max_size(10)
             .connection_customizer(Box::new(ConnectionCustomizer))
             .build(manager)
             .expect("DATABASE_URL must be set to an SQLite DB file");

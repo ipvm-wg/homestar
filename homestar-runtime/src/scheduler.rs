@@ -6,10 +6,10 @@
 
 use crate::{
     db::{Connection, Database},
-    workflow::{IndexedResources, Resource, Vertex},
+    workflow::{self, IndexedResources, Resource, Vertex},
     Db,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use dagga::Node;
 use fnv::FnvHashSet;
 use futures::future::BoxFuture;
@@ -18,7 +18,7 @@ use homestar_wasm::io::Arg;
 use homestar_workflow::LinkMap;
 use indexmap::IndexMap;
 use libipld::Cid;
-use std::{ops::ControlFlow, str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
 use tracing::debug;
 
@@ -36,6 +36,8 @@ pub(crate) struct ExecutionGraph<'a> {
     /// A built-up [Dag] [Schedule] of batches.
     ///
     /// [Dag]: dagga::Dag
+    ///
+    pub(crate) awaiting: workflow::Promises,
     pub(crate) schedule: Schedule<'a>,
     /// Vector of [resources] to fetch for executing functions in [Workflow].
     ///
@@ -66,6 +68,9 @@ pub(crate) struct TaskScheduler<'a> {
     /// [Tasks]: homestar_invocation::Task
     pub(crate) run: Schedule<'a>,
 
+    /// Set of Cids to possibly fetch from the DHT.
+    pub(crate) promises_to_resolve: Arc<FnvHashSet<Cid>>,
+
     /// Step/batch to resume from.
     pub(crate) resume_step: Option<usize>,
 
@@ -95,7 +100,6 @@ impl<'a> TaskScheduler<'a> {
     /// [Receipts]: crate::Receipt
     /// [Swarm]: crate::network::swarm
     /// [Workflow]: homestar_workflow::Workflow
-    #[allow(unknown_lints, clippy::needless_pass_by_ref_mut)]
     pub(crate) async fn init<F>(
         mut graph: Arc<ExecutionGraph<'a>>,
         conn: &mut Connection,
@@ -105,103 +109,105 @@ impl<'a> TaskScheduler<'a> {
         F: FnOnce(FnvHashSet<Resource>) -> BoxFuture<'a, Result<IndexMap<Resource, Vec<u8>>>>,
     {
         let mut_graph = Arc::make_mut(&mut graph);
-        let schedule: &mut Schedule<'a> = mut_graph.schedule.as_mut();
+        let schedule = &mut mut_graph.schedule;
         let schedule_length = schedule.len();
-        let mut resources_to_fetch = vec![];
-        let linkmap = LinkMap::<task::Result<Arg>>::default();
 
-        let resume = 'resume: {
-            for (idx, vec) in schedule.iter().enumerate().rev() {
-                let folded_pointers = vec.iter().try_fold(vec![], |mut ptrs, node| {
+        // Gather all CIDs to resolve
+        let mut cids_to_resolve = Vec::new();
+        // Gather all resources to fetch
+        let mut resources_to_fetch = Vec::new();
+        let mut linkmap = LinkMap::<task::Result<Arg>>::default();
+
+        let mut last_idx = 0;
+        for (idx, vec) in schedule.iter().enumerate().rev() {
+            let pointers: Result<Vec<_>, _> = vec
+                .iter()
+                .map(|node| {
                     let cid = Cid::from_str(node.name())?;
-                    mut_graph
-                        .indexed_resources
-                        .get(&cid)
-                        .map(|resource| {
-                            resource.iter().for_each(|rsc| {
-                                resources_to_fetch.push((cid, rsc));
-                            });
-                            ptrs.push(Pointer::new(cid));
-                        })
-                        .ok_or_else(|| anyhow!("resource not found for instruction {cid}"))?;
-                    Ok::<_, anyhow::Error>(ptrs)
-                });
-
-                if let Ok(pointers) = folded_pointers {
-                    match Db::find_instruction_pointers(&pointers, conn) {
-                        Ok(found) => {
-                            let linkmap = found.iter().fold(linkmap.clone(), |mut map, receipt| {
-                                if let Some(idx) = resources_to_fetch
-                                    .iter()
-                                    .position(|(cid, _rsc)| cid == &receipt.instruction().cid())
-                                {
-                                    resources_to_fetch.swap_remove(idx);
-                                }
-
-                                map.insert(receipt.instruction().cid(), receipt.output_as_arg());
-                                map
-                            });
-
-                            if found.len() == vec.len() {
-                                break 'resume ControlFlow::Break((idx + 1, linkmap));
-                            } else {
-                                continue;
-                            }
+                    if let Some(resource) = mut_graph.indexed_resources.get(&cid) {
+                        for rsc in resource.iter() {
+                            resources_to_fetch.push((cid, rsc.clone()));
                         }
-                        Err(_) => {
-                            debug!(
-                                subject = "receipt.db.check",
-                                category = "scheduler.run",
-                                "receipt not available in the database"
-                            );
-                            continue;
-                        }
+                    } else {
+                        return Err(anyhow!("Resource not found for instruction {cid}"));
+                    }
+                    Ok(Pointer::new(cid))
+                })
+                .collect();
+
+            if let Ok(pointers) = pointers {
+                if let Ok(found) = Db::find_instruction_pointers(&pointers, conn) {
+                    for receipt in found.iter() {
+                        resources_to_fetch.retain(|(cid, _)| *cid != receipt.instruction().cid());
+                        linkmap.insert(receipt.instruction().cid(), receipt.output_as_arg());
+                    }
+
+                    if found.len() == vec.len() {
+                        last_idx = idx + 1;
+                        break;
                     }
                 } else {
-                    continue;
+                    debug!("Receipt not available in the database");
                 }
             }
-            ControlFlow::Continue(())
+        }
+
+        // Add all CIDs not resolved to the list of CIDs to resolve.
+        cids_to_resolve.extend(resources_to_fetch.iter().map(|(cid, _)| *cid));
+
+        // Fetch resources from the DHT as a unique set.
+        let resources_to_fetch: FnvHashSet<Resource> =
+            resources_to_fetch.into_iter().map(|(_, rsc)| rsc).collect();
+        let fetched_resources = fetch_fn(resources_to_fetch).await?;
+
+        // Filter out promises/awaits outside of the workflow that
+        // have been already resolved and store them in our in-memory
+        // cache (linkmap).
+        let promises_as_pointers =
+            mut_graph
+                .awaiting
+                .iter()
+                .fold(
+                    vec![],
+                    |mut acc, (in_or_out_flow, cid)| match in_or_out_flow {
+                        workflow::Origin::InFlow => acc,
+                        workflow::Origin::OutFlow => {
+                            acc.push(Pointer::new(*cid));
+                            acc
+                        }
+                    },
+                );
+        if let Ok(found) = Db::find_instruction_pointers(&promises_as_pointers, conn) {
+            for receipt in found.iter() {
+                cids_to_resolve.retain(|cid| *cid != receipt.instruction().cid());
+                linkmap.insert(receipt.instruction().cid(), receipt.output_as_arg());
+            }
+        }
+
+        // Convert the list of CIDs to resolve into a unique set.
+        let promises_to_resolve: FnvHashSet<Cid> = cids_to_resolve.into_iter().collect();
+
+        let (ran, run, resume_step) = if last_idx > 0 {
+            let pivot = schedule.split_off(last_idx);
+            if last_idx >= schedule_length || last_idx == 0 {
+                (Some(schedule.to_vec()), pivot, None)
+            } else {
+                (Some(schedule.to_vec()), pivot, Some(last_idx))
+            }
+        } else {
+            (None, schedule.to_vec(), None)
         };
 
-        let resources_to_fetch: FnvHashSet<Resource> = resources_to_fetch
-            .into_iter()
-            .map(|(_, rsc)| rsc.to_owned())
-            .collect();
-
-        let fetched = fetch_fn(resources_to_fetch)
-            .await
-            .with_context(|| "unable to fetch resources")?;
-
-        match resume {
-            ControlFlow::Break((idx, linkmap)) => {
-                let pivot = schedule.split_off(idx);
-                let step = if idx >= schedule_length || idx == 0 {
-                    None
-                } else {
-                    Some(idx)
-                };
-
-                Ok(SchedulerContext {
-                    scheduler: Self {
-                        linkmap: Arc::new(linkmap.into()),
-                        ran: Some(schedule.to_vec()),
-                        run: pivot,
-                        resume_step: step,
-                        resources: Arc::new(fetched.into()),
-                    },
-                })
-            }
-            _ => Ok(SchedulerContext {
-                scheduler: Self {
-                    linkmap: Arc::new(linkmap.into()),
-                    ran: None,
-                    run: schedule.to_vec(),
-                    resume_step: None,
-                    resources: Arc::new(fetched.into()),
-                },
-            }),
-        }
+        Ok(SchedulerContext {
+            scheduler: Self {
+                linkmap: Arc::new(RwLock::new(linkmap)),
+                promises_to_resolve: Arc::new(promises_to_resolve),
+                ran,
+                run,
+                resume_step,
+                resources: Arc::new(fetched_resources.into()),
+            },
+        })
     }
 
     /// Get the number of tasks that have already ran in the [Workflow].
