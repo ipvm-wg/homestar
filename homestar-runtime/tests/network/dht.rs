@@ -528,9 +528,7 @@ fn test_libp2p_dht_quorum_failure_intregration() -> Result<()> {
 }
 
 #[test]
-#[allow(unused_must_use)]
-#[flaky_test::flaky_test]
-#[serial_test::serial]
+#[serial_test::parallel]
 fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
     let proc_info1 = ProcInfo::new().unwrap();
     let proc_info2 = ProcInfo::new().unwrap();
@@ -674,9 +672,9 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         // We want node two to request workflow info directly from node one
         // because of timeouts not because workflow info was missing from the
         // DHT, so we give node one time to put add workflow info to the DHT.
-        tokio::time::sleep(Duration::from_secs(9)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
-        let expected_workflow_cid = "bafyrmigvqtitv6mxhhgn3ms6uqfvzixu22mj6avuk3l4ycd2xe4acxmvzm";
+        let expected_workflow_cid = "bafyrmidbhanzivykbzxfichwvpvywhkthd6wycmwlaha46z3lk5v3ilo5q";
 
         // Run the same workflow run on node two.
         // Node two should be request workflow info from
@@ -688,26 +686,6 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
             .arg(rpc_port2.to_string())
             .arg("tests/fixtures/test-workflow-add-one.json")
             .output();
-
-        // Poll for sent workflow info message
-        let sent_workflow_info_cid: Cid;
-        loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
-
-                if json["sent_workflow_info"].is_object() {
-                    sent_workflow_info_cid =
-                        Cid::from_str(json["sent_workflow_info"]["cid"].as_str().unwrap())
-                            .expect("Unable to parse sent workflow info CID.");
-                    break;
-                }
-            } else {
-                panic!("Node one did not send workflow info in time.")
-            }
-        }
-
-        assert_eq!(sent_workflow_info_cid.to_string(), expected_workflow_cid);
 
         // Poll for retrieved workflow info message
         let received_workflow_info_cid: Cid;

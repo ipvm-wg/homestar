@@ -13,7 +13,7 @@
                     "args": [
                         {
                             "await/ok": {
-                                "/": "bafyrmicffbk5pvhdih4kqeix42irl7djjgzrzbilsj7dyxpgdipl5da5vq"
+                                "/": "bafyrmigpfy6vvnfmv2wpsnpjmrn6iurejcjhz2doqdl6cfext27etqvi54"
                             }
                         }
                     ],
@@ -21,7 +21,7 @@
                 },
                 "nnc": "",
                 "op": "wasm/run",
-                "rsc": "ipfs://bafybeidpmgamv4i6jqrlwbnkrm3kzvvu7hj3jnoolcswub27mkda6p75la"
+                "rsc": "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"
             }
         }
     ]

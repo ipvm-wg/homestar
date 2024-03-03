@@ -1,75 +1,75 @@
 {
-  "tasks": [
-    {
-      "cause": null,
-      "meta": {
-        "memory": 4294967296,
-        "time": 100000
-      },
-      "prf": [],
-      "run": {
-        "input": {
-          "args": [
-            {
-              "/": "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm"
+    "tasks": [
+        {
+            "cause": null,
+            "meta": {
+                "memory": 4294967296,
+                "time": 100000
             },
-            150,
-            350,
-            500,
-            500
-          ],
-          "func": "crop"
-        },
-        "nnc": "",
-        "op": "wasm/run",
-        "rsc": "ipfs://bafybeidpmgamv4i6jqrlwbnkrm3kzvvu7hj3jnoolcswub27mkda6p75la"
-      }
-    },
-    {
-      "cause": null,
-      "meta": {
-        "memory": 4294967296,
-        "time": 100000
-      },
-      "prf": [],
-      "run": {
-        "input": {
-          "args": [
-            {
-              "await/ok": {
-                "/": "bafyrmibsgnnssvnwvetpgrpgb34rw25fvrj2vnoemhetnsarxgmiyuvor4"
-              }
+            "prf": [],
+            "run": {
+                "input": {
+                    "args": [
+                        {
+                            "/": "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm"
+                        },
+                        150,
+                        350,
+                        500,
+                        500
+                    ],
+                    "func": "crop"
+                },
+                "nnc": "",
+                "op": "wasm/run",
+                "rsc": "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"
             }
-          ],
-          "func": "rotate90"
         },
-        "nnc": "",
-        "op": "wasm/run",
-        "rsc": "ipfs://bafybeidpmgamv4i6jqrlwbnkrm3kzvvu7hj3jnoolcswub27mkda6p75la"
-      }
-    },
-    {
-      "cause": null,
-      "meta": {
-        "memory": 4294967296,
-        "time": 100000
-      },
-      "prf": [],
-      "run": {
-        "input": {
-          "args": [
-            {
-              "await/ok": {
-                "/": "bafyrmihzec7cuxdng3tbiji5quyqheknho7ig6w4p366zzrdansfs6ya5u"
-              }
+        {
+            "cause": null,
+            "meta": {
+                "memory": 4294967296,
+                "time": 100000
+            },
+            "prf": [],
+            "run": {
+                "input": {
+                    "args": [
+                        {
+                            "await/ok": {
+                                "/": "bafyrmif6exakmqcoobygui5s6eo6i4nrp7eyy2nfibj4hty2i72gqd6zhq"
+                            }
+                        }
+                    ],
+                    "func": "rotate90"
+                },
+                "nnc": "",
+                "op": "wasm/run",
+                "rsc": "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"
             }
-          ],
-          "func": "grayscale"
         },
-        "nnc": "",
-        "op": "wasm/run",
-        "rsc": "ipfs://bafybeidpmgamv4i6jqrlwbnkrm3kzvvu7hj3jnoolcswub27mkda6p75la"
-      }
-    }
-  ]
+        {
+            "cause": null,
+            "meta": {
+                "memory": 4294967296,
+                "time": 100000
+            },
+            "prf": [],
+            "run": {
+                "input": {
+                    "args": [
+                        {
+                            "await/ok": {
+                                "/": "bafyrmihvwl55wcrqvz7p7s3tw3cnc3bbndzpl6fafckkoboadjafj5lkqe"
+                            }
+                        }
+                    ],
+                    "func": "grayscale"
+                },
+                "nnc": "",
+                "op": "wasm/run",
+                "rsc": "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"
+            }
+        }
+    ]
 }

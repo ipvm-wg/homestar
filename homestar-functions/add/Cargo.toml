@@ -6,9 +6,7 @@ edition = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
-wit-bindgen = { version = "0.18.0", default-features = false, features = [
-  "realloc",
-] }
+wit-bindgen-rt = "0.20.0"
 
 [lib]
 crate-type = ["cdylib"]

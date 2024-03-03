@@ -15,3 +15,5 @@ impl Guest for Component {
         input + 2
     }
 }
+
+bindings::export!(Component with_types_in bindings);

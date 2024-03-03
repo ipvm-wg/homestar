@@ -8,6 +8,8 @@
 
 use crate::error::{InterpreterError, TagsError};
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
+use homestar_invocation::ensure;
+use indexmap::IndexMap;
 use itertools::{FoldWhile::Done, Itertools};
 use libipld::{
     cid::{self, multibase::Base, Cid},
@@ -23,6 +25,9 @@ use std::{
     str,
 };
 use wasmtime::component::{Type, Val};
+
+const DEFAULT_RED_ZONE: usize = 32 * 1024;
+const DEFAULT_EXTRA_STACK: usize = 1024 * 1024;
 
 /// Interface-type wrapper over wasmtime component [wasmtime::component::Type].
 #[derive(Clone, Debug, Default)]
@@ -60,6 +65,13 @@ impl<'a> From<&'a Type> for InterfaceType<'a> {
         match typ {
             Type::List(_)
             | Type::Record(_)
+            | Type::Tuple(_)
+            | Type::Variant(_)
+            | Type::Option(_)
+            | Type::Result(_)
+            | Type::Flags(_)
+            | Type::Enum(_)
+            | Type::String
             | Type::S8
             | Type::S16
             | Type::S32
@@ -160,29 +172,94 @@ impl RuntimeVal {
     }
 
     /// Convert from Ipld to [RuntimeVal] with a given [InterfaceType].
-    ///
-    /// TODOs:
-    ///  * Enums
-    ///  * Structs / Records
-    ///  * Results / Options
     pub fn try_from(
         ipld: Ipld,
         interface_ty: &InterfaceType<'_>,
     ) -> Result<Self, InterpreterError> {
         // TODO: Configure for recursion.
-        stacker::maybe_grow(64 * 1024, 1024 * 1024, || {
+        stacker::maybe_grow(DEFAULT_RED_ZONE, DEFAULT_EXTRA_STACK, || {
             let dyn_type = match ipld {
                 Ipld::Null => match interface_ty {
+                    InterfaceType::Type(Type::Option(opt_inst)) => {
+                        RuntimeVal::new(opt_inst.new_val(None)?)
+                    }
                     InterfaceType::Type(Type::String)
                     | InterfaceType::TypeRef(Type::String)
                     | InterfaceType::Any => RuntimeVal::new(Val::String(Box::from("null"))),
-                    _ => Err(InterpreterError::WitToIpld(Ipld::Null))?,
+                    _ => Err(InterpreterError::IpldToWit(
+                        "No conversion possible".to_string(),
+                    ))?,
                 },
+                v if matches!(interface_ty.inner(), Some(Type::Option(_))) => {
+                    let inner =
+                        interface_ty
+                            .inner()
+                            .ok_or_else(|| InterpreterError::TypeMismatch {
+                                expected: "<option>".to_string(),
+                                given: interface_ty.inner().map(|t| format!("{t:#?}")),
+                            })?;
+
+                    let opt_inst = inner.unwrap_option();
+                    let inner_v = RuntimeVal::try_from(v, &InterfaceType::TypeRef(&opt_inst.ty()))?;
+                    RuntimeVal::new(opt_inst.new_val(Some(inner_v.value()))?)
+                }
+                v if matches!(interface_ty.inner(), Some(Type::Result(_))) => {
+                    let inner =
+                        interface_ty
+                            .inner()
+                            .ok_or_else(|| InterpreterError::TypeMismatch {
+                                expected: "<result>".to_string(),
+                                given: interface_ty.inner().map(|t| format!("{t:#?}")),
+                            })?;
+
+                    let res_inst = inner.unwrap_result();
+                    let ok_typ = res_inst.ok();
+                    let err_typ = res_inst.err();
+
+                    if let Ipld::List(vec) = v {
+                        ensure!(
+                            vec.len() == 2,
+                            InterpreterError::IpldToWit(
+                                "IPLD map (as WIT result) as must have two elements".to_string(),
+                            )
+                        );
+                        match (vec.as_slice(), ok_typ, err_typ) {
+                            ([ipld, Ipld::Null], Some(ty), _) => {
+                                let inner_v = RuntimeVal::try_from(
+                                    ipld.to_owned(),
+                                    &InterfaceType::TypeRef(&ty),
+                                )?;
+                                RuntimeVal::new(res_inst.new_val(Ok(Some(inner_v.value())))?)
+                            }
+                            ([Ipld::Null, ipld], _, Some(ty)) => {
+                                let inner_v = RuntimeVal::try_from(
+                                    ipld.to_owned(),
+                                    &InterfaceType::TypeRef(&ty),
+                                )?;
+                                RuntimeVal::new(res_inst.new_val(Err(Some(inner_v.value())))?)
+                            }
+                            ([Ipld::Integer(1), Ipld::Null], None, _) => {
+                                RuntimeVal::new(res_inst.new_val(Ok(None))?)
+                            }
+                            ([Ipld::Null, Ipld::Integer(1)], _, None) => {
+                                RuntimeVal::new(res_inst.new_val(Err(None))?)
+                            }
+                            _ => Err(InterpreterError::IpldToWit(
+                                "IPLD (as WIT result) has specific structure does does not match"
+                                    .to_string(),
+                            ))?,
+                        }
+                    } else {
+                        Err(InterpreterError::IpldToWit("No match possible".to_string()))?
+                    }
+                }
                 Ipld::Bool(v) => match interface_ty {
                     InterfaceType::Type(Type::Bool)
                     | InterfaceType::TypeRef(Type::Bool)
                     | InterfaceType::Any => RuntimeVal::new(Val::Bool(v)),
-                    _ => Err(InterpreterError::WitToIpld(Ipld::Bool(v)))?,
+                    _ => Err(InterpreterError::IpldToWit(
+                        "Expected conversion to bool".to_string(),
+                    ))?,
                 },
                 Ipld::Integer(v) => match interface_ty {
                     InterfaceType::Type(Type::U8) | InterfaceType::TypeRef(Type::U8) => {
@@ -206,10 +283,16 @@ impl RuntimeVal {
                     InterfaceType::Type(Type::S32) | InterfaceType::TypeRef(Type::S32) => {
                         RuntimeVal::new(Val::S32(v.try_into()?))
                     }
+                    // We need to handle odd issues with clients where 5.0
+                    // becomes 5.
+                    InterfaceType::Type(Type::Float32) => RuntimeVal::new(Val::Float32(v as f32)),
+                    InterfaceType::Type(Type::Float64) => RuntimeVal::new(Val::Float64(v as f64)),
                     InterfaceType::Any
                     | InterfaceType::Type(Type::S64)
                     | InterfaceType::TypeRef(Type::S64) => RuntimeVal::new(Val::S64(v.try_into()?)),
-                    _ => Err(InterpreterError::WitToIpld(Ipld::Integer(v)))?,
+                    _ => Err(InterpreterError::IpldToWit(
+                        "Expected conversion to integer".to_string(),
+                    ))?,
                 },
                 Ipld::Float(v) => match interface_ty {
                     InterfaceType::Type(Type::Float32) | InterfaceType::TypeRef(Type::Float32) => {
@@ -217,28 +300,28 @@ impl RuntimeVal {
                     }
                     _ => RuntimeVal::new(Val::Float64(v)),
                 },
-                Ipld::String(v) => RuntimeVal::new(Val::String(Box::from(v))),
-                Ipld::Bytes(v) if matches!(interface_ty.inner(), Some(Type::List(_))) => {
-                    let inner =
-                        interface_ty
-                            .inner()
-                            .ok_or_else(|| InterpreterError::TypeMismatch {
-                                expected: "<list<u8>>".to_string(),
-                                given: interface_ty.inner().map(|t| format!("{t:#?}")),
-                            })?;
+                Ipld::String(v) => match interface_ty.inner() {
+                    Some(Type::Enum(enum_inst)) => enum_inst
+                        .names()
+                        .any(|name| name == v)
+                        .then_some(RuntimeVal::new(enum_inst.new_val(&v)?))
+                        .ok_or(InterpreterError::IpldToWit(
+                            "IPLD string not an enum discriminant".to_string(),
+                        ))?,
+                    _ => RuntimeVal::new(Val::String(Box::from(v))),
+                },
+                Ipld::Bytes(v) => match interface_ty.inner() {
+                    Some(Type::List(list_inst)) => {
+                        let vec = v.into_iter().fold(vec![], |mut acc, elem| {
+                            let RuntimeVal(value, _) = RuntimeVal::new(Val::U8(elem));
+                            acc.push(value);
+                            acc
+                        });
 
-                    // already pattern matched against
-                    let list_inst = inner.unwrap_list();
-
-                    let vec = v.into_iter().fold(vec![], |mut acc, elem| {
-                        let RuntimeVal(value, _tags) = RuntimeVal::new(Val::U8(elem));
-                        acc.push(value);
-                        acc
-                    });
-
-                    RuntimeVal::new(list_inst.new_val(vec.into_boxed_slice())?)
-                }
-                Ipld::Bytes(v) => RuntimeVal::new(Val::String(Box::from(Base::Base64.encode(v)))),
+                        RuntimeVal::new(list_inst.new_val(vec.into_boxed_slice())?)
+                    }
+                    _ => RuntimeVal::new(Val::String(Box::from(Base::Base64.encode(v)))),
+                },
                 Ipld::Link(v) => match v.version() {
                     cid::Version::V0 => RuntimeVal::new(Val::String(Box::from(
                         v.to_string_of_base(Base::Base58Btc)?,
@@ -247,87 +330,148 @@ impl RuntimeVal {
                         v.to_string_of_base(Base::Base32Lower)?,
                     ))),
                 },
-                Ipld::List(v) if matches!(interface_ty.inner(), Some(Type::List(_))) => {
-                    let inner =
-                        interface_ty
-                            .inner()
-                            .ok_or_else(|| InterpreterError::TypeMismatch {
-                                expected: "<list>".to_string(),
-                                given: interface_ty.inner().map(|t| format!("{t:#?}")),
-                            })?;
-
-                    // already pattern matched against
-                    let list_inst = inner.unwrap_list();
-
-                    let vec = v.into_iter().try_fold(vec![], |mut acc, elem| {
-                        let RuntimeVal(value, _tags) =
-                            RuntimeVal::try_from(elem, &InterfaceType::Type(list_inst.ty()))?;
-                        acc.push(value);
-                        Ok::<_, InterpreterError>(acc)
-                    })?;
-
-                    RuntimeVal::new(list_inst.new_val(vec.into_boxed_slice())?)
-                }
-                // Handle edge-casing via Ipld representations.
-                Ipld::List(v) => v
-                    .into_iter()
-                    .fold_while(Ok(RuntimeVal::new(Val::Bool(false))), |_acc, elem| {
-                        match RuntimeVal::try_from(elem, interface_ty) {
-                            Ok(runtime_val) => Done(Ok(runtime_val)),
-                            Err(e) => Done(Err(e)),
-                        }
-                    })
-                    .into_inner()?,
-
-                Ipld::Map(v) => {
-                    let inner =
-                        interface_ty
-                            .inner()
-                            .ok_or_else(|| InterpreterError::TypeMismatch {
-                                expected: "<List>".to_string(),
-                                given: interface_ty.inner().map(|t| format!("{t:#?}")),
-                            })?;
-
-                    let list_inst = matches!(inner, Type::List(_))
-                        .then_some(inner.unwrap_list())
-                        .ok_or_else(|| InterpreterError::TypeMismatch {
-                            expected: "<list>".to_string(),
-                            given: Some(format!("{inner:#?}")),
+                Ipld::List(v) => match interface_ty.inner() {
+                    Some(Type::List(list_inst)) => {
+                        let vec = v.into_iter().try_fold(vec![], |mut acc, elem| {
+                            let RuntimeVal(value, _) =
+                                RuntimeVal::try_from(elem, &InterfaceType::Type(list_inst.ty()))?;
+                            acc.push(value);
+                            Ok::<_, InterpreterError>(acc)
                         })?;
 
-                    let tuple_inst = matches!(list_inst.ty(), Type::Tuple(_))
-                        .then_some(list_inst.ty().unwrap_tuple())
-                        .ok_or_else(|| InterpreterError::TypeMismatch {
-                            expected: "<list>".to_string(),
-                            given: Some(format!("{inner:#?}")),
-                        })?
-                        .to_owned();
+                        RuntimeVal::new(list_inst.new_val(vec.into_boxed_slice())?)
+                    }
+                    Some(Type::Tuple(tuple_inst)) => {
+                        let fields = tuple_inst.types().zip(v.into_iter()).try_fold(
+                            vec![],
+                            |mut acc, (ty, elem)| {
+                                let RuntimeVal(value, _) =
+                                    RuntimeVal::try_from(elem, &InterfaceType::TypeRef(&ty))?;
+                                acc.push(value);
+                                Ok::<_, InterpreterError>(acc)
+                            },
+                        )?;
 
-                    let ty = tuple_inst.types().nth(1).ok_or_else(|| {
-                        InterpreterError::MapType(
-                            "IPLD map must have tuples of two elements".to_string(),
+                        RuntimeVal::new(tuple_inst.new_val(fields.into())?)
+                    }
+                    Some(Type::Flags(flags_inst)) => {
+                        let flags = v.iter().try_fold(vec![], |mut acc, elem| {
+                            if let Ipld::String(flag) = elem {
+                                acc.push(flag.as_ref());
+                                Ok::<_, InterpreterError>(acc)
+                            } else {
+                                Err(InterpreterError::IpldToWit(
+                                    "IPLD (as flags) must contain only strings".to_string(),
+                                ))
+                            }
+                        })?;
+
+                        RuntimeVal::new(flags_inst.new_val(flags.as_slice())?)
+                    }
+                    _ => v
+                        .into_iter()
+                        .fold_while(Ok(RuntimeVal::new(Val::Bool(false))), |_acc, elem| {
+                            match RuntimeVal::try_from(elem, interface_ty) {
+                                Ok(runtime_val) => Done(Ok(runtime_val)),
+                                Err(e) => Done(Err(e)),
+                            }
+                        })
+                        .into_inner()?,
+                },
+                Ipld::Map(v) => match interface_ty.inner() {
+                    Some(Type::List(list_inst)) => {
+                        let tuple_inst = matches!(list_inst.ty(), Type::Tuple(_))
+                            .then_some(list_inst.ty().unwrap_tuple())
+                            .ok_or_else(|| InterpreterError::TypeMismatch {
+                                expected: "<tuple>".to_string(),
+                                given: format!("{:#?}", list_inst.ty()).into(),
+                            })?
+                            .to_owned();
+
+                        let ty = tuple_inst.types().next().ok_or_else(|| {
+                            InterpreterError::IpldToWit(
+                                "IPLD map (for list) must have tuples of two elements".to_string(),
+                            )
+                        })?;
+
+                        let (vec, tags) = v.into_iter().try_fold(
+                            (vec![], VecDeque::new()),
+                            |(mut acc_tuples, mut acc_tags), (key, elem)| {
+                                let RuntimeVal(value, tags) =
+                                    RuntimeVal::try_from(elem, &InterfaceType::TypeRef(&ty))?;
+
+                                let tuple = Box::new([Val::String(Box::from(key)), value]);
+                                let new_tuple = tuple_inst.new_val(tuple)?;
+                                acc_tuples.push(new_tuple);
+                                let mut tags = tags.try_borrow_mut()?;
+                                (acc_tags).append(&mut tags);
+                                Ok::<_, InterpreterError>((acc_tuples, acc_tags))
+                            },
+                        )?;
+                        RuntimeVal::new_with_tags(
+                            list_inst.new_val(vec.into_boxed_slice())?,
+                            Tags::new(tags),
                         )
-                    })?;
+                    }
+                    Some(Type::Variant(variant_inst)) => {
+                        let (discriminant, v_inner) = v.first_key_value().ok_or_else(|| {
+                            InterpreterError::IpldToWit(
+                                "IPLD map (as variant) must have at least one key".to_string(),
+                            )
+                        })?;
 
-                    let (vec, tags) = v.into_iter().try_fold(
-                        (vec![], VecDeque::new()),
-                        |(mut acc_tuples, mut acc_tags), (key, elem)| {
-                            let RuntimeVal(value, tags) =
-                                RuntimeVal::try_from(elem, &InterfaceType::TypeRef(&ty))?;
+                        match variant_inst.cases().find(|case| case.name == *discriminant) {
+                            Some(case) => {
+                                let opt_ty = case.ty;
+                                if let Some(ty) = opt_ty {
+                                    let RuntimeVal(value, _) = RuntimeVal::try_from(
+                                        v_inner.to_owned(),
+                                        &InterfaceType::TypeRef(&ty),
+                                    )?;
+                                    RuntimeVal::new(variant_inst.new_val(case.name, Some(value))?)
+                                } else {
+                                    RuntimeVal::new(variant_inst.new_val(case.name, None)?)
+                                }
+                            }
+                            None => Err(InterpreterError::IpldToWit(
+                                "IPLD map key does not match any variant case".to_string(),
+                            ))?,
+                        }
+                    }
+                    Some(Type::Record(record_inst)) => {
+                        let fields =
+                            record_inst
+                                .fields()
+                                .try_fold(IndexMap::new(), |mut acc, field| {
+                                    if let Some((k, v_inner)) = v.get_key_value(field.name) {
+                                        if field.name == *k {
+                                            let RuntimeVal(value, _) = RuntimeVal::try_from(
+                                                v_inner.to_owned(),
+                                                &InterfaceType::TypeRef(&field.ty),
+                                            )?;
+                                            acc.insert(field.name, value);
+                                            Ok::<_, InterpreterError>(acc)
+                                        } else {
+                                            Err(InterpreterError::IpldToWit(
+                                                "IPLD map (as record) key does not match any record field"
+                                                    .to_string(),
+                                            ))
+                                        }
+                                    } else {
+                                        Err(InterpreterError::IpldToWit(
+                                            "IPLD map key does not match any record field"
+                                                .to_string(),
+                                        ))
+                                    }
+                                })?;
 
-                            let tuple = Box::new([Val::String(Box::from(key)), value]);
-                            let new_tuple = tuple_inst.new_val(tuple)?;
-                            acc_tuples.push(new_tuple);
-                            let mut tags = tags.try_borrow_mut()?;
-                            (acc_tags).append(&mut tags);
-                            Ok::<_, InterpreterError>((acc_tuples, acc_tags))
-                        },
-                    )?;
-                    RuntimeVal::new_with_tags(
-                        list_inst.new_val(vec.into_boxed_slice())?,
-                        Tags::new(tags),
-                    )
-                }
+                        RuntimeVal::new(record_inst.new_val(fields)?)
+                    }
+                    ty => Err(InterpreterError::TypeMismatch {
+                        expected: "<list|variant|record>".to_string(),
+                        given: ty.map(|t| format!("{t:#?}")),
+                    })?,
+                },
             };
 
             Ok(dyn_type)
@@ -342,8 +486,7 @@ impl TryFrom<RuntimeVal> for Ipld {
         fn cid(s: &str) -> Result<Cid, cid::Error> {
             Cid::try_from(s)
         }
-        // TODO: Configure for recursion.
-        stacker::maybe_grow(64 * 1024, 1024 * 1024, || {
+        stacker::maybe_grow(DEFAULT_RED_ZONE, DEFAULT_EXTRA_STACK, || {
             let ipld = match val {
                 RuntimeVal(Val::Char(c), _) => Ipld::String(c.to_string()),
                 RuntimeVal(Val::String(v), _) => match v.to_string() {
@@ -428,8 +571,60 @@ impl TryFrom<RuntimeVal> for Ipld {
                     }
                     None => Ipld::List(vec![]),
                 },
+                RuntimeVal(Val::Variant(v), _) => {
+                    let inner = if let Some(payload) = v.payload() {
+                        Ipld::try_from(RuntimeVal::new(payload.to_owned()))?
+                    } else {
+                        Ipld::Null
+                    };
+
+                    Ipld::from(BTreeMap::from([(v.discriminant().to_string(), inner)]))
+                }
+                RuntimeVal(Val::Record(v), _) => {
+                    let inner = v.fields().try_fold(BTreeMap::new(), |mut acc, (k, v)| {
+                        let ipld = Ipld::try_from(RuntimeVal::new(v.to_owned()))?;
+                        acc.insert(k.to_string(), ipld);
+                        Ok::<_, Self::Error>(acc)
+                    })?;
+                    Ipld::Map(inner)
+                }
+                RuntimeVal(Val::Option(opt), _) => {
+                    if let Some(v) = opt.value() {
+                        Ipld::try_from(RuntimeVal::new(v.to_owned()))?
+                    } else {
+                        Ipld::Null
+                    }
+                }
+                RuntimeVal(Val::Result(res), _) => match res.value() {
+                    Ok(Some(v)) => Ipld::List(vec![
+                        Ipld::try_from(RuntimeVal::new(v.to_owned()))?,
+                        Ipld::Null,
+                    ]),
+                    Ok(None) => Ipld::List(vec![Ipld::Integer(1), Ipld::Null]),
+                    Err(Some(v)) => Ipld::List(vec![
+                        Ipld::Null,
+                        Ipld::try_from(RuntimeVal::new(v.to_owned()))?,
+                    ]),
+                    Err(None) => Ipld::List(vec![Ipld::Null, Ipld::Integer(1)]),
+                },
+                RuntimeVal(Val::Tuple(v), _) => {
+                    let inner = v.values().iter().try_fold(vec![], |mut acc, elem| {
+                        let ipld = Ipld::try_from(RuntimeVal::new(elem.to_owned()))?;
+                        acc.push(ipld);
+                        Ok::<_, Self::Error>(acc)
+                    })?;
+                    Ipld::List(inner)
+                }
+                RuntimeVal(Val::Flags(v), _) => {
+                    let inner = v.flags().try_fold(vec![], |mut acc, flag| {
+                        acc.push(Ipld::String(flag.to_string()));
+                        Ok::<_, Self::Error>(acc)
+                    })?;
+                    Ipld::List(inner)
+                }
+                RuntimeVal(Val::Enum(v), _) => Ipld::String(v.discriminant().to_string()),
                 // Rest of Wit types are unhandled going to Ipld.
-                v => Err(InterpreterError::IpldToWit(format!("{v:#?}")))?,
+                v => Err(InterpreterError::WitToIpld(format!("{v:#?}").into()))?,
             };
 
             Ok(ipld)
@@ -441,37 +636,9 @@ impl TryFrom<RuntimeVal> for Ipld {
 mod test {
     use super::*;
     use crate::test_utils;
-    use libipld::{
-        ipld,
-        multihash::{Code, MultihashDigest},
-        DagCbor,
-    };
+    use libipld::multihash::{Code, MultihashDigest};
 
     const RAW: u64 = 0x55;
-
-    #[derive(Clone, Copy, DagCbor, Debug, Eq, PartialEq)]
-    #[ipld(repr = "keyed")]
-    enum KeyedUnion {
-        #[ipld(repr = "value")]
-        A(bool),
-        #[ipld(rename = "b")]
-        #[ipld(repr = "value")]
-        B(u16),
-        #[ipld(repr = "value")]
-        C(u16),
-    }
-
-    #[derive(Clone, Copy, DagCbor, Debug, Eq, PartialEq)]
-    #[ipld(repr = "kinded")]
-    enum KindedUnion {
-        #[ipld(repr = "value")]
-        A(bool),
-        #[ipld(rename = "b")]
-        #[ipld(repr = "value")]
-        B(u16),
-        #[ipld(repr = "value")]
-        C(u16),
-    }
 
     #[test]
     fn try_null_roundtrip() {
@@ -673,6 +840,28 @@ mod test {
         );
 
         assert_eq!(Ipld::try_from(runtime_float).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_integer_to_float() {
+        let ipld_in = Ipld::Integer(5);
+        let ipld_out = Ipld::Float(5.0);
+        let runtime_float = RuntimeVal::new(Val::Float32(5.0));
+
+        let ty = test_utils::component::setup_component_with_param(
+            "float32".to_string(),
+            &[test_utils::component::Param(
+                test_utils::component::Type::F32,
+                None,
+            )],
+        );
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld_in.clone(), &InterfaceType::Type(ty)).unwrap(),
+            runtime_float
+        );
+
+        assert_eq!(Ipld::try_from(runtime_float).unwrap(), ipld_out);
     }
 
     #[test]
@@ -951,6 +1140,269 @@ mod test {
             runtime
         );
 
-        //assert_eq!(Ipld::try_from(runtime).unwrap(), ipld);
+        assert_eq!(Ipld::try_from(runtime).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_variant_roundtrip() {
+        let ipld1 = Ipld::from(BTreeMap::from([("B".into(), Ipld::Integer(22))]));
+        let ipld2 = Ipld::from(BTreeMap::from([("foo-bar-baz".into(), Ipld::Integer(-22))]));
+        let ipld3 = Ipld::from(BTreeMap::from([("C".into(), Ipld::Null)]));
+
+        let ty = test_utils::component::setup_component(
+            r#"(variant (case "foo-bar-baz" s32) (case "B" u32) (case "C"))"#.to_string(),
+            8,
+        );
+        let interface_ty = InterfaceType::Type(ty.clone());
+        let ty_var = ty.unwrap_variant();
+
+        let val1 = ty_var.clone().new_val("B", Some(Val::U32(22))).unwrap();
+        let runtime1 = RuntimeVal::new(val1);
+        assert_eq!(
+            RuntimeVal::try_from(ipld1.clone(), &interface_ty).unwrap(),
+            runtime1
+        );
+        assert_eq!(Ipld::try_from(runtime1).unwrap(), ipld1);
+
+        let val2 = ty_var.new_val("foo-bar-baz", Some(Val::S32(-22))).unwrap();
+        let runtime2 = RuntimeVal::new(val2);
+        assert_eq!(
+            RuntimeVal::try_from(ipld2.clone(), &interface_ty).unwrap(),
+            runtime2
+        );
+        assert_eq!(Ipld::try_from(runtime2).unwrap(), ipld2);
+
+        let val3 = ty_var.new_val("C", None).unwrap();
+        let runtime3 = RuntimeVal::new(val3);
+        assert_eq!(
+            RuntimeVal::try_from(ipld3.clone(), &interface_ty).unwrap(),
+            runtime3
+        );
+        assert_eq!(Ipld::try_from(runtime3).unwrap(), ipld3);
+    }
+
+    #[test]
+    fn try_record_roundtrip() {
+        let ipld = Ipld::Map(BTreeMap::from([
+            ("foo-bar-baz".into(), Ipld::Integer(-22)),
+            ("b".into(), Ipld::String("Hello!".into())),
+        ]));
+
+        let ty = test_utils::component::setup_component(
+            r#"(record (field "foo-bar-baz" s32) (field "b" string))"#.to_string(),
+            12,
+        );
+
+        let interface_ty = InterfaceType::Type(ty.clone());
+        let ty_rec = ty.unwrap_record();
+
+        let fields = ty_rec.fields().fold(IndexMap::new(), |mut acc, field| {
+            let val = match field.name {
+                "foo-bar-baz" => Val::S32(-22),
+                "b" => Val::String(Box::from("Hello!")),
+                _ => unreachable!(),
+            };
+            acc.insert(field.name, val);
+            acc
+        });
+
+        let val = ty_rec.new_val(fields).unwrap();
+
+        let runtime = RuntimeVal::new(val);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &interface_ty).unwrap(),
+            runtime
+        );
+
+        assert_eq!(Ipld::try_from(runtime).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_option_roundtrip() {
+        let ipld1 = Ipld::Null;
+        let ipld2 = Ipld::String("Hello!".into());
+
+        let ty = test_utils::component::setup_component("(option string)".to_string(), 12);
+        let interface_ty = InterfaceType::Type(ty.clone());
+
+        let val1 = ty.unwrap_option().new_val(None).unwrap();
+        let runtime1 = RuntimeVal::new(val1);
+
+        let val2 = ty
+            .unwrap_option()
+            .new_val(Some(Val::String(Box::from("Hello!"))))
+            .unwrap();
+        let runtime2 = RuntimeVal::new(val2);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld1.clone(), &interface_ty).unwrap(),
+            runtime1
+        );
+        assert_eq!(Ipld::try_from(runtime1).unwrap(), ipld1);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld2.clone(), &interface_ty).unwrap(),
+            runtime2
+        );
+        assert_eq!(Ipld::try_from(runtime2).unwrap(), ipld2);
+    }
+
+    #[test]
+    fn try_result_roundtrip() {
+        let ok_ipld = Ipld::List(vec![Ipld::String("Hello!".into()), Ipld::Null]);
+        let err_ipld = Ipld::List(vec![Ipld::Null, Ipld::String("Hello!".into())]);
+        let ok_res_ipld = Ipld::List(vec![Ipld::Integer(1), Ipld::Null]);
+        let err_res_ipld = Ipld::List(vec![Ipld::Null, Ipld::Integer(1)]);
+
+        let ty1 = test_utils::component::setup_component("(result string)".to_string(), 12);
+        let interface_ty1 = InterfaceType::Type(ty1.clone());
+
+        let ty2 = test_utils::component::setup_component(
+            "(result string (error string))".to_string(),
+            12,
+        );
+        let interface_ty2 = InterfaceType::Type(ty2.clone());
+
+        let ty3 = test_utils::component::setup_component("(result)".to_string(), 4);
+        let interface_ty3 = InterfaceType::Type(ty3.clone());
+
+        let val1 = ty1
+            .unwrap_result()
+            .new_val(Ok(Some(Val::String(Box::from("Hello!")))))
+            .unwrap();
+        let runtime1 = RuntimeVal::new(val1);
+
+        let val2 = ty2
+            .unwrap_result()
+            .new_val(Err(Some(Val::String(Box::from("Hello!")))))
+            .unwrap();
+        let runtime2 = RuntimeVal::new(val2);
+
+        let val3 = ty3.unwrap_result().new_val(Ok(None)).unwrap();
+        let runtime3 = RuntimeVal::new(val3);
+
+        let val4 = ty3.unwrap_result().new_val(Err(None)).unwrap();
+        let runtime4 = RuntimeVal::new(val4);
+
+        let val5 = ty1.unwrap_result().new_val(Err(None)).unwrap();
+        let runtime5 = RuntimeVal::new(val5);
+
+        assert_eq!(
+            RuntimeVal::try_from(ok_ipld.clone(), &interface_ty1).unwrap(),
+            runtime1
+        );
+        assert_eq!(Ipld::try_from(runtime1).unwrap(), ok_ipld);
+
+        assert_eq!(
+            RuntimeVal::try_from(err_ipld.clone(), &interface_ty2).unwrap(),
+            runtime2
+        );
+        assert_eq!(Ipld::try_from(runtime2).unwrap(), err_ipld);
+
+        assert_eq!(
+            RuntimeVal::try_from(ok_res_ipld.clone(), &interface_ty3).unwrap(),
+            runtime3
+        );
+        assert_eq!(Ipld::try_from(runtime3).unwrap(), ok_res_ipld);
+
+        assert_eq!(
+            RuntimeVal::try_from(err_res_ipld.clone(), &interface_ty3).unwrap(),
+            runtime4
+        );
+        assert_eq!(Ipld::try_from(runtime4).unwrap(), err_res_ipld);
+
+        assert_eq!(
+            RuntimeVal::try_from(err_res_ipld.clone(), &interface_ty1).unwrap(),
+            runtime5
+        );
+        assert_eq!(Ipld::try_from(runtime5).unwrap(), err_res_ipld);
+    }
+
+    #[test]
+    fn try_tuple_roundtrip() {
+        let ipld = Ipld::List(vec![
+            Ipld::Integer(22),
+            Ipld::String("Hello!".into()),
+            Ipld::Bool(true),
+        ]);
+
+        let ty = test_utils::component::setup_component("(tuple s32 string bool)".to_string(), 16);
+        let interface_ty = InterfaceType::Type(ty.clone());
+
+        let val = ty
+            .unwrap_tuple()
+            .new_val(Box::new([
+                Val::S32(22),
+                Val::String(Box::from("Hello!")),
+                Val::Bool(true),
+            ]))
+            .unwrap();
+
+        let runtime = RuntimeVal::new(val);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &interface_ty).unwrap(),
+            runtime
+        );
+
+        assert_eq!(Ipld::try_from(runtime).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_enum_roundtrip() {
+        let ipld1 = Ipld::String("foo-bar-baz".into());
+        let ipld2 = Ipld::String("b".into());
+
+        let ty =
+            test_utils::component::setup_component(r#"(enum "foo-bar-baz" "b")"#.to_string(), 4);
+        let interface_ty = InterfaceType::Type(ty.clone());
+
+        let val1 = ty.unwrap_enum().new_val("foo-bar-baz").unwrap();
+        let runtime1 = RuntimeVal::new(val1);
+
+        let val2 = ty.unwrap_enum().new_val("b").unwrap();
+        let runtime2 = RuntimeVal::new(val2);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld1.clone(), &interface_ty).unwrap(),
+            runtime1
+        );
+        assert_eq!(Ipld::try_from(runtime1).unwrap(), ipld1);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld2.clone(), &interface_ty).unwrap(),
+            runtime2
+        );
+        assert_eq!(Ipld::try_from(runtime2).unwrap(), ipld2);
+    }
+
+    #[test]
+    fn try_flags_roundtrip() {
+        let ipld = Ipld::List(vec![
+            Ipld::String("foo-bar-baz".into()),
+            Ipld::String("B".into()),
+            Ipld::String("C".into()),
+        ]);
+
+        let ty = test_utils::component::setup_component(
+            r#"(flags "foo-bar-baz" "B" "C")"#.to_string(),
+            4,
+        );
+        let interface_ty = InterfaceType::Type(ty.clone());
+
+        let val = ty
+            .unwrap_flags()
+            .new_val(&["foo-bar-baz", "B", "C"])
+            .unwrap();
+
+        let runtime = RuntimeVal::new(val);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &interface_ty).unwrap(),
+            runtime
+        );
+
+        assert_eq!(Ipld::try_from(runtime).unwrap(), ipld);
     }
 }

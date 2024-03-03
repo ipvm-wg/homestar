@@ -16,9 +16,9 @@ use std::{
 
 use bindings::Guest;
 
-struct Component;
-
 type Matrix = Vec<Vec<u16>>;
+
+struct Component;
 
 impl Guest for Component {
     fn add_one(a: i32) -> i32 {
@@ -179,6 +179,32 @@ impl Guest for Component {
         s.hash(&mut hash);
         hash.finish().to_be_bytes().to_vec()
     }
+
+    fn pop(mut a: Vec<i32>) -> Option<i32> {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "pop-array");
+        a.pop()
+    }
+
+    fn binary_search(mut slice: Vec<i32>, x: i32) -> Result<i32, ()> {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "binary-search");
+        slice.sort();
+        slice.binary_search(&x).map(|y| y as i32).map_err(|_| ())
+    }
+
+    fn num_to_kv(num: Result<u32, String>) -> bindings::NumKeys {
+        #[cfg(target_arch = "wasm32")]
+        log(Level::Info, "run-fn", "num-to-kv");
+        let num_string = num
+            .as_ref()
+            .map(|n| n.to_string())
+            .unwrap_or_else(|_err| "NAN".to_string());
+        bindings::NumKeys {
+            name: num_string,
+            val: num.ok(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -322,3 +348,5 @@ mod test_mod {
         Component::blur(cropped, 0.1);
     }
 }
+
+bindings::export!(Component with_types_in bindings);

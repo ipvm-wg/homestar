@@ -4,6 +4,11 @@ world test {
     import wasi:logging/logging;
     import homestar:host/helpers@0.0.1;
 
+    record num-keys {
+        name: string,
+        val: option<u32>,
+    }
+
     export add-one: func(a: s32) -> s32;
     export append-string: func(a: string) -> string;
     export join-strings: func(a: string, b: string) -> string;
@@ -18,4 +23,7 @@ world test {
     export rotate90: func(data: list<u8>) -> list<u8>;
     export rotate90-base64: func(data: string) -> list<u8>;
     export hash: func(data: string) -> list<u8>;
+    export pop: func(a: list<s32>) -> option<s32>;
+    export binary-search: func(slice: list<s32>, x: s32) -> result<s32>;
+    export num-to-kv: func(num: result<u32, string>) -> num-keys;
 }

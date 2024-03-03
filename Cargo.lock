@@ -1983,27 +1983,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1676f435fc1dadde4d03e43f5d62b259e1ce5f40bd4ffb21db2b42ebe59c1382"
 
 [[package]]
-name = "flaky_test"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "046caa1f23d7f751fc4ead3d6669a77fa5fc6cf6074960ddeb6a0b0a5b83c8da"
-dependencies = [
- "flaky_test_impl",
- "futures-util",
-]
-
-[[package]]
-name = "flaky_test_impl"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85e35909c2f0552fdae5b40f1e95a7da12afb58c1f2f455a12c216c58d869abe"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "flate2"
 version = "1.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2509,7 +2488,7 @@ dependencies = [
 name = "homestar-functions-add"
 version = "0.1.0"
 dependencies = [
- "wit-bindgen",
+ "wit-bindgen-rt",
 ]
 
 [[package]]
@@ -2518,7 +2497,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.21.7",
  "image",
- "wit-bindgen",
+ "wit-bindgen-rt",
 ]
 
 [[package]]
@@ -2577,7 +2556,6 @@ dependencies = [
  "dyn-clone",
  "enum-assoc",
  "faststr",
- "flaky_test",
  "flume",
  "fnv",
  "futures",
@@ -2690,6 +2668,7 @@ dependencies = [
  "heck",
  "homestar-invocation",
  "homestar-workspace-hack",
+ "indexmap 2.2.3",
  "itertools 0.12.1",
  "libipld",
  "rust_decimal",
@@ -8432,13 +8411,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "wit-bindgen"
-version = "0.18.0"
+name = "wit-bindgen-rt"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5408d742fcdf418b766f23b2393f0f4d9b10b72b7cd96d9525626943593e8cc0"
-dependencies = [
- "bitflags 2.4.2",
-]
+checksum = "781989c70b3300b1be7ffbc7095e3b56c4f208f0c109cb5d1d943b297918dd8a"
 
 [[package]]
 name = "wit-component"

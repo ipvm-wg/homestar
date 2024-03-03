@@ -43,17 +43,23 @@ fn init(
     guard: WorkerGuard,
     #[allow(unused_variables)] settings: &settings::Monitoring,
 ) -> WorkerGuard {
-    let format_layer = tracing_subscriber::fmt::layer()
-        .event_format(tracing_logfmt::EventsFormatter::default())
-        .fmt_fields(tracing_logfmt::FieldsFormatter::default())
+    // TODO: Add support for customizing logger(s) / specialzed formatters.
+    let format_layer = tracing_logfmt::builder()
+        .with_level(true)
+        .with_target(true)
+        .with_span_name(true)
+        .with_span_path(true)
+        .with_location(true)
+        .with_module_path(true)
+        .layer()
         .with_writer(writer);
 
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         EnvFilter::new("info")
-            .add_directive("homestar_wasm=debug".parse().expect(DIRECTIVE_EXPECT))
+            .add_directive("homestar_wasm=info".parse().expect(DIRECTIVE_EXPECT))
             .add_directive("libp2p=info".parse().expect(DIRECTIVE_EXPECT))
             .add_directive(
-                "libp2p_gossipsub::behaviour=debug"
+                "libp2p_gossipsub::behaviour=info"
                     .parse()
                     .expect(DIRECTIVE_EXPECT),
             )
