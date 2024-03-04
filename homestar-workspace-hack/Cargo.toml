@@ -17,7 +17,7 @@ authors = { workspace = true }
 
 ### BEGIN HAKARI SECTION
 [dependencies]
-ahash = { version = "0.8.9", default-features = false, features = ["no-rng", "std"] }
+ahash = { version = "0.8.11", default-features = false, features = ["no-rng", "std"] }
 anyhow = { version = "1.0.80", features = ["backtrace"] }
 arrayvec = { version = "0.7.4" }
 base64 = { version = "0.13.1", features = ["alloc"] }
@@ -87,7 +87,7 @@ wasmtime-runtime = { version = "18.0.1", default-features = false, features = ["
 zeroize = { version = "1.7.0", features = ["zeroize_derive"] }
 
 [build-dependencies]
-ahash = { version = "0.8.9", default-features = false, features = ["no-rng", "std"] }
+ahash = { version = "0.8.11", default-features = false, features = ["no-rng", "std"] }
 anyhow = { version = "1.0.80", features = ["backtrace"] }
 arrayvec = { version = "0.7.4" }
 base64 = { version = "0.13.1", features = ["alloc"] }
