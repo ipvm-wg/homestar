@@ -2,7 +2,8 @@ name: 📄 Schemas
 
 on:
   push:
-    branches: [main, "release-plz-*"]
+    branches: [main, "bgins/run-schemas-*"]
+    # branches: [main, "release-plz-*"]
     # branches: [main, "**"]
 
 permissions:
@@ -14,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
+      manifest: ${{ steps.filter.outputs.manifest }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -26,11 +28,12 @@ jobs:
               - 'homestar-runtime/src/**'
               - 'homestar-schemas/src/**'
               - 'homestar-workflow/src/**'
+            manifest:
               - 'Cargo.toml'
 
   schemas:
     needs: changes
-    if: ${{ needs.changes.outputs.rust == 'true' }}
+    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.manifest == 'true' }}
     env:
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"
@@ -63,13 +66,27 @@ jobs:
         shell: bash
         run: echo modified=$(if [[ $(git diff homestar-runtime/schemas/) ]]; then echo "true"; else echo "false"; fi) >> $GITHUB_OUTPUT
 
-      - name: Check for updated version
-        id: git-check-manifest
-        shell: bash
-        run: echo modified=$(if [[ $(git diff Cargo.toml) ]]; then echo "true"; else echo "false"; fi) >> $GITHUB_OUTPUT
+      - name: Push changes to main
+        # if: github.ref_name == 'main' && (steps.git-check-schemas.outputs.modified == 'true' && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.manifest == 'true'))
+        if: >-
+          ${{ github.ref_name == 'main' &&
+              (steps.git-check-schemas.outputs.modified == 'true' &&
+                (needs.changes.outputs.rust == 'true' || needs.changes.outputs.manifest == 'true')
+              )
+           }}
+        run: |
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+          git commit -am "chore(schemas): update OpenRPC API doc and JSON schemas"
+          git push
 
-      - name: Push changes
-        if: ${{ steps.git-check-schemas.outputs.modified == 'true' || steps.git-check-manifest.outputs.modified == 'true' }}
+      - name: Push changes to release-plz branch
+        # if: startsWith(github.ref_name, 'bgins/run-schemas') && (steps.git-check-schemas.outputs.modified == 'true' && needs.changes.outputs.manifest == 'true')
+        if: >-
+          ${{ startsWith(github.ref_name, 'bgins/run-schemas') &&
+              (steps.git-check-schemas.outputs.modified == 'true' && needs.changes.outputs.manifest == 'true')
+          }}
         run: |
           git config user.name "${GITHUB_ACTOR}"
           git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
