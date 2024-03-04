@@ -208,7 +208,7 @@ subtle = { version = "2.5.0" }
 [target.x86_64-unknown-linux-gnu.dependencies]
 gimli = { version = "0.28.1", default-features = false, features = ["read", "std", "write"] }
 iana-time-zone = { version = "0.1.60", default-features = false, features = ["fallback"] }
-linux-raw-sys = { version = "0.6.4", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
+linux-raw-sys = { version = "0.4.13", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17.8", features = ["std"] }
@@ -220,7 +220,7 @@ subtle = { version = "2.5.0" }
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 gimli = { version = "0.28.1", default-features = false, features = ["read", "std", "write"] }
 iana-time-zone = { version = "0.1.60", default-features = false, features = ["fallback"] }
-linux-raw-sys = { version = "0.6.4", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
+linux-raw-sys = { version = "0.4.13", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17.8", features = ["std"] }
@@ -232,7 +232,7 @@ subtle = { version = "2.5.0" }
 [target.x86_64-unknown-linux-musl.dependencies]
 gimli = { version = "0.28.1", default-features = false, features = ["read", "std", "write"] }
 iana-time-zone = { version = "0.1.60", default-features = false, features = ["fallback"] }
-linux-raw-sys = { version = "0.6.4", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
+linux-raw-sys = { version = "0.4.13", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17.8", features = ["std"] }
@@ -244,7 +244,7 @@ subtle = { version = "2.5.0" }
 [target.x86_64-unknown-linux-musl.build-dependencies]
 gimli = { version = "0.28.1", default-features = false, features = ["read", "std", "write"] }
 iana-time-zone = { version = "0.1.60", default-features = false, features = ["fallback"] }
-linux-raw-sys = { version = "0.6.4", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
+linux-raw-sys = { version = "0.4.13", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17.8", features = ["std"] }
@@ -256,7 +256,7 @@ subtle = { version = "2.5.0" }
 [target.aarch64-unknown-linux-musl.dependencies]
 gimli = { version = "0.28.1", default-features = false, features = ["read", "std", "write"] }
 iana-time-zone = { version = "0.1.60", default-features = false, features = ["fallback"] }
-linux-raw-sys = { version = "0.6.4", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
+linux-raw-sys = { version = "0.4.13", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17.8", features = ["std"] }
@@ -268,7 +268,7 @@ subtle = { version = "2.5.0" }
 [target.aarch64-unknown-linux-musl.build-dependencies]
 gimli = { version = "0.28.1", default-features = false, features = ["read", "std", "write"] }
 iana-time-zone = { version = "0.1.60", default-features = false, features = ["fallback"] }
-linux-raw-sys = { version = "0.6.4", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
+linux-raw-sys = { version = "0.4.13", default-features = false, features = ["elf", "errno", "general", "if_ether", "ioctl", "net", "netlink", "no_std", "prctl", "xdp"] }
 miniz_oxide = { version = "0.7.2", default-features = false, features = ["with-alloc"] }
 object = { version = "0.32.2", default-features = false, features = ["archive", "read_core", "unaligned", "write"] }
 ring = { version = "0.17.8", features = ["std"] }
