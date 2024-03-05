@@ -95,6 +95,6 @@ conditions.
 [wasmtime]: https://github.com/bytecodealliance/wasmtime
 [wasm-tools]: https://github.com/bytecodealliance/wasm-tools
 [wit-bindgen]: https://github.com/bytecodealliance/wit-bindgen
-[wit-bindgen-rt]: https://github.com/bytecodealliance/wit-bindgen-rt
+[wit-bindgen-rt]: https://github.com/bytecodealliance/wit-bindgen/tree/main/crates/guest-rust
 [wit-component]: https://crates.io/crates/wit-component
 [wit-mvp]: https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md
