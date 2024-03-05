@@ -108,7 +108,7 @@ impl JsonSchema for Nonce {
             instance_type: Some(SingleOrVec::Single(InstanceType::String.into())),
             metadata: Some(Box::new(Metadata {
                 description: Some(
-                    "A 12-byte or 16-byte nonce. Use empty string for no nonce.".to_string(),
+                    "A 12-byte or 16-byte nonc. Use empty string for no nonce.".to_string(),
                 ),
                 ..Default::default()
             })),
