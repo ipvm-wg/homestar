@@ -219,6 +219,150 @@ async fn test_host_funs_wasi() {
 }
 
 #[tokio::test]
+async fn test_option_return_with_pop() {
+    let ipld1 = Input::Ipld(Ipld::Map(BTreeMap::from([
+        ("func".into(), Ipld::String("pop".to_string())),
+        ("args".into(), Ipld::List(vec![Ipld::List(vec![])])),
+    ])));
+
+    let ipld2 = Input::Ipld(Ipld::Map(BTreeMap::from([
+        ("func".into(), Ipld::String("pop".to_string())),
+        (
+            "args".into(),
+            Ipld::List(vec![Ipld::List(vec![Ipld::Integer(1)])]),
+        ),
+    ])));
+
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
+    let mut env = World::instantiate(wasm, "pop", State::default())
+        .await
+        .unwrap();
+
+    let res = env.execute(ipld1.parse().unwrap().into()).await.unwrap();
+    let option_val_none = match res {
+        Output::Value(wasmtime::component::Val::Option(val)) => val,
+        _ => panic!("Expected Wit Option"),
+    };
+    assert_eq!(option_val_none.value(), None);
+
+    let res = env.execute(ipld2.parse().unwrap().into()).await.unwrap();
+    let option_val_some = match res {
+        Output::Value(wasmtime::component::Val::Option(val)) => val,
+        _ => panic!("Expected Wit Option"),
+    };
+    assert_eq!(
+        option_val_some.value(),
+        Some(wasmtime::component::Val::S32(1)).as_ref()
+    );
+}
+
+#[tokio::test]
+async fn test_result_return_with_binary_search() {
+    let ipld1 = Input::Ipld(Ipld::Map(BTreeMap::from([
+        ("func".into(), Ipld::String("binary_search".to_string())),
+        (
+            "args".into(),
+            Ipld::List(vec![Ipld::List(vec![Ipld::Integer(1)]), Ipld::Integer(2)]),
+        ),
+    ])));
+
+    let ipld2 = Input::Ipld(Ipld::Map(BTreeMap::from([
+        ("func".into(), Ipld::String("binary_search".to_string())),
+        (
+            "args".into(),
+            Ipld::List(vec![Ipld::List(vec![Ipld::Integer(1)]), Ipld::Integer(1)]),
+        ),
+    ])));
+
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
+    let mut env = World::instantiate(wasm, "binary_search", State::default())
+        .await
+        .unwrap();
+
+    let res = env.execute(ipld1.parse().unwrap().into()).await.unwrap();
+    let result_val_err = match res {
+        Output::Value(wasmtime::component::Val::Result(val)) => val,
+        _ => panic!("Expected Wit Result"),
+    };
+    assert_eq!(result_val_err.value(), Err(None));
+
+    let res = env.execute(ipld2.parse().unwrap().into()).await.unwrap();
+    let result_val_ok = match res {
+        Output::Value(wasmtime::component::Val::Result(val)) => val,
+        _ => panic!("Expected Wit Result"),
+    };
+    assert_eq!(
+        result_val_ok.value(),
+        Ok(Some(wasmtime::component::Val::S32(0)).as_ref())
+    );
+}
+
+#[tokio::test]
+async fn test_result_input_record_return_with_num_keys() {
+    let ipld1 = Input::Ipld(Ipld::Map(BTreeMap::from([
+        ("func".into(), Ipld::String("num_to_kv".to_string())),
+        (
+            "args".into(),
+            Ipld::List(vec![Ipld::List(vec![Ipld::Integer(1), Ipld::Null])]),
+        ),
+    ])));
+    let ipld2 = Input::Ipld(Ipld::Map(BTreeMap::from([
+        ("func".into(), Ipld::String("num_to_kv".to_string())),
+        (
+            "args".into(),
+            Ipld::List(vec![Ipld::List(vec![Ipld::Null, "bad stuff".into()])]),
+        ),
+    ])));
+
+    let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
+    let mut env = World::instantiate(wasm, "num_to_kv", State::default())
+        .await
+        .unwrap();
+
+    let res = env.execute(ipld1.parse().unwrap().into()).await.unwrap();
+    let result_val_on_ok = match res {
+        Output::Value(wasmtime::component::Val::Record(val)) => val,
+        _ => panic!("Expected Wit Record"),
+    };
+    let mut fields = result_val_on_ok.fields();
+    let (k1, v1) = fields.next().unwrap();
+    let (k2, v2) = fields.next().unwrap();
+    assert_eq!(k1, "name");
+    assert_eq!(
+        v1,
+        &wasmtime::component::Val::String("1".to_string().into())
+    );
+
+    assert_eq!(k2, "val");
+    if let wasmtime::component::Val::Option(val) = v2 {
+        assert_eq!(val.value(), Some(wasmtime::component::Val::U32(1)).as_ref());
+    } else {
+        panic!("Expected Wit Option");
+    }
+
+    let res = env.execute(ipld2.parse().unwrap().into()).await.unwrap();
+    let result_val_on_err = match res {
+        Output::Value(wasmtime::component::Val::Record(val)) => val,
+        _ => panic!("Expected Wit Record"),
+    };
+    let mut fields = result_val_on_err.fields();
+    let (k1, v1) = fields.next().unwrap();
+    let (k2, v2) = fields.next().unwrap();
+    assert_eq!(k1, "name");
+    assert_eq!(
+        v1,
+        &wasmtime::component::Val::String("NAN".to_string().into())
+    );
+
+    assert_eq!(k2, "val");
+    if let wasmtime::component::Val::Option(val) = v2 {
+        assert_eq!(val.value(), None);
+    } else {
+        panic!("Expected Wit Option");
+    }
+}
+
+#[tokio::test]
 async fn test_matrix_transpose() {
     let ipld_inner = Ipld::List(vec![
         Ipld::List(vec![Ipld::Integer(1), Ipld::Integer(2), Ipld::Integer(3)]),

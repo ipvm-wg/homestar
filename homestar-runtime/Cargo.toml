@@ -204,7 +204,6 @@ vergen = { version = "8.3", default-features = false, features = [
 [dev-dependencies]
 assert_cmd = "2.0"
 criterion = "0.5"
-flaky_test = "0.2"
 homestar-invocation = { version = "0.2", path = "../homestar-invocation", features = [
   "diesel",
   "test-utils",

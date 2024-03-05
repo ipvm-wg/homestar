@@ -26,14 +26,12 @@ pub enum InterpreterError {
     /// Error casting from Ipld [i128] structure to a lower precision integer.
     #[error("failed to cast Ipld i128 to integer type: {0}")]
     IpldToInt(#[from] std::num::TryFromIntError),
+    /// Error involving mismatches with Ipld mapping(s).
     /// Error converting from Ipld structure to [Wit] structure.
     ///
     /// [Wit]: wasmtime::component::Val
-    #[error("no compatible Ipld type for Wit structure: {0:#?}")]
+    #[error("incompatible Ipld type to Wit structural conversion: {0:#?}")]
     IpldToWit(String),
-    /// Error involving mismatches with Ipld maps.
-    #[error("{0}")]
-    MapType(String),
     /// Bubble-up [TagsError] errors while executing the interpreter.
     #[error(transparent)]
     Tags(#[from] TagsError),

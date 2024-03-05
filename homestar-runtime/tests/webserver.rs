@@ -1,6 +1,9 @@
 use crate::{
     make_config,
-    utils::{wait_for_socket_connection, ChildGuard, ProcInfo, TimeoutFutureExt, BIN_NAME},
+    utils::{
+        check_for_line_with, kill_homestar, retrieve_output, wait_for_socket_connection,
+        ChildGuard, ProcInfo, TimeoutFutureExt, BIN_NAME,
+    },
 };
 use anyhow::Result;
 use jsonrpsee::{
@@ -20,7 +23,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const SUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "subscribe_run_workflow";
 const UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "unsubscribe_run_workflow";
-const AWAIT_CID: &str = "bafyrmicmrkz6m3vmqasx2ko4roovcacgt324dhpiqx52bvxyomcygxmg6u";
+const AWAIT_CID: &str = "bafyrmic7gy3muoxiyepl44iwrkxxrnkl5oa77scqq3ptuigrm5faiqfgka";
 
 #[test]
 #[serial_test::parallel]
@@ -44,7 +47,6 @@ fn test_workflow_run_integration() -> Result<()> {
     );
 
     let config = make_config!(toml);
-
     let homestar_proc = Command::new(BIN.as_os_str())
         .env("RUST_BACKTRACE", "0")
         .arg("start")
@@ -55,7 +57,7 @@ fn test_workflow_run_integration() -> Result<()> {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let _proc_guard = ChildGuard::new(homestar_proc);
+    let proc_guard = ChildGuard::new(homestar_proc);
 
     if wait_for_socket_connection(ws_port, 1000).is_err() {
         panic!("Homestar server/runtime failed to start in time");
@@ -201,6 +203,21 @@ fn test_workflow_run_integration() -> Result<()> {
             }
         }
     });
+
+    // Collect logs then kill proceses.
+    let dead_proc = kill_homestar(proc_guard.take(), None);
+
+    // Retrieve logs.
+    let stdout = retrieve_output(dead_proc);
+
+    // Check tht Wasm guest functions logged.
+    let crop_ran = check_for_line_with(stdout.clone(), vec!["run-fn", "crop"]);
+    let rotate_ran = check_for_line_with(stdout.clone(), vec!["run-fn", "rotate90"]);
+    let grayscale_ran = check_for_line_with(stdout, vec!["run-fn", "grayscale"]);
+
+    assert!(crop_ran);
+    assert!(rotate_ran);
+    assert!(grayscale_ran);
 
     Ok(())
 }

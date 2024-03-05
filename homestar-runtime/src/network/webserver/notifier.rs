@@ -39,7 +39,10 @@ where
 
     /// Send a message to all connected WebSocket clients.
     pub(crate) fn notify(&self, msg: T) -> Result<()> {
-        let _ = self.0.send(msg)?;
+        // If there are no receivers, the message is dropped.
+        if self.0.receiver_count() > 0 {
+            let _ = self.0.send(msg)?;
+        }
         Ok(())
     }
 }

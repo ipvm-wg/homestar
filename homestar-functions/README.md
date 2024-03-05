@@ -23,7 +23,8 @@ building Wasm components in order to run and test them on the latest
 
 We use the components compiled from this crate as fixtures for our
 execution-and-[IPLD][ipld]-focused [homestar-wasm crate](../homestar-wasm). We
-currently rely on the [WIT format][wit-mvp] IDL to describe exports, for example:
+currently rely on the [WIT format][wit-mvp] IDL to describe exports, for
+example:
 
 ```wit
 default world homestar {
@@ -33,39 +34,34 @@ default world homestar {
 }
 ```
 
-
 We then implement these functions in [lib.rs](./src/lib.rs) using
-[wit-bindgen][wit-bindgen], a guest language bindings generator for
-[WIT][wit-mvp] and the [Component Model][component-model].
+[wit-bindgen][wit-bindgen]/[wit-bindgen-rt][wit-bindgen-rt], a guest language
+bindings generator for [WIT][wit-mvp] and the
+[Component Model][component-model].
 
 ## Build
 
-Once functions are implemented, we can build the component in release-mode,
-targetting [`wasm32-unknown-unknown`][wasm32], :
+Once functions are implemented, we can use [cargo-component][cargo-component] to
+generate the necessary bindings and build the component in release-mode,
+targeting [`wasm32-unknown-unknown`][wasm32-unknown]:
 
 ```console
 # from this directory:
-cd test && cargo build --target wasm32-unknown-unknown --profile release-wasm-fn
+cd test && cargo component build --target wasm32-unknown-unknown --profile release-wasm-fn
 
 # or from the top-level workspace:
-cargo build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn
+cargo component build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn
+```
+
+We can also use the [cargo-component][cargo-component] default [`wasm32-wasi`][wasm32-wasi] target:
+
+``` console
+cargo component build -p homestar-functions-test --profile release-wasm-fn
 ```
 
 Guest Wasm modules will be generated in the top-level `homestar` directory:
-`./target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_test.wasm`.
-
-Sadly, this module is **not yet** an actual `component`. But, we can leverage
-the [wasm-tools][wasm-tools] tooling ([wit-component][wit-component] in
-particular) to convert the core Wasm binary to a Wasm component and place
-it in a different directory:
-
-```console
-wasm-tools component new /
-../target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_test.wasm -o ../homestar-wasm/fixtures/
-```
-
-*Of note*, [homestar-wasm's](../homestar-wasm) execution model will do
-[this conversion at runtime][conversion-code]!
+`./target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_test.wasm`
+or `./target/wasm32-wasi/release-wasm-fn/homestar_functions_test.wasm`.
 
 ### Other Helpful Repos
 
@@ -73,10 +69,6 @@ wasm-tools component new /
 * [SpiderLightning][spiderlightning] - defines a set of `*.wit` files that
   abstract distributed application capabilities, such as key-value, messaging,
   http-server/client and more.
-
-### Coming soon
-
-* [WASI][wasi] examples
 
 ## License
 
@@ -92,15 +84,17 @@ conditions.
 
 
 [apache]: https://www.apache.org/licenses/LICENSE-2.0
+[cargo-component]: https://github.com/bytecodealliance/cargo-component
 [component-model]: https://github.com/WebAssembly/component-model
-[conversion-code]: https://github.com/ipvm-wg/homestar/blob/main/homestar-wasm/src/wasmtime/world.rs#L277
 [ipld]: https://ipld.io/
 [kv-demo]: https://github.com/Mossaka/keyvalue-component-model-demo
 [spiderlightning]: https://github.com/deislabs/spiderlightning
 [wasi]: https://github.com/WebAssembly/WASI
-[wasm32]: https://rustwasm.github.io/docs/wasm-pack/prerequisites/non-rustup-setups.html#manually-add-wasm32-unknown-unknown
+[wasm32-unknown]: https://rustwasm.github.io/docs/wasm-pack/prerequisites/non-rustup-setups.html#manually-add-wasm32-unknown-unknown
+[wasm32-wasi]: https://wasmbyexample.dev/examples/wasi-hello-world/wasi-hello-world.rust.en-us
 [wasmtime]: https://github.com/bytecodealliance/wasmtime
 [wasm-tools]: https://github.com/bytecodealliance/wasm-tools
 [wit-bindgen]: https://github.com/bytecodealliance/wit-bindgen
+[wit-bindgen-rt]: https://github.com/bytecodealliance/wit-bindgen/tree/main/crates/guest-rust
 [wit-component]: https://crates.io/crates/wit-component
 [wit-mvp]: https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md
