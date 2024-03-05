@@ -283,8 +283,7 @@ impl RuntimeVal {
                     InterfaceType::Type(Type::S32) | InterfaceType::TypeRef(Type::S32) => {
                         RuntimeVal::new(Val::S32(v.try_into()?))
                     }
-                    // We need to handle odd issues with clients where 5.0
-                    // becomes 5.
+                    // We need to handle cases where clients, notably JavaScript, represent 5.0 as 5.
                     InterfaceType::Type(Type::Float32) => RuntimeVal::new(Val::Float32(v as f32)),
                     InterfaceType::Type(Type::Float64) => RuntimeVal::new(Val::Float64(v as f64)),
                     InterfaceType::Any
