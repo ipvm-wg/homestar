@@ -75,7 +75,7 @@ tokio-util = { version = "0.7.10", features = ["codec", "compat", "io", "time"] 
 tower = { version = "0.4.13", features = ["balance", "buffer", "limit", "timeout", "util"] }
 tracing = { version = "0.1.40", features = ["log"] }
 tracing-core = { version = "0.1.32" }
-tracing-logfmt = { version = "0.3.3", default-features = false, features = ["ansi_logs"] }
+tracing-logfmt = { version = "0.3.4", default-features = false, features = ["ansi_logs"] }
 tracing-subscriber = { version = "0.3.18", default-features = false, features = ["env-filter", "fmt", "parking_lot"] }
 typenum = { version = "1.17.0", default-features = false, features = ["const-generics"] }
 unsigned-varint = { version = "0.7.2", default-features = false, features = ["asynchronous_codec"] }
@@ -150,7 +150,7 @@ tokio-util = { version = "0.7.10", features = ["codec", "compat", "io", "time"] 
 tower = { version = "0.4.13", features = ["balance", "buffer", "limit", "timeout", "util"] }
 tracing = { version = "0.1.40", features = ["log"] }
 tracing-core = { version = "0.1.32" }
-tracing-logfmt = { version = "0.3.3", default-features = false, features = ["ansi_logs"] }
+tracing-logfmt = { version = "0.3.4", default-features = false, features = ["ansi_logs"] }
 tracing-subscriber = { version = "0.3.18", default-features = false, features = ["env-filter", "fmt", "parking_lot"] }
 typenum = { version = "1.17.0", default-features = false, features = ["const-generics"] }
 unsigned-varint = { version = "0.7.2", default-features = false, features = ["asynchronous_codec"] }
