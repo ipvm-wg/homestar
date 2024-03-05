@@ -4,7 +4,7 @@ use anyhow::{anyhow, Context};
 use clap::ValueEnum;
 use libp2p::{identity, identity::secp256k1};
 use rand::{Rng, SeedableRng};
-use sec1::der::Decode;
+use sec1::{der::Decode, pkcs8::DecodePrivateKey};
 use serde::{Deserialize, Serialize};
 use serde_with::{base64::Base64, serde_as};
 use std::{
@@ -137,8 +137,6 @@ impl PubkeyConfig {
 
                 match key_type {
                     KeyType::Ed25519 => {
-                        const PEM_HEADER: &str = "PRIVATE KEY";
-
                         info!(
                             subject = "pubkey_config.path.ed25519",
                             category = "pubkey_config",
@@ -146,11 +144,13 @@ impl PubkeyConfig {
                             path.display()
                         );
 
-                        let (tag, mut key) = sec1::der::pem::decode_vec(&buf)
-                            .map_err(|e| anyhow!("key file must be PEM formatted: {:#?}", e))?;
-                        if tag != PEM_HEADER {
-                            return Err(anyhow!("imported key file had a header of '{tag}', expected '{PEM_HEADER}' for ed25519"));
-                        }
+                        let mut key = ed25519_dalek::SigningKey::from_pkcs8_pem(
+                            &String::from_utf8(buf).with_context(|| {
+                                "unable to read PEM, file contained invalid UTF-8 code points"
+                            })?,
+                        )
+                        .with_context(|| "unable to deserialize ed25119 key from PEM")?
+                        .to_bytes();
 
                         // raw bytes of ed25519 secret key from PEM file
                         identity::Keypair::ed25519_from_bytes(&mut key)
