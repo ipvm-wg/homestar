@@ -53,8 +53,7 @@ cd test && cargo component build --target wasm32-unknown-unknown --profile relea
 cargo component build -p homestar-functions-test --target wasm32-unknown-unknown --profile release-wasm-fn
 ```
 
-We can also build for [`wasm32-wasi`][wasm32-wasi] targets, which
-[cargo-component][cargo-component] defaults to:
+We can also use the [cargo-component][cargo-component] default [`wasm32-wasi`][wasm32-wasi] target:
 
 ``` console
 cargo component build -p homestar-functions-test --profile release-wasm-fn
