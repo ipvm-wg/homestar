@@ -27,8 +27,6 @@ pub enum OutputMode {
     File {
         /// The path to write to.
         path: PathBuf,
-        /// Automatically overwrite the file if it exists.
-        force: bool,
     },
 }
 
@@ -88,7 +86,6 @@ pub fn handle_init_command(init_args: InitArgs) -> Result<()> {
     } else {
         OutputMode::File {
             path: init_args.output_path.unwrap_or_else(Settings::path),
-            force: init_args.force,
         }
     };
 
@@ -130,7 +127,7 @@ pub fn handle_init_command(init_args: InitArgs) -> Result<()> {
 
     let settings_toml = toml::to_string_pretty(&settings).expect("to serialize settings");
 
-    handle_output_mode(output_mode, no_input, &mut writer)?
+    handle_output_mode(output_mode, no_input, init_args.force, &mut writer)?
         .write_all(settings_toml.as_bytes())
         .expect("to write settings file");
 
@@ -148,11 +145,12 @@ fn handle_quiet(quiet: bool) -> Result<Box<dyn Write>> {
 fn handle_output_mode(
     output_mode: OutputMode,
     no_input: bool,
+    force: bool,
     writer: &mut Box<dyn Write>,
 ) -> Result<Box<dyn Write>> {
     match output_mode {
         OutputMode::StdOut => Ok(Box::new(stdout())),
-        OutputMode::File { path, force: true } => {
+        OutputMode::File { path } if force => {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).expect("to create parent directory");
             }
@@ -169,7 +167,7 @@ fn handle_output_mode(
 
             Ok(Box::new(settings_file))
         }
-        OutputMode::File { path, force: false } => {
+        OutputMode::File { path } => {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).expect("to create parent directory");
             }
