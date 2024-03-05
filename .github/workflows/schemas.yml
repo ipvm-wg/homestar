@@ -2,8 +2,7 @@ name: 📄 Schemas
 
 on:
   push:
-    branches: [main, "bgins/run-schemas-*"]
-    # branches: [main, "release-plz-*"]
+    branches: [main, "release-plz-*"]
     # branches: [main, "**"]
 
 permissions:
@@ -67,7 +66,6 @@ jobs:
         run: echo modified=$(if [[ $(git diff homestar-runtime/schemas/) ]]; then echo "true"; else echo "false"; fi) >> $GITHUB_OUTPUT
 
       - name: Push changes to main
-        # if: github.ref_name == 'main' && (steps.git-check-schemas.outputs.modified == 'true' && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.manifest == 'true'))
         if: >-
           ${{ github.ref_name == 'main' &&
               (steps.git-check-schemas.outputs.modified == 'true' &&
@@ -82,9 +80,8 @@ jobs:
           git push
 
       - name: Push changes to release-plz branch
-        # if: startsWith(github.ref_name, 'bgins/run-schemas') && (steps.git-check-schemas.outputs.modified == 'true' && needs.changes.outputs.manifest == 'true')
         if: >-
-          ${{ startsWith(github.ref_name, 'bgins/run-schemas') &&
+          ${{ startsWith(github.ref_name, 'release-plz') &&
               (steps.git-check-schemas.outputs.modified == 'true' && needs.changes.outputs.manifest == 'true')
           }}
         run: |
