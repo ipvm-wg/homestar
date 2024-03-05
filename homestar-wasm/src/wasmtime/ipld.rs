@@ -224,6 +224,12 @@ impl RuntimeVal {
                             )
                         );
                         match (vec.as_slice(), ok_typ, err_typ) {
+                            ([Ipld::Integer(1), Ipld::Null], None, _) => {
+                                RuntimeVal::new(res_inst.new_val(Ok(None))?)
+                            }
+                            ([Ipld::Null, Ipld::Integer(1)], _, None) => {
+                                RuntimeVal::new(res_inst.new_val(Err(None))?)
+                            }
                             ([ipld, Ipld::Null], Some(ty), _) => {
                                 let inner_v = RuntimeVal::try_from(
                                     ipld.to_owned(),
@@ -237,12 +243,6 @@ impl RuntimeVal {
                                     &InterfaceType::TypeRef(&ty),
                                 )?;
                                 RuntimeVal::new(res_inst.new_val(Err(Some(inner_v.value())))?)
-                            }
-                            ([Ipld::Integer(1), Ipld::Null], None, _) => {
-                                RuntimeVal::new(res_inst.new_val(Ok(None))?)
-                            }
-                            ([Ipld::Null, Ipld::Integer(1)], _, None) => {
-                                RuntimeVal::new(res_inst.new_val(Err(None))?)
                             }
                             _ => Err(InterpreterError::IpldToWit(
                                 "IPLD (as WIT result) has specific structure does does not match"
