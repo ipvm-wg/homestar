@@ -81,11 +81,12 @@ impl Display for PubkeyConfigOption {
 
 /// Handle the `init` command.
 pub fn handle_init_command(init_args: InitArgs) -> Result<()> {
+    let output_path = init_args.output_path.clone().unwrap_or_else(Settings::path);
     let output_mode = if init_args.dry_run {
         OutputMode::StdOut
     } else {
         OutputMode::File {
-            path: init_args.output_path.unwrap_or_else(Settings::path),
+            path: output_path.clone(),
         }
     };
 
@@ -108,7 +109,7 @@ pub fn handle_init_command(init_args: InitArgs) -> Result<()> {
 
     let mut writer = handle_quiet(init_args.quiet)?;
     let key_type = handle_key_type(init_args.key_type, no_input, &mut writer)?;
-    let keypair_config = handle_key(key_arg, key_type, no_input, &mut writer)?;
+    let keypair_config = handle_key(key_arg, key_type, output_path, no_input, &mut writer)?;
 
     let network = network_builder
         .keypair_config(keypair_config)
@@ -243,6 +244,7 @@ fn handle_key_type(
 fn handle_key(
     key_arg: Option<KeyArg>,
     key_type: KeyType,
+    output_path: PathBuf,
     no_input: bool,
     _writer: &mut Box<dyn Write>,
 ) -> Result<PubkeyConfig> {
@@ -282,7 +284,9 @@ fn handle_key(
                         message: "Enter the path for the key",
                         formatter: &|p: PathBuf| p.display().to_string(),
                         default_value_formatter: &|p| p.display().to_string(),
-                        default: None,
+                        default: output_path
+                            .parent()
+                            .map(|parent| parent.join("homestar.pem")),
                         validators: vec![],
                         placeholder: None,
                         error_message: "Please type a valid path".to_string(),
@@ -293,11 +297,17 @@ fn handle_key(
                     .prompt()
                     .map_err(|e| miette!(e))?;
 
+                    generate_key_file(&path, &key_type)?;
+
                     PubkeyConfig::Existing(ExistingKeyPath::new(key_type, path))
                 }
             }
         }
-        Some(KeyArg::File { path }) => PubkeyConfig::Existing(ExistingKeyPath::new(key_type, path)),
+        Some(KeyArg::File { path }) => {
+            generate_key_file(&path, &key_type)?;
+
+            PubkeyConfig::Existing(ExistingKeyPath::new(key_type, path))
+        }
         Some(KeyArg::Seed { seed: None }) => {
             let seed = rand::thread_rng().gen::<[u8; 32]>();
 
@@ -317,4 +327,36 @@ fn handle_key(
         .map_err(|e| miette!(format!("Failed to load key: {}", e)))?;
 
     Ok(config)
+}
+
+fn generate_key_file(path: &PathBuf, key_type: &KeyType) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("to create parent directory");
+    }
+
+    let key_file = File::options()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(path);
+
+    match key_file {
+        // file did not exist, generate the key
+        Ok(mut file) => {
+            let key = match *key_type {
+                KeyType::Ed25519 => ed25519_compact::KeyPair::generate().sk.to_pem(),
+                KeyType::Secp256k1 => bail!("Aborting... generating secp256k1 keys is not yet supported, please provide an existing key file, or choose another key type."),
+            };
+
+            file.write_all(key.as_bytes())
+                .expect("to write to key file");
+        }
+        // file did exist, do nothing and use existing key
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
+        err => {
+            err.expect("to open key file");
+        }
+    };
+
+    Ok(())
 }

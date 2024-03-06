@@ -52,6 +52,7 @@ console-subscriber = { version = "0.2", default-features = false, features = [
 const_format = { workspace = true }
 crossbeam = "0.8"
 dagga = "0.2"
+ed25519-compact = "2.1"
 ed25519-dalek = { version = "2.1", features = ["pem"] }
 dashmap = "5.5"
 derive-getters = "0.3"
