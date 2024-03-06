@@ -129,6 +129,7 @@ impl PubkeyConfig {
             }
             PubkeyConfig::Existing(ExistingKeyPath { key_type, path }) => {
                 let path = Path::new(&path);
+
                 let mut file = std::fs::File::open(path).context("unable to read key file")?;
 
                 let mut buf = Vec::new();
@@ -144,17 +145,30 @@ impl PubkeyConfig {
                             path.display()
                         );
 
-                        let mut key = ed25519_dalek::SigningKey::from_pkcs8_pem(
-                            &String::from_utf8(buf).with_context(|| {
-                                "unable to read PEM, file contained invalid UTF-8 code points"
-                            })?,
-                        )
-                        .with_context(|| "unable to deserialize ed25119 key from PEM")?
-                        .to_bytes();
+                        String::from_utf8(buf.clone()).with_context(|| {
+                            "unable to read PEM, file contained invalid UTF-8 code points"
+                        })
+                        .and_then(|pem| ed25519_dalek::SigningKey::from_pkcs8_pem(&pem).with_context(|| "unable to deserialize ed25119 key from PEM"))
+                        .and_then(|pem| {
+                            let mut key = pem.to_bytes();
 
-                        // raw bytes of ed25519 secret key from PEM file
-                        identity::Keypair::ed25519_from_bytes(&mut key)
-                            .with_context(|| "imported key material was invalid for ed25519")
+                            identity::Keypair::ed25519_from_bytes(&mut key).with_context(|| "imported key material was invalid for ed25519")
+                        })
+                       .or_else(|_| {
+                            // parsing using ed25519_dalek failed, so try falling back to the older parsing strategy that attempts
+                            // to deserialize the key material as a single byte vec, with no parameters included
+                            const PEM_HEADER: &str = "PRIVATE KEY";
+
+                            // to parse keys as a vec of the key material, with no parameters included
+                            let (tag, mut key) = sec1::der::pem::decode_vec(&buf)
+                                .map_err(|e| anyhow!("key file must be PEM formatted: {:#?}", e))?;
+                            if tag != PEM_HEADER {
+                                return Err(anyhow!("imported key file had a header of '{tag}', expected '{PEM_HEADER}' for ed25519"));
+                            }
+
+                            identity::Keypair::ed25519_from_bytes(&mut key)
+                                                        .with_context(|| "imported key material was invalid for ed25519")
+                        })
                     }
                     KeyType::Secp256k1 => {
                         info!(
