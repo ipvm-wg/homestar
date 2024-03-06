@@ -9,6 +9,7 @@ use crate::{
 };
 use anyhow::Result;
 use assert_cmd::prelude::*;
+use homestar_runtime::Settings;
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
 use std::{
@@ -397,6 +398,42 @@ fn test_init_interactive_no_tty() -> Result<()> {
         .stderr(predicate::str::contains(
             "cannot prompt for key type in non-interactive mode.",
         ));
+
+    Ok(())
+}
+
+#[test]
+#[serial_test::parallel]
+fn test_init_writes_config() -> Result<()> {
+    let uuid = uuid::Uuid::new_v4();
+    let config_name = format!("tests/fixtures/{}_config.toml", uuid);
+    let key_name = format!("tests/fixtures/{}_key.pem", uuid);
+
+    Command::new(BIN.as_os_str())
+        .arg("init")
+        .arg("--output")
+        .arg(config_name.clone())
+        .arg("--no-input")
+        .arg("--key-type")
+        .arg("ed25519")
+        .arg("--key-file")
+        .arg(key_name.clone())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(format!(
+            "Writing settings to \"{}\"",
+            config_name.clone()
+        )));
+
+    let config = Settings::load_from_file(config_name.clone().into());
+    let secret_key =
+        ed25519_compact::SecretKey::from_pem(&std::fs::read_to_string(key_name.clone()).unwrap());
+
+    std::fs::remove_file(config_name).unwrap();
+    std::fs::remove_file(key_name).unwrap();
+
+    assert!(config.is_ok());
+    assert!(secret_key.is_ok());
 
     Ok(())
 }
