@@ -54,6 +54,7 @@ wit-component = "0.200"
 
 [dev-dependencies]
 criterion = "0.5"
+serde_json = { workspace = true }
 tokio = { workspace = true }
 
 [features]
