@@ -447,14 +447,43 @@ mod test {
 
     #[test]
     fn import_existing_key() {
+        // Test using a key not containing curve parameters
         let settings = Settings::build(Some("fixtures/settings-import-ed25519.toml".into()))
             .expect("setting file in test fixtures");
 
         let msg = b"foo bar";
-        let signature = libp2p::identity::Keypair::ed25519_from_bytes([0; 32])
+        let key = [0; 32];
+        let signature = libp2p::identity::Keypair::ed25519_from_bytes(key)
             .unwrap()
             .sign(msg)
             .unwrap();
+
+        // round-about way of testing since there is no Eq derive for keypairs
+        assert!(settings
+            .node
+            .network
+            .keypair_config
+            .keypair()
+            .expect("import ed25519 key")
+            .public()
+            .verify(msg, &signature));
+
+        // Test using a key containing curve parameters
+        let settings = Settings::build(Some(
+            "fixtures/settings-import-ed25519-with-params.toml".into(),
+        ))
+        .expect("setting file in test fixtures");
+
+        let msg = b"foo bar";
+        let key = [
+            255, 211, 202, 168, 61, 181, 166, 62, 247, 234, 100, 3, 193, 51, 5, 251, 20, 1, 62,
+            135, 139, 231, 142, 86, 225, 243, 163, 90, 161, 31, 155, 129,
+        ];
+        let signature = libp2p::identity::Keypair::ed25519_from_bytes(key)
+            .unwrap()
+            .sign(msg)
+            .unwrap();
+
         // round-about way of testing since there is no Eq derive for keypairs
         assert!(settings
             .node
