@@ -20,6 +20,7 @@ use homestar_invocation::{
     task::instruction::{Args, Input},
 };
 use std::{iter, time::Instant};
+use tracing::{instrument, Instrument};
 use wasmtime::{
     component::{self, Component, Func, Instance, Linker},
     Config, Engine, Store,
@@ -145,6 +146,7 @@ impl<T> Env<T> {
     /// Types must conform to [Wit] IDL types when Wasm was compiled/generated.
     ///
     /// [Wit]: <https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md>
+    #[instrument(name = "execute", skip_all)]
     pub async fn execute(&mut self, args: Args<Arg>) -> Result<Output, Error>
     where
         T: Send,
@@ -196,6 +198,7 @@ impl<T> Env<T> {
             .ok_or(Error::WasmInstantiation)?
             .func()
             .call_async(&mut self.store, &params, &mut results_alloc)
+            .in_current_span()
             .await?;
 
         self.bindings
@@ -203,6 +206,7 @@ impl<T> Env<T> {
             .ok_or(Error::WasmInstantiation)?
             .func()
             .post_return_async(&mut self.store)
+            .in_current_span()
             .await?;
 
         let results = match &results_alloc[..] {
@@ -415,7 +419,7 @@ fn component_from_bytes(bytes: &[u8], engine: Engine) -> Result<Component, Error
             if is_component(chunk) {
                 Component::from_binary(&engine, bytes).map_err(Error::IntoWasmComponent)
             } else {
-                tracing::info!("Converting Wasm binary into a Wasm component");
+                tracing::info!("converting Wasm binary into a Wasm component");
 
                 let component = ComponentEncoder::default()
                     .module(bytes)?

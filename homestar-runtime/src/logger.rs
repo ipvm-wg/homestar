@@ -43,31 +43,60 @@ fn init(
     guard: WorkerGuard,
     #[allow(unused_variables)] settings: &settings::Monitoring,
 ) -> WorkerGuard {
-    // TODO: Add support for customizing logger(s) / specialzed formatters.
-    let format_layer = tracing_logfmt::builder()
-        .with_level(true)
-        .with_target(true)
-        .with_span_name(true)
-        .with_span_path(true)
-        .with_location(true)
-        .with_module_path(true)
-        .layer()
-        .with_writer(writer);
+    // RUST_LOG ignored when EVERY_CLI is true
+    let every_cli = std::env::var("EVERY_CLI").is_ok_and(|val| val == "true");
 
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        EnvFilter::new("info")
-            .add_directive("homestar_wasm=info".parse().expect(DIRECTIVE_EXPECT))
-            .add_directive("libp2p=info".parse().expect(DIRECTIVE_EXPECT))
+    // TODO: Add support for customizing logger(s) / specialzed formatters.
+    let format_layer = if every_cli {
+        tracing_logfmt::builder()
+            .with_level(true)
+            .with_target(false)
+            .with_span_name(false)
+            .with_span_path(false)
+            .with_location(false)
+            .with_module_path(false)
+            .layer()
+            .with_writer(writer)
+    } else {
+        tracing_logfmt::builder()
+            .with_level(true)
+            .with_target(true)
+            .with_span_name(true)
+            .with_span_path(true)
+            .with_location(true)
+            .with_module_path(true)
+            .layer()
+            .with_writer(writer)
+    };
+
+    let filter = if every_cli {
+        EnvFilter::new("off")
             .add_directive(
-                "libp2p_gossipsub::behaviour=info"
+                "homestar_runtime::worker[run]=info"
                     .parse()
                     .expect(DIRECTIVE_EXPECT),
             )
-            .add_directive("tarpc=info".parse().expect(DIRECTIVE_EXPECT))
-            .add_directive("tower_http=info".parse().expect(DIRECTIVE_EXPECT))
-            .add_directive("moka=info".parse().expect(DIRECTIVE_EXPECT))
-            .add_directive("jsonrpsee=info".parse().expect(DIRECTIVE_EXPECT))
-    });
+            .add_directive(
+                "homestar_runtime::worker[spawn_tasks]=info"
+                    .parse()
+                    .expect(DIRECTIVE_EXPECT),
+            )
+    } else {
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            EnvFilter::new("info")
+                .add_directive("homestar_wasm=info".parse().expect(DIRECTIVE_EXPECT))
+                .add_directive("libp2p=info".parse().expect(DIRECTIVE_EXPECT))
+                .add_directive(
+                    "libp2p_gossipsub::behaviour=info"
+                        .parse()
+                        .expect(DIRECTIVE_EXPECT),
+                )
+                .add_directive("tarpc=info".parse().expect(DIRECTIVE_EXPECT))
+                .add_directive("tower_http=info".parse().expect(DIRECTIVE_EXPECT))
+                .add_directive("moka=info".parse().expect(DIRECTIVE_EXPECT))
+                .add_directive("jsonrpsee=info".parse().expect(DIRECTIVE_EXPECT))
+        })
+    };
 
     #[cfg(all(
         feature = "console",

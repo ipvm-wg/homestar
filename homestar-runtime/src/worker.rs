@@ -36,7 +36,7 @@ use indexmap::IndexMap;
 use libipld::{Cid, Ipld};
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::task::JoinSet;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, info_span, instrument, Instrument};
 
 mod poller;
 mod resolver;
@@ -157,6 +157,7 @@ where
     /// [Instruction]: homestar_invocation::task::Instruction
     /// [Swarm]: crate::network::swarm
     /// [LinkMap]: homestar_workflow::LinkMap
+    #[instrument(skip_all)]
     pub(crate) async fn run<F>(self, running_tasks: Arc<RunningTaskSet>, fetch_fn: F) -> Result<()>
     where
         F: FnOnce(FnvHashSet<Resource>) -> BoxFuture<'a, Result<IndexMap<Resource, Vec<u8>>>>,
@@ -169,6 +170,15 @@ where
         .await
         {
             Ok(ctx) => {
+                let workflow_cid = self.workflow_info.cid.to_string();
+
+                info!(
+                    subject = "worker.init_workflow",
+                    category = "worker.run",
+                    workflow_cid,
+                    "initializing workflow"
+                );
+
                 let promises_to_resolve = ctx.scheduler.promises_to_resolve.clone();
                 let resolver = DHTResolver::new(
                     promises_to_resolve,
@@ -181,7 +191,7 @@ where
                     info!(
                         subject = "worker.resolve_receipts",
                         category = "worker.run",
-                        workflow_cid = self.workflow_info.cid.to_string(),
+                        workflow_cid,
                         "resolving receipts in the background"
                     );
                     poller::poll(
@@ -209,8 +219,26 @@ where
                     )?;
                 }
 
+                info!(
+                    subject = "worker.start_workflow",
+                    category = "worker.run",
+                    workflow_cid,
+                    "starting workflow"
+                );
+
                 // Run the queue of tasks.
-                self.run_queue(ctx.scheduler, running_tasks).await
+                let result = self.run_queue(ctx.scheduler, running_tasks).await;
+
+                if let Ok(()) = result {
+                    info!(
+                        subject = "worker.end_workflow",
+                        category = "worker.run",
+                        workflow_cid,
+                        "workflow completed"
+                    );
+                }
+
+                result
             }
             Err(err) => {
                 error!(subject = "worker.init.err",
@@ -223,6 +251,7 @@ where
     }
 
     #[allow(unused_mut)]
+    #[instrument(skip_all)]
     async fn run_queue(
         mut self,
         mut scheduler: TaskScheduler<'a>,
@@ -321,7 +350,7 @@ where
                                 category = "worker.run",
                                 workflow_cid = workflow_cid.to_string(),
                                 cid = cid.to_string(),
-                                "attempting to resolve cid in workflow"
+                                "attempting to resolve workflow args by cid"
                             );
 
                             cid.resolve(linkmap.clone(), resources.clone(), db.clone())
@@ -329,9 +358,11 @@ where
                         });
 
                         let handle = task_set.spawn(async move {
-                            match resolved.await {
+                             match resolved.await {
                                 Ok(inst_result) => {
-                                    match wasm_ctx.run(wasm, &fun, inst_result).await {
+                                    match wasm_ctx.run(wasm, &fun, inst_result).instrument({
+                                        info_span!("wasm_run").or_current()
+                                    }).await {
                                         Ok(output) => Ok((
                                             output,
                                             instruction_ptr,
@@ -352,7 +383,11 @@ where
                                         })
                                 }
                             }
-                        });
+                        }
+                        .instrument({
+                            info_span!("spawn_tasks").or_current()
+                        }));
+
                         handles.push(handle);
                     }
                     None => error!(
