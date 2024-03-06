@@ -1,4 +1,4 @@
-use inquire::{ui::RenderConfig, Confirm, CustomType, Select};
+use inquire::{Confirm, CustomType, Select, Text};
 use miette::{bail, miette, Result};
 use rand::Rng;
 use serde::de::IntoDeserializer;
@@ -277,25 +277,18 @@ fn handle_key(
                     PubkeyConfig::GenerateFromSeed(RNGSeed::new(key_type, seed.0))
                 }
                 PubkeyConfigOption::FromFile => {
-                    // HACK: We need to manually instantiate the struct with a custom formatter,
-                    // because PathBuf doesn't implement Display, but the new constructor requires
-                    // T: Display
-                    let path = CustomType::<'_, PathBuf> {
-                        message: "Enter the path for the key",
-                        formatter: &|p: PathBuf| p.display().to_string(),
-                        default_value_formatter: &|p| p.display().to_string(),
-                        default: output_path
-                            .parent()
-                            .map(|parent| parent.join("homestar.pem")),
-                        validators: vec![],
-                        placeholder: None,
-                        error_message: "Please type a valid path".to_string(),
-                        help_message: None,
-                        parser: &|a| a.parse::<PathBuf>().map_err(|_| ()),
-                        render_config: RenderConfig::default(),
-                    }
-                    .prompt()
-                    .map_err(|e| miette!(e))?;
+                    let path_prompt = Text::new("Enter the path for the key");
+
+                    let default_path;
+                    let path_prompt = if let Some(parent) = output_path.parent() {
+                        default_path = parent.join("homestar.pem").display().to_string();
+
+                        path_prompt.with_default(&default_path)
+                    } else {
+                        path_prompt
+                    };
+
+                    let path = path_prompt.prompt().map_err(|e| miette!(e))?.into();
 
                     generate_key_file(&path, &key_type)?;
 
