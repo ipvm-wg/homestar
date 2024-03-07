@@ -36,7 +36,7 @@ use indexmap::IndexMap;
 use libipld::{Cid, Ipld};
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::task::JoinSet;
-use tracing::{debug, error, info, info_span, instrument, Instrument};
+use tracing::{debug, debug_span, error, info, info_span, instrument, Instrument};
 
 mod poller;
 mod resolver;
@@ -357,7 +357,7 @@ where
                              match resolved.await {
                                 Ok(inst_result) => {
                                     match wasm_ctx.run(wasm, &fun, inst_result).instrument({
-                                        info_span!("wasm_run").or_current()
+                                        debug_span!("wasm_run").or_current()
                                     }).await {
                                         Ok(output) => Ok((
                                             output,
