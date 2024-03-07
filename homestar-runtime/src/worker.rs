@@ -385,7 +385,7 @@ where
                             }
                         }
                         .instrument({
-                            info_span!("spawn_tasks").or_current()
+                            info_span!("spawn_workflow_tasks").or_current()
                         }));
 
                         handles.push(handle);

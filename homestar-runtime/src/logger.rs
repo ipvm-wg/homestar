@@ -77,7 +77,7 @@ fn init(
                     .expect(DIRECTIVE_EXPECT),
             )
             .add_directive(
-                "homestar_runtime::worker[spawn_tasks]=info"
+                "homestar_runtime::worker[spawn_workflow_tasks]=info"
                     .parse()
                     .expect(DIRECTIVE_EXPECT),
             )
