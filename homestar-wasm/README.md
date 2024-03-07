@@ -1051,7 +1051,7 @@ given an input with a `result` type, the JSON value of
 ```
 
 would fail to be translated into a Wit `result`runtime value, as it's ambiguous
-to which case it should be mapped to.
+which case it should be mapped to.
 
 [cidv0]: https://github.com/multiformats/cid?tab=readme-ov-file#cidv0
 [cidv1]: https://github.com/multiformats/cid?tab=readme-ov-file#cidv1
