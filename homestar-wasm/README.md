@@ -920,15 +920,15 @@ A [`result`][wit-result] can be interpreted as one of these patterns:
 
    Given an JSON input for this function:
 
-      ```json
-      {
-        "args": [[47, null]]
-      }
-      ```
+    ```json
+    {
+      "args": [[47, null]]
+    }
+    ```
 
-      `[47, null]` is converted into an `Ipld::List`, which is then translated
-      and passed into `fn` as an `Ok` case of the `result` argument with a
-      payload of `47` matching the `s32` type on the left.
+    `[47, null]` is converted into an `Ipld::List`, which is then translated
+    and passed into `fn` as an `Ok` case of the `result` argument with a
+    payload of `47` matching the `s32` type on the left.
 
   * **WIT to IPLD Translation**:
 
@@ -947,16 +947,16 @@ A [`result`][wit-result] can be interpreted as one of these patterns:
 
     Given an JSON input for this function:
 
-      ```json
-      {
-        "args": [[null, "error message"]]
-      }
-      ```
+    ```json
+    {
+      "args": [[null, "error message"]]
+    }
+    ```
 
-      `[null, "error message"]` is converted into an `Ipld::List`, which is
-      then translated and passed into `fn` as an `Err` case of the `result`
-      argument with a payload of `"error message"` matching the `string` type
-      on the right.
+    `[null, "error message"]` is converted into an `Ipld::List`, which is
+    then translated and passed into `fn` as an `Err` case of the `result`
+    argument with a payload of `"error message"` matching the `string` type
+    on the right.
 
   * **WIT to IPLD Translation**:
 
@@ -975,16 +975,16 @@ A [`result`][wit-result] can be interpreted as one of these patterns:
 
     Given an JSON input for this function:
 
-      ```json
-      {
-        "args": [[47, null]]
-      }
-      ```
+    ```json
+    {
+      "args": [[47, null]]
+    }
+    ```
 
-      `[47, null]` is converted into an `Ipld::List`, which is then translated
-      and passed into `fn` as an `Ok` case of the `result` argument. The payload
-      is ignored as it's not needed (expressed in the type as `_` above), so
-      `47` is not used.
+    `[47, null]` is converted into an `Ipld::List`, which is then translated
+    and passed into `fn` as an `Ok` case of the `result` argument. The payload
+    is ignored as it's not needed (expressed in the type as `_` above), so
+    `47` is not used.
 
   * **WIT to IPLD Translation**:
 
@@ -1005,16 +1005,16 @@ A [`result`][wit-result] can be interpreted as one of these patterns:
 
     Given an JSON input for this function:
 
-      ```json
-      {
-        "args": [[null, "error message"]]
-      }
-      ```
+    ```json
+    {
+      "args": [[null, "error message"]]
+    }
+    ```
 
-      `[null, "error message"]` is converted into an `Ipld::List`, which is
-      then translated and passed into `fn` as an `Err` case of the `result`
-      argument. The payload is ignored as it's not needed (expressed in the type
-      as `_` above), so `"error message"` is not used.
+    `[null, "error message"]` is converted into an `Ipld::List`, which is
+    then translated and passed into `fn` as an `Err` case of the `result`
+    argument. The payload is ignored as it's not needed (expressed in the type
+    as `_` above), so `"error message"` is not used.
 
   * **WIT to IPLD Translation**:
 
