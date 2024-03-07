@@ -120,7 +120,7 @@ ty ::= 'u8' | 'u16' | 'u32' | 'u64'
   `1` is converted into an `Ipld::Integer`, which is then translated and
   passed into `fn` as an integer argument (`s32`).
 
-  **Note**: However, If the input argument to the WIT interface is a `float`
+  **Note**: However, if the input argument to the WIT interface is a `float`
   type, but the incoming value is an `Ipld::Integer`, then the IPLD value will
   be cast to a `float`, and remain as one for the rest of the computation. This
   is to avoid weird JavaScript behavior around `1.0 === 1` for example.
