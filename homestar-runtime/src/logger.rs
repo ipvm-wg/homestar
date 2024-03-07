@@ -7,6 +7,7 @@ use tracing_subscriber::{layer::SubscriberExt as _, prelude::*, EnvFilter};
 
 const LOG_FILE: &str = "homestar.log";
 const DIRECTIVE_EXPECT: &str = "Invalid tracing directive";
+const EVERY_CLI: &str = "EVERY_CLI";
 
 /// Logger interface.
 #[derive(Debug)]
@@ -44,7 +45,7 @@ fn init(
     #[allow(unused_variables)] settings: &settings::Monitoring,
 ) -> WorkerGuard {
     // RUST_LOG ignored when EVERY_CLI is true
-    let every_cli = std::env::var("EVERY_CLI").is_ok_and(|val| val == "true");
+    let every_cli: bool = std::env::var(EVERY_CLI).is_ok_and(|val| val == "true");
 
     // TODO: Add support for customizing logger(s) / specialzed formatters.
     let format_layer = if every_cli {
