@@ -926,6 +926,7 @@ A [`result`][wit-result] can be interpreted as one of these patterns:
     }
     ```
 
+
     `[47, null]` is converted into an `Ipld::List`, which is then translated
     and passed into `fn` as an `Ok` case of the `result` argument with a
     payload of `47` matching the `s32` type on the left.
