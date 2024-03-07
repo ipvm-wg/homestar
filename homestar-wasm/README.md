@@ -437,8 +437,8 @@ can be interpreted either as a `list<u8>` or `string`.
   * **WIT to IPLD Translation**:
 
     **Here, when a string value is returned from a WIT function, it is
-    translated into an `Ipld::String` value, as we can't determine if
-    it's related to `bytes` once again**.
+    translated into an `Ipld::String` value, because we can't determine if it
+    was originally `bytes`**.
 
 **IPLD Schema Definitions**:
 
