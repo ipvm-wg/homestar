@@ -122,8 +122,8 @@ ty ::= 'u8' | 'u16' | 'u32' | 'u64'
 
   **Note**: However, if the input argument to the WIT interface is a `float`
   type, but the incoming value is an `Ipld::Integer`, then the IPLD value will
-  be cast to a `float`, and remain as one for the rest of the computation. This
-  is to avoid weird JavaScript behavior around `1.0 === 1` for example.
+  be cast to a `float`, and remain as one for the rest of the computation. The cast is
+  to provide affordances for JavaScript where, for example, the number `1.0` is converted to `1`.
 
 - **WIT to IPLD Translation**:
 
