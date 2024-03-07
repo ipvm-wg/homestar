@@ -220,7 +220,7 @@ type WitAsIpldFloat union {
 #### Strings
 
 This section outlines the translation process between IPLD string values
-(`Ipld::String`) and varying [WIT runtime values][wit-val]. A `Ipld::String` value can be
+(`Ipld::String`) and various [WIT runtime values][wit-val]. A `Ipld::String` value can be
 interpreted as one of a `string`, `char`, `list<u8>`, or an `enum` discriminant
 (which has no payload).
 
