@@ -1073,4 +1073,4 @@ which case it should be mapped to.
 [wit-result]: https://component-model.bytecodealliance.org/design/wit.html#results
 [wit-tuple]: https://component-model.bytecodealliance.org/design/wit.html#tuples
 [wit-val]: https://docs.wasmtime.dev/api/wasmtime/component/enum.Val.html
-[wit-varaint]: https://component-model.bytecodealliance.org/design/wit.html#variants
+[wit-variant]: https://component-model.bytecodealliance.org/design/wit.html#variants
