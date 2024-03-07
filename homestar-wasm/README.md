@@ -1020,8 +1020,8 @@ A [`result`][wit-result] can be interpreted as one of these patterns:
 
     **Here, when this specific `Err` case is returned from a WIT function, it
     can be translated back into an `Ipld::List`, but one structured as
-    `[null, "error message"]` internally, which signifies the `Err` (error)
-    case, but discards the payload.
+    `[null, 1]` internally, which signifies the `Err` (error) case, with
+    the `1` payload discarded.**
 
 **IPLD Schema Definitions**:
 
