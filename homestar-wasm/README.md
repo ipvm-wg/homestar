@@ -510,7 +510,7 @@ type WitAsIpldNull union {
 #### Links
 
 This section outlines the translation process between IPLD link values
-(`Ipld::Link`) and [WIT `string` runtime values]. A `Ipld::Link` is always
+(`Ipld::Link`) and [WIT `string` runtime values][wit-val]. A `Ipld::Link` is always
 interpreted as a `string` in WIT, and vice versa.
 
 * **IPLD to WIT Translation**
