@@ -101,7 +101,7 @@ ty ::= 'u8' | 'u16' | 'u32' | 'u64'
 - **IPLD to WIT Translation**:
 
   Typically, when a WIT function expects an integer input, an `Ipld::Integer`
-  value is mapped to a integer WIT runtime value.
+  value is mapped to an integer WIT runtime value.
 
   **Example**: Consider a WIT function defined as follows:
 
