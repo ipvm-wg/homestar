@@ -990,8 +990,8 @@ A [`result`][wit-result] can be interpreted as one of these patterns:
 
     **Here, when this specific `Ok` case is returned from a WIT function, it can
     be translated back into an `Ipld::List`, but one structured as
-    `[1, null]` internally, which signifies the `Ok` (not error) case, but
-    discards the payload.
+    `[1, null]` internally, which signifies the `Ok` (not error) case, with
+    the `1` payload discarded.**
 
 - `Err` case (without a payload)
 
