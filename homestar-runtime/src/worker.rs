@@ -206,12 +206,26 @@ where
                 // Set the workflow status to running.
                 let conn = &mut self.db.conn()?;
                 if ctx.scheduler.run_length() > 0 {
+                    info!(
+                        subject = "worker.start_workflow",
+                        category = "worker.run",
+                        workflow_cid,
+                        "starting workflow"
+                    );
+
                     Db::set_workflow_status(
                         self.workflow_info.cid,
                         workflow::Status::Running,
                         conn,
                     )?;
                 } else {
+                    info!(
+                        subject = "worker.start_workflow",
+                        category = "worker.run",
+                        workflow_cid,
+                        "replaying workflow"
+                    );
+
                     Db::set_workflow_status(
                         self.workflow_info.cid,
                         workflow::Status::Completed,
@@ -219,26 +233,8 @@ where
                     )?;
                 }
 
-                info!(
-                    subject = "worker.start_workflow",
-                    category = "worker.run",
-                    workflow_cid,
-                    "starting workflow"
-                );
-
                 // Run the queue of tasks.
-                let result = self.run_queue(ctx.scheduler, running_tasks).await;
-
-                if let Ok(()) = result {
-                    info!(
-                        subject = "worker.end_workflow",
-                        category = "worker.run",
-                        workflow_cid,
-                        "workflow completed"
-                    );
-                }
-
-                result
+                self.run_queue(ctx.scheduler, running_tasks).await
             }
             Err(err) => {
                 error!(subject = "worker.init.err",
@@ -477,6 +473,14 @@ where
         // Set the workflow status to `completed`
         let conn = &mut self.db.conn()?;
         Db::set_workflow_status(self.workflow_info.cid, workflow::Status::Completed, conn)?;
+
+        info!(
+            subject = "worker.end_workflow",
+            category = "worker.run",
+            workflow_cid = self.workflow_info.cid.to_string(),
+            "workflow completed"
+        );
+
         Ok(())
     }
 }
