@@ -81,6 +81,11 @@ fn init(
                     .parse()
                     .expect(DIRECTIVE_EXPECT),
             )
+            .add_directive(
+                "homestar_wasm[wasi_log]=trace"
+                    .parse()
+                    .expect(DIRECTIVE_EXPECT),
+            )
     } else {
         EnvFilter::try_from_default_env().unwrap_or_else(|_| {
             EnvFilter::new("info")
