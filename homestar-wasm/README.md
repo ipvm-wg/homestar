@@ -89,7 +89,7 @@ type IPLDBooleanAsWit bool
 #### Integers
 
 This section outlines the translation process between IPLD integer values
-(`Ipld::Integer`) and [WIT `integer` rutime values][wit-val]).
+(`Ipld::Integer`) and [WIT `integer` rutime values][wit-val].
 
 The [Component Model][wit] supports these [integer][wit-integer] types:
 
