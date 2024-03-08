@@ -657,7 +657,7 @@ possibilities here**.
     export fn: func(perm: permissions) -> bool;
     ```
 
-    Given an JSON input for this function:
+    Given a JSON input for this function:
 
     ```json
     {
