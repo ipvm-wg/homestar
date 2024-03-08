@@ -785,7 +785,7 @@ a `list` of 2-element `tuples`.
 
   * **IPLD to WIT Translation**
 
-    When a WIT function expects a nested `list` of 2-element `tuples` as input,
+    When a WIT function expects a nested `list` of two-element `tuples` as input,
     an `Ipld::Map` value is mapped to that specific WIT runtime value.
 
     **Example**:
