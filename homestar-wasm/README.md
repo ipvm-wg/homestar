@@ -974,7 +974,7 @@ A [`result`][wit-result] can be interpreted as one of these patterns:
     export fn: func(a: result<_, string>) -> result<_, string>;
     ```
 
-    Given an JSON input for this function:
+    Given a JSON input for this function:
 
     ```json
     {
