@@ -343,7 +343,7 @@ interpreted as one of a `string`, `char`, `list<u8>`, or an `enum` discriminant
 
     `"Green"` is converted into an `Ipld::String`, which is then translated and
     passed into `fn` as a enum argument (`color`). **You'll have to provide a
-    singular string that matches on one of the discriminants**.
+    string that matches on one of the discriminants**.
 
   * **WIT to IPLD Translation**:
 
