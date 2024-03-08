@@ -377,7 +377,7 @@ type WitAsIpldString union {
 #### Bytes
 
 This section outlines the translation process between IPLD bytes values
-(`Ipld::Bytes`) and varying [WIT runtime values][wit-val]. A `Ipld::Bytes` value
+(`Ipld::Bytes`) and various [WIT runtime values][wit-val]. A `Ipld::Bytes` value
 can be interpreted either as a `list<u8>` or `string`.
 
 - [`list`][wit-list]:
