@@ -183,7 +183,7 @@ ty ::= 'float32' | 'float64'
   export fn: func(a: f64) -> f64;
   ```
 
-  Given an JSON input for this function:
+  Given a JSON input for this function:
 
   ```json
   {
