@@ -64,7 +64,7 @@ This section outlines the translation process between IPLD boolean values
   export fn: func(a: bool) -> bool;
   ```
 
-  Given an JSON input for this function:
+  Given a JSON input for this function:
 
   ```json
   {
