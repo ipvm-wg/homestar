@@ -109,7 +109,7 @@ ty ::= 'u8' | 'u16' | 'u32' | 'u64'
   export fn: func(a: s32) -> s32;
   ```
 
-  Given an JSON input for this function:
+  Given a JSON input for this function:
 
   ```json
   {
