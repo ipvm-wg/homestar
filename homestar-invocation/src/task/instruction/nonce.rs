@@ -134,6 +134,7 @@ impl JsonSchema for Nonce {
 #[cfg(test)]
 mod test {
     use super::*;
+    use libipld::{json::DagJsonCodec, multibase::Base, prelude::Codec};
 
     #[test]
     fn ipld_roundtrip_12() {
@@ -172,5 +173,30 @@ mod test {
         let de = serde_json::from_str(&ser).unwrap();
 
         assert_eq!(gen, de);
+    }
+
+    #[test]
+    fn json_nonce_roundtrip() {
+        let b = b"LSS3Ftv+Gtq9965M";
+        let bytes = Base::Base64.encode(b);
+        let json = json!({
+            "/": {"bytes": format!("{}", bytes)}
+        });
+
+        let ipld: Ipld = DagJsonCodec.decode(json.to_string().as_bytes()).unwrap();
+        let nonce: Nonce = Nonce::try_from(ipld.clone()).unwrap();
+
+        let Ipld::Bytes(bytes) = ipld.clone() else {
+            panic!("IPLD is not bytes");
+        };
+
+        assert_eq!(bytes, b);
+        assert_eq!(ipld, Ipld::Bytes(b.to_vec()));
+        assert_eq!(nonce, Nonce::Nonce128(*GenericArray::from_slice(b)));
+        assert_eq!(nonce, Nonce::try_from(ipld.clone()).unwrap());
+
+        let nonce: Nonce = ipld.clone().try_into().unwrap();
+        let ipld = Ipld::from(nonce.clone());
+        assert_eq!(ipld, Ipld::Bytes(b.to_vec()));
     }
 }
