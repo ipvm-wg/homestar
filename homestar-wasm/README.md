@@ -578,7 +578,7 @@ possibilities here**.
     export fn: func(a: list<s32>, b: s32) -> list<s32>;
     ```
 
-    Given an JSON input for this function:
+    Given a JSON input for this function:
 
     ```json
     {
