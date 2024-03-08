@@ -28,6 +28,10 @@ platforms = [
 exact-versions = true
 
 [traversal-excludes]
-workspace-members = ["homestar-functions-add", "homestar-functions-test"]
+workspace-members = [
+  "homestar-functions-add",
+  "homestar-functions-subtract",
+  "homestar-functions-test",
+]
 
 third-party = [{ name = "libsqlite3-sys" }]

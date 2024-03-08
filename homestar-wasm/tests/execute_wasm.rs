@@ -606,3 +606,21 @@ async fn test_execute_wasms_with_multiple_inits() {
         Output::Value(wasmtime::component::Val::String("RoundRoundabout".into()))
     );
 }
+
+#[tokio::test]
+async fn test_subtract() {
+    let ipld = Input::Ipld(Ipld::Map(BTreeMap::from([
+        ("func".into(), Ipld::String("subtract".to_string())),
+        (
+            "args".into(),
+            Ipld::List(vec![Ipld::Integer(1), Ipld::Integer(1)]),
+        ),
+    ])));
+
+    let wasm = fs::read(fixtures("example_subtract.wasm")).unwrap();
+    let mut env = World::instantiate(wasm, "subtract", State::default())
+        .await
+        .unwrap();
+    let res = env.execute(ipld.parse().unwrap().into()).await.unwrap();
+    assert_eq!(res, Output::Value(wasmtime::component::Val::Float64(0.0)));
+}

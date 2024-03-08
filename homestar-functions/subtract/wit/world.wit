@@ -1,0 +1,5 @@
+package homestar-functions:subtract;
+
+world subtract {
+    export subtract: func(a: float64, b: float64) -> float64;
+}
