@@ -525,7 +525,7 @@ interpreted as a `string` in WIT, and vice versa.
   export fn: func(a: string) -> string;
   ```
 
-  Given an JSON input for this function:
+  Given a JSON input for this function:
 
   ```json
   {
