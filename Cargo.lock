@@ -2492,6 +2492,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "homestar-functions-subtract"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen-rt",
+]
+
+[[package]]
 name = "homestar-functions-test"
 version = "0.1.0"
 dependencies = [

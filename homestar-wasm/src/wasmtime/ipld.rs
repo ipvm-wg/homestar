@@ -181,7 +181,8 @@ impl RuntimeVal {
         stacker::maybe_grow(DEFAULT_RED_ZONE, DEFAULT_EXTRA_STACK, || {
             let dyn_type = match ipld {
                 Ipld::Null => match interface_ty {
-                    InterfaceType::Type(Type::Option(opt_inst)) => {
+                    InterfaceType::Type(Type::Option(opt_inst))
+                    | InterfaceType::TypeRef(Type::Option(opt_inst)) => {
                         RuntimeVal::new(opt_inst.new_val(None)?)
                     }
                     InterfaceType::Type(Type::String)
@@ -291,8 +292,12 @@ impl RuntimeVal {
                         RuntimeVal::new(Val::S32(v.try_into()?))
                     }
                     // We need to handle cases where clients, notably JavaScript, represent 5.0 as 5.
-                    InterfaceType::Type(Type::Float32) => RuntimeVal::new(Val::Float32(v as f32)),
-                    InterfaceType::Type(Type::Float64) => RuntimeVal::new(Val::Float64(v as f64)),
+                    InterfaceType::Type(Type::Float32) | InterfaceType::TypeRef(Type::Float32) => {
+                        RuntimeVal::new(Val::Float32(v as f32))
+                    }
+                    InterfaceType::Type(Type::Float64) | InterfaceType::TypeRef(Type::Float64) => {
+                        RuntimeVal::new(Val::Float64(v as f64))
+                    }
                     InterfaceType::Any
                     | InterfaceType::Type(Type::S64)
                     | InterfaceType::TypeRef(Type::S64) => RuntimeVal::new(Val::S64(v.try_into()?)),
@@ -903,7 +908,7 @@ mod test {
     }
 
     #[test]
-    fn try_integer_to_float() {
+    fn try_integer_to_float32() {
         let ipld_in = Ipld::Integer(5);
         let ipld_out = Ipld::Float(5.0);
         let runtime_float = RuntimeVal::new(Val::Float32(5.0));
@@ -912,6 +917,28 @@ mod test {
             "float32".to_string(),
             &[test_utils::component::Param(
                 test_utils::component::Type::F32,
+                None,
+            )],
+        );
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld_in.clone(), &InterfaceType::Type(ty)).unwrap(),
+            runtime_float
+        );
+
+        assert_eq!(Ipld::try_from(runtime_float).unwrap(), ipld_out);
+    }
+
+    #[test]
+    fn try_integer_to_float64() {
+        let ipld_in = Ipld::Integer(5);
+        let ipld_out = Ipld::Float(5.0);
+        let runtime_float = RuntimeVal::new(Val::Float64(5.0));
+
+        let ty = test_utils::component::setup_component_with_param(
+            "float64".to_string(),
+            &[test_utils::component::Param(
+                test_utils::component::Type::F64,
                 None,
             )],
         );

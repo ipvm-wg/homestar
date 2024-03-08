@@ -251,6 +251,18 @@
           wasm-tools print homestar-wasm/fixtures/example_add_component.wasm -o homestar-wasm/fixtures/example_add_component.wat
         '';
 
+        wasmSubtract = pkgs.writeScriptBin "wasm-ex-subtract" ''
+          #!${pkgs.stdenv.shell}
+          cargo component build -p homestar-functions-subtract --profile release-wasm-fn
+          cp target/wasm32-wasi/release-wasm-fn/homestar_functions_subtract.wasm homestar-wasm/fixtures/example_subtract_cargo_component_wasi.wasm
+          wasm-tools print homestar-wasm/fixtures/example_subtract_cargo_component_wasi.wasm -o homestar-wasm/fixtures/example_subtract_cargo_component_wasi.wat
+          cargo build -p homestar-functions-subtract --target wasm32-unknown-unknown --profile release-wasm-fn
+          cp target/wasm32-unknown-unknown/release-wasm-fn/homestar_functions_subtract.wasm homestar-wasm/fixtures/example_subtract.wasm
+          wasm-tools component new homestar-wasm/fixtures/example_subtract.wasm -o homestar-wasm/fixtures/example_subtract_component.wasm
+          wasm-tools print homestar-wasm/fixtures/example_subtract.wasm -o homestar-wasm/fixtures/example_subtract.wat
+          wasm-tools print homestar-wasm/fixtures/example_subtract_component.wasm -o homestar-wasm/fixtures/example_subtract_component.wat
+        '';
+
         runIpfs = pkgs.writeScriptBin "run-ipfs" ''
           #!${pkgs.stdenv.shell}
           ipfs --repo-dir ./.ipfs --offline daemon
@@ -289,6 +301,7 @@
           testCleanup
           wasmTest
           wasmAdd
+          wasmSubtract
         ];
       in {
         devShells.default = pkgs.mkShell {
