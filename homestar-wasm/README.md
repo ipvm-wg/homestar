@@ -609,7 +609,7 @@ possibilities here**.
     export fn: func(a: ipv6-socket-address) -> tuple<u32, u32>;
     ```
 
-    Given an JSON input for this function:
+    Given a JSON input for this function:
 
     ```json
     {
