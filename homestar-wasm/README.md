@@ -558,7 +558,7 @@ Next, we'll cover the more interesting, WIT non-primitive types.
 #### List Values
 
 This section outlines the translation process between IPLD list values
-(`Ipld::List`) and varying [WIT runtime values][wit-val]. A `Ipld::List`
+(`Ipld::List`) and various [WIT runtime values][wit-val]. A `Ipld::List`
 value can be interpreted as one of a `list`, `tuple`, set of `flags`,
 or a `result`.
 
