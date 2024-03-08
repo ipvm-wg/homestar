@@ -7,8 +7,16 @@ pub unsafe fn _export_subtract_cabi<T: Guest>(arg0: f64, arg1: f64) -> f64 {
     let result0 = T::subtract(arg0, arg1);
     _rt::as_f64(result0)
 }
+
+#[doc(hidden)]
+#[allow(non_snake_case)]
+pub unsafe fn _export_subtract_int_cabi<T: Guest>(arg0: i32, arg1: i32) -> i32 {
+    let result0 = T::subtract_int(arg0 as i8, arg1 as i8);
+    _rt::as_i32(result0)
+}
 pub trait Guest {
     fn subtract(a: f64, b: f64) -> f64;
+    fn subtract_int(a: i8, b: i8) -> i8;
 }
 #[doc(hidden)]
 
@@ -19,6 +27,11 @@ macro_rules! __export_world_subtract_cabi{
     #[export_name = "subtract"]
     unsafe extern "C" fn export_subtract(arg0: f64,arg1: f64,) -> f64 {
       $($path_to_types)*::_export_subtract_cabi::<$ty>(arg0, arg1)
+    }
+
+    #[export_name = "subtract-int"]
+    unsafe extern "C" fn export_subtract_int(arg0: i32,arg1: i32,) -> i32 {
+      $($path_to_types)*::_export_subtract_int_cabi::<$ty>(arg0, arg1)
     }
   };);
 }
@@ -44,6 +57,76 @@ mod _rt {
         #[inline]
         fn as_f64(self) -> f64 {
             self as f64
+        }
+    }
+
+    pub fn as_i32<T: AsI32>(t: T) -> i32 {
+        t.as_i32()
+    }
+
+    pub trait AsI32 {
+        fn as_i32(self) -> i32;
+    }
+
+    impl<'a, T: Copy + AsI32> AsI32 for &'a T {
+        fn as_i32(self) -> i32 {
+            (*self).as_i32()
+        }
+    }
+
+    impl AsI32 for i32 {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+
+    impl AsI32 for u32 {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+
+    impl AsI32 for i16 {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+
+    impl AsI32 for u16 {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+
+    impl AsI32 for i8 {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+
+    impl AsI32 for u8 {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+
+    impl AsI32 for char {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+
+    impl AsI32 for usize {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
         }
     }
 }
@@ -79,11 +162,12 @@ pub(crate) use __export_subtract_impl as export;
 #[cfg(target_arch = "wasm32")]
 #[link_section = "component-type:wit-bindgen:0.20.0:subtract:encoded world"]
 #[doc(hidden)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 197] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07G\x01A\x02\x01A\x02\x01\
-@\x02\x01au\x01bu\0u\x04\0\x08subtract\x01\0\x04\x01$homestar-functions:subtract\
-/subtract\x04\0\x0b\x0e\x01\0\x08subtract\x03\0\0\0G\x09producers\x01\x0cprocess\
-ed-by\x02\x0dwit-component\x070.201.0\x10wit-bindgen-rust\x060.20.0";
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 225] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07c\x01A\x02\x01A\x04\x01\
+@\x02\x01au\x01bu\0u\x04\0\x08subtract\x01\0\x01@\x02\x01a~\x01b~\0~\x04\0\x0csu\
+btract-int\x01\x01\x04\x01$homestar-functions:subtract/subtract\x04\0\x0b\x0e\x01\
+\0\x08subtract\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\x0dwit-component\x07\
+0.201.0\x10wit-bindgen-rust\x060.20.0";
 
 #[inline(never)]
 #[doc(hidden)]

@@ -559,7 +559,7 @@ async fn test_execute_wasms_with_multiple_inits() {
     let promise = Await::new(invoked_instr, AwaitResult::Ok);
 
     let ipld_step_2 = Input::<Arg>::Ipld(Ipld::Map(BTreeMap::from([
-        ("func".into(), Ipld::String("join-strings".to_string())),
+        ("func".into(), Ipld::String("%join-strings".to_string())),
         (
             "args".into(),
             Ipld::List(vec![Ipld::from(promise), Ipld::String("about".to_string())]),
@@ -568,7 +568,7 @@ async fn test_execute_wasms_with_multiple_inits() {
 
     let wasm = fs::read(fixtures("example_test.wasm")).unwrap();
 
-    let mut env = World::instantiate(wasm.clone(), "join-strings", State::default())
+    let mut env = World::instantiate(wasm.clone(), "%join-strings", State::default())
         .await
         .unwrap();
 
@@ -608,9 +608,9 @@ async fn test_execute_wasms_with_multiple_inits() {
 }
 
 #[tokio::test]
-async fn test_subtract() {
+async fn test_subtract_int_to_float() {
     let ipld = Input::Ipld(Ipld::Map(BTreeMap::from([
-        ("func".into(), Ipld::String("subtract".to_string())),
+        ("func".into(), Ipld::String("SUBTRACT".to_string())),
         (
             "args".into(),
             Ipld::List(vec![Ipld::Integer(1), Ipld::Integer(1)]),
@@ -623,4 +623,22 @@ async fn test_subtract() {
         .unwrap();
     let res = env.execute(ipld.parse().unwrap().into()).await.unwrap();
     assert_eq!(res, Output::Value(wasmtime::component::Val::Float64(0.0)));
+}
+
+#[tokio::test]
+async fn test_subtract_float_to_int() {
+    let ipld = Input::Ipld(Ipld::Map(BTreeMap::from([
+        ("func".into(), Ipld::String("subtractInt".to_string())),
+        (
+            "args".into(),
+            Ipld::List(vec![Ipld::Float(1.0), Ipld::Float(2.0)]),
+        ),
+    ])));
+
+    let wasm = fs::read(fixtures("example_subtract.wasm")).unwrap();
+    let mut env = World::instantiate(wasm, "subtractInt", State::default())
+        .await
+        .unwrap();
+    let res = env.execute(ipld.parse().unwrap().into()).await.unwrap();
+    assert_eq!(res, Output::Value(wasmtime::component::Val::S8(-1)));
 }

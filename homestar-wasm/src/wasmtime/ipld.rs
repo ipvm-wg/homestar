@@ -302,14 +302,40 @@ impl RuntimeVal {
                     | InterfaceType::Type(Type::S64)
                     | InterfaceType::TypeRef(Type::S64) => RuntimeVal::new(Val::S64(v.try_into()?)),
                     _ => Err(InterpreterError::IpldToWit(
-                        "Expected conversion to integer".to_string(),
+                        "Expected conversion to integer/float".to_string(),
                     ))?,
                 },
                 Ipld::Float(v) => match interface_ty {
                     InterfaceType::Type(Type::Float32) | InterfaceType::TypeRef(Type::Float32) => {
                         RuntimeVal::new(Val::Float32(v as f32))
                     }
-                    _ => RuntimeVal::new(Val::Float64(v)),
+                    InterfaceType::Type(Type::Float64)
+                    | InterfaceType::TypeRef(Type::Float64)
+                    | InterfaceType::Any => RuntimeVal::new(Val::Float64(v)),
+                    InterfaceType::Type(Type::U8) | InterfaceType::TypeRef(Type::U8) => {
+                        RuntimeVal::new(Val::U8(v as u8))
+                    }
+                    InterfaceType::Type(Type::U16) | InterfaceType::TypeRef(Type::U16) => {
+                        RuntimeVal::new(Val::U16(v as u16))
+                    }
+                    InterfaceType::Type(Type::U32) | InterfaceType::TypeRef(Type::U32) => {
+                        RuntimeVal::new(Val::U32(v as u32))
+                    }
+                    InterfaceType::Type(Type::U64) | InterfaceType::TypeRef(Type::U64) => {
+                        RuntimeVal::new(Val::U64(v as u64))
+                    }
+                    InterfaceType::Type(Type::S8) | InterfaceType::TypeRef(Type::S8) => {
+                        RuntimeVal::new(Val::S8(v as i8))
+                    }
+                    InterfaceType::Type(Type::S16) | InterfaceType::TypeRef(Type::S16) => {
+                        RuntimeVal::new(Val::S16(v as i16))
+                    }
+                    InterfaceType::Type(Type::S32) | InterfaceType::TypeRef(Type::S32) => {
+                        RuntimeVal::new(Val::S32(v as i32))
+                    }
+                    _ => Err(InterpreterError::IpldToWit(
+                        "Expected conversion to float/integer".to_string(),
+                    ))?,
                 },
                 Ipld::String(v) => match interface_ty.inner() {
                     Some(Type::Enum(enum_inst)) => enum_inst
@@ -339,12 +365,10 @@ impl RuntimeVal {
                         }?;
                         RuntimeVal::new(Val::Char(c))
                     }
-                    Some(Type::List(list_inst)) => {
-                        let bytes = v.as_bytes();
-                        let val_bytes = bytes.iter().map(|elem| Val::U8(*elem)).collect();
-
-                        RuntimeVal::new(list_inst.new_val(val_bytes)?)
-                    }
+                    Some(Type::List(_list_inst)) => Err(InterpreterError::TypeMismatch {
+                        expected: "<list>".to_string(),
+                        given: format!("{} as a string", v).into(),
+                    })?,
                     _ => RuntimeVal::new(Val::String(Box::from(v))),
                 },
                 Ipld::Bytes(v) => match interface_ty.inner() {
@@ -930,6 +954,28 @@ mod test {
     }
 
     #[test]
+    fn try_float32_to_integer() {
+        let ipld_in = Ipld::Float(5.0);
+        let ipld_out = Ipld::Integer(5);
+        let runtime_int = RuntimeVal::new(Val::U8(5));
+
+        let ty = test_utils::component::setup_component_with_param(
+            "u8".to_string(),
+            &[test_utils::component::Param(
+                test_utils::component::Type::U8,
+                None,
+            )],
+        );
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld_in.clone(), &InterfaceType::Type(ty)).unwrap(),
+            runtime_int
+        );
+
+        assert_eq!(Ipld::try_from(runtime_int).unwrap(), ipld_out);
+    }
+
+    #[test]
     fn try_integer_to_float64() {
         let ipld_in = Ipld::Integer(5);
         let ipld_out = Ipld::Float(5.0);
@@ -976,25 +1022,9 @@ mod test {
     fn try_string_to_listu8_to_string_roundtrip() {
         let ipld_bytes_as_string = Ipld::String(String::from_utf8_lossy(b"hell0").to_string());
         let ty = test_utils::component::setup_component("(list u8)".to_string(), 8);
-        let val_list = ty
-            .unwrap_list()
-            .new_val(Box::new([
-                Val::U8(104),
-                Val::U8(101),
-                Val::U8(108),
-                Val::U8(108),
-                Val::U8(48),
-            ]))
-            .unwrap();
 
-        let runtime = RuntimeVal::new(val_list);
-        assert_eq!(
-            RuntimeVal::try_from(ipld_bytes_as_string.clone(), &InterfaceType::Type(ty)).unwrap(),
-            runtime
-        );
-        assert_eq!(
-            Ipld::try_from(runtime).unwrap(),
-            Ipld::Bytes(b"hell0".to_vec())
+        assert!(
+            RuntimeVal::try_from(ipld_bytes_as_string.clone(), &InterfaceType::Type(ty)).is_err(),
         );
     }
 
