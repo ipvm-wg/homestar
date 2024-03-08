@@ -695,7 +695,7 @@ type WitAsIpldList union {
 This section outlines the translation process between IPLD map values
 (`Ipld::Map`) and various [WIT runtime values][wit-val]. A `Ipld::Map`
 value can be interpreted as one of a `record`, `variant`, or
-a `list` of 2-element `tuples`.
+a `list` of two-element `tuples`.
 
 - [`record`][wit-record]:
 
