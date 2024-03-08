@@ -295,7 +295,7 @@ interpreted as one of a `string`, `char`, `list<u8>`, or an `enum` discriminant
     export fn: func(a: list<u8>) -> list<u8>;
     ```
 
-    Given an JSON input for this function:
+    Given a JSON input for this function:
 
     ```json
     {
