@@ -794,7 +794,7 @@ a `list` of two-element `tuples`.
     export fn: func(a: list<tuple<string, u32>>) -> list<u32>;
     ```
 
-    Given an JSON input for this function:
+    Given a JSON input for this function:
 
     ```json
     {
