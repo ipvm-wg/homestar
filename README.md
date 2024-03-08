@@ -133,7 +133,7 @@ represents the `Homestar` runtime. We recommend diving into each package's own
   the input interface for working with Ipvm's standard Wasm tasks.
 
   You can find the spec for translating between IPLD and WIT runtime values
-  based on WIT types [here](./homestar-wasm/README.md##interpreting-between-ipld-and-wit).
+  based on WIT types [here](./homestar-wasm/README.md#interpreting-between-ipld-and-wit).
 
 - [homestar-workflow](./homestar-workflow)
 

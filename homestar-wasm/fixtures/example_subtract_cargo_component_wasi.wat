@@ -1,10 +1,10 @@
 (component
   (core module (;0;)
     (type (;0;) (func (param f64 f64) (result f64)))
-    (type (;1;) (func (param i32 i32 i32 i32) (result i32)))
-    (type (;2;) (func (param i32) (result i32)))
-    (type (;3;) (func (param i32)))
-    (type (;4;) (func (param i32 i32) (result i32)))
+    (type (;1;) (func (param i32 i32) (result i32)))
+    (type (;2;) (func (param i32 i32 i32 i32) (result i32)))
+    (type (;3;) (func (param i32) (result i32)))
+    (type (;4;) (func (param i32)))
     (type (;5;) (func (param i32 i32)))
     (type (;6;) (func))
     (type (;7;) (func (param i32 i32 i32) (result i32)))
@@ -13,7 +13,13 @@
       local.get 1
       f64.sub
     )
-    (func (;1;) (type 1) (param i32 i32 i32 i32) (result i32)
+    (func (;1;) (type 1) (param i32 i32) (result i32)
+      local.get 0
+      local.get 1
+      i32.sub
+      i32.extend8_s
+    )
+    (func (;2;) (type 2) (param i32 i32 i32 i32) (result i32)
       (local i32)
       block ;; label = @1
         block ;; label = @2
@@ -50,7 +56,7 @@
                 select
                 local.get 3
                 i32.add
-                call 9
+                call 10
                 local.set 2
                 br 2 (;@3;)
               end
@@ -77,7 +83,7 @@
                 select
                 local.get 3
                 i32.add
-                call 9
+                call 10
                 local.tee 2
                 i32.eqz
                 br_if 3 (;@2;)
@@ -89,20 +95,20 @@
                 local.get 3
                 i32.lt_u
                 select
-                call 12
+                call 13
                 drop
                 local.get 0
-                call 4
+                call 5
                 br 4 (;@1;)
               end
               local.get 0
               local.get 3
-              call 6
+              call 7
               local.set 2
               br 1 (;@3;)
             end
             local.get 3
-            call 2
+            call 3
             local.set 2
           end
           local.get 2
@@ -113,11 +119,11 @@
       end
       local.get 2
     )
-    (func (;2;) (type 2) (param i32) (result i32)
+    (func (;3;) (type 3) (param i32) (result i32)
       local.get 0
-      call 3
+      call 4
     )
-    (func (;3;) (type 2) (param i32) (result i32)
+    (func (;4;) (type 3) (param i32) (result i32)
       (local i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)
       global.get 0
       i32.const 16
@@ -1205,7 +1211,7 @@
                                   end
                                 end
                                 i32.const 0
-                                call 11
+                                call 12
                                 local.tee 0
                                 i32.const -1
                                 i32.eq
@@ -1265,7 +1271,7 @@
                                   br_if 7 (;@7;)
                                 end
                                 local.get 6
-                                call 11
+                                call 12
                                 local.tee 4
                                 local.get 0
                                 i32.ne
@@ -1282,7 +1288,7 @@
                               i32.gt_u
                               br_if 5 (;@7;)
                               local.get 6
-                              call 11
+                              call 12
                               local.tee 0
                               local.get 4
                               i32.load
@@ -1327,7 +1333,7 @@
                               end
                               block ;; label = @13
                                 local.get 3
-                                call 11
+                                call 12
                                 i32.const -1
                                 i32.eq
                                 br_if 0 (;@13;)
@@ -1342,7 +1348,7 @@
                               i32.const 0
                               local.get 6
                               i32.sub
-                              call 11
+                              call 12
                               drop
                               br 5 (;@7;)
                             end
@@ -1382,10 +1388,10 @@
                 i32.gt_u
                 br_if 1 (;@4;)
                 local.get 9
-                call 11
+                call 12
                 local.set 0
                 i32.const 0
-                call 11
+                call 12
                 local.set 4
                 local.get 0
                 i32.const -1
@@ -3133,11 +3139,11 @@
       global.set 0
       local.get 4
     )
-    (func (;4;) (type 3) (param i32)
+    (func (;5;) (type 4) (param i32)
       local.get 0
-      call 5
+      call 6
     )
-    (func (;5;) (type 3) (param i32)
+    (func (;6;) (type 4) (param i32)
       (local i32 i32 i32 i32 i32 i32 i32)
       block ;; label = @1
         local.get 0
@@ -3935,13 +3941,13 @@
         i32.store offset=1048616
       end
     )
-    (func (;6;) (type 4) (param i32 i32) (result i32)
+    (func (;7;) (type 1) (param i32 i32) (result i32)
       (local i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)
       block ;; label = @1
         local.get 0
         br_if 0 (;@1;)
         local.get 1
-        call 3
+        call 4
         return
       end
       block ;; label = @1
@@ -4047,7 +4053,7 @@
             i32.store offset=4
             local.get 2
             local.get 1
-            call 7
+            call 8
             local.get 0
             return
           end
@@ -4448,13 +4454,13 @@
           i32.store offset=4
           local.get 1
           local.get 10
-          call 7
+          call 8
           local.get 0
           return
         end
         block ;; label = @2
           local.get 1
-          call 3
+          call 4
           local.tee 2
           br_if 0 (;@2;)
           i32.const 0
@@ -4480,16 +4486,16 @@
         local.get 1
         i32.lt_u
         select
-        call 12
+        call 13
         local.set 1
         local.get 0
-        call 5
+        call 6
         local.get 1
         local.set 0
       end
       local.get 0
     )
-    (func (;7;) (type 5) (param i32 i32)
+    (func (;8;) (type 5) (param i32 i32)
       (local i32 i32 i32 i32 i32 i32)
       local.get 0
       local.get 1
@@ -5247,7 +5253,7 @@
         i32.store offset=8
       end
     )
-    (func (;8;) (type 4) (param i32 i32) (result i32)
+    (func (;9;) (type 1) (param i32 i32) (result i32)
       (local i32 i32 i32 i32 i32)
       block ;; label = @1
         block ;; label = @2
@@ -5310,7 +5316,7 @@
         i32.add
         i32.const 12
         i32.add
-        call 3
+        call 4
         local.tee 3
         br_if 0 (;@1;)
         i32.const 0
@@ -5423,7 +5429,7 @@
         i32.store offset=4
         local.get 2
         local.get 3
-        call 7
+        call 8
       end
       block ;; label = @1
         local.get 0
@@ -5473,31 +5479,31 @@
         i32.store offset=4
         local.get 3
         local.get 1
-        call 7
+        call 8
       end
       local.get 0
       i32.const 8
       i32.add
     )
-    (func (;9;) (type 4) (param i32 i32) (result i32)
+    (func (;10;) (type 1) (param i32 i32) (result i32)
       block ;; label = @1
         local.get 0
         i32.const 16
         i32.gt_u
         br_if 0 (;@1;)
         local.get 1
-        call 3
+        call 4
         return
       end
       local.get 0
       local.get 1
-      call 8
+      call 9
     )
-    (func (;10;) (type 6)
+    (func (;11;) (type 6)
       unreachable
       unreachable
     )
-    (func (;11;) (type 2) (param i32) (result i32)
+    (func (;12;) (type 3) (param i32) (result i32)
       block ;; label = @1
         local.get 0
         br_if 0 (;@1;)
@@ -5535,10 +5541,10 @@
         i32.shl
         return
       end
-      call 10
+      call 11
       unreachable
     )
-    (func (;12;) (type 7) (param i32 i32 i32) (result i32)
+    (func (;13;) (type 7) (param i32 i32 i32) (result i32)
       (local i32 i32 i32 i32)
       block ;; label = @1
         block ;; label = @2
@@ -6055,48 +6061,55 @@
       end
       local.get 0
     )
-    (func (;13;) (type 1) (param i32 i32 i32 i32) (result i32)
+    (func (;14;) (type 2) (param i32 i32 i32 i32) (result i32)
       local.get 0
       local.get 1
       local.get 2
       local.get 3
-      call 1
+      call 2
     )
-    (func (;14;) (type 6))
-    (func (;15;) (type 6)
-      call 14
-      call 14
+    (func (;15;) (type 6))
+    (func (;16;) (type 6)
+      call 15
+      call 15
     )
-    (func (;16;) (type 0) (param f64 f64) (result f64)
+    (func (;17;) (type 0) (param f64 f64) (result f64)
       local.get 0
       local.get 1
       call 0
-      call 15
+      call 16
     )
-    (func (;17;) (type 1) (param i32 i32 i32 i32) (result i32)
+    (func (;18;) (type 1) (param i32 i32) (result i32)
       local.get 0
       local.get 1
-      local.get 2
-      local.get 3
       call 1
-      call 15
+      call 16
     )
-    (func (;18;) (type 1) (param i32 i32 i32 i32) (result i32)
+    (func (;19;) (type 2) (param i32 i32 i32 i32) (result i32)
       local.get 0
       local.get 1
       local.get 2
       local.get 3
-      call 13
-      call 15
+      call 2
+      call 16
+    )
+    (func (;20;) (type 2) (param i32 i32 i32 i32) (result i32)
+      local.get 0
+      local.get 1
+      local.get 2
+      local.get 3
+      call 14
+      call 16
     )
     (table (;0;) 2 2 funcref)
     (memory (;0;) 17)
     (global (;0;) (mut i32) i32.const 1048576)
     (export "memory" (memory 0))
-    (export "subtract" (func 16))
-    (export "cabi_realloc_wit_bindgen_0_20_0" (func 17))
-    (export "cabi_realloc" (func 18))
-    (elem (;0;) (i32.const 1) func 13)
+    (export "subtract" (func 17))
+    (export "subtract-int" (func 18))
+    (export "cabi_realloc_wit_bindgen_0_20_0" (func 19))
+    (export "cabi_realloc" (func 20))
+    (elem (;0;) (i32.const 1) func 14)
     (data (;0;) (i32.const 1048576) "\01\00\00\00")
     (@producers
       (processed-by "wit-component" "0.201.0")
@@ -6110,6 +6123,10 @@
   (alias core export 0 "subtract" (core func (;1;)))
   (func (;0;) (type 0) (canon lift (core func 1)))
   (export (;1;) "subtract" (func 0))
+  (type (;1;) (func (param "a" s8) (param "b" s8) (result s8)))
+  (alias core export 0 "subtract-int" (core func (;2;)))
+  (func (;2;) (type 1) (canon lift (core func 2)))
+  (export (;3;) "subtract-int" (func 2))
   (@producers
     (processed-by "wit-component" "0.201.0")
     (processed-by "cargo-component" "0.9.0 (wasi:ab5a448)")

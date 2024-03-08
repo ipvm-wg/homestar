@@ -130,7 +130,7 @@ ty ::= 'u8' | 'u16' | 'u32' | 'u64'
   Conversely, when an integer value (not a float) is returned from a WIT
   function, it can be translated back into an `Ipld::Integer`.
 
-**IPLD Schema Definitions**:
+*IPLD Schema Definitions*:
 
 ```ipldschme
 type IPLDIntegerAsWit union {
@@ -173,7 +173,7 @@ ty ::= 'float32' | 'float64'
 
 - **IPLD to WIT Translation**:
 
-  When a WIT function expects a float input, an `Ipld::Float` value is
+  Typically, when a WIT function expects a float input, an `Ipld::Float` value is
   mapped to a float WIT runtime value. Casting is done to convert from `f32` to
   `f64` if necessary.
 
@@ -194,6 +194,11 @@ ty ::= 'float32' | 'float64'
   `1.0` is converted into an `Ipld::Float`, which is then translated and
   passed into `fn` as a float argument (`f64`).
 
+  **Note**: However, if the input argument to the WIT interface is one of the
+  WIT interger types, but the incoming value is an `Ipld::Integer`, then the
+  IPLD value will be cast to that integer type, and remain as one for the rest
+  of the computation.
+
 - **WIT to IPLD Translation**:
 
   Conversely, when a `float32` or `float64` value is returned from a WIT
@@ -203,7 +208,7 @@ ty ::= 'float32' | 'float64'
   the default precision for [IPLD][ipld-float], precision will be lost.
   **The interpreter will use decimal precision in this conversion**.
 
-**IPLD Schema Definitions**:
+*IPLD Schema Definitions*:
 
 ```ipldsch
 type IPLDFloatAsWit union {
@@ -221,7 +226,7 @@ type WitAsIpldFloat union {
 
 This section outlines the translation process between IPLD string values
 (`Ipld::String`) and various [WIT runtime values][wit-val]. A `Ipld::String` value can be
-interpreted as one of a `string`, `char`, `list<u8>`, or an `enum` discriminant
+interpreted as one of a `string`, `char`, or an `enum` discriminant
 (which has no payload).
 
 - `string`
@@ -282,35 +287,6 @@ interpreted as one of a `string`, `char`, `list<u8>`, or an `enum` discriminant
     Conversely, when a char value is returned from a WIT function, it is
     translated back into an `Ipld::String`.
 
-- `list<u8>`
-
-  * **IPLD to WIT Translation**
-
-    When a WIT function expects a `list<u8>` input, an `Ipld::String` value is
-    mapped to a `list<u8>` WIT runtime value.
-
-    **Example**:
-
-    ```wit
-    export fn: func(a: list<u8>) -> list<u8>;
-    ```
-
-    Given a JSON input for this function:
-
-    ```json
-    {
-      "args": ["aGVsbDA"]
-    }
-    ```
-
-    `"aGVsbDA"` is converted into an `Ipld::String`, which is then translated
-    into bytes and passed into `fn` as a `list<u8>` argument.
-
-  * **WIT to IPLD Translation**:
-
-    **Here, when a `list<u8>` value is returned from a WIT function, it is
-    translated into an `Ipld::Bytes` value, which is the proper type**.
-
 - [`enum`][wit-enum]:
 
   An enum statement defines a new type which is semantically equivalent to a
@@ -350,7 +326,7 @@ interpreted as one of a `string`, `char`, `list<u8>`, or an `enum` discriminant
     Conversely, when an enum value is returned from a WIT function, it can be
     translated back into an `Ipld::String` value.
 
-**IPLD Schema Definitions**:
+*IPLD Schema Definitions*:
 
 ``` ipldsch
 type Enum enum {
@@ -440,7 +416,7 @@ can be interpreted either as a `list<u8>` or `string`.
     translated into an `Ipld::String` value, because we can't determine if it
     was originally `bytes`**.
 
-**IPLD Schema Definitions**:
+*IPLD Schema Definitions*:
 
 ``` ipldsch
 type IPLDBytesAsWit union {
@@ -491,7 +467,7 @@ below.
   Conversely, when a `string` value of `"null"` is returned from a WIT function,
   it can be translated into an `Ipld::Null` value.
 
-**IPLD Schema Definitions**:
+*IPLD Schema Definitions*:
 
 ``` ipldsch
 type None unit representation null
@@ -543,7 +519,7 @@ interpreted as a `string` in WIT, and vice versa.
   can be converted to a Cid, it can then be translated into an `Ipld::Link`
   value.
 
-**IPLD Schema Definitions**:
+*IPLD Schema Definitions*:
 
 ``` ipldsch
 type IPLDLinkAsWit &String link
@@ -674,7 +650,7 @@ possibilities here**.
     translated back into an `Ipld::List` value.
 
 
-**IPLD Schema Definitions**:
+*IPLD Schema Definitions*:
 
 ``` ipldsch
 type IPLDListAsWit union {
@@ -810,7 +786,7 @@ a `list` of two-element `tuples`.
     Conversely, when a `list` of two-element `tuples` is returned from a WIT
     function, it can be translated back into an `Ipld::Map` value.
 
-**IPLD Schema Definitions**:
+*IPLD Schema Definitions*:
 
 ``` ipldsch
 type TupleAsMap {string:any} representation listpairs
@@ -882,7 +858,7 @@ as either a `Ipld::Null` or of any other IPLD value.
   translated back into an `Ipld::Null` value if it's the `None`/`Unit` case, or
   any other IPLD value if it's the `Some` case.
 
-**IPLD Schema Definitions**:
+*IPLD Schema Definitions*:
 
 ``` ipldsch
 type IpldAsWitOption union {
@@ -1024,7 +1000,7 @@ A [`result`][wit-result] can be interpreted as one of these patterns:
     `[null, 1]` internally, which signifies the `Err` (error) case, with
     the `1` payload discarded.**
 
-**IPLD Schema Definitions**:
+*IPLD Schema Definitions*:
 
 ``` ipldsch
 type Null unit representation null

@@ -382,6 +382,7 @@ impl World {
         let mut __exports = exports.root();
         let func = __exports
             .func(fun_name)
+            .or_else(|| __exports.func(&fun_name.to_uppercase()))
             .or_else(|| __exports.func(&fun_name.to_kebab_case()))
             .or_else(|| __exports.func(&fun_name.to_snake_case()))
             .or_else(|| __exports.func(&fun_name.to_lower_camel_case()))
