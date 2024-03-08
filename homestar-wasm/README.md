@@ -1064,7 +1064,7 @@ which case it should be mapped to.
 [ipld-type]: https://docs.rs/libipld/latest/libipld/ipld/enum.Ipld.html
 [wasmtime]: https://github.com/bytecodealliance/wasmtime
 [wit]: https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md
-[wit-builtin]: https://component-model.bytecodealliance.org/design/wit.html#built-in-types
+[wit-primitive]: https://component-model.bytecodealliance.org/design/wit.html#primitive-types
 [wit-enum]: https://component-model.bytecodealliance.org/design/wit.html#enums
 [wit-flags]: https://component-model.bytecodealliance.org/design/wit.html#flags
 [wit-integer]: https://component-model.bytecodealliance.org/design/wit.html#built-in-types
