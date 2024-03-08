@@ -71,6 +71,7 @@ impl<'a> From<&'a Type> for InterfaceType<'a> {
             | Type::Result(_)
             | Type::Flags(_)
             | Type::Enum(_)
+            | Type::Char
             | Type::String
             | Type::S8
             | Type::S16
@@ -244,6 +245,12 @@ impl RuntimeVal {
                                 )?;
                                 RuntimeVal::new(res_inst.new_val(Err(Some(inner_v.value())))?)
                             }
+                            ([_ipld, Ipld::Null], _, _) => {
+                                RuntimeVal::new(res_inst.new_val(Ok(None))?)
+                            }
+                            ([Ipld::Null, _ipld], _, _) => {
+                                RuntimeVal::new(res_inst.new_val(Err(None))?)
+                            }
                             _ => Err(InterpreterError::IpldToWit(
                                 "IPLD (as WIT result) has specific structure does does not match"
                                     .to_string(),
@@ -307,6 +314,32 @@ impl RuntimeVal {
                         .ok_or(InterpreterError::IpldToWit(
                             "IPLD string not an enum discriminant".to_string(),
                         ))?,
+                    Some(Type::Char) => {
+                        let mut chars = v.chars();
+                        let c = match chars.next() {
+                            // Attempt to get the first character
+                            Some(c) => {
+                                // Check if there's no second character
+                                if chars.next().is_none() {
+                                    Ok(c)
+                                } else {
+                                    Err(InterpreterError::IpldToWit(
+                                        "IPLD string not a valid char".to_string(),
+                                    ))
+                                }
+                            }
+                            None => Err(InterpreterError::IpldToWit(
+                                "IPLD string is empty".to_string(),
+                            )),
+                        }?;
+                        RuntimeVal::new(Val::Char(c))
+                    }
+                    Some(Type::List(list_inst)) => {
+                        let bytes = v.as_bytes();
+                        let val_bytes = bytes.iter().map(|elem| Val::U8(*elem)).collect();
+
+                        RuntimeVal::new(list_inst.new_val(val_bytes)?)
+                    }
                     _ => RuntimeVal::new(Val::String(Box::from(v))),
                 },
                 Ipld::Bytes(v) => match interface_ty.inner() {
@@ -355,13 +388,15 @@ impl RuntimeVal {
                     }
                     Some(Type::Flags(flags_inst)) => {
                         let flags = v.iter().try_fold(vec![], |mut acc, elem| {
-                            if let Ipld::String(flag) = elem {
-                                acc.push(flag.as_ref());
-                                Ok::<_, InterpreterError>(acc)
-                            } else {
-                                Err(InterpreterError::IpldToWit(
-                                    "IPLD (as flags) must contain only strings".to_string(),
-                                ))
+                            let mut names = flags_inst.names();
+                            match elem {
+                                Ipld::String(flag) if names.any(|name| name == flag) => {
+                                    acc.push(flag.as_ref());
+                                    Ok::<_, InterpreterError>(acc)
+                                }
+                                _ => Err(InterpreterError::IpldToWit(
+                                    "IPLD (as flags) must contain only strings as part of the interface type".to_string(),
+                                )),
                             }
                         })?;
 
@@ -615,10 +650,10 @@ impl TryFrom<RuntimeVal> for Ipld {
                     Ipld::List(inner)
                 }
                 RuntimeVal(Val::Flags(v), _) => {
-                    let inner = v.flags().try_fold(vec![], |mut acc, flag| {
+                    let inner = v.flags().fold(vec![], |mut acc, flag| {
                         acc.push(Ipld::String(flag.to_string()));
-                        Ok::<_, Self::Error>(acc)
-                    })?;
+                        acc
+                    });
                     Ipld::List(inner)
                 }
                 RuntimeVal(Val::Enum(v), _) => Ipld::String(v.discriminant().to_string()),
@@ -635,7 +670,12 @@ impl TryFrom<RuntimeVal> for Ipld {
 mod test {
     use super::*;
     use crate::test_utils;
-    use libipld::multihash::{Code, MultihashDigest};
+    use libipld::{
+        json::DagJsonCodec,
+        multihash::{Code, MultihashDigest},
+        prelude::Codec,
+    };
+    use serde_json::json;
 
     const RAW: u64 = 0x55;
 
@@ -821,7 +861,7 @@ mod test {
     }
 
     #[test]
-    fn try_float_type_roundtrip() {
+    fn try_float32_type_roundtrip() {
         let ipld = Ipld::Float(3883.20);
         let runtime_float = RuntimeVal::new(Val::Float32(3883.20));
 
@@ -829,6 +869,27 @@ mod test {
             "float32".to_string(),
             &[test_utils::component::Param(
                 test_utils::component::Type::F32,
+                Some(0),
+            )],
+        );
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
+            runtime_float
+        );
+
+        assert_eq!(Ipld::try_from(runtime_float).unwrap(), ipld);
+    }
+
+    #[test]
+    fn try_float64_type_roundtrip() {
+        let ipld = Ipld::Float(3883.20);
+        let runtime_float = RuntimeVal::new(Val::Float64(3883.20));
+
+        let ty = test_utils::component::setup_component_with_param(
+            "float64".to_string(),
+            &[test_utils::component::Param(
+                test_utils::component::Type::F64,
                 Some(0),
             )],
         );
@@ -865,22 +926,28 @@ mod test {
 
     #[test]
     fn try_string_roundtrip() {
-        let ipld = Ipld::String("Hello!".into());
-        let runtime = RuntimeVal::new(Val::String(Box::from("Hello!")));
+        let ipld1 = Ipld::String("Hello!".into());
+        let ipld2 = Ipld::String("!".into());
+        let runtime1 = RuntimeVal::new(Val::String(Box::from("Hello!")));
+        let runtime2 = RuntimeVal::new(Val::Char('!'));
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Any).unwrap(),
-            runtime
+            RuntimeVal::try_from(ipld1.clone(), &InterfaceType::Any).unwrap(),
+            runtime1
         );
+        assert_eq!(Ipld::try_from(runtime1).unwrap(), ipld1);
 
-        assert_eq!(Ipld::try_from(runtime).unwrap(), ipld);
+        // assert char case
+        assert_eq!(
+            RuntimeVal::try_from(ipld2.clone(), &InterfaceType::TypeRef(&Type::Char)).unwrap(),
+            runtime2
+        );
+        assert_eq!(Ipld::try_from(runtime2).unwrap(), ipld2);
     }
 
     #[test]
-    fn try_bytes_roundtrip() {
-        let bytes = b"hell0".to_vec();
-        let ipld = Ipld::Bytes(bytes.clone());
-
+    fn try_string_to_listu8_to_string_roundtrip() {
+        let ipld_bytes_as_string = Ipld::String(String::from_utf8_lossy(b"hell0").to_string());
         let ty = test_utils::component::setup_component("(list u8)".to_string(), 8);
         let val_list = ty
             .unwrap_list()
@@ -892,14 +959,68 @@ mod test {
                 Val::U8(48),
             ]))
             .unwrap();
-        let runtime = RuntimeVal::new(val_list);
 
+        let runtime = RuntimeVal::new(val_list);
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), &InterfaceType::Type(ty)).unwrap(),
+            RuntimeVal::try_from(ipld_bytes_as_string.clone(), &InterfaceType::Type(ty)).unwrap(),
             runtime
         );
+        assert_eq!(
+            Ipld::try_from(runtime).unwrap(),
+            Ipld::Bytes(b"hell0".to_vec())
+        );
+    }
 
-        assert_eq!(Ipld::try_from(runtime).unwrap(), ipld);
+    #[test]
+    fn try_bytes_roundtrip() {
+        let bytes1 = b"hell0".to_vec();
+        let bytes2 = Base::Base64.encode(b"hell0");
+
+        let ipld1 = Ipld::Bytes(bytes1.clone());
+        let ipld2 = Ipld::String("aGVsbDA".to_string());
+        let json = json!({
+            "/": {"bytes": format!("{}", bytes2)}
+        });
+
+        let ipld3: Ipld = DagJsonCodec.decode(json.to_string().as_bytes()).unwrap();
+        let Ipld::Bytes(_bytes) = ipld3.clone() else {
+            panic!("IPLD is not bytes");
+        };
+
+        let ty1 = test_utils::component::setup_component("(list u8)".to_string(), 8);
+        let val_list1 = ty1
+            .unwrap_list()
+            .new_val(Box::new([
+                Val::U8(104),
+                Val::U8(101),
+                Val::U8(108),
+                Val::U8(108),
+                Val::U8(48),
+            ]))
+            .unwrap();
+        let runtime1 = RuntimeVal::new(val_list1);
+
+        let ty2 = test_utils::component::setup_component("string".to_string(), 8);
+        let runtime2 = RuntimeVal::new(Val::String(Box::from("aGVsbDA")));
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld1.clone(), &InterfaceType::Type(ty1)).unwrap(),
+            runtime1
+        );
+        assert_eq!(Ipld::try_from(runtime1).unwrap(), ipld1);
+
+        assert_eq!(
+            RuntimeVal::try_from(ipld1.clone(), &InterfaceType::Type(ty2.clone())).unwrap(),
+            runtime2
+        );
+        assert_eq!(Ipld::try_from(runtime2).unwrap(), ipld2);
+
+        let runtime3 = RuntimeVal::new(Val::String(Box::from("aGVsbDA")));
+        assert_eq!(
+            RuntimeVal::try_from(ipld3.clone(), &InterfaceType::Type(ty2)).unwrap(),
+            runtime3
+        );
+        assert_eq!(Ipld::try_from(runtime3).unwrap(), ipld2);
     }
 
     #[test]
@@ -1266,6 +1387,9 @@ mod test {
         let ty3 = test_utils::component::setup_component("(result)".to_string(), 4);
         let interface_ty3 = InterfaceType::Type(ty3.clone());
 
+        let ty4 = test_utils::component::setup_component("(result (error string))".to_string(), 12);
+        let interface_ty4 = InterfaceType::Type(ty4.clone());
+
         let val1 = ty1
             .unwrap_result()
             .new_val(Ok(Some(Val::String(Box::from("Hello!")))))
@@ -1286,6 +1410,12 @@ mod test {
 
         let val5 = ty1.unwrap_result().new_val(Err(None)).unwrap();
         let runtime5 = RuntimeVal::new(val5);
+
+        let val6 = ty4.unwrap_result().new_val(Ok(None)).unwrap();
+        let runtime6 = RuntimeVal::new(val6);
+
+        let val7 = ty1.unwrap_result().new_val(Err(None)).unwrap();
+        let runtime7 = RuntimeVal::new(val7);
 
         assert_eq!(
             RuntimeVal::try_from(ok_ipld.clone(), &interface_ty1).unwrap(),
@@ -1316,6 +1446,20 @@ mod test {
             runtime5
         );
         assert_eq!(Ipld::try_from(runtime5).unwrap(), err_res_ipld);
+
+        // result with `_` any ok payload:
+        assert_eq!(
+            RuntimeVal::try_from(ok_ipld.clone(), &interface_ty4).unwrap(),
+            runtime6
+        );
+        assert_eq!(Ipld::try_from(runtime6).unwrap(), ok_res_ipld);
+
+        // result with `_` any err payload:
+        assert_eq!(
+            RuntimeVal::try_from(err_ipld.clone(), &interface_ty1).unwrap(),
+            runtime7
+        );
+        assert_eq!(Ipld::try_from(runtime7).unwrap(), err_res_ipld);
     }
 
     #[test]
@@ -1378,11 +1522,12 @@ mod test {
 
     #[test]
     fn try_flags_roundtrip() {
-        let ipld = Ipld::List(vec![
+        let ipld1 = Ipld::List(vec![
             Ipld::String("foo-bar-baz".into()),
             Ipld::String("B".into()),
             Ipld::String("C".into()),
         ]);
+        let ipld2 = Ipld::List(vec![Ipld::String("foo-bar-baz".into())]);
 
         let ty = test_utils::component::setup_component(
             r#"(flags "foo-bar-baz" "B" "C")"#.to_string(),
@@ -1390,18 +1535,24 @@ mod test {
         );
         let interface_ty = InterfaceType::Type(ty.clone());
 
-        let val = ty
+        let val1 = ty
             .unwrap_flags()
             .new_val(&["foo-bar-baz", "B", "C"])
             .unwrap();
+        let val2 = ty.unwrap_flags().new_val(&["foo-bar-baz"]).unwrap();
 
-        let runtime = RuntimeVal::new(val);
+        let runtime1 = RuntimeVal::new(val1);
+        let runtime2 = RuntimeVal::new(val2);
 
         assert_eq!(
-            RuntimeVal::try_from(ipld.clone(), &interface_ty).unwrap(),
-            runtime
+            RuntimeVal::try_from(ipld1.clone(), &interface_ty).unwrap(),
+            runtime1
         );
-
-        assert_eq!(Ipld::try_from(runtime).unwrap(), ipld);
+        assert_eq!(Ipld::try_from(runtime1).unwrap(), ipld1);
+        assert_eq!(
+            RuntimeVal::try_from(ipld2.clone(), &interface_ty).unwrap(),
+            runtime2
+        );
+        assert_eq!(Ipld::try_from(runtime2).unwrap(), ipld2);
     }
 }

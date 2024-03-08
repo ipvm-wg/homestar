@@ -129,8 +129,11 @@ represents the `Homestar` runtime. We recommend diving into each package's own
 - [homestar-wasm](./homestar-wasm)
 
   This *wasm* library manages the [wasmtime][wasmtime] runtime, provides the
-  [Ipld][ipld] to/from [Wit][wit] interpreter/translation-layer, and implements
+  [IPLD][ipld] to/from [WIT][wit] interpreter/translation-layer, and implements
   the input interface for working with Ipvm's standard Wasm tasks.
+
+  You can find the spec for translating between IPLD and WIT runtime values
+  based on WIT types [here](./homestar-wasm/README.md##interpreting-between-ipld-and-wit).
 
 - [homestar-workflow](./homestar-workflow)
 

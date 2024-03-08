@@ -13,7 +13,7 @@ use crate::{
         Error,
     },
 };
-use heck::{ToKebabCase, ToSnakeCase};
+use heck::{ToKebabCase, ToLowerCamelCase, ToPascalCase, ToSnakeCase};
 use homestar_invocation::{
     bail,
     error::ResolveError,
@@ -384,6 +384,11 @@ impl World {
             .func(fun_name)
             .or_else(|| __exports.func(&fun_name.to_kebab_case()))
             .or_else(|| __exports.func(&fun_name.to_snake_case()))
+            .or_else(|| __exports.func(&fun_name.to_lower_camel_case()))
+            .or_else(|| __exports.func(&fun_name.to_pascal_case()))
+            // Support identifiers
+            // https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md#identifiers
+            .or_else(|| __exports.func(format!("%{}", fun_name).as_str()))
             .ok_or_else(|| Error::WasmFunctionNotFound(fun_name.to_string()))?;
 
         Ok(World(func))
