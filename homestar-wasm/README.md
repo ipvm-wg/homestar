@@ -632,7 +632,7 @@ possibilities here**.
 - [`flags`][wit-flags]:
 
   `flags` represent a bitset structure with a name for each bit. The type
-  represents a set of named booleans. In an instance of the type, each flag will
+  represents a set of named booleans. In an instance of the named type, each flag will
   be either true or false.
 
   * **IPLD to WIT Translation**
