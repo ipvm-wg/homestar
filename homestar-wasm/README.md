@@ -899,7 +899,7 @@ type WitAsIpldOption union {
 #### WIT Results
 
 This section outlines the translation process between [WIT result runtime values][wit-val]
-(of type `result`) and varying IPLD values. We treat result as Left/Right
+(of type `result`) and various IPLD values. We treat result as Left/Right
 [either][either] types over an `Ipld::List` of two elements.
 
 A [`result`][wit-result] can be interpreted as one of these patterns:
