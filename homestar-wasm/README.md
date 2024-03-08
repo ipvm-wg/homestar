@@ -831,7 +831,7 @@ type WitAsIpldMap union {
 #### WIT Options
 
 This section outlines the translation process between [WIT option runtime values][wit-val]
-(of type `option`) and varying IPLD values. An [`option`][wit-option] can be interpreted
+(of type `option`) and various IPLD values. An [`option`][wit-option] can be interpreted
 as either a `Ipld::Null` or of any other IPLD value.
 
 * **IPLD to WIT Translation**
