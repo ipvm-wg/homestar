@@ -45,7 +45,7 @@ known [WIT][wit] interface types.
 
 ### Primitive Types
 
-We'll start by covering WIT [primitive types][wit-builtin].
+We'll start by covering WIT [primitive types][wit-primitive].
 
 #### Booleans
 
