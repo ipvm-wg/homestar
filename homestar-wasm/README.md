@@ -807,7 +807,7 @@ a `list` of 2-element `tuples`.
 
   * **WIT to IPLD Translation**:
 
-    Conversely, when a `list` of 2-element `tuples` is returned from a WIT
+    Conversely, when a `list` of two-element `tuples` is returned from a WIT
     function, it can be translated back into an `Ipld::Map` value.
 
 **IPLD Schema Definitions**:
