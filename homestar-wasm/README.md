@@ -458,7 +458,7 @@ type WitAsIpldBytes union {
 #### Nulls
 
 This section outlines the translation process between IPLD null values
-(`Ipld::Null`) and varying [WIT runtime values][wit-val]. A `Ipld::Null` value
+(`Ipld::Null`) and various [WIT runtime values][wit-val]. A `Ipld::Null` value
 can be interpreted either as a `string` or `option`.
 
 **We'll cover only the `string` case here** and return to the `option` case
