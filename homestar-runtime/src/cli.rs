@@ -101,7 +101,7 @@ pub struct InitArgs {
     #[arg(
         long = "key-file",
         value_name = "KEY_FILE",
-        help = "The path to the key file [optional]",
+        help = "The path to the key file. A key will be generated if the file does not exist [optional]",
         group = "init_key_arg"
     )]
     pub key_file: Option<PathBuf>,
