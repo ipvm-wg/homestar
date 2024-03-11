@@ -1947,9 +1947,9 @@ checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
 
 [[package]]
 name = "faststr"
-version = "0.2.17"
+version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17e546e971d6d404087d4885389651265b1bb03e5128a519a297f90d9e6f6ecb"
+checksum = "803cb35bf6b85a5879e47236c828243a74fe612e5c794e229ca61b25edf55706"
 dependencies = [
  "bytes",
  "serde",
