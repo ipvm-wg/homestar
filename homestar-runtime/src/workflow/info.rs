@@ -235,6 +235,23 @@ impl Info {
         }
     }
 
+    /// Get workflow progress as a vector of Cids.
+    pub fn progress(&self) -> &Vec<Cid> {
+        &self.progress
+    }
+
+    /// Get workflow progress as a number of receipts completed.
+    pub fn progress_count(&self) -> u32 {
+        self.progress_count
+    }
+
+    /// Get the number of tasks in the [Workflow].
+    ///
+    /// [Workflow]: homestar_workflow::Workflow
+    pub fn num_tasks(&self) -> u32 {
+        self.num_tasks
+    }
+
     /// Get unique identifier, Cid, of [Workflow].
     ///
     /// [Workflow]: homestar_workflow::Workflow

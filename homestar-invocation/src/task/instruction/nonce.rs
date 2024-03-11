@@ -12,7 +12,7 @@ use generic_array::{
 use libipld::{multibase::Base::Base32HexLower, Ipld};
 use schemars::{
     gen::SchemaGenerator,
-    schema::{InstanceType, Metadata, Schema, SchemaObject, SingleOrVec},
+    schema::{InstanceType, Metadata, Schema, SchemaObject, SingleOrVec, StringValidation},
     JsonSchema,
 };
 use serde::{Deserialize, Serialize};
@@ -75,14 +75,22 @@ impl TryFrom<Ipld> for Nonce {
     type Error = Error<Unit>;
 
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        if let Ipld::Bytes(v) = ipld {
-            match v.len() {
+        match ipld {
+            Ipld::String(s) if s.is_empty() => Ok(Nonce::Empty),
+            Ipld::String(s) => {
+                let bytes = Base32HexLower.decode(s)?;
+                match bytes.len() {
+                    12 => Ok(Nonce::Nonce96(*GenericArray::from_slice(&bytes))),
+                    16 => Ok(Nonce::Nonce128(*GenericArray::from_slice(&bytes))),
+                    other => Err(Error::unexpected_ipld(other.to_owned().into())),
+                }
+            }
+            Ipld::Bytes(v) => match v.len() {
                 12 => Ok(Nonce::Nonce96(*GenericArray::from_slice(&v))),
                 16 => Ok(Nonce::Nonce128(*GenericArray::from_slice(&v))),
                 other_ipld => Err(Error::unexpected_ipld(other_ipld.to_owned().into())),
-            }
-        } else {
-            Ok(Nonce::Empty)
+            },
+            _ => Ok(Nonce::Empty),
         }
     }
 }
@@ -122,9 +130,23 @@ impl JsonSchema for Nonce {
             ..Default::default()
         };
 
+        let non_empty_string = SchemaObject {
+            instance_type: Some(SingleOrVec::Single(InstanceType::String.into())),
+            metadata: Some(Box::new(Metadata {
+                description: Some("A 12-byte or 16-byte nonce encoded as a string, which expects to be decoded with Base32hex lower".to_string()),
+                ..Default::default()
+            })),
+            string: Some(Box::new(StringValidation {
+                min_length: Some(1),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+
         schema.subschemas().one_of = Some(vec![
             gen.subschema_for::<schema::IpldBytesStub>(),
             Schema::Object(empty_string),
+            Schema::Object(non_empty_string),
         ]);
 
         schema.into()
@@ -198,5 +220,35 @@ mod test {
         let nonce: Nonce = ipld.clone().try_into().unwrap();
         let ipld = Ipld::from(nonce.clone());
         assert_eq!(ipld, Ipld::Bytes(b.to_vec()));
+    }
+
+    #[test]
+    fn nonce_as_string_roundtrip() {
+        let nonce = Nonce::generate();
+        let string = nonce.to_string();
+        let from_string = Nonce::try_from(Ipld::String(string.clone())).unwrap();
+
+        assert_eq!(nonce, from_string);
+        assert_eq!(string, nonce.to_string());
+    }
+
+    #[test]
+    fn json_nonce_string_roundtrip() {
+        let in_nnc = "1sod60ml6g26mfhsrsa0";
+        let json = json!({
+            "nnc": in_nnc
+        });
+
+        let ipld: Ipld = DagJsonCodec.decode(json.to_string().as_bytes()).unwrap();
+        let Ipld::Map(map) = ipld.clone() else {
+            panic!("IPLD is not a map");
+        };
+        let nnc = map.get("nnc").unwrap();
+        let nnc: Nonce = Nonce::try_from(nnc.clone()).unwrap();
+        assert_eq!(nnc.to_string(), in_nnc);
+        let nonce = Nonce::Nonce96(*GenericArray::from_slice(
+            Base32HexLower.decode(in_nnc).unwrap().as_slice(),
+        ));
+        assert_eq!(nnc, nonce);
     }
 }

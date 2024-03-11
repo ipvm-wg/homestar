@@ -5,7 +5,7 @@ use super::notifier::{self, Header, Notifier, SubscriptionTyp};
 #[allow(unused_imports)]
 use super::{listener, prom::PrometheusData, Message};
 #[cfg(feature = "websocket-notify")]
-use crate::channel::AsyncChannel;
+use crate::channel::{AsyncChannel, AsyncChannelReceiver};
 use crate::{
     db::Database,
     runner::{NodeInfo, WsSender},
@@ -21,12 +21,19 @@ use faststr::FastStr;
 use futures::StreamExt;
 #[cfg(feature = "websocket-notify")]
 use homestar_invocation::ipld::DagCbor;
+#[cfg(feature = "websocket-notify")]
+use homestar_wasm::io::Arg;
+#[cfg(feature = "websocket-notify")]
+use homestar_workflow::Workflow;
 use jsonrpsee::{
     server::RpcModule,
     types::error::{ErrorCode, ErrorObject},
 };
 #[cfg(feature = "websocket-notify")]
-use jsonrpsee::{types::SubscriptionId, SendTimeoutError, SubscriptionMessage, SubscriptionSink};
+use jsonrpsee::{
+    types::SubscriptionId, PendingSubscriptionSink, SendTimeoutError, SubscriptionMessage,
+    SubscriptionSink,
+};
 #[cfg(feature = "websocket-notify")]
 use libipld::Cid;
 use metrics_exporter_prometheus::PrometheusHandle;
@@ -238,8 +245,8 @@ where
             SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
             UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
             |params, pending, ctx| async move {
-                match params.one::<listener::Run<'_>>() {
-                    Ok(listener::Run { name, workflow }) => {
+                match params.one::<listener::JsonRun<'_>>() {
+                    Ok(listener::JsonRun { name, workflow }) => {
                         let (tx, rx) = AsyncChannel::oneshot();
                         ctx.runner_sender
                             .send_async((
@@ -248,42 +255,69 @@ where
                             ))
                             .await?;
 
-                        if let Ok(Message::AckWorkflow((cid, name))) = rx.recv_async().await {
-                            let sink = pending.accept().await?;
-                            ctx.workflow_listeners
-                                .insert(sink.subscription_id(), (cid, name));
-                            let rx = ctx.workflow_msg_notifier.inner().subscribe();
-                            let stream = BroadcastStream::new(rx);
-                            Self::handle_workflow_subscription(sink, stream, ctx).await?;
-                        } else {
-                            error!(
-                                subject = "subscription.workflow.err",
-                                category = "jsonrpc.subscription",
-                                sub = SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
-                                workflow_name = name.to_string(),
-                                "did not acknowledge message in time"
-                            );
-                            let _ = pending
-                                .reject(busy_err(format!(
-                                    "not able to run workflow {}",
-                                    workflow.to_cid()?
-                                )))
-                                .await;
-                        }
+                        Self::handle_run_workflow(name, workflow, rx, ctx, pending).await?;
                     }
-                    Err(err) => {
-                        warn!(subject = "subscription.workflow.err",
+
+                    Err(_err) => match params.one::<listener::CborRun<'_>>() {
+                        Ok(listener::CborRun { name, workflow }) => {
+                            let (tx, rx) = AsyncChannel::oneshot();
+                            ctx.runner_sender
+                                .send_async((
+                                    Message::RunWorkflow((name.clone(), workflow.clone())),
+                                    Some(tx),
+                                ))
+                                .await?;
+
+                            Self::handle_run_workflow(name, workflow, rx, ctx, pending).await?;
+                        }
+                        Err(err) => {
+                            warn!(subject = "subscription.workflow.err",
                               category = "jsonrpc.subscription",
                               err=?err,
                               "failed to parse run workflow params");
-                        let _ = pending.reject(err).await;
-                    }
+                            let _ = pending.reject(err).await;
+                        }
+                    },
                 }
                 Ok(())
             },
         )?;
 
         Ok(module)
+    }
+
+    #[cfg(feature = "websocket-notify")]
+    async fn handle_run_workflow(
+        name: FastStr,
+        workflow: Workflow<'_, Arg>,
+        rx: AsyncChannelReceiver<Message>,
+        ctx: Arc<Context<DB>>,
+        pending: PendingSubscriptionSink,
+    ) -> Result<()> {
+        if let Ok(Message::AckWorkflow((cid, name))) = rx.recv_async().await {
+            let sink = pending.accept().await?;
+            ctx.workflow_listeners
+                .insert(sink.subscription_id(), (cid, name));
+            let rx = ctx.workflow_msg_notifier.inner().subscribe();
+            let stream = BroadcastStream::new(rx);
+            Self::handle_workflow_subscription(sink, stream, ctx).await?;
+        } else {
+            error!(
+                subject = "subscription.workflow.err",
+                category = "jsonrpc.subscription",
+                sub = SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+                workflow_name = name.to_string(),
+                "did not acknowledge message in time"
+            );
+            let _ = pending
+                .reject(busy_err(format!(
+                    "not able to run workflow {}",
+                    workflow.to_cid()?
+                )))
+                .await;
+        }
+
+        Ok(())
     }
 
     #[cfg(feature = "websocket-notify")]

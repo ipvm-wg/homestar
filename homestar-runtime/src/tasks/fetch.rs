@@ -11,6 +11,9 @@ use fnv::FnvHashSet;
 use indexmap::IndexMap;
 use std::sync::Arc;
 
+/// Fetch module for gathering data over the network related to [Task].
+///
+/// [Task]: homestar_invocation::Task
 pub(crate) struct Fetch;
 
 #[cfg(any(test, feature = "test-utils"))]

@@ -21,10 +21,10 @@ private
 .DS_Store
 homestar-functions/**/out/*.png
 homestar-wasm/out
-homestar-invocation/test_*
-homestar-runtime/fixtures/test_*
+homestar-invocation/test*
+homestar-runtime/fixtures/test*
 homestar-runtime/tests/fixtures/*.toml
-homestar-workflow/fixtures/test_*
+homestar-workflow/fixtures/test*
 .zed
 result-alejandra
 report.json

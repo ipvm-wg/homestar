@@ -1,0 +1,46 @@
+{
+    "tasks": [
+        {
+            "cause": null,
+            "meta": {
+                "fuel": 18446744073709552000,
+                "memory": 4294967296,
+                "time": 100000
+            },
+            "prf": [],
+            "run": {
+                "input": {
+                    "args": [1],
+                    "func": "add_one"
+                },
+                "nnc": "1sod60ml6g26mfhsrsa0",
+                "op": "wasm/run",
+                "rsc": "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"
+            }
+        },
+        {
+            "cause": null,
+            "meta": {
+                "fuel": 18446744073709552000,
+                "memory": 4294967296,
+                "time": 100000
+            },
+            "prf": [],
+            "run": {
+                "input": {
+                    "args": [
+                        {
+                            "await/ok": {
+                                "/": "bafyrmie3zzu3mhtyjghgqvskoc7maiiablp2htexigs2xr3lvgt6csslly"
+                            }
+                        }
+                    ],
+                    "func": "add_one"
+                },
+                "nnc": "4ja3jhlhs3b9rk3app40",
+                "op": "wasm/run",
+                "rsc": "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"
+            }
+        }
+    ]
+}
