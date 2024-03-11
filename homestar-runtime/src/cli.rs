@@ -104,7 +104,7 @@ pub struct InitArgs {
         help = "The path to the key file. A key will be generated if the file does not exist [optional]",
         group = "init_key_arg"
     )]
-    pub key_file: Option<PathBuf>,
+    pub key_file: Option<Option<PathBuf>>,
     /// The seed to use for generating the key
     #[arg(
         long = "key-seed",

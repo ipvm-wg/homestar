@@ -42,7 +42,7 @@ pub enum KeyArg {
     /// Load the key from an existing file
     File {
         /// The path of the file
-        path: PathBuf,
+        path: Option<PathBuf>,
     },
     /// Generate the key from a seed
     Seed {
@@ -277,18 +277,17 @@ fn handle_key(
                     PubkeyConfig::GenerateFromSeed(RNGSeed::new(key_type, seed.0))
                 }
                 PubkeyConfigOption::FromFile => {
-                    let path_prompt = Text::new("Enter the path for the key");
-
-                    let default_path;
-                    let path_prompt = if let Some(parent) = output_path.parent() {
-                        default_path = parent.join("homestar.pem").display().to_string();
-
-                        path_prompt.with_default(&default_path)
+                    let default_path = if let Some(parent) = output_path.parent() {
+                        parent.join("homestar.pem")
                     } else {
-                        path_prompt
+                        Settings::path().join("homestar.pem")
                     };
 
-                    let path = path_prompt.prompt().map_err(|e| miette!(e))?.into();
+                    let path = Text::new("Enter the path for the key")
+                        .with_default(&default_path.display().to_string())
+                        .prompt()
+                        .map_err(|e| miette!(e))?
+                        .into();
 
                     generate_key_file(&path, &key_type)?;
 
@@ -297,6 +296,14 @@ fn handle_key(
             }
         }
         Some(KeyArg::File { path }) => {
+            let path = path.unwrap_or_else(|| {
+                if let Some(parent) = output_path.parent() {
+                    parent.join("homestar.pem")
+                } else {
+                    Settings::path().join("homestar.pem")
+                }
+            });
+
             generate_key_file(&path, &key_type)?;
 
             PubkeyConfig::Existing(ExistingKeyPath::new(key_type, path))
