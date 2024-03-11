@@ -338,7 +338,11 @@ fn generate_key_file(path: &PathBuf, key_type: &KeyType) -> Result<()> {
         Ok(mut file) => {
             let key = match *key_type {
                 KeyType::Ed25519 => ed25519_compact::KeyPair::generate().sk.to_pem(),
-                KeyType::Secp256k1 => bail!("Aborting... generating secp256k1 keys is not yet supported, please provide an existing key file, or choose another key type."),
+                KeyType::Secp256k1 => {
+                    std::fs::remove_file(path).expect("to delete key file");
+
+                    bail!("Aborting... generating secp256k1 keys is not yet supported, please provide an existing key file, or choose another key type.")
+                }
             };
 
             file.write_all(key.as_bytes())
