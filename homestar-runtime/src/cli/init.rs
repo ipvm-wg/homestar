@@ -246,7 +246,7 @@ fn handle_key(
     key_type: KeyType,
     output_path: PathBuf,
     no_input: bool,
-    _writer: &mut Box<dyn Write>,
+    writer: &mut Box<dyn Write>,
 ) -> Result<PubkeyConfig> {
     let config = match key_arg {
         None => {
@@ -289,7 +289,7 @@ fn handle_key(
                         .map_err(|e| miette!(e))?
                         .into();
 
-                    generate_key_file(&path, &key_type)?;
+                    generate_key_file(&path, &key_type, writer)?;
 
                     PubkeyConfig::Existing(ExistingKeyPath::new(key_type, path))
                 }
@@ -304,7 +304,7 @@ fn handle_key(
                 }
             });
 
-            generate_key_file(&path, &key_type)?;
+            generate_key_file(&path, &key_type, writer)?;
 
             PubkeyConfig::Existing(ExistingKeyPath::new(key_type, path))
         }
@@ -329,7 +329,11 @@ fn handle_key(
     Ok(config)
 }
 
-fn generate_key_file(path: &PathBuf, key_type: &KeyType) -> Result<()> {
+fn generate_key_file(
+    path: &PathBuf,
+    key_type: &KeyType,
+    writer: &mut Box<dyn Write>,
+) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).expect("to create parent directory");
     }
@@ -354,9 +358,13 @@ fn generate_key_file(path: &PathBuf, key_type: &KeyType) -> Result<()> {
 
             file.write_all(key.as_bytes())
                 .expect("to write to key file");
+
+            writeln!(writer, "Writing key file to {:?}", path).expect("to write");
         }
         // file did exist, do nothing and use existing key
-        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+            writeln!(writer, "Using existing key file {:?}", path).expect("to write");
+        }
         err => {
             err.expect("to open key file");
         }
