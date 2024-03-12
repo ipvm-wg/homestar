@@ -170,7 +170,7 @@ tokio-stream = { version = "0.1", default-features = false, features = [
   "sync",
 ] }
 tokio-util = { version = "0.7", default-features = false }
-toml = { version = "0.8.8", features = ["display", "preserve_order"] }
+toml = { version = "0.8.11", features = ["display", "preserve_order"] }
 tower = { version = "0.4", default-features = false, features = [
   "log",
   "timeout",
