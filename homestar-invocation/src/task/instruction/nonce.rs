@@ -23,13 +23,22 @@ use uuid::Uuid;
 type Nonce96 = GenericArray<u8, U12>;
 type Nonce128 = GenericArray<u8, U16>;
 
+/// Incoming type for nonce conversion.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum IncomingTyp {
+    /// Nonce incoming as a string.
+    String,
+    /// Nonce incoming as bytes.
+    Bytes,
+}
+
 /// Enumeration over allowed `nonce` types.
 #[derive(Clone, Debug, PartialEq, EnumAsInner, Serialize, Deserialize)]
 pub enum Nonce {
     /// 96-bit, 12-byte nonce, e.g. [xid].
-    Nonce96(Nonce96),
+    Nonce96(Nonce96, IncomingTyp),
     /// 128-bit, 16-byte nonce.
-    Nonce128(Nonce128),
+    Nonce128(Nonce128, IncomingTyp),
     /// No Nonce attributed.
     Empty,
 }
@@ -38,22 +47,37 @@ impl Nonce {
     /// Default generator, outputting a [xid] nonce, which is a 96-bit, 12-byte
     /// nonce.
     pub fn generate() -> Self {
-        Nonce::Nonce96(*GenericArray::from_slice(xid::new().as_bytes()))
+        Nonce::Nonce96(
+            *GenericArray::from_slice(xid::new().as_bytes()),
+            IncomingTyp::Bytes,
+        )
     }
 
     /// Generate a default, 128-bit, 16-byte nonce via [Uuid::new_v4()].
     pub fn generate_128() -> Self {
-        Nonce::Nonce128(*GenericArray::from_slice(Uuid::new_v4().as_bytes()))
+        Nonce::Nonce128(
+            *GenericArray::from_slice(Uuid::new_v4().as_bytes()),
+            IncomingTyp::Bytes,
+        )
+    }
+
+    /// Convert the nonce to a byte vector.
+    pub fn to_vec(&self) -> Vec<u8> {
+        match self {
+            Nonce::Nonce96(nonce, _) => nonce.to_vec(),
+            Nonce::Nonce128(nonce, _) => nonce.to_vec(),
+            Nonce::Empty => vec![],
+        }
     }
 }
 
 impl fmt::Display for Nonce {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Nonce::Nonce96(nonce) => {
+            Nonce::Nonce96(nonce, _) => {
                 write!(f, "{}", Base32HexLower.encode(nonce.as_slice()))
             }
-            Nonce::Nonce128(nonce) => {
+            Nonce::Nonce128(nonce, _) => {
                 write!(f, "{}", Base32HexLower.encode(nonce.as_slice()))
             }
             Nonce::Empty => write!(f, ""),
@@ -64,8 +88,20 @@ impl fmt::Display for Nonce {
 impl From<Nonce> for Ipld {
     fn from(nonce: Nonce) -> Self {
         match nonce {
-            Nonce::Nonce96(nonce) => Ipld::Bytes(nonce.to_vec()),
-            Nonce::Nonce128(nonce) => Ipld::Bytes(nonce.to_vec()),
+            Nonce::Nonce96(nonce, typ) => {
+                if let IncomingTyp::Bytes = typ {
+                    Ipld::Bytes(nonce.to_vec())
+                } else {
+                    Ipld::String(Base32HexLower.encode(nonce.as_slice()))
+                }
+            }
+            Nonce::Nonce128(nonce, typ) => {
+                if let IncomingTyp::Bytes = typ {
+                    Ipld::Bytes(nonce.to_vec())
+                } else {
+                    Ipld::String(Base32HexLower.encode(nonce.as_slice()))
+                }
+            }
             Nonce::Empty => Ipld::String("".to_string()),
         }
     }
@@ -80,14 +116,26 @@ impl TryFrom<Ipld> for Nonce {
             Ipld::String(s) => {
                 let bytes = Base32HexLower.decode(s)?;
                 match bytes.len() {
-                    12 => Ok(Nonce::Nonce96(*GenericArray::from_slice(&bytes))),
-                    16 => Ok(Nonce::Nonce128(*GenericArray::from_slice(&bytes))),
+                    12 => Ok(Nonce::Nonce96(
+                        *GenericArray::from_slice(&bytes),
+                        IncomingTyp::String,
+                    )),
+                    16 => Ok(Nonce::Nonce128(
+                        *GenericArray::from_slice(&bytes),
+                        IncomingTyp::String,
+                    )),
                     other => Err(Error::unexpected_ipld(other.to_owned().into())),
                 }
             }
             Ipld::Bytes(v) => match v.len() {
-                12 => Ok(Nonce::Nonce96(*GenericArray::from_slice(&v))),
-                16 => Ok(Nonce::Nonce128(*GenericArray::from_slice(&v))),
+                12 => Ok(Nonce::Nonce96(
+                    *GenericArray::from_slice(&v),
+                    IncomingTyp::Bytes,
+                )),
+                16 => Ok(Nonce::Nonce128(
+                    *GenericArray::from_slice(&v),
+                    IncomingTyp::Bytes,
+                )),
                 other_ipld => Err(Error::unexpected_ipld(other_ipld.to_owned().into())),
             },
             _ => Ok(Nonce::Empty),
@@ -163,7 +211,7 @@ mod test {
         let gen = Nonce::generate();
         let ipld = Ipld::from(gen.clone());
 
-        let inner = if let Nonce::Nonce96(nonce) = gen {
+        let inner = if let Nonce::Nonce96(nonce, _) = gen {
             Ipld::Bytes(nonce.to_vec())
         } else {
             panic!("No conversion!")
@@ -178,7 +226,7 @@ mod test {
         let gen = Nonce::generate_128();
         let ipld = Ipld::from(gen.clone());
 
-        let inner = if let Nonce::Nonce128(nonce) = gen {
+        let inner = if let Nonce::Nonce128(nonce, _) = gen {
             Ipld::Bytes(nonce.to_vec())
         } else {
             panic!("No conversion!")
@@ -214,7 +262,10 @@ mod test {
 
         assert_eq!(bytes, b);
         assert_eq!(ipld, Ipld::Bytes(b.to_vec()));
-        assert_eq!(nonce, Nonce::Nonce128(*GenericArray::from_slice(b)));
+        assert_eq!(
+            nonce,
+            Nonce::Nonce128(*GenericArray::from_slice(b), IncomingTyp::Bytes)
+        );
         assert_eq!(nonce, Nonce::try_from(ipld.clone()).unwrap());
 
         let nonce: Nonce = ipld.clone().try_into().unwrap();
@@ -228,7 +279,7 @@ mod test {
         let string = nonce.to_string();
         let from_string = Nonce::try_from(Ipld::String(string.clone())).unwrap();
 
-        assert_eq!(nonce, from_string);
+        assert_eq!(nonce.to_vec(), from_string.to_vec());
         assert_eq!(string, nonce.to_string());
     }
 
@@ -246,9 +297,10 @@ mod test {
         let nnc = map.get("nnc").unwrap();
         let nnc: Nonce = Nonce::try_from(nnc.clone()).unwrap();
         assert_eq!(nnc.to_string(), in_nnc);
-        let nonce = Nonce::Nonce96(*GenericArray::from_slice(
-            Base32HexLower.decode(in_nnc).unwrap().as_slice(),
-        ));
+        let nonce = Nonce::Nonce96(
+            *GenericArray::from_slice(Base32HexLower.decode(in_nnc).unwrap().as_slice()),
+            IncomingTyp::String,
+        );
         assert_eq!(nnc, nonce);
     }
 }

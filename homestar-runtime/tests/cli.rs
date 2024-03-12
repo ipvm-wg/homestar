@@ -273,7 +273,7 @@ fn test_workflow_run_integration_nonced() -> Result<()> {
     let rpc_port = proc_info.rpc_port;
     let metrics_port = proc_info.metrics_port;
     let ws_port = proc_info.ws_port;
-    let workflow_cid = "bafyrmicbtl7g4zrbarazdbjnk2gxxbbzin3iaf6y2zs6va5auqiyhu5m2e";
+    let workflow_cid = "bafyrmibpelk6e7cmfqfbjulatdyaiyoobb7mme26iskxsl6w4viyac37q4";
     let toml = format!(
         r#"
         [node]
