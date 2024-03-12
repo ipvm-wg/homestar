@@ -109,7 +109,7 @@ pub struct InitArgs {
     #[arg(
         long = "key-seed",
         value_name = "KEY_SEED",
-        help = "The seed to use for generating the key [optional]",
+        help = "The seed to use for generating the key. If left unspecified, a random seed will be chosen [optional]",
         group = "init_key_arg"
     )]
     pub key_seed: Option<Option<String>>,
