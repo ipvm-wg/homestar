@@ -19,7 +19,7 @@ doctest = true
 
 [dependencies]
 fxhash = { version = "0.2", default-features = false }
-homestar-invocation = { version = "0.2", path = "../homestar-invocation" }
+homestar-invocation = { version = "0.3", path = "../homestar-invocation" }
 homestar-workspace-hack = { workspace = true }
 indexmap = { workspace = true }
 libipld = { workspace = true }
@@ -28,7 +28,7 @@ serde = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-homestar-invocation = { version = "0.2", path = "../homestar-invocation", features = [
+homestar-invocation = { version = "0.3", path = "../homestar-invocation", features = [
   "test-utils",
 ] }
 json = "0.12"
