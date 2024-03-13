@@ -1,46 +1,72 @@
 {
-  "tasks": [
-    {
-      "cause": null,
-      "meta": {
-        "fuel": 18446744073709552000,
-        "memory": 4294967296,
-        "time": 100000
-      },
-      "prf": [],
-      "run": {
-        "input": {
-          "args": [1],
-          "func": "add_one"
-        },
-        "nnc": "1sod60ml6g26mfhsrsa0",
-        "op": "wasm/run",
-        "rsc": "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"
-      }
-    },
-    {
-      "cause": null,
-      "meta": {
-        "fuel": 18446744073709552000,
-        "memory": 4294967296,
-        "time": 100000
-      },
-      "prf": [],
-      "run": {
-        "input": {
-          "args": [
-            {
-              "await/ok": {
-                "/": "bafyrmig5x46c6nzk74adlo6ffwo4bi7fr42jkv54zqa5kzazfirb47ninm"
-              }
+    "tasks": [
+        {
+            "cause": null,
+            "meta": {
+                "fuel": 18446744073709552000,
+                "memory": 4294967296,
+                "time": 100000
+            },
+            "prf": [],
+            "run": {
+                "input": {
+                    "args": [1],
+                    "func": "add_one"
+                },
+                "nnc": "1sod60ml6g26mfhsrsa0",
+                "op": "wasm/run",
+                "rsc": "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"
             }
-          ],
-          "func": "add_one"
         },
-        "nnc": "4ja3jhlhs3b9rk3app40",
-        "op": "wasm/run",
-        "rsc": "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"
-      }
-    }
-  ]
+        {
+            "cause": null,
+            "meta": {
+                "fuel": 18446744073709552000,
+                "memory": 4294967296,
+                "time": 100000
+            },
+            "prf": [],
+            "run": {
+                "input": {
+                    "args": [
+                        {
+                            "await/ok": {
+                                "/": "bafyrmig5x46c6nzk74adlo6ffwo4bi7fr42jkv54zqa5kzazfirb47ninm"
+                            }
+                        }
+                    ],
+                    "func": "add_one"
+                },
+                "nnc": {
+                    "/": { "bytes": "oVI8XiFiec+c2XHS" }
+                },
+                "op": "wasm/run",
+                "rsc": "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"
+            }
+        },
+        {
+            "cause": null,
+            "meta": {
+                "fuel": 18446744073709552000,
+                "memory": 4294967296,
+                "time": 100000
+            },
+            "prf": [],
+            "run": {
+                "input": {
+                    "args": [
+                        {
+                            "await/ok": {
+                                "/": "bafyrmiaa2pbgwydezutitiqq6j6qd73o3gqpeycp4g6dxnx466xdxjfnvq"
+                            }
+                        }
+                    ],
+                    "func": "add_one"
+                },
+                "nnc": "",
+                "op": "wasm/run",
+                "rsc": "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"
+            }
+        }
+    ]
 }

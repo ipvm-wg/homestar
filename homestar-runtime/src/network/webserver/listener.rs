@@ -87,8 +87,6 @@ impl<'a, 'de> Deserialize<'de> for CborRun<'a> {
     where
         D: Deserializer<'de>,
     {
-        //let value: Ipld = Deserialize::deserialize(deserializer)?;
-        //let run = CborRun::try_from(value).map_err(de::Error::custom)?;
         let value = Vec::<u8>::deserialize(deserializer)?;
         let ipld: Ipld = serde_ipld_dagcbor::from_slice(&value).map_err(de::Error::custom)?;
         let run = CborRun::try_from(ipld).map_err(de::Error::custom)?;

@@ -136,7 +136,10 @@ impl TryFrom<Ipld> for Nonce {
                     *GenericArray::from_slice(&v),
                     IncomingTyp::Bytes,
                 )),
-                other_ipld => Err(Error::unexpected_ipld(other_ipld.to_owned().into())),
+                other_ipld => {
+                    println!("other_ipld: {:?}", v.len());
+                    Err(Error::unexpected_ipld(other_ipld.to_owned().into()))
+                }
             },
             _ => Ok(Nonce::Empty),
         }
@@ -291,7 +294,7 @@ mod test {
         });
 
         let ipld: Ipld = DagJsonCodec.decode(json.to_string().as_bytes()).unwrap();
-        let Ipld::Map(map) = ipld.clone() else {
+        let Ipld::Map(map) = ipld else {
             panic!("IPLD is not a map");
         };
         let nnc = map.get("nnc").unwrap();

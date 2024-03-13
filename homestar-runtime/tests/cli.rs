@@ -273,7 +273,7 @@ fn test_workflow_run_integration_nonced() -> Result<()> {
     let rpc_port = proc_info.rpc_port;
     let metrics_port = proc_info.metrics_port;
     let ws_port = proc_info.ws_port;
-    let workflow_cid = "bafyrmibpelk6e7cmfqfbjulatdyaiyoobb7mme26iskxsl6w4viyac37q4";
+    let workflow_cid = "bafyrmid4ev2l44lgbazmgg36rui3eirzp5tg5ebnaexyogdnzv4hmvvtay";
     let toml = format!(
         r#"
         [node]
@@ -323,8 +323,8 @@ fn test_workflow_run_integration_nonced() -> Result<()> {
     wait_for_asserts(500, || {
         let (name, info) = Db::get_workflow_info(cid, &mut db.conn().unwrap()).unwrap();
         name.unwrap().as_str() == workflow_cid
-            && info.progress().len() == 2
-            && info.progress_count() == 2
+            && info.progress().len() == 3
+            && info.progress_count() == 3
     })
     .unwrap();
 
