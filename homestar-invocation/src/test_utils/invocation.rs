@@ -112,7 +112,7 @@ pub fn wasm_instruction_with_nonce<'a, T>() -> (Instruction<'a, T>, NonceBytes) 
             ]))),
             nonce.clone(),
         ),
-        nonce.as_nonce96().unwrap().to_vec(),
+        nonce.to_vec(),
     )
 }
 
@@ -139,7 +139,7 @@ pub fn instruction_with_nonce<'a, T>() -> (Instruction<'a, T>, NonceBytes) {
             Input::Ipld(Ipld::List(vec![Ipld::Bool(true)])),
             nonce.clone(),
         ),
-        nonce.as_nonce96().unwrap().to_vec(),
+        nonce.to_vec(),
     )
 }
 

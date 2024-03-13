@@ -1,6 +1,6 @@
 //! Utility functions Database interaction.
 
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +14,8 @@ impl Timestamp for i64 {
     fn timestamp_from_nanos(&self) -> Option<NaiveDateTime> {
         let nanos = self % 1_000_000_000;
         let seconds = (self - nanos) / 1_000_000_000;
-        NaiveDateTime::from_timestamp_opt(seconds, nanos as u32)
+        let dt = DateTime::from_timestamp(seconds, nanos as u32);
+        dt.map(|dt| dt.naive_utc())
     }
 }
 

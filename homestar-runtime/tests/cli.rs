@@ -1,5 +1,7 @@
 #[cfg(not(windows))]
 use crate::utils::kill_homestar_daemon;
+#[cfg(feature = "test-utils")]
+use crate::utils::wait_for_asserts;
 use crate::{
     make_config,
     utils::{
@@ -10,8 +12,14 @@ use crate::{
 use anyhow::Result;
 use assert_cmd::prelude::*;
 use homestar_runtime::Settings;
+#[cfg(feature = "test-utils")]
+use homestar_runtime::{db::Database, Db};
+#[cfg(feature = "test-utils")]
+use libipld::Cid;
 use once_cell::sync::Lazy;
 use predicates::prelude::*;
+#[cfg(feature = "test-utils")]
+use std::str::FromStr;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
@@ -253,6 +261,72 @@ fn test_workflow_run_integration() -> Result<()> {
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
+
+    Ok(())
+}
+
+#[test]
+#[serial_test::parallel]
+#[cfg(feature = "test-utils")]
+fn test_workflow_run_integration_nonced() -> Result<()> {
+    let proc_info = ProcInfo::new().unwrap();
+    let rpc_port = proc_info.rpc_port;
+    let metrics_port = proc_info.metrics_port;
+    let ws_port = proc_info.ws_port;
+    let workflow_cid = "bafyrmid4ev2l44lgbazmgg36rui3eirzp5tg5ebnaexyogdnzv4hmvvtay";
+    let toml = format!(
+        r#"
+        [node]
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.metrics]
+        port = {metrics_port}
+        [node.network.rpc]
+        port = {rpc_port}
+        [node.network.webserver]
+        port = {ws_port}
+        "#
+    );
+    let config = make_config!(toml);
+
+    let homestar_proc = Command::new(BIN.as_os_str())
+        .arg("start")
+        .arg("-c")
+        .arg(config.filename())
+        .arg("--db")
+        .arg(&proc_info.db_path)
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let _proc_guard = ChildGuard::new(homestar_proc);
+
+    if wait_for_socket_connection_v6(rpc_port, 1000).is_err() {
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
+    Command::new(BIN.as_os_str())
+        .arg("run")
+        .arg("-p")
+        .arg(rpc_port.to_string())
+        .arg("tests/fixtures/test-workflow-add-one-nonced.json")
+        .assert()
+        .success();
+
+    let settings = Settings::load_from_file(PathBuf::from(config.filename())).unwrap();
+    let cid = Cid::from_str(workflow_cid).unwrap();
+    let db = Db::setup_connection_pool(
+        settings.node(),
+        Some(proc_info.db_path.display().to_string()),
+    )
+    .expect("Failed to connect to node two database");
+
+    wait_for_asserts(500, || {
+        let (name, info) = Db::get_workflow_info(cid, &mut db.conn().unwrap()).unwrap();
+        name.unwrap().as_str() == workflow_cid
+            && info.progress().len() == 3
+            && info.progress_count() == 3
+    })
+    .unwrap();
 
     Ok(())
 }

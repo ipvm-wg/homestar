@@ -158,6 +158,34 @@ mod test {
     }
 
     #[test]
+    fn workflow_to_cbor_to_json_roundtrip() {
+        let config = Resources::default();
+        let instruction1 = test_utils::instruction::<Unit>();
+        let (instruction2, _) = test_utils::wasm_instruction_with_nonce::<Unit>();
+
+        let task1 = Task::new(
+            RunInstruction::Expanded(instruction1),
+            config.clone().into(),
+            UcanPrf::default(),
+        );
+        let task2 = Task::new(
+            RunInstruction::Expanded(instruction2),
+            config.into(),
+            UcanPrf::default(),
+        );
+
+        let workflow = Workflow::new(vec![task1.clone(), task2.clone()]);
+        let cbor_bytes = workflow.clone().to_cbor().unwrap();
+        let workflow_from_cbor = Workflow::<Unit>::from_cbor(&cbor_bytes).unwrap();
+        assert_eq!(workflow, workflow_from_cbor);
+
+        let json_from_cbor_string = workflow_from_cbor.clone().to_dagjson_string().unwrap();
+        let json_string = workflow.to_json_string().unwrap();
+
+        assert_eq!(json_from_cbor_string, json_string);
+    }
+
+    #[test]
     fn ipld_roundtrip_workflow() {
         let config = Resources::default();
         let (instruction1, instruction2, _) = test_utils::related_wasm_instructions::<Unit>();

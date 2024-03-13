@@ -33,6 +33,9 @@ pub enum Error<T> {
     /// `Display` methods through to an underlying error.
     #[error("cannot convert from Ipld structure: {0}")]
     FromIpld(#[from] libipld::error::SerdeError),
+    /// Error with a [libipld::multibase] encoding/decoding.
+    #[error("failed to decode/encode structure: {0}")]
+    FromMultibase(#[from] libipld::multibase::Error),
     /// Invalid match discriminant or enumeration.
     #[error("invalid discriminant {0:#?}")]
     InvalidDiscriminant(T),

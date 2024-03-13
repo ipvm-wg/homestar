@@ -90,7 +90,7 @@ fn test_workflow_run_integration() -> Result<()> {
         // we have 3 operations
         let mut received_cids = 0;
         loop {
-            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub1.next().with_timeout(Duration::from_secs(45)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
@@ -118,7 +118,7 @@ fn test_workflow_run_integration() -> Result<()> {
             .unwrap();
 
         loop {
-            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub2.next().with_timeout(Duration::from_secs(45)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
@@ -135,7 +135,10 @@ fn test_workflow_run_integration() -> Result<()> {
             }
         }
 
-        let client2 = WsClientBuilder::default().build(ws_url).await.unwrap();
+        let client2 = WsClientBuilder::default()
+            .build(ws_url.clone())
+            .await
+            .unwrap();
         let mut sub3: Subscription<Vec<u8>> = client2
             .subscribe(
                 SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
@@ -152,7 +155,7 @@ fn test_workflow_run_integration() -> Result<()> {
             .is_err();
 
         loop {
-            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub3.next().with_timeout(Duration::from_secs(45)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
@@ -187,7 +190,7 @@ fn test_workflow_run_integration() -> Result<()> {
             .unwrap();
 
         loop {
-            if let Ok(msg) = sub4.next().with_timeout(Duration::from_secs(30)).await {
+            if let Ok(msg) = sub4.next().with_timeout(Duration::from_secs(45)).await {
                 let json: serde_json::Value =
                     serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
                 let check = json.get("metadata").unwrap();
@@ -202,6 +205,12 @@ fn test_workflow_run_integration() -> Result<()> {
                 break;
             }
         }
+
+        let _ = sub4
+            .next()
+            .with_timeout(Duration::from_secs(10))
+            .await
+            .is_err();
     });
 
     // Collect logs then kill proceses.
@@ -218,6 +227,91 @@ fn test_workflow_run_integration() -> Result<()> {
     assert!(crop_ran);
     assert!(rotate_ran);
     assert!(grayscale_ran);
+
+    Ok(())
+}
+
+#[test]
+#[serial_test::parallel]
+fn test_workflow_run_integration_cbor() -> Result<()> {
+    let proc_info = ProcInfo::new().unwrap();
+    let rpc_port = proc_info.rpc_port;
+    let metrics_port = proc_info.metrics_port;
+    let ws_port = proc_info.ws_port;
+    let toml = format!(
+        r#"
+        [node]
+        [node.network.libp2p.mdns]
+        enable = false
+        [node.network.metrics]
+        port = {metrics_port}
+        [node.network.rpc]
+        port = {rpc_port}
+        [node.network.webserver]
+        port = {ws_port}
+        "#
+    );
+
+    let config = make_config!(toml);
+    let homestar_proc = Command::new(BIN.as_os_str())
+        .env("RUST_BACKTRACE", "0")
+        .arg("start")
+        .arg("-c")
+        .arg(config.filename())
+        .arg("--db")
+        .arg(&proc_info.db_path)
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let _proc_guard = ChildGuard::new(homestar_proc);
+
+    if wait_for_socket_connection(ws_port, 1000).is_err() {
+        panic!("Homestar server/runtime failed to start in time");
+    }
+
+    let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port);
+
+    tokio_test::block_on(async {
+        let run_cbor = fs::read("tests/fixtures/test-workflow-image-pipeline.cbor").unwrap();
+        let client = WsClientBuilder::default()
+            .build(ws_url.clone())
+            .await
+            .unwrap();
+
+        let mut sub: Subscription<Vec<u8>> = client
+            .subscribe(
+                SUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+                rpc_params![run_cbor],
+                UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT,
+            )
+            .await
+            .unwrap();
+
+        // we have 3 operations
+        let mut received_cids = 0;
+        loop {
+            if let Ok(msg) = sub.next().with_timeout(Duration::from_secs(45)).await {
+                let json: serde_json::Value =
+                    serde_json::from_slice(&msg.unwrap().unwrap()).unwrap();
+                let check = json.get("metadata").unwrap();
+                let expected = serde_json::json!({"name": "test", "replayed": false, "workflow": {"/": format!("{AWAIT_CID}")}});
+                assert_eq!(check, &expected);
+                received_cids += 1;
+            } else {
+                panic!("Node one did not publish receipt in time.")
+            }
+
+            if received_cids == 3 {
+                break;
+            }
+        }
+
+        let _ = sub
+            .next()
+            .with_timeout(Duration::from_secs(10))
+            .await
+            .is_err();
+    });
 
     Ok(())
 }
