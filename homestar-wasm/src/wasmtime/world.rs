@@ -146,7 +146,7 @@ impl<T> Env<T> {
     /// Types must conform to [Wit] IDL types when Wasm was compiled/generated.
     ///
     /// [Wit]: <https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md>
-    #[instrument(name = "execute", skip_all)]
+    #[instrument(skip_all)]
     pub async fn execute(&mut self, args: Args<Arg>) -> Result<Output, Error>
     where
         T: Send,

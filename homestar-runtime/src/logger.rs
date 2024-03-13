@@ -7,6 +7,7 @@ use tracing_subscriber::{layer::SubscriberExt as _, prelude::*, EnvFilter};
 
 const LOG_FILE: &str = "homestar.log";
 const DIRECTIVE_EXPECT: &str = "Invalid tracing directive";
+// Sets simplified logging filter and format for Every CLI
 const EVERY_CLI: &str = "EVERY_CLI";
 
 /// Logger interface.
