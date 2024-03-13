@@ -23,7 +23,7 @@ use tokio::{
     sync::RwLock,
     time::{timeout_at, Instant},
 };
-use tracing::debug;
+use tracing::{debug, instrument};
 
 pub(crate) trait Resolver {
     async fn resolve(
@@ -35,6 +35,7 @@ pub(crate) trait Resolver {
 }
 
 impl Resolver for Cid {
+    #[instrument(level = "debug", name = "cid_resolve", skip_all)]
     async fn resolve(
         self,
         linkmap: Arc<RwLock<LinkMap<task::Result<Arg>>>>,

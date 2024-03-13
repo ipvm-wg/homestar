@@ -36,7 +36,7 @@ use indexmap::IndexMap;
 use libipld::{Cid, Ipld};
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::task::JoinSet;
-use tracing::{debug, error, info};
+use tracing::{debug, debug_span, error, info, info_span, instrument, Instrument};
 
 mod poller;
 mod resolver;
@@ -157,6 +157,7 @@ where
     /// [Instruction]: homestar_invocation::task::Instruction
     /// [Swarm]: crate::network::swarm
     /// [LinkMap]: homestar_workflow::LinkMap
+    #[instrument(skip_all)]
     pub(crate) async fn run<F>(self, running_tasks: Arc<RunningTaskSet>, fetch_fn: F) -> Result<()>
     where
         F: FnOnce(FnvHashSet<Resource>) -> BoxFuture<'a, Result<IndexMap<Resource, Vec<u8>>>>,
@@ -169,6 +170,15 @@ where
         .await
         {
             Ok(ctx) => {
+                let workflow_cid = self.workflow_info.cid.to_string();
+
+                info!(
+                    subject = "worker.init_workflow",
+                    category = "worker.run",
+                    workflow_cid,
+                    "initializing workflow"
+                );
+
                 let promises_to_resolve = ctx.scheduler.promises_to_resolve.clone();
                 let resolver = DHTResolver::new(
                     promises_to_resolve,
@@ -181,7 +191,7 @@ where
                     info!(
                         subject = "worker.resolve_receipts",
                         category = "worker.run",
-                        workflow_cid = self.workflow_info.cid.to_string(),
+                        workflow_cid,
                         "resolving receipts in the background"
                     );
                     poller::poll(
@@ -196,12 +206,26 @@ where
                 // Set the workflow status to running.
                 let conn = &mut self.db.conn()?;
                 if ctx.scheduler.run_length() > 0 {
+                    info!(
+                        subject = "worker.start_workflow",
+                        category = "worker.run",
+                        workflow_cid,
+                        "starting workflow"
+                    );
+
                     Db::set_workflow_status(
                         self.workflow_info.cid,
                         workflow::Status::Running,
                         conn,
                     )?;
                 } else {
+                    info!(
+                        subject = "worker.start_workflow",
+                        category = "worker.run",
+                        workflow_cid,
+                        "replaying workflow"
+                    );
+
                     Db::set_workflow_status(
                         self.workflow_info.cid,
                         workflow::Status::Completed,
@@ -223,6 +247,7 @@ where
     }
 
     #[allow(unused_mut)]
+    #[instrument(skip_all)]
     async fn run_queue(
         mut self,
         mut scheduler: TaskScheduler<'a>,
@@ -321,7 +346,7 @@ where
                                 category = "worker.run",
                                 workflow_cid = workflow_cid.to_string(),
                                 cid = cid.to_string(),
-                                "attempting to resolve cid in workflow"
+                                "attempting to resolve workflow args by cid"
                             );
 
                             cid.resolve(linkmap.clone(), resources.clone(), db.clone())
@@ -329,9 +354,11 @@ where
                         });
 
                         let handle = task_set.spawn(async move {
-                            match resolved.await {
+                             match resolved.await {
                                 Ok(inst_result) => {
-                                    match wasm_ctx.run(wasm, &fun, inst_result).await {
+                                    match wasm_ctx.run(wasm, &fun, inst_result).instrument({
+                                        debug_span!("wasm_run").or_current()
+                                    }).await {
                                         Ok(output) => Ok((
                                             output,
                                             instruction_ptr,
@@ -352,7 +379,11 @@ where
                                         })
                                 }
                             }
-                        });
+                        }
+                        .instrument({
+                            info_span!("spawn_workflow_tasks").or_current()
+                        }));
+
                         handles.push(handle);
                     }
                     None => error!(
@@ -428,6 +459,13 @@ where
                     "committed to database"
                 );
 
+                info!(
+                    subject = "worker.receipt",
+                    category = "worker.run",
+                    receipt_cid = stored_receipt.cid().to_string(),
+                    "computed receipt"
+                );
+
                 let _ = self
                     .event_sender
                     .send_async(Event::CapturedReceipt(Captured::with(
@@ -442,6 +480,14 @@ where
         // Set the workflow status to `completed`
         let conn = &mut self.db.conn()?;
         Db::set_workflow_status(self.workflow_info.cid, workflow::Status::Completed, conn)?;
+
+        info!(
+            subject = "worker.end_workflow",
+            category = "worker.run",
+            workflow_cid = self.workflow_info.cid.to_string(),
+            "workflow completed"
+        );
+
         Ok(())
     }
 }

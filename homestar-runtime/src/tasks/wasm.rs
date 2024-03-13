@@ -8,6 +8,7 @@ use homestar_wasm::{
     io::{Arg, Output},
     wasmtime::{world::Env, Error as WasmRuntimeError, State, World},
 };
+use tracing::Instrument;
 
 #[allow(dead_code)]
 #[allow(missing_debug_implementations)]
@@ -32,7 +33,7 @@ impl WasmContext {
         args: Args<Arg>,
     ) -> Result<Output, WasmRuntimeError> {
         let env = World::instantiate_with_current_env(bytes, fun_name, &mut self.env).await?;
-        env.execute(args).await
+        env.execute(args).in_current_span().await
     }
 }
 

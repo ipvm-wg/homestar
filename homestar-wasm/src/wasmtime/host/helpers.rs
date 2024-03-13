@@ -6,6 +6,7 @@ use crate::wasmtime::{
 };
 use async_trait::async_trait;
 use std::time::Instant;
+use tracing::instrument;
 
 #[async_trait]
 impl helpers::Host for State {
@@ -30,6 +31,7 @@ impl helpers::Host for State {
 #[async_trait]
 impl wasi::logging::logging::Host for State {
     /// Log a message, formatted by the runtime subscriber.
+    #[instrument(name = "wasi_log", skip_all)]
     async fn log(
         &mut self,
         level: wasi::logging::logging::Level,
