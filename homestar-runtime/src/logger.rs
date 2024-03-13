@@ -73,6 +73,11 @@ fn init(
     let filter = if every_cli {
         EnvFilter::new("off")
             .add_directive(
+                "homestar_runtime::runner[run_worker]=info"
+                    .parse()
+                    .expect(DIRECTIVE_EXPECT),
+            )
+            .add_directive(
                 "homestar_runtime::worker[run]=info"
                     .parse()
                     .expect(DIRECTIVE_EXPECT),

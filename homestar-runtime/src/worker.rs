@@ -459,6 +459,13 @@ where
                     "committed to database"
                 );
 
+                info!(
+                    subject = "worker.receipt",
+                    category = "worker.run",
+                    receipt_cid = stored_receipt.cid().to_string(),
+                    "computed receipt"
+                );
+
                 let _ = self
                     .event_sender
                     .send_async(Event::CapturedReceipt(Captured::with(

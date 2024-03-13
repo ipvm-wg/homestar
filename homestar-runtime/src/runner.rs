@@ -40,7 +40,7 @@ use tokio::{
     time,
 };
 use tokio_util::time::{delay_queue, DelayQueue};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, info_span, instrument, warn, Instrument};
 
 mod error;
 pub(crate) mod file;
@@ -702,6 +702,7 @@ impl Runner {
         }
     }
 
+    #[instrument(skip_all)]
     async fn run_worker<S: Into<FastStr>>(
         &self,
         workflow: Workflow<'static, Arg>,
@@ -767,9 +768,11 @@ impl Runner {
             async move { Fetch::get_resources(rscs, workflow_settings).await }.boxed()
         };
 
-        let handle = self
-            .runtime
-            .spawn(worker.run(self.running_tasks(), fetch_fn));
+        let handle = self.runtime.spawn(
+            worker
+                .run(self.running_tasks(), fetch_fn)
+                .instrument(info_span!("run").or_current()),
+        );
 
         // Add Cid to expirations timing wheel
         let delay_key = self
@@ -789,6 +792,20 @@ impl Runner {
             .map(|cid| Pointer::new(*cid))
             .collect();
         let replayed_receipt_info = find_receipt_info_by_pointers(&receipt_pointers, db)?;
+
+        // Log replayed receipts if any
+        if !replayed_receipt_info.is_empty() {
+            info!(
+                subject = "workflow.receipts",
+                category = "workflow",
+                receipt_cids = replayed_receipt_info
+                    .iter()
+                    .map(|info| info.0.to_string())
+                    .collect::<Vec<String>>()
+                    .join(","),
+                "replaying receipts",
+            );
+        };
 
         Ok(WorkflowData {
             info: initial_info,
