@@ -208,6 +208,11 @@
             {
               "type": "string",
               "const": ""
+            },
+            {
+              "description": "A 12-byte or 16-byte nonce encoded as a string, which expects to be decoded with Base32hex lower",
+              "type": "string",
+              "minLength": 1
             }
           ]
         },
