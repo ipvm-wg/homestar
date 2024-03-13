@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/ipvm-wg/homestar/compare/homestar-invocation-v0.2.0...homestar-invocation-v0.3.0) - 2024-03-13
+
+### Added
+- finish interpreter ([#595](https://github.com/ipvm-wg/homestar/pull/595))
+
+### Fixed
+- Update nonce schema with IPLD bytes ([#593](https://github.com/ipvm-wg/homestar/pull/593))
+
+### Other
+- handle nonce as incoming string/arraybuf ([#611](https://github.com/ipvm-wg/homestar/pull/611))
+- test json/ipld/nonce ([#610](https://github.com/ipvm-wg/homestar/pull/610))
+- poll DHT in background when worker runs up a workflow + dual-stack webserver ([#590](https://github.com/ipvm-wg/homestar/pull/590))
+
 ## [0.2.0](https://github.com/ipvm-wg/homestar/compare/homestar-invocation-v0.1.1...homestar-invocation-v0.2.0) - 2024-02-20
 
 ### Added

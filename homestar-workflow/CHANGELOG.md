@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/ipvm-wg/homestar/compare/homestar-workflow-v0.2.0...homestar-workflow-v0.3.0) - 2024-03-13
+
+### Other
+- handle nonce as incoming string/arraybuf ([#611](https://github.com/ipvm-wg/homestar/pull/611))
+
 ## [0.2.0](https://github.com/ipvm-wg/homestar/compare/homestar-workflow-v0.1.1...homestar-workflow-v0.2.0) - 2024-02-20
 
 ### Added
