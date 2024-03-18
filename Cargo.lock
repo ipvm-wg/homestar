@@ -2697,7 +2697,7 @@ dependencies = [
  "libp2p",
  "libsqlite3-sys",
  "maplit",
- "metrics",
+ "metrics 0.22.3",
  "metrics-exporter-prometheus",
  "metrics-util",
  "miette",
@@ -4362,6 +4362,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "metrics"
+version = "0.22.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2be3cbd384d4e955b231c895ce10685e3d8260c5ccffae898c96c723b0772835"
+dependencies = [
+ "ahash",
+ "portable-atomic",
+]
+
+[[package]]
 name = "metrics-exporter-prometheus"
 version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4371,7 +4381,7 @@ dependencies = [
  "hyper",
  "indexmap 1.9.3",
  "ipnet",
- "metrics",
+ "metrics 0.21.1",
  "metrics-util",
  "quanta",
  "thiserror",
@@ -4400,7 +4410,7 @@ dependencies = [
  "crossbeam-utils",
  "hashbrown 0.13.2",
  "indexmap 1.9.3",
- "metrics",
+ "metrics 0.21.1",
  "num_cpus",
  "ordered-float",
  "quanta",
