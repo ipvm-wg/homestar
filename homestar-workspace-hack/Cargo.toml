@@ -45,7 +45,7 @@ futures-timer = { version = "3.0.3", default-features = false, features = ["wasm
 futures-util = { version = "0.3.30", features = ["bilock", "channel", "io", "sink", "unstable"] }
 generic-array = { version = "0.14.7", default-features = false, features = ["more_lengths"] }
 hashbrown = { version = "0.14.3", features = ["raw"] }
-hyper = { version = "1.2.0", features = ["full"] }
+hyper = { version = "0.14.28", features = ["full"] }
 indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1.9.3", default-features = false, features = ["serde"] }
 indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2.2.3", features = ["serde"] }
 jsonrpsee = { version = "0.21.0", default-features = false, features = ["client", "server"] }
@@ -117,7 +117,7 @@ futures-timer = { version = "3.0.3", default-features = false, features = ["wasm
 futures-util = { version = "0.3.30", features = ["bilock", "channel", "io", "sink", "unstable"] }
 generic-array = { version = "0.14.7", default-features = false, features = ["more_lengths"] }
 hashbrown = { version = "0.14.3", features = ["raw"] }
-hyper = { version = "1.2.0", features = ["full"] }
+hyper = { version = "0.14.28", features = ["full"] }
 indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1.9.3", default-features = false, features = ["serde"] }
 indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2.2.3", features = ["serde"] }
 jsonrpsee = { version = "0.21.0", default-features = false, features = ["client", "server"] }
