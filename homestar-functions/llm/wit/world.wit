@@ -1,0 +1,11 @@
+package homestar:prompt@0.1.0;
+
+world llm {
+    import wasi:logging/logging;
+    import homestar:host/helpers@0.1.1;
+    import homestar:host/chain@0.1.1;
+
+    export gen: func(topic: string) -> string;
+    export gen-by-section: func(input: string, topic: string) -> string;
+    export gen-map-reduce: func(input: string) -> string;
+}

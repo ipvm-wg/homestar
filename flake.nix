@@ -44,13 +44,18 @@
     flake-utils.lib.eachDefaultSystem (
       system: let
         overlays = [fenix.overlays.default wit-deps.overlays.default];
-        pkgs = import nixpkgs {inherit system overlays;};
+        pkgs = import nixpkgs {
+          inherit system overlays;
+          config = {
+            allowUnfree = true;
+          };
+        };
         unstable = import nixos-unstable {inherit system overlays;};
 
         file-toolchain = fenix.packages.${system}.fromToolchainFile {
           file = ./rust-toolchain.toml;
           # sha256 = pkgs.lib.fakeSha256;
-          sha256 = "sha256-+syqAd2kX8KVa8/U2gz3blIQTTsYYt3U63xBWaGOSc8=";
+          sha256 = "sha256-7QfkHty6hSrgNM0fspycYkRcB82eEqYa4CoAJ9qA3tU=";
         };
 
         default-toolchain = fenix.packages.${system}.complete.withComponents [
@@ -69,14 +74,16 @@
           rustc = rust-toolchain;
         };
 
+        llvmPackages = pkgs.llvmPackages_17;
         nightly-rustfmt =
           (fenix.packages.${system}.toolchainOf {
             channel = "nightly";
-            date = "2024-03-26";
-            sha256 = "sha256-kHuQWRjPWmulZWG7tka+rX+VjZOnP7pZ2xF2qxV8784=";
-            # sha256 = pkgs.lib.fakeSha256;
+            date = "2024-04-26";
+            sha256 = "sha256-CGoaGyU0UYlSRQQYHrof060SUsOq5b24L5g5hnqcXMk=";
+            #sha256 = pkgs.lib.fakeSha256;
           })
           .rustfmt;
+
         format-pkgs = with pkgs; [
           nixpkgs-fmt
           alejandra
@@ -99,7 +106,7 @@
           rustup
           tokio-console
           twiggy
-          unstable.cargo-component
+          #unstable.cargo-component
           unstable.wasm-tools
           # TODO: Return to this
           # unstable.warg
@@ -326,6 +333,7 @@
               unstable.nodePackages.pnpm
               action-validator
               kubo
+              cmake
               self.packages.${system}.irust
             ]
             ++ format-pkgs
@@ -339,6 +347,7 @@
             ];
           NIX_PATH = "nixpkgs=" + pkgs.path;
           RUST_BACKTRACE = 1;
+          LIBCLANG_PATH = "${llvmPackages.libclang.lib}/lib";
 
           shellHook =
             ''

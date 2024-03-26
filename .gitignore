@@ -59,3 +59,7 @@ examples/**/tmp/*
 
 # npm packages
 homestar-runtime/npm/binaries
+
+# llm
+models
+*tar.gz

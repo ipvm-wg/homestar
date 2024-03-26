@@ -1,0 +1,14 @@
+[node]
+[node.network.metrics]
+port = 4020
+
+[node.network.rpc]
+port = 9820
+
+[node.network.webserver]
+host = "127.0.0.1"
+port = 8020
+
+[node.network.ipfs]
+host = "127.0.0.1"
+port = 5001

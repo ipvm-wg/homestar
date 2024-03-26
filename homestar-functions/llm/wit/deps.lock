@@ -1,7 +1,7 @@
 [helpers]
-path = "../../../homestar-wasm/wit/helpers"
-sha256 = "4d9a8c79c8f0f0b7499af0ae73d2dd002c97011775bf39836955dbd460c09a55"
-sha512 = "ac41234858d10646d9a4ff73461a2c2f4772510de2fd0c032cc0f45cd28cd9e49008bb77a5c79978fc4704a9c2d46fb613bdf7adfa759d8f938d35f50a275842"
+path = "../../../homestar-wasm/wit"
+sha256 = "92b7cb5dc7b44a7f2e6f00e8dce2dba600cf791ac3a150ec360b1a566065b099"
+sha512 = "caafd9ed3b8551fd8c5943366f268b2673b88691d34a9c022eb418d247f998ed134017fb33f97bc47708eaf463b430d43ece8b519974ff1fb742f12aa3d89336"
 
 [logging]
 url = "https://github.com/WebAssembly/wasi-logging/archive/main.tar.gz"

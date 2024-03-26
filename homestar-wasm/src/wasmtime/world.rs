@@ -28,6 +28,7 @@ use wasmtime::{
 use wit_component::ComponentEncoder;
 
 wasmtime::component::bindgen!({
+    path: "wit",
     world: "imports",
     tracing: true,
     async: true
@@ -259,6 +260,8 @@ impl World {
         // This is a temporary measure until WASI is supported by default and is
         // unused otherwise.
         wasmtime_wasi::preview2::command::add_to_linker(&mut linker)?;
+
+        #[cfg(feature = "llm")]
         Imports::add_to_linker(&mut linker, |state: &mut State| state)?;
 
         let mut store = Store::new(&engine, data);
@@ -291,6 +294,8 @@ impl World {
         // This is a temporary measure until WASI is supported by default and is
         // unused otherwise.
         wasmtime_wasi::preview2::command::add_to_linker(&mut linker)?;
+
+        #[cfg(feature = "llm")]
         Imports::add_to_linker(&mut linker, |state: &mut State| state)?;
 
         let mut store = Store::new(&engine, data);

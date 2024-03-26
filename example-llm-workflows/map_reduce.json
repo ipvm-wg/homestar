@@ -1,0 +1,22 @@
+{
+    "tasks": [
+        {
+            "run": {
+                "name": "genParagraph",
+                "input": {
+                    "args": ["Brief History of Pittsburgh"],
+                    "func": "gen"
+                }
+            }
+        },
+        {
+            "run": {
+                "name": "genMR",
+                "input": {
+                    "args": ["{{needs.genParagraph.output}}"],
+                    "func": "genMapReduce"
+                }
+            }
+        }
+    ]
+}

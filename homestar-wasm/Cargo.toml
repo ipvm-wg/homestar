@@ -30,6 +30,8 @@ homestar-workspace-hack = { workspace = true }
 indexmap = { workspace = true }
 itertools = { workspace = true }
 libipld = { workspace = true }
+llm-chain = { git = "https://github.com/sobelio/llm-chain.git", optional = true }
+llm-chain-llama = { git = "https://github.com/sobelio/llm-chain.git", optional = true }
 rust_decimal = { version = "1.33", default-features = false }
 serde = { workspace = true }
 stacker = "0.1"
@@ -59,6 +61,7 @@ tokio = { workspace = true }
 
 [features]
 default = ["wasmtime/default"]
+llm = ["dep:llm-chain", "dep:llm-chain-llama"]
 test-utils = []
 
 [package.metadata.docs.rs]

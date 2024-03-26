@@ -1,0 +1,13 @@
+{
+  "tasks": [
+    {
+      "run": {
+        "name": "genParagraph",
+        "input": {
+          "args": ["Attractions in Pittsburgh"],
+          "func": "gen"
+        }
+      }
+    }
+  ]
+}

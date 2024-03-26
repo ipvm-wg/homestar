@@ -7,6 +7,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .cargo_features()
         .emit()?;
 
+    #[cfg(feature = "llm")]
+    println!("cargo::rustc-env=LLAMA_METAL=1");
     println!("cargo:rerun-if-changed=build.rs");
 
     Ok(())

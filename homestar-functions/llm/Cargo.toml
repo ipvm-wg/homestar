@@ -1,0 +1,19 @@
+[package]
+name = "homestar-functions-llm"
+publish = false
+version = "0.1.0"
+edition = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+wit-bindgen-rt = "0.21.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[package.metadata.component]
+package = "component:homestar-functions-llm"
+
+[package.metadata.component.target.dependencies]
+"wasi:logging" = { path = "wit/deps/logging" }
+"homestar:host" = { path = "wit/deps/helpers" }

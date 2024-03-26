@@ -30,6 +30,7 @@ exact-versions = true
 [traversal-excludes]
 workspace-members = [
   "homestar-functions-add",
+  "homestar-functions-llm",
   "homestar-functions-subtract",
   "homestar-functions-test",
 ]

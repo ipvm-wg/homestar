@@ -1,0 +1,37 @@
+{
+    "tasks": [
+        {
+            "run": {
+                "name": "genParagraph",
+                "input": {
+                    "args": ["Brief History of Pittsburgh"],
+                    "func": "gen"
+                }
+            }
+        },
+        {
+            "run": {
+                "name": "genFrom1",
+                "input": {
+                    "args": [
+                        "{{needs.genParagraph.output}}",
+                        "Brief History of Pittsburgh"
+                    ],
+                    "func": "genBySection"
+                }
+            }
+        },
+        {
+            "run": {
+                "name": "genFrom2",
+                "input": {
+                    "args": [
+                        "{{needs.genFrom1.output}}",
+                        "Brief History of Pittsburgh"
+                    ],
+                    "func": "genBySection"
+                }
+            }
+        }
+    ]
+}
