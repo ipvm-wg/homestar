@@ -674,7 +674,7 @@ fn test_libp2p_dht_workflow_info_provider_integration() -> Result<()> {
         // DHT, so we give node one time to put add workflow info to the DHT.
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        let expected_workflow_cid = "bafyrmidbhanzivykbzxfichwvpvywhkthd6wycmwlaha46z3lk5v3ilo5q";
+        let expected_workflow_cid = "bafyrmialnbzgwscjrq7sa3kdnw2roqdrdzp7xh2tvmo37qmgvarwrhcgre";
 
         // Run the same workflow run on node two.
         // Node two should be request workflow info from

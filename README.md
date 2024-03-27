@@ -135,6 +135,9 @@ represents the `Homestar` runtime. We recommend diving into each package's own
   You can find the spec for translating between IPLD and WIT runtime values
   based on WIT types [here](./homestar-wasm/README.md#interpreting-between-ipld-and-wit).
 
+  *Note*: This library also includes a [WIT `world`][wa.dev-homestar-host] for
+  bindings implemented on the host runtime.
+
 - [homestar-workflow](./homestar-workflow)
 
   The *workflow* library implements workflow-centric [Ipvm features][ipvm-spec]
@@ -156,6 +159,8 @@ represents the `Homestar` runtime. We recommend diving into each package's own
   `homestar-functions` is a directory of helper, test, and example crates for
   writing and compiling [Wasm component][wasm-component] modules using
   [wit-bindgen][wit-bindgen].
+
+  You can find our component packages on [wa.dev][wa.dev-homestar].
 
 - [homestar-schemas](./homestar-schemas)
 
@@ -272,6 +277,8 @@ conditions.
 [research]: https://github.com/ipvm-wg/research
 [seamless-services]: https://youtu.be/Kr3B3sXh_VA
 [ucan-invocation]: https://github.com/ucan-wg/invocation
+[wa.dev-homestar]: https://wa.dev/homestar
+[wa.dev-homestar-host]: https://wa.dev/homestar:host
 [wasm-component]: https://github.com/WebAssembly/component-model
 [wasmtime]: https://github.com/bytecodealliance/wasmtime
 [wit]: https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md

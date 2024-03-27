@@ -50,7 +50,7 @@
         file-toolchain = fenix.packages.${system}.fromToolchainFile {
           file = ./rust-toolchain.toml;
           # sha256 = pkgs.lib.fakeSha256;
-          sha256 = "sha256-e4mlaJehWBymYxJGgnbuCObVlqMlQSilZ8FljG9zPHY=";
+          sha256 = "sha256-+syqAd2kX8KVa8/U2gz3blIQTTsYYt3U63xBWaGOSc8=";
         };
 
         default-toolchain = fenix.packages.${system}.complete.withComponents [
@@ -72,8 +72,8 @@
         nightly-rustfmt =
           (fenix.packages.${system}.toolchainOf {
             channel = "nightly";
-            date = "2024-02-13";
-            sha256 = "sha256-QeiJ8YNVpYhoxxOrrQKOwnfoYo4c8PTlcjEOn/NCmSI=";
+            date = "2024-03-26";
+            sha256 = "sha256-kHuQWRjPWmulZWG7tka+rX+VjZOnP7pZ2xF2qxV8784=";
             # sha256 = pkgs.lib.fakeSha256;
           })
           .rustfmt;
@@ -364,16 +364,16 @@
 
         packages.irust = rustPlatform.buildRustPackage rec {
           pname = "IRust";
-          version = "1.71.2";
+          version = "1.71.20";
           src = pkgs.fetchFromGitHub {
             owner = "sigmaSd";
             repo = pname;
             rev = "v${version}";
-            sha256 = "sha256-6qxkz7Pf8XGORo6O4eIwTcqBt+8WBp2INY81YUCxJts=";
+            sha256 = "sha256-PokyKNHiZqOo1DXLQ2NAkuax4BXayNko9nQMighuh4Q=";
           };
 
           doCheck = false;
-          cargoSha256 = "sha256-VZXxz3E8I/8T2H7KHa2IADjqsG2XHBNhwq/OBsq3vHs=";
+          cargoSha256 = "sha256-0CMrA6k4OEXM9MJ9Iyk0yMuulvhT2pXty4OIU5Z6a9U=";
         };
 
         packages.default =
