@@ -6109,7 +6109,7 @@
     (data (;0;) (i32.const 1048576) "\01\00\00\00")
     (@producers
       (processed-by "wit-component" "0.201.0")
-      (processed-by "wit-bindgen-rust" "0.20.0")
+      (processed-by "wit-bindgen-rust" "0.21.0")
     )
   )
   (core instance (;0;) (instantiate 0))
@@ -6124,6 +6124,6 @@
   (export (;3;) "add-two" (func 2))
   (@producers
     (processed-by "wit-component" "0.201.0")
-    (processed-by "cargo-component" "0.9.0 (wasi:ab5a448)")
+    (processed-by "cargo-component" "0.10.1 (wasi:ab5a448)")
   )
 )

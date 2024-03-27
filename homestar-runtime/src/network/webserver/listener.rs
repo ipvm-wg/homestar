@@ -14,12 +14,12 @@ use std::collections::BTreeMap;
 const NAME_KEY: &str = "name";
 const WORKFLOW_KEY: &str = "workflow";
 
-/// A [Workflow] run command via a WebSocket channel.
+/// A [Workflow] run command via a WebSocket channel for JSON inputs.
 ///
 /// Note: We leverage the [RawValue] type in order to use our DagJson
 /// implementation, which is not a direct [Deserialize] implementation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) struct JsonRun<'a> {
+pub struct JsonRun<'a> {
     #[serde(default = "default_name")]
     pub(crate) name: FastStr,
     #[serde(deserialize_with = "from_raw_value")]
@@ -42,8 +42,9 @@ where
     Workflow::from_json(raw_value.get().as_bytes()).map_err(de::Error::custom)
 }
 
+/// A [Workflow] run command via a WebSocket channel for CBOR inputs.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub(crate) struct CborRun<'a> {
+pub struct CborRun<'a> {
     pub(crate) name: FastStr,
     pub(crate) workflow: Workflow<'a, Arg>,
 }

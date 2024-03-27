@@ -77,7 +77,7 @@ pub(crate) mod metrics;
 pub use event_handler::notification::{network::NetworkNotification, receipt::ReceiptNotification};
 #[allow(unused_imports)]
 pub(crate) use event_handler::EventHandler;
-pub use network::webserver::PrometheusData;
+pub use network::webserver::{listener, PrometheusData};
 pub use receipt::{Receipt, RECEIPT_TAG, VERSION_KEY};
 pub use runner::{NodeInfo, Runner};
 pub(crate) use scheduler::TaskScheduler;

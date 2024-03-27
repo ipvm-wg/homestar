@@ -50,7 +50,7 @@
         file-toolchain = fenix.packages.${system}.fromToolchainFile {
           file = ./rust-toolchain.toml;
           # sha256 = pkgs.lib.fakeSha256;
-          sha256 = "sha256-e4mlaJehWBymYxJGgnbuCObVlqMlQSilZ8FljG9zPHY=";
+          sha256 = "sha256-+syqAd2kX8KVa8/U2gz3blIQTTsYYt3U63xBWaGOSc8=";
         };
 
         default-toolchain = fenix.packages.${system}.complete.withComponents [
@@ -72,8 +72,8 @@
         nightly-rustfmt =
           (fenix.packages.${system}.toolchainOf {
             channel = "nightly";
-            date = "2024-02-13";
-            sha256 = "sha256-QeiJ8YNVpYhoxxOrrQKOwnfoYo4c8PTlcjEOn/NCmSI=";
+            date = "2024-03-26";
+            sha256 = "sha256-kHuQWRjPWmulZWG7tka+rX+VjZOnP7pZ2xF2qxV8784=";
             # sha256 = pkgs.lib.fakeSha256;
           })
           .rustfmt;
@@ -101,6 +101,9 @@
           twiggy
           unstable.cargo-component
           unstable.wasm-tools
+          # TODO: Return to this
+          # unstable.warg
+          # unstable.wit
         ];
 
         ci = pkgs.writeScriptBin "ci" ''
@@ -237,6 +240,7 @@
           cp target/wasm32-wasi/release-wasm-fn/homestar_functions_test.wasm homestar-wasm/fixtures/example_test_wasi.wasm
           wasm-tools component new homestar-wasm/fixtures/example_test_wasi.wasm -o homestar-wasm/fixtures/example_test_wasi_component.wasm --adapt homestar-functions/wasi_snapshot_preview1.wasm
           cp homestar-wasm/fixtures/example_test.wasm examples/websocket-relay/example_test.wasm
+          wasm-tools component wit homestar-wasm/wit -o homestar-wasm/fixtures/host.wasm --wasm
         '';
 
         wasmAdd = pkgs.writeScriptBin "wasm-ex-add" ''
@@ -360,16 +364,16 @@
 
         packages.irust = rustPlatform.buildRustPackage rec {
           pname = "IRust";
-          version = "1.71.2";
+          version = "1.71.20";
           src = pkgs.fetchFromGitHub {
             owner = "sigmaSd";
             repo = pname;
             rev = "v${version}";
-            sha256 = "sha256-6qxkz7Pf8XGORo6O4eIwTcqBt+8WBp2INY81YUCxJts=";
+            sha256 = "sha256-PokyKNHiZqOo1DXLQ2NAkuax4BXayNko9nQMighuh4Q=";
           };
 
           doCheck = false;
-          cargoSha256 = "sha256-VZXxz3E8I/8T2H7KHa2IADjqsG2XHBNhwq/OBsq3vHs=";
+          cargoSha256 = "sha256-0CMrA6k4OEXM9MJ9Iyk0yMuulvhT2pXty4OIU5Z6a9U=";
         };
 
         packages.default =

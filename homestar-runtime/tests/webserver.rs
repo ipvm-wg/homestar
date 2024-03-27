@@ -6,6 +6,8 @@ use crate::{
     },
 };
 use anyhow::Result;
+use homestar_invocation::ipld::{DagCbor, DagJson};
+use homestar_runtime::listener::CborRun;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
     rpc_params,
@@ -23,7 +25,7 @@ use std::{
 static BIN: Lazy<PathBuf> = Lazy::new(|| assert_cmd::cargo::cargo_bin(BIN_NAME));
 const SUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "subscribe_run_workflow";
 const UNSUBSCRIBE_RUN_WORKFLOW_ENDPOINT: &str = "unsubscribe_run_workflow";
-const AWAIT_CID: &str = "bafyrmic7gy3muoxiyepl44iwrkxxrnkl5oa77scqq3ptuigrm5faiqfgka";
+const AWAIT_CID: &str = "bafyrmiatb7idqtty56hy3hrfa6ur6qkspyrhaf6n6ynmqsntjvym47mbrq";
 
 #[test]
 #[serial_test::parallel]
@@ -272,7 +274,15 @@ fn test_workflow_run_integration_cbor() -> Result<()> {
     let ws_url = format!("ws://{}:{}", Ipv4Addr::LOCALHOST, ws_port);
 
     tokio_test::block_on(async {
-        let run_cbor = fs::read("tests/fixtures/test-workflow-image-pipeline.cbor").unwrap();
+        let workflow_str =
+            fs::read_to_string("tests/fixtures/test-workflow-image-pipeline.json").unwrap();
+        let json: serde_json::Value = serde_json::from_str(&workflow_str).unwrap();
+        let json_string = serde_json::to_string(&json).unwrap();
+        let run_str = format!(r#"{{"name": "test","workflow": {}}}"#, json_string);
+        let path = PathBuf::from("tests/fixtures/test-workflow-image-pipeline.cbor");
+        let run: CborRun<'_> = DagJson::from_json_string(run_str).unwrap();
+        run.to_cbor_file(path.display().to_string()).unwrap();
+        let run_cbor = fs::read(path).unwrap();
         let client = WsClientBuilder::default()
             .build(ws_url.clone())
             .await

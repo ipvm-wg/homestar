@@ -1,4 +1,4 @@
-package homestar:host@0.0.1;
+package homestar:host@0.1.1;
 
 /// Basic helpers interface.
 interface helpers {
