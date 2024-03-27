@@ -36,7 +36,7 @@ use tower_http::{
 };
 use tracing::{debug, error, info};
 
-pub(crate) mod listener;
+pub mod listener;
 #[cfg(feature = "websocket-notify")]
 pub(crate) mod notifier;
 mod prom;

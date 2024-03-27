@@ -22,7 +22,7 @@ use std::collections::BTreeMap;
 use url::Url;
 
 const RAW: u64 = 0x55;
-const WASM_CID: &str = "bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q";
+const WASM_CID: &str = "bafybeibk42jwhq7w2zcpe6q3wgtleugp3ymfs3pa5gerjmnakqihhqx4zq";
 
 type NonceBytes = Vec<u8>;
 

@@ -3787,7 +3787,7 @@
     (data (;0;) (i32.const 1048576) "\01\00\00\00")
     (@producers
       (processed-by "wit-component" "0.201.0")
-      (processed-by "wit-bindgen-rust" "0.20.0")
+      (processed-by "wit-bindgen-rust" "0.21.0")
     )
   )
   (core instance (;0;) (instantiate 0))

@@ -18,7 +18,7 @@ pub(crate) struct Fetch;
 
 #[cfg(any(test, feature = "test-utils"))]
 #[doc(hidden)]
-const WASM_CID: &str = "bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q";
+const WASM_CID: &str = "bafybeibk42jwhq7w2zcpe6q3wgtleugp3ymfs3pa5gerjmnakqihhqx4zq";
 #[cfg(any(test, feature = "test-utils"))]
 #[doc(hidden)]
 const CAT_CID: &str = "bafybeiejevluvtoevgk66plh5t6xiy3ikyuuxg3vgofuvpeckb6eadresm";

@@ -101,6 +101,9 @@
           twiggy
           unstable.cargo-component
           unstable.wasm-tools
+          # TODO: Return to this
+          # unstable.warg
+          # unstable.wit
         ];
 
         ci = pkgs.writeScriptBin "ci" ''
@@ -237,6 +240,7 @@
           cp target/wasm32-wasi/release-wasm-fn/homestar_functions_test.wasm homestar-wasm/fixtures/example_test_wasi.wasm
           wasm-tools component new homestar-wasm/fixtures/example_test_wasi.wasm -o homestar-wasm/fixtures/example_test_wasi_component.wasm --adapt homestar-functions/wasi_snapshot_preview1.wasm
           cp homestar-wasm/fixtures/example_test.wasm examples/websocket-relay/example_test.wasm
+          wasm-tools component wit homestar-wasm/wit -o homestar-wasm/fixtures/host.wasm --wasm
         '';
 
         wasmAdd = pkgs.writeScriptBin "wasm-ex-add" ''

@@ -1,8 +1,8 @@
-package homestar-functions:test;
+package homestar:test@0.1.1;
 
 world test {
     import wasi:logging/logging;
-    import homestar:host/helpers@0.0.1;
+    import homestar:host/helpers@0.1.1;
 
     record num-keys {
         name: string,

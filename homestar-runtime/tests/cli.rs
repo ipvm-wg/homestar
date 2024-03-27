@@ -243,7 +243,7 @@ fn test_workflow_run_integration() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q",
+            "ipfs://bafybeibk42jwhq7w2zcpe6q3wgtleugp3ymfs3pa5gerjmnakqihhqx4zq",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
@@ -257,7 +257,7 @@ fn test_workflow_run_integration() -> Result<()> {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "ipfs://bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q",
+            "ipfs://bafybeibk42jwhq7w2zcpe6q3wgtleugp3ymfs3pa5gerjmnakqihhqx4zq",
         ))
         .stdout(predicate::str::contains("num_tasks"))
         .stdout(predicate::str::contains("progress_count"));
@@ -273,7 +273,7 @@ fn test_workflow_run_integration_nonced() -> Result<()> {
     let rpc_port = proc_info.rpc_port;
     let metrics_port = proc_info.metrics_port;
     let ws_port = proc_info.ws_port;
-    let workflow_cid = "bafyrmid4ev2l44lgbazmgg36rui3eirzp5tg5ebnaexyogdnzv4hmvvtay";
+    let workflow_cid = "bafyrmibajjtwrcqrntnvp5fgkim6mbbsh6ykkdy3eijq2ycdjhlisxxx3i";
     let toml = format!(
         r#"
         [node]

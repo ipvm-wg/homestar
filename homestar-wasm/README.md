@@ -505,11 +505,11 @@ interpreted as a `string` in WIT, and vice versa.
 
   ```json
   {
-    "args": ["bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"]
+    "args": ["bafybeiabee2ngqpdo7nant5wtj7hejzr7bse2kb54u4zg4gktjvih5uyfu"]
   }
   ```
 
-  `"bafybeia32q3oy6u47x624rmsmgrrlpn7ulruissmz5z2ap6alv7goe7h3q"` is converted
+  `"bafybeiabee2ngqpdo7nant5wtj7hejzr7bse2kb54u4zg4gktjvih5uyfu"` is converted
   into an `Ipld::Link`, which is then translated and passed into `fn` as a
   `string` argument.
 
