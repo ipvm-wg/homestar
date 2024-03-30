@@ -52,13 +52,6 @@ pub struct Libp2p {
 }
 
 /// DHT settings.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub(crate) struct Quic {
-    /// Enable Quic transport.
-    pub(crate) enable: bool,
-}
-
-/// DHT settings.
 #[serde_as]
 #[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[builder(default)]
@@ -127,6 +120,13 @@ pub struct Pubsub {
     pub(crate) mesh_outbound_min: usize,
 }
 
+/// Quic settings.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub(crate) struct Quic {
+    /// Enable Quic transport.
+    pub(crate) enable: bool,
+}
+
 /// Rendezvous settings.
 #[serde_as]
 #[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -193,12 +193,6 @@ impl Default for Dht {
     }
 }
 
-impl Default for Quic {
-    fn default() -> Self {
-        Self { enable: true }
-    }
-}
-
 impl Default for Mdns {
     fn default() -> Self {
         Self {
@@ -222,6 +216,12 @@ impl Default for Pubsub {
             mesh_n: 2,
             mesh_outbound_min: 1,
         }
+    }
+}
+
+impl Default for Quic {
+    fn default() -> Self {
+        Self { enable: true }
     }
 }
 
