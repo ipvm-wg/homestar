@@ -16,7 +16,7 @@ use std::{
 
 mod libp2p_config;
 mod pubkey_config;
-pub use libp2p_config::{Dht, Libp2p, Mdns, Pubsub, Rendezvous};
+pub use libp2p_config::{Autonat, Dht, Libp2p, Mdns, Pubsub, Rendezvous};
 pub use pubkey_config::{ExistingKeyPath, KeyType, PubkeyConfig, RNGSeed};
 
 #[cfg(target_os = "windows")]

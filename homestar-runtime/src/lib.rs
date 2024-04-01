@@ -84,7 +84,7 @@ pub(crate) use scheduler::TaskScheduler;
 #[cfg(feature = "ipfs")]
 pub use settings::IpfsBuilder;
 pub use settings::{
-    DatabaseBuilder, Dht, ExistingKeyPath, KeyType, Libp2p, Mdns, MetricsBuilder,
+    Autonat, DatabaseBuilder, Dht, ExistingKeyPath, KeyType, Libp2p, Mdns, MetricsBuilder,
     MonitoringBuilder, NetworkBuilder, NodeBuilder, PubkeyConfig, Pubsub, RNGSeed, Rendezvous,
     RpcBuilder, Settings, SettingsBuilder, WebserverBuilder,
 };

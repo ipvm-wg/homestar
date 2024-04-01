@@ -16,6 +16,8 @@ pub struct Libp2p {
     /// network.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
     pub(crate) announce_addresses: Vec<libp2p::Multiaddr>,
+    /// Autonat DHT Settings
+    pub(crate) autonat: Autonat,
     /// Kademlia DHT Settings
     pub(crate) dht: Dht,
     #[serde_as(as = "DurationSeconds<u64>")]
@@ -49,6 +51,18 @@ pub struct Libp2p {
     /// Bootstrap dial interval.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) bootstrap_interval: Duration,
+}
+
+/// Autonat settings.
+#[serde_as]
+#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[builder(default)]
+#[serde(default)]
+pub struct Autonat {
+    /// Use global IP addresses only. A server will only fulfill probe requests
+    /// for public addresses, and a client will only request probes
+    /// from servers at public addresses.
+    pub(crate) only_global_ips: bool,
 }
 
 /// DHT settings.
@@ -149,6 +163,7 @@ impl Default for Libp2p {
     fn default() -> Self {
         Self {
             announce_addresses: Vec::new(),
+            autonat: Autonat::default(),
             dht: Dht::default(),
             // https://github.com/libp2p/rust-libp2p/pull/4967
             // https://github.com/libp2p/rust-libp2p/pull/4887
@@ -177,6 +192,14 @@ impl Libp2p {
     /// Pub/sub settings getter.
     pub(crate) fn pubsub(&self) -> &Pubsub {
         &self.pubsub
+    }
+}
+
+impl Default for Autonat {
+    fn default() -> Self {
+        Self {
+            only_global_ips: true,
+        }
     }
 }
 

@@ -27,7 +27,7 @@ use libipld::Cid;
 #[cfg(feature = "websocket-notify")]
 use libp2p::Multiaddr;
 use libp2p::{
-    gossipsub, identify, kad,
+    autonat, gossipsub, identify, kad,
     kad::{AddProviderOk, BootstrapOk, GetProvidersOk, GetRecordOk, PutRecordOk, QueryResult},
     mdns,
     multiaddr::Protocol,
@@ -106,6 +106,19 @@ async fn handle_swarm_event<DB: Database>(
     event_handler: &mut EventHandler<DB>,
 ) {
     match event {
+        SwarmEvent::Behaviour(ComposedEvent::Autonat(autonat_event)) => {
+            match autonat_event {
+                autonat::Event::InboundProbe { .. } => {
+                    // TODO
+                }
+                autonat::Event::OutboundProbe { .. } => {
+                    // TODO
+                }
+                autonat::Event::StatusChanged { .. } => {
+                    // TODO
+                }
+            }
+        }
         SwarmEvent::Behaviour(ComposedEvent::Identify(identify_event)) => {
             match identify_event {
                 identify::Event::Error { peer_id, error } => {
