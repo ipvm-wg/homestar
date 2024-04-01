@@ -55,10 +55,17 @@ pub struct Libp2p {
 
 /// Autonat settings.
 #[serde_as]
-#[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[builder(default)]
-#[serde(default)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Autonat {
+    /// Initial delay before starting the fist probe.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) boot_delay: Duration,
+    /// Probe interval when max confidence has not been achieved
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) retry_interval: Duration,
+    /// Throttle period before re-using a peer as server for a dial-request.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) throttle_server_period: Duration,
     /// Use global IP addresses only. A server will only fulfill probe requests
     /// for public addresses, and a client will only request probes
     /// from servers at public addresses.
@@ -184,6 +191,11 @@ impl Default for Libp2p {
 }
 
 impl Libp2p {
+    /// Autonat settings getter.
+    pub(crate) fn autonat(&self) -> &Autonat {
+        &self.autonat
+    }
+
     /// DHT settings getter.
     pub(crate) fn dht(&self) -> &Dht {
         &self.dht
@@ -198,6 +210,9 @@ impl Libp2p {
 impl Default for Autonat {
     fn default() -> Self {
         Self {
+            boot_delay: Duration::from_secs(15),
+            retry_interval: Duration::from_secs(90),
+            throttle_server_period: Duration::from_secs(90),
             only_global_ips: true,
         }
     }

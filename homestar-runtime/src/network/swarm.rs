@@ -66,7 +66,10 @@ pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBe
             autonat: autonat::Behaviour::new(
                 keypair.clone().public().to_peer_id(),
                 autonat::Config {
-                    only_global_ips: settings.libp2p().autonat.only_global_ips,
+                    boot_delay: settings.libp2p().autonat().boot_delay,
+                    retry_interval: settings.libp2p().autonat().retry_interval,
+                    throttle_server_period: settings.libp2p().autonat().throttle_server_period,
+                    only_global_ips: settings.libp2p().autonat().only_global_ips,
                     ..Default::default()
                 },
             ),
