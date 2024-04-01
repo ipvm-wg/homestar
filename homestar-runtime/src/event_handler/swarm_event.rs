@@ -108,14 +108,29 @@ async fn handle_swarm_event<DB: Database>(
     match event {
         SwarmEvent::Behaviour(ComposedEvent::Autonat(autonat_event)) => {
             match autonat_event {
-                autonat::Event::InboundProbe { .. } => {
-                    // TODO
+                autonat::Event::InboundProbe(event) => {
+                    // TODO Add log
+                    println!("INBOUND PROBE EVENT: {event:?}")
                 }
-                autonat::Event::OutboundProbe { .. } => {
-                    // TODO
+                autonat::Event::OutboundProbe(event) => {
+                    // TODO Add log
+                    println!("OUTBOUND PROBE EVENT: {event:?}");
+                    println!(
+                        "CONFIDENCE: {}",
+                        event_handler.swarm.behaviour().autonat.confidence()
+                    )
                 }
-                autonat::Event::StatusChanged { .. } => {
-                    // TODO
+                autonat::Event::StatusChanged { old, new } => {
+                    // TODO Add log
+                    println!("STATUS CHANGED: Old - {old:?}, New - {new:?}");
+
+                    #[cfg(feature = "websocket-notify")]
+                    notification::emit_network_event(
+                        event_handler.ws_evt_sender(),
+                        NetworkNotification::StatusChangedAutonat(
+                            notification::StatusChangedAutonat::new(new),
+                        ),
+                    );
                 }
             }
         }

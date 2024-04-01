@@ -20,8 +20,8 @@ pub(crate) use network::{
     NetworkNotification, NewListenAddr, OutgoingConnectionError, PeerRegisteredRendezvous,
     PublishedReceiptPubsub, PutReceiptDht, PutWorkflowInfoDht, ReceiptQuorumFailureDht,
     ReceiptQuorumSuccessDht, ReceivedReceiptPubsub, ReceivedWorkflowInfo, RegisteredRendezvous,
-    SentWorkflowInfo, WorkflowInfoQuorumFailureDht, WorkflowInfoQuorumSuccessDht,
-    WorkflowInfoSource,
+    SentWorkflowInfo, StatusChangedAutonat, WorkflowInfoQuorumFailureDht,
+    WorkflowInfoQuorumSuccessDht, WorkflowInfoSource,
 };
 pub(crate) use receipt::ReceiptNotification;
 
