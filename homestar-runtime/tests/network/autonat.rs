@@ -43,7 +43,7 @@ fn test_autonat_confirms_address_integration() -> Result<()> {
         boot_delay = 1
         retry_interval = 3
         throttle_server_period = 2
-        only_global_ips = false
+        only_public_ips = false
         [node.network.libp2p.mdns]
         enable = false
         [node.network.libp2p.rendezvous]
@@ -91,7 +91,7 @@ fn test_autonat_confirms_address_integration() -> Result<()> {
             boot_delay = 1
             retry_interval = 3
             throttle_server_period = 2
-            only_global_ips = false
+            only_public_ips = false
             [node.network.libp2p.mdns]
             enable = false
             [node.network.metrics]

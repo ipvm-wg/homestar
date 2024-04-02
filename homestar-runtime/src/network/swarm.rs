@@ -69,7 +69,7 @@ pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBe
                     boot_delay: settings.libp2p().autonat().boot_delay,
                     retry_interval: settings.libp2p().autonat().retry_interval,
                     throttle_server_period: settings.libp2p().autonat().throttle_server_period,
-                    only_global_ips: settings.libp2p().autonat().only_global_ips,
+                    only_global_ips: settings.libp2p().autonat().only_public_ips,
                     ..Default::default()
                 },
             ),

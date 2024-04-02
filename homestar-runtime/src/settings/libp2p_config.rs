@@ -66,10 +66,10 @@ pub struct Autonat {
     /// Throttle period before re-using a peer as server for a dial-request.
     #[serde_as(as = "DurationSeconds<u64>")]
     pub(crate) throttle_server_period: Duration,
-    /// Use global IP addresses only. A server will only fulfill probe requests
+    /// Use public IP addresses only. A server will only fulfill probe requests
     /// for public addresses, and a client will only request probes
     /// from servers at public addresses.
-    pub(crate) only_global_ips: bool,
+    pub(crate) only_public_ips: bool,
 }
 
 /// DHT settings.
@@ -213,7 +213,7 @@ impl Default for Autonat {
             boot_delay: Duration::from_secs(15),
             retry_interval: Duration::from_secs(90),
             throttle_server_period: Duration::from_secs(90),
-            only_global_ips: true,
+            only_public_ips: true,
         }
     }
 }
