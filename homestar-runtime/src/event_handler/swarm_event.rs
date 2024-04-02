@@ -27,7 +27,8 @@ use libipld::Cid;
 #[cfg(feature = "websocket-notify")]
 use libp2p::Multiaddr;
 use libp2p::{
-    autonat, gossipsub, identify, kad,
+    autonat::{self, NatStatus},
+    gossipsub, identify, kad,
     kad::{AddProviderOk, BootstrapOk, GetProvidersOk, GetRecordOk, PutRecordOk, QueryResult},
     mdns,
     multiaddr::Protocol,
@@ -121,8 +122,33 @@ async fn handle_swarm_event<DB: Database>(
                     )
                 }
                 autonat::Event::StatusChanged { old, new } => {
-                    // TODO Add log
-                    println!("STATUS CHANGED: Old - {old:?}, New - {new:?}");
+                    match &new {
+                        NatStatus::Public(address) => {
+                            event_handler.swarm.add_external_address(address.clone());
+
+                            info!(
+                                subject = "libp2p.autonat.status_change",
+                                category = "handle_swarm_event",
+                                address = address.to_string(),
+                                "Confirmed a public address",
+                            );
+                        }
+                        _ => {
+                            if let NatStatus::Public(address) = old {
+                                // Announce addresses are configured and should not be removed
+                                if !event_handler.announce_addresses.contains(&address) {
+                                    event_handler.swarm.remove_external_address(&address);
+
+                                    info!(
+                                        subject = "libp2p.autonat.status_change",
+                                        category = "handle_swarm_event",
+                                        address = address.to_string(),
+                                        "Removed an address that is no longer public",
+                                    );
+                                }
+                            }
+                        }
+                    }
 
                     #[cfg(feature = "websocket-notify")]
                     notification::emit_network_event(
