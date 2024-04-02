@@ -109,18 +109,65 @@ async fn handle_swarm_event<DB: Database>(
     match event {
         SwarmEvent::Behaviour(ComposedEvent::Autonat(autonat_event)) => {
             match autonat_event {
-                autonat::Event::InboundProbe(event) => {
-                    // TODO Add log
-                    println!("INBOUND PROBE EVENT: {event:?}")
-                }
-                autonat::Event::OutboundProbe(event) => {
-                    // TODO Add log
-                    println!("OUTBOUND PROBE EVENT: {event:?}");
-                    println!(
-                        "CONFIDENCE: {}",
-                        event_handler.swarm.behaviour().autonat.confidence()
-                    )
-                }
+                autonat::Event::InboundProbe(event) => match event {
+                    autonat::InboundProbeEvent::Request {
+                        peer, addresses, ..
+                    } => {
+                        debug!(
+                            subject = "libp2p.autonat.inbound_probe",
+                            category = "handle_swarm_event",
+                            peer_id = peer.to_string(),
+                            addresses = ?addresses,
+                            "received a probe request",
+                        );
+                    }
+                    autonat::InboundProbeEvent::Response { peer, address, .. } => {
+                        debug!(
+                            subject = "libp2p.autonat.inbound_probe",
+                            category = "handle_swarm_event",
+                            peer_id = peer.to_string(),
+                            address = address.to_string(),
+                            "successfully probed an external address for a peer",
+                        );
+                    }
+                    autonat::InboundProbeEvent::Error { peer, error, .. } => {
+                        debug!(
+                            subject = "libp2p.autonat.inbound_probe",
+                            category = "handle_swarm_event",
+                            peer_id = peer.to_string(),
+                            error = ?error,
+                            "unable to probe a peer",
+                        );
+                    }
+                },
+                autonat::Event::OutboundProbe(event) => match event {
+                    autonat::OutboundProbeEvent::Request { peer, .. } => {
+                        debug!(
+                            subject = "libp2p.autonat.outbound_probe",
+                            category = "handle_swarm_event",
+                            peer_id = peer.to_string(),
+                            "requested a probe from a peer",
+                        );
+                    }
+                    autonat::OutboundProbeEvent::Response { peer, address, .. } => {
+                        debug!(
+                            subject = "libp2p.autonat.outbound_probe",
+                            category = "handle_swarm_event",
+                            peer_id = peer.to_string(),
+                            address = address.to_string(),
+                            "peer successfully probed an external address",
+                        );
+                    }
+                    autonat::OutboundProbeEvent::Error { peer, error, .. } => {
+                        debug!(
+                            subject = "libp2p.autonat.outbound_probe",
+                            category = "handle_swarm_event",
+                            peer_id = peer.map(|p| p.to_string()).unwrap_or("<none>".to_string()),
+                            error = ?error,
+                            "requested probe failed",
+                        );
+                    }
+                },
                 autonat::Event::StatusChanged { old, new } => {
                     match &new {
                         NatStatus::Public(address) => {
@@ -130,7 +177,7 @@ async fn handle_swarm_event<DB: Database>(
                                 subject = "libp2p.autonat.status_change",
                                 category = "handle_swarm_event",
                                 address = address.to_string(),
-                                "Confirmed a public address",
+                                "confirmed a public address",
                             );
                         }
                         _ => {
@@ -143,7 +190,7 @@ async fn handle_swarm_event<DB: Database>(
                                         subject = "libp2p.autonat.status_change",
                                         category = "handle_swarm_event",
                                         address = address.to_string(),
-                                        "Removed an address that is no longer public",
+                                        "removed an address that is no longer public",
                                     );
                                 }
                             }
