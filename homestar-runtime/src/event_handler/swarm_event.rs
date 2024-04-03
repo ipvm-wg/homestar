@@ -242,7 +242,7 @@ async fn handle_swarm_event<DB: Database>(
 
                     let num_addresses = event_handler.swarm.external_addresses().count();
 
-                    // Add observed address as an external address if we are identifying ourselves
+                    // Probe observed address as an external address if we are identifying ourselves
                     if &peer_id == event_handler.swarm.local_peer_id()
                         && num_addresses < event_handler.external_address_limit as usize
                     {
@@ -254,9 +254,15 @@ async fn handle_swarm_event<DB: Database>(
                                 _ => None,
                             })
                             .all(|proto| !proto.is_private())
-                            // Identify observed a potentially valid external address that we weren't aware of.
-                            // Add it to the addresses we announce to other peers.
-                            .then(|| event_handler.swarm.add_external_address(info.observed_addr));
+                            // We have observed a potentially valid external address that we weren't aware of.
+                            // Probe it with AutoNAT to confirm it and on confirmation add it to addresses we announce to peers.
+                            .then(|| {
+                                event_handler
+                                    .swarm
+                                    .behaviour_mut()
+                                    .autonat
+                                    .probe_address(info.observed_addr)
+                            });
                     }
 
                     let behavior = event_handler.swarm.behaviour_mut();
