@@ -43,7 +43,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Outgoing conenction error notification.",
+      "description": "Outgoing connection error notification.",
       "type": "object",
       "required": [
         "outgoing_connection_error"
@@ -56,7 +56,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Incoming conenction error notification.",
+      "description": "Incoming connection error notification.",
       "type": "object",
       "required": [
         "incoming_connection_error"
@@ -64,6 +64,19 @@
       "properties": {
         "incoming_connection_error": {
           "$ref": "#/definitions/incoming_connection_error"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Autonat status changed notification.",
+      "type": "object",
+      "required": [
+        "status_changed_autonat"
+      ],
+      "properties": {
+        "status_changed_autonat": {
+          "$ref": "#/definitions/status_changed_autonat"
         }
       },
       "additionalProperties": false
@@ -837,6 +850,28 @@
         },
         "requestor": {
           "description": "Peer that requested workflow info",
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "status_changed_autonat": {
+      "type": "object",
+      "required": [
+        "status",
+        "timestamp"
+      ],
+      "properties": {
+        "address": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
           "type": "string"
         },
         "timestamp": {
