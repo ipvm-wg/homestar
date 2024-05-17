@@ -13,6 +13,7 @@ use enum_assoc::Assoc;
 use faststr::FastStr;
 use futures::future::Either;
 use libp2p::{
+    autonat,
     core::{
         muxing::StreamMuxerBox,
         transport::{self, OptionalTransport},
@@ -62,6 +63,16 @@ pub(crate) async fn new(settings: &settings::Network) -> Result<Swarm<ComposedBe
     let mut swarm = Swarm::new(
         transport,
         ComposedBehaviour {
+            autonat: autonat::Behaviour::new(
+                keypair.clone().public().to_peer_id(),
+                autonat::Config {
+                    boot_delay: settings.libp2p().autonat().boot_delay,
+                    retry_interval: settings.libp2p().autonat().retry_interval,
+                    throttle_server_period: settings.libp2p().autonat().throttle_server_period,
+                    only_global_ips: settings.libp2p().autonat().only_public_ips,
+                    ..Default::default()
+                },
+            ),
             gossipsub: Toggle::from(if settings.libp2p.pubsub.enable {
                 Some(pubsub::new(keypair.clone(), settings.libp2p().pubsub())?)
             } else {
@@ -275,6 +286,8 @@ impl fmt::Display for CapsuleTag {
 /// Custom event types to listen for and respond to.
 #[derive(Debug)]
 pub(crate) enum ComposedEvent {
+    /// [autonat::Event] event.
+    Autonat(autonat::Event),
     /// [gossipsub::Event] event.
     Gossipsub(Box<gossipsub::Event>),
     /// [kad::Event] event.
@@ -303,6 +316,8 @@ pub(crate) enum TopicMessage {
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "ComposedEvent")]
 pub(crate) struct ComposedBehaviour {
+    /// [autonat::Behaviour] behaviour.
+    pub(crate) autonat: autonat::Behaviour,
     /// [gossipsub::Behaviour] behaviour.
     pub(crate) gossipsub: Toggle<gossipsub::Behaviour>,
     /// In-memory [kademlia: kad::Behaviour] behaviour.
@@ -358,6 +373,12 @@ impl ComposedBehaviour {
         } else {
             Err(PubSubError::NotEnabled)
         }
+    }
+}
+
+impl From<autonat::Event> for ComposedEvent {
+    fn from(event: autonat::Event) -> Self {
+        ComposedEvent::Autonat(event)
     }
 }
 

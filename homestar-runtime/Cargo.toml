@@ -97,6 +97,7 @@ jsonrpsee = { version = "0.21", default-features = false, features = [
 ] }
 libipld = { workspace = true }
 libp2p = { version = "0.53", default-features = false, features = [
+  "autonat",
   "dns",
   "kad",
   "request-response",

@@ -16,6 +16,8 @@ pub struct Libp2p {
     /// network.
     #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
     pub(crate) announce_addresses: Vec<libp2p::Multiaddr>,
+    /// Autonat DHT Settings
+    pub(crate) autonat: Autonat,
     /// Kademlia DHT Settings
     pub(crate) dht: Dht,
     #[serde_as(as = "DurationSeconds<u64>")]
@@ -51,11 +53,23 @@ pub struct Libp2p {
     pub(crate) bootstrap_interval: Duration,
 }
 
-/// DHT settings.
+/// Autonat settings.
+#[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub(crate) struct Quic {
-    /// Enable Quic transport.
-    pub(crate) enable: bool,
+pub struct Autonat {
+    /// Initial delay before starting the fist probe.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) boot_delay: Duration,
+    /// Probe interval when max confidence has not been achieved
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) retry_interval: Duration,
+    /// Throttle period before re-using a peer as server for a dial-request.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub(crate) throttle_server_period: Duration,
+    /// Use public IP addresses only. A server will only fulfill probe requests
+    /// for public addresses, and a client will only request probes
+    /// from servers at public addresses.
+    pub(crate) only_public_ips: bool,
 }
 
 /// DHT settings.
@@ -127,6 +141,13 @@ pub struct Pubsub {
     pub(crate) mesh_outbound_min: usize,
 }
 
+/// Quic settings.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub(crate) struct Quic {
+    /// Enable Quic transport.
+    pub(crate) enable: bool,
+}
+
 /// Rendezvous settings.
 #[serde_as]
 #[derive(Builder, Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -149,6 +170,7 @@ impl Default for Libp2p {
     fn default() -> Self {
         Self {
             announce_addresses: Vec::new(),
+            autonat: Autonat::default(),
             dht: Dht::default(),
             // https://github.com/libp2p/rust-libp2p/pull/4967
             // https://github.com/libp2p/rust-libp2p/pull/4887
@@ -169,6 +191,11 @@ impl Default for Libp2p {
 }
 
 impl Libp2p {
+    /// Autonat settings getter.
+    pub(crate) fn autonat(&self) -> &Autonat {
+        &self.autonat
+    }
+
     /// DHT settings getter.
     pub(crate) fn dht(&self) -> &Dht {
         &self.dht
@@ -177,6 +204,17 @@ impl Libp2p {
     /// Pub/sub settings getter.
     pub(crate) fn pubsub(&self) -> &Pubsub {
         &self.pubsub
+    }
+}
+
+impl Default for Autonat {
+    fn default() -> Self {
+        Self {
+            boot_delay: Duration::from_secs(15),
+            retry_interval: Duration::from_secs(90),
+            throttle_server_period: Duration::from_secs(90),
+            only_public_ips: true,
+        }
     }
 }
 
@@ -190,12 +228,6 @@ impl Default for Dht {
             receipt_quorum: 2,
             workflow_quorum: 3,
         }
-    }
-}
-
-impl Default for Quic {
-    fn default() -> Self {
-        Self { enable: true }
     }
 }
 
@@ -222,6 +254,12 @@ impl Default for Pubsub {
             mesh_n: 2,
             mesh_outbound_min: 1,
         }
+    }
+}
+
+impl Default for Quic {
+    fn default() -> Self {
+        Self { enable: true }
     }
 }
 

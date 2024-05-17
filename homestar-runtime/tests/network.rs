@@ -14,6 +14,8 @@ use std::{
 };
 
 #[cfg(feature = "websocket-notify")]
+mod autonat;
+#[cfg(feature = "websocket-notify")]
 mod connection;
 #[cfg(all(feature = "websocket-notify", feature = "test-utils"))]
 mod dht;

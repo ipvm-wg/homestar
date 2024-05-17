@@ -3,18 +3,19 @@
 //! [swarm]: libp2p::swarm::Swarm
 
 use anyhow::anyhow;
-
 use homestar_invocation::ipld::DagJson;
 use libipld::{serde::from_ipld, Ipld};
 use schemars::JsonSchema;
 use std::{collections::BTreeMap, fmt};
 
+pub(crate) mod autonat;
 pub(crate) mod connection;
 pub(crate) mod dht;
 pub(crate) mod mdns;
 pub(crate) mod pubsub;
 pub(crate) mod rendezvous;
 pub(crate) mod req_resp;
+pub(crate) use autonat::StatusChangedAutonat;
 pub(crate) use connection::{
     ConnectionClosed, ConnectionEstablished, IncomingConnectionError, NewListenAddr,
     OutgoingConnectionError,
@@ -43,12 +44,15 @@ pub enum NetworkNotification {
     /// Connection closed notification.
     #[schemars(rename = "connection_closed")]
     ConnnectionClosed(ConnectionClosed),
-    /// Outgoing conenction error notification.
+    /// Outgoing connection error notification.
     #[schemars(rename = "outgoing_connection_error")]
     OutgoingConnectionError(OutgoingConnectionError),
-    /// Incoming conenction error notification.
+    /// Incoming connection error notification.
     #[schemars(rename = "incoming_connection_error")]
     IncomingConnectionError(IncomingConnectionError),
+    /// Autonat status changed notification.
+    #[schemars(rename = "status_changed_autonat")]
+    StatusChangedAutonat(StatusChangedAutonat),
     /// mDNS discovered notification.
     #[schemars(rename = "discovered_mdns")]
     DiscoveredMdns(DiscoveredMdns),
@@ -120,6 +124,7 @@ impl fmt::Display for NetworkNotification {
             NetworkNotification::IncomingConnectionError(_) => {
                 write!(f, "incoming_connection_error")
             }
+            NetworkNotification::StatusChangedAutonat(_) => write!(f, "status_changed_autonat"),
             NetworkNotification::DiscoveredMdns(_) => write!(f, "discovered_mdns"),
             NetworkNotification::DiscoveredRendezvous(_) => write!(f, "discovered_rendezvous"),
             NetworkNotification::RegisteredRendezvous(_) => write!(f, "registered_rendezvous"),
@@ -178,6 +183,10 @@ impl From<NetworkNotification> for Ipld {
             )])),
             NetworkNotification::IncomingConnectionError(n) => Ipld::Map(BTreeMap::from([(
                 "incoming_connection_error".into(),
+                n.into(),
+            )])),
+            NetworkNotification::StatusChangedAutonat(n) => Ipld::Map(BTreeMap::from([(
+                "status_changed_autonat".into(),
                 n.into(),
             )])),
             NetworkNotification::DiscoveredMdns(n) => {
@@ -267,6 +276,9 @@ impl TryFrom<Ipld> for NetworkNotification {
                 "incoming_connection_error" => Ok(NetworkNotification::IncomingConnectionError(
                     IncomingConnectionError::try_from(val.to_owned())?,
                 )),
+                "status_changed_autonat" => Ok(NetworkNotification::StatusChangedAutonat(
+                    StatusChangedAutonat::try_from(val.to_owned())?,
+                )),
                 "discovered_mdns" => Ok(NetworkNotification::DiscoveredMdns(
                     DiscoveredMdns::try_from(val.to_owned())?,
                 )),
@@ -333,10 +345,12 @@ impl TryFrom<Ipld> for NetworkNotification {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::libp2p::nat_status::NatStatusExt;
     use faststr::FastStr;
     use homestar_invocation::test_utils::cid::generate_cid;
     use libipld::Cid;
     use libp2p::{
+        autonat::NatStatus,
         swarm::{DialError, ListenError},
         Multiaddr, PeerId,
     };
@@ -350,6 +364,7 @@ mod test {
         cid: Cid,
         connected_peer_count: usize,
         name: FastStr,
+        nat_status: NatStatus,
         num_tasks: u32,
         peer_id: PeerId,
         peers: Vec<PeerId>,
@@ -371,6 +386,7 @@ mod test {
             cid: generate_cid(&mut thread_rng()),
             connected_peer_count: 1,
             name: FastStr::new("Strong Bad"),
+            nat_status: NatStatus::Public(Multiaddr::from_str("/ip4/127.0.0.1/tcp/7002").unwrap()),
             num_tasks: 1,
             peer_id: PeerId::random(),
             peers: vec![PeerId::random(), PeerId::random()],
@@ -411,6 +427,7 @@ mod test {
             cid,
             connected_peer_count,
             name,
+            nat_status,
             num_tasks,
             peer_id,
             peers,
@@ -428,6 +445,7 @@ mod test {
         let outgoing_connection_error =
             OutgoingConnectionError::new(Some(peer_id), DialError::NoAddresses);
         let incoming_connection_error = IncomingConnectionError::new(ListenError::Aborted);
+        let status_changed_autonat = StatusChangedAutonat::new(nat_status);
         let discovered_mdns = DiscoveredMdns::new(peers_map);
         let discovered_rendezvous = DiscoveredRendezvous::new(peer_id, peers_map_vec_addr);
         let registered_rendezvous = RegisteredRendezvous::new(peer_id);
@@ -507,6 +525,10 @@ mod test {
                 NetworkNotification::IncomingConnectionError(incoming_connection_error),
             ),
             (
+                status_changed_autonat.timestamp().to_owned(),
+                NetworkNotification::StatusChangedAutonat(status_changed_autonat),
+            ),
+            (
                 discovered_mdns.timestamp().to_owned(),
                 NetworkNotification::DiscoveredMdns(discovered_mdns),
             ),
@@ -584,6 +606,7 @@ mod test {
             cid,
             connected_peer_count,
             name,
+            nat_status,
             num_tasks,
             peer_id,
             peers,
@@ -622,6 +645,18 @@ mod test {
             NetworkNotification::IncomingConnectionError(n) => {
                 assert_eq!(n.timestamp(), timestamp);
                 assert_eq!(n.error().to_string(), ListenError::Aborted.to_string());
+            }
+            NetworkNotification::StatusChangedAutonat(n) => {
+                let (status, address) = nat_status.to_tuple();
+
+                assert_eq!(n.timestamp(), timestamp);
+                assert_eq!(n.status(), &status);
+                assert_eq!(
+                    n.address()
+                        .as_ref()
+                        .map(|a| Multiaddr::from_str(&a).unwrap()),
+                    address
+                );
             }
             NetworkNotification::DiscoveredMdns(n) => {
                 assert_eq!(n.timestamp(), timestamp);

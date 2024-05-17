@@ -27,6 +27,7 @@ use libipld::Cid;
 #[cfg(feature = "websocket-notify")]
 use libp2p::Multiaddr;
 use libp2p::{
+    autonat::{self, NatStatus},
     gossipsub, identify, kad,
     kad::{AddProviderOk, BootstrapOk, GetProvidersOk, GetRecordOk, PutRecordOk, QueryResult},
     mdns,
@@ -106,6 +107,106 @@ async fn handle_swarm_event<DB: Database>(
     event_handler: &mut EventHandler<DB>,
 ) {
     match event {
+        SwarmEvent::Behaviour(ComposedEvent::Autonat(autonat_event)) => {
+            match autonat_event {
+                autonat::Event::InboundProbe(event) => match event {
+                    autonat::InboundProbeEvent::Request {
+                        peer, addresses, ..
+                    } => {
+                        debug!(
+                            subject = "libp2p.autonat.inbound_probe",
+                            category = "handle_swarm_event",
+                            peer_id = peer.to_string(),
+                            addresses = ?addresses,
+                            "received a probe request",
+                        );
+                    }
+                    autonat::InboundProbeEvent::Response { peer, address, .. } => {
+                        debug!(
+                            subject = "libp2p.autonat.inbound_probe",
+                            category = "handle_swarm_event",
+                            peer_id = peer.to_string(),
+                            address = address.to_string(),
+                            "successfully probed an external address for a peer",
+                        );
+                    }
+                    autonat::InboundProbeEvent::Error { peer, error, .. } => {
+                        debug!(
+                            subject = "libp2p.autonat.inbound_probe",
+                            category = "handle_swarm_event",
+                            peer_id = peer.to_string(),
+                            error = ?error,
+                            "unable to probe a peer",
+                        );
+                    }
+                },
+                autonat::Event::OutboundProbe(event) => match event {
+                    autonat::OutboundProbeEvent::Request { peer, .. } => {
+                        debug!(
+                            subject = "libp2p.autonat.outbound_probe",
+                            category = "handle_swarm_event",
+                            peer_id = peer.to_string(),
+                            "requested a probe from a peer",
+                        );
+                    }
+                    autonat::OutboundProbeEvent::Response { peer, address, .. } => {
+                        debug!(
+                            subject = "libp2p.autonat.outbound_probe",
+                            category = "handle_swarm_event",
+                            peer_id = peer.to_string(),
+                            address = address.to_string(),
+                            "peer successfully probed an external address",
+                        );
+                    }
+                    autonat::OutboundProbeEvent::Error { peer, error, .. } => {
+                        debug!(
+                            subject = "libp2p.autonat.outbound_probe",
+                            category = "handle_swarm_event",
+                            peer_id = peer.map(|p| p.to_string()).unwrap_or("<none>".to_string()),
+                            error = ?error,
+                            "requested probe failed",
+                        );
+                    }
+                },
+                autonat::Event::StatusChanged { old, new } => {
+                    match &new {
+                        NatStatus::Public(address) => {
+                            event_handler.swarm.add_external_address(address.clone());
+
+                            info!(
+                                subject = "libp2p.autonat.status_change",
+                                category = "handle_swarm_event",
+                                address = address.to_string(),
+                                "confirmed a public address",
+                            );
+                        }
+                        _ => {
+                            if let NatStatus::Public(address) = old {
+                                // Announce addresses are configured and should not be removed
+                                if !event_handler.announce_addresses.contains(&address) {
+                                    event_handler.swarm.remove_external_address(&address);
+
+                                    info!(
+                                        subject = "libp2p.autonat.status_change",
+                                        category = "handle_swarm_event",
+                                        address = address.to_string(),
+                                        "removed an address that is no longer public",
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    #[cfg(feature = "websocket-notify")]
+                    notification::emit_network_event(
+                        event_handler.ws_evt_sender(),
+                        NetworkNotification::StatusChangedAutonat(
+                            notification::StatusChangedAutonat::new(new),
+                        ),
+                    );
+                }
+            }
+        }
         SwarmEvent::Behaviour(ComposedEvent::Identify(identify_event)) => {
             match identify_event {
                 identify::Event::Error { peer_id, error } => {
@@ -141,7 +242,7 @@ async fn handle_swarm_event<DB: Database>(
 
                     let num_addresses = event_handler.swarm.external_addresses().count();
 
-                    // Add observed address as an external address if we are identifying ourselves
+                    // Probe observed address as an external address if we are identifying ourselves
                     if &peer_id == event_handler.swarm.local_peer_id()
                         && num_addresses < event_handler.external_address_limit as usize
                     {
@@ -153,9 +254,15 @@ async fn handle_swarm_event<DB: Database>(
                                 _ => None,
                             })
                             .all(|proto| !proto.is_private())
-                            // Identify observed a potentially valid external address that we weren't aware of.
-                            // Add it to the addresses we announce to other peers.
-                            .then(|| event_handler.swarm.add_external_address(info.observed_addr));
+                            // We have observed a potentially valid external address that we weren't aware of.
+                            // Probe it with AutoNAT to confirm it and on confirmation add it to addresses we announce to peers.
+                            .then(|| {
+                                event_handler
+                                    .swarm
+                                    .behaviour_mut()
+                                    .autonat
+                                    .probe_address(info.observed_addr)
+                            });
                     }
 
                     let behavior = event_handler.swarm.behaviour_mut();
