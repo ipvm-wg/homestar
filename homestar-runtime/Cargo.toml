@@ -120,7 +120,7 @@ libp2p = { version = "0.53", default-features = false, features = [
 ] }
 libsqlite3-sys = { workspace = true }
 maplit = "1.0"
-metrics = { version = "0.21", default-features = false }
+metrics = { version = "0.23", default-features = false }
 metrics-exporter-prometheus = { version = "0.12.1", default-features = false, features = [
   "http-listener",
 ] }
