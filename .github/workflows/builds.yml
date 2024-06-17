@@ -374,7 +374,7 @@ jobs:
 
       - name: Docker Build & Push
         if: github.event_name != 'workflow_dispatch'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           cache-to: type=inline
@@ -390,7 +390,7 @@ jobs:
 
       - name: Docker Build & Push
         if: (github.event_name == 'workflow_dispatch' && github.event.inputs.force-builds)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           cache-to: type=inline
