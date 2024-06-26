@@ -41,7 +41,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v12
 
       - name: Cache Magic
-        uses: DeterminateSystems/magic-nix-cache-action@v6
+        uses: DeterminateSystems/magic-nix-cache-action@v7
 
       - name: Check Nix flake inputs
         uses: DeterminateSystems/flake-checker-action@v7
