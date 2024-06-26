@@ -70,7 +70,7 @@ jobs:
           save-if: ${{ github.event_name == 'push' }}
 
       - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.4
+        uses: mozilla-actions/sccache-action@v0.0.5
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov

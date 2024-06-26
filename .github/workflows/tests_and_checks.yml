@@ -82,7 +82,7 @@ jobs:
           save-if: ${{ github.event_name == 'push' }}
 
       - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.4
+        uses: mozilla-actions/sccache-action@v0.0.5
 
       - name: Check Format
         run: cargo fmt --all -- --check
@@ -186,7 +186,7 @@ jobs:
           save-if: ${{ github.event_name == 'push' }}
 
       - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.4
+        uses: mozilla-actions/sccache-action@v0.0.5
 
       - name: Install nextest
         uses: taiki-e/install-action@nextest
@@ -288,7 +288,7 @@ jobs:
           save-if: ${{ github.event_name == 'push' }}
 
       - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.4
+        uses: mozilla-actions/sccache-action@v0.0.5
 
       - name: Run Tests (all-features)
         run: cargo test --workspace --all-features
@@ -318,7 +318,7 @@ jobs:
           save-if: ${{ github.event_name == 'push' }}
 
       - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.4
+        uses: mozilla-actions/sccache-action@v0.0.5
 
       - name: Run Doc(s) compilation
         env:
@@ -355,7 +355,7 @@ jobs:
           save-if: ${{ github.event_name == 'push' }}
 
       - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.4
+        uses: mozilla-actions/sccache-action@v0.0.5
 
       - name: Build example-websocket-relay
         run: cargo build -p websocket-relay

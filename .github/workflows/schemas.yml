@@ -55,7 +55,7 @@ jobs:
           save-if: ${{ github.event_name == 'push' }}
 
       - name: Sccache
-        uses: mozilla-actions/sccache-action@v0.0.4
+        uses: mozilla-actions/sccache-action@v0.0.5
 
       - name: Run generate schemas
         run: cargo run -p homestar-schemas
