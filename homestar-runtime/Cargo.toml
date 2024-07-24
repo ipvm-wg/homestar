@@ -124,7 +124,7 @@ metrics = { version = "0.21", default-features = false }
 metrics-exporter-prometheus = { version = "0.12.1", default-features = false, features = [
   "http-listener",
 ] }
-metrics-util = "0.15"
+metrics-util = "0.17"
 miette = { version = "5.10", default-features = false, features = ["fancy"] }
 moka = { version = "0.12.4", default-features = false, features = [
   "future",
