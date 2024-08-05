@@ -132,14 +132,14 @@ jobs:
 
       # Check for security advisories
       - name: Check Advisories
-        uses: EmbarkStudios/cargo-deny-action@v1
+        uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check advisories
         continue-on-error: true
 
       # Audit licenses, unreleased crates, and unexpected duplicate versions.
       - name: Check Bans, Licenses, and Sources
-        uses: EmbarkStudios/cargo-deny-action@v1
+        uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check bans licenses sources
 
